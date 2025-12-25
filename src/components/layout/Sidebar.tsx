@@ -5,7 +5,9 @@ import {
   FileText, 
   Settings,
   LogOut,
-  Building2
+  Building2,
+  Wallet,
+  MapPin
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -13,12 +15,14 @@ import { useLanguage } from "@/lib/i18n";
 
 export function Sidebar() {
   const location = useLocation();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: t.nav.employees, href: "/employees", icon: Users },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
+    { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
+    { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
     { name: t.nav.reports, href: "/reports", icon: FileText },
     { name: t.nav.settings, href: "/settings", icon: Settings },
   ];
