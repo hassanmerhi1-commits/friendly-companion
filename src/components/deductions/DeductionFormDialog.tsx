@@ -17,7 +17,7 @@ interface DeductionFormDialogProps {
 }
 
 export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { addDeduction } = useDeductionStore();
   const { employees, getActiveEmployees } = useEmployeeStore();
   const activeEmployees = getActiveEmployees();
@@ -55,6 +55,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     const labels: Record<DeductionType, string> = {
       salary_advance: t.deductions.salaryAdvance,
       warehouse_loss: t.deductions.warehouseLoss,
+      unjustified_absence: language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence',
       loan: t.deductions.loan,
       disciplinary: t.deductions.disciplinary,
       other: t.deductions.other,
@@ -102,6 +103,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
               <SelectContent>
                 <SelectItem value="salary_advance">{t.deductions.salaryAdvance}</SelectItem>
                 <SelectItem value="warehouse_loss">{t.deductions.warehouseLoss}</SelectItem>
+                <SelectItem value="unjustified_absence">{language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence'}</SelectItem>
                 <SelectItem value="loan">{t.deductions.loan}</SelectItem>
                 <SelectItem value="disciplinary">{t.deductions.disciplinary}</SelectItem>
                 <SelectItem value="other">{t.deductions.other}</SelectItem>
