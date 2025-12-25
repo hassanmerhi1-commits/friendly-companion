@@ -9,17 +9,19 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-
-const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Funcionários", href: "/employees", icon: Users },
-  { name: "Folha Salarial", href: "/payroll", icon: DollarSign },
-  { name: "Relatórios", href: "/reports", icon: FileText },
-  { name: "Configurações", href: "/settings", icon: Settings },
-];
+import { useLanguage } from "@/lib/i18n";
 
 export function Sidebar() {
   const location = useLocation();
+  const { t } = useLanguage();
+
+  const navigation = [
+    { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+    { name: t.nav.employees, href: "/employees", icon: Users },
+    { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
+    { name: t.nav.reports, href: "/reports", icon: FileText },
+    { name: t.nav.settings, href: "/settings", icon: Settings },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -33,7 +35,7 @@ export function Sidebar() {
             <h1 className="font-display text-lg font-bold text-sidebar-foreground">
               PayrollAO
             </h1>
-            <p className="text-xs text-sidebar-foreground/60">Sistema de Folha</p>
+            <p className="text-xs text-sidebar-foreground/60">{t.nav.systemTitle}</p>
           </div>
         </div>
 
@@ -43,7 +45,7 @@ export function Sidebar() {
             const isActive = location.pathname === item.href;
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 to={item.href}
                 className={cn(
                   "sidebar-link",
@@ -61,7 +63,7 @@ export function Sidebar() {
         <div className="border-t border-sidebar-border p-3">
           <button className="sidebar-link w-full text-sidebar-foreground/60 hover:text-destructive">
             <LogOut className="h-5 w-5" />
-            <span>Terminar Sessão</span>
+            <span>{t.nav.logout}</span>
           </button>
         </div>
       </div>

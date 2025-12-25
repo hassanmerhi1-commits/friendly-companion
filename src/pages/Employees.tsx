@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, UserPlus, Filter, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/lib/i18n";
 
 interface Employee {
   id: string;
@@ -105,31 +106,33 @@ function formatDate(dateString: string): string {
   });
 }
 
-function getStatusLabel(status: Employee["status"]): string {
-  const labels = {
-    active: "Ativo",
-    inactive: "Inativo",
-    "on-leave": "De Licença"
-  };
-  return labels[status];
-}
-
 const Employees = () => {
+  const { t } = useLanguage();
+
+  function getStatusLabel(status: Employee["status"]): string {
+    const labels = {
+      active: t.common.active,
+      inactive: t.common.inactive,
+      "on-leave": t.common.onLeave
+    };
+    return labels[status];
+  }
+
   return (
     <MainLayout>
       {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">
-            Funcionários
+            {t.employees.title}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Gerir todos os funcionários da empresa
+            {t.employees.subtitle}
           </p>
         </div>
         <Button variant="accent" size="lg">
           <UserPlus className="h-5 w-5 mr-2" />
-          Adicionar Funcionário
+          {t.employees.addEmployee}
         </Button>
       </div>
 
@@ -138,13 +141,13 @@ const Employees = () => {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Pesquisar funcionários..." 
+            placeholder={t.employees.searchPlaceholder}
             className="pl-10"
           />
         </div>
         <Button variant="outline">
           <Filter className="h-4 w-4 mr-2" />
-          Filtros
+          {t.common.filter}
         </Button>
       </div>
 
@@ -155,22 +158,22 @@ const Employees = () => {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Funcionário
+                  {t.employees.employee}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Departamento
+                  {t.employees.department}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Salário
+                  {t.employees.salary}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Data de Início
+                  {t.employees.startDate}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
+                  {t.common.status}
                 </th>
                 <th className="px-6 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Ações
+                  {t.common.actions}
                 </th>
               </tr>
             </thead>
@@ -230,14 +233,14 @@ const Employees = () => {
         {/* Pagination */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
           <p className="text-sm text-muted-foreground">
-            Mostrando <span className="font-medium">1-7</span> de <span className="font-medium">48</span> funcionários
+            {t.common.showing} <span className="font-medium">1-7</span> {t.common.of} <span className="font-medium">48</span> {t.employees.title.toLowerCase()}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>
-              Anterior
+              {t.common.previous}
             </Button>
             <Button variant="outline" size="sm">
-              Próximo
+              {t.common.next}
             </Button>
           </div>
         </div>

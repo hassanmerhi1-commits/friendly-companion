@@ -4,50 +4,53 @@ import { EmployeeTable } from "@/components/dashboard/EmployeeTable";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { PayrollSummary } from "@/components/dashboard/PayrollSummary";
 import { Users, DollarSign, Clock, CheckCircle } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 
 const Index = () => {
+  const { t } = useLanguage();
+
   return (
     <MainLayout>
       {/* Header */}
       <div className="mb-8 animate-fade-in">
         <h1 className="text-3xl font-display font-bold text-foreground">
-          Bem-vindo de volta
+          {t.dashboard.welcome}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Aqui está o resumo da folha salarial da sua empresa
+          {t.dashboard.summary}
         </p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title="Total Funcionários"
+          title={t.dashboard.totalEmployees}
           value="48"
-          subtitle="3 novos este mês"
+          subtitle={`3 ${t.dashboard.newThisMonth}`}
           icon={Users}
           trend={{ value: 6.7, isPositive: true }}
           delay={0}
         />
         <StatCard
-          title="Folha Total"
+          title={t.dashboard.totalPayroll}
           value="15.4M Kz"
-          subtitle="Dezembro 2025"
+          subtitle={t.months.december + " 2025"}
           icon={DollarSign}
           variant="accent"
           trend={{ value: 3.2, isPositive: true }}
           delay={50}
         />
         <StatCard
-          title="Pendentes"
+          title={t.dashboard.pendingApproval}
           value="5"
-          subtitle="Aguardando aprovação"
+          subtitle={t.dashboard.awaitingApproval}
           icon={Clock}
           delay={100}
         />
         <StatCard
-          title="Pagos"
+          title={t.dashboard.paidEmployees}
           value="43"
-          subtitle="89.6% concluído"
+          subtitle={`89.6% ${t.dashboard.completed}`}
           icon={CheckCircle}
           delay={150}
         />
