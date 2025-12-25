@@ -5,17 +5,21 @@ import {
   FileText, 
   Settings,
   LogOut,
-  Building2,
   Wallet,
-  MapPin
+  MapPin,
+  UserCog
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
+import { useAuthStore } from "@/stores/auth-store";
+import companyLogo from "@/assets/company-logo.jpg";
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t, language } = useLanguage();
+  const { currentUser, logout } = useAuthStore();
 
   const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
@@ -27,24 +31,49 @@ export function Sidebar() {
     { name: t.nav.settings, href: "/settings", icon: Settings },
   ];
 
+  // Add users management for admins
+  if (currentUser?.role === 'admin') {
+    navigation.push({ 
+      name: language === 'pt' ? 'Utilizadores' : 'Users', 
+      href: "/users", 
+      icon: UserCog 
+    });
+  }
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
       <div className="flex h-full flex-col">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="font-display text-lg font-bold text-sidebar-foreground">
-              PayrollAO
-            </h1>
-            <p className="text-xs text-sidebar-foreground/60">{t.nav.systemTitle}</p>
-          </div>
+        <div className="flex h-20 items-center gap-3 px-4 border-b border-sidebar-border">
+          <img 
+            src={companyLogo} 
+            alt="Company Logo" 
+            className="h-12 w-auto object-contain"
+          />
         </div>
 
+        {/* User Info */}
+        {currentUser && (
+          <div className="px-4 py-3 border-b border-sidebar-border bg-sidebar-accent/30">
+            <p className="font-medium text-sm text-sidebar-foreground truncate">
+              {currentUser.name}
+            </p>
+            <p className="text-xs text-sidebar-foreground/60">
+              {currentUser.role === 'admin' 
+                ? (language === 'pt' ? 'Administrador' : 'Admin')
+                : (language === 'pt' ? 'Utilizador' : 'User')
+              }
+            </p>
+          </div>
+        )}
+
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -65,7 +94,10 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="border-t border-sidebar-border p-3">
-          <button className="sidebar-link w-full text-sidebar-foreground/60 hover:text-destructive">
+          <button 
+            onClick={handleLogout}
+            className="sidebar-link w-full text-sidebar-foreground/60 hover:text-destructive"
+          >
             <LogOut className="h-5 w-5" />
             <span>{t.nav.logout}</span>
           </button>

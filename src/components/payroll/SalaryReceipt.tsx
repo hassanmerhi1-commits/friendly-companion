@@ -8,6 +8,7 @@ import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import { Printer, Download } from 'lucide-react';
+import companyLogo from '@/assets/company-logo.jpg';
 
 interface SalaryReceiptProps {
   entry: PayrollEntry;
@@ -110,7 +111,12 @@ export function SalaryReceipt({
           <div className="receipt">
             {/* Header */}
             <div className="header text-center mb-6 pb-4 border-b-2 border-foreground">
-              <h1 className="company-name text-2xl font-bold">{companyName}</h1>
+              <img 
+                src={companyLogo} 
+                alt="Company Logo" 
+                className="h-16 mx-auto mb-3 object-contain"
+              />
+              <h1 className="company-name text-xl font-bold">{companyName}</h1>
               <p className="company-info text-sm text-muted-foreground">
                 NIF: {companyNif} {branch && `• ${branch.name}`}
               </p>

@@ -142,6 +142,7 @@ export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = '
   const labels: Record<DeductionType, { pt: string; en: string }> = {
     salary_advance: { pt: 'Adiantamento Salarial', en: 'Salary Advance' },
     warehouse_loss: { pt: 'Perda no Armazém', en: 'Warehouse Loss' },
+    unjustified_absence: { pt: 'Falta Injustificada', en: 'Unjustified Absence' },
     loan: { pt: 'Empréstimo', en: 'Loan' },
     disciplinary: { pt: 'Desconto Disciplinar', en: 'Disciplinary Deduction' },
     other: { pt: 'Outros', en: 'Other' },

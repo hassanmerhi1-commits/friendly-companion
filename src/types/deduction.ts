@@ -6,6 +6,7 @@
 export type DeductionType = 
   | 'salary_advance' // Adiantamento salarial
   | 'warehouse_loss' // Perda no armazém
+  | 'unjustified_absence' // Falta injustificada
   | 'loan' // Empréstimo
   | 'disciplinary' // Desconto disciplinar
   | 'other'; // Outros
