@@ -80,12 +80,6 @@ export function LoginPage() {
             </Button>
           </form>
           
-          <p className="text-xs text-muted-foreground text-center mt-4">
-            {language === 'pt' 
-              ? 'Utilizador padrão: admin / admin123' 
-              : 'Default user: admin / admin123'
-            }
-          </p>
         </CardContent>
       </Card>
     </div>
