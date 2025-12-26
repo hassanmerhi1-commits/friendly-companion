@@ -6,6 +6,9 @@
     "output": "release",
     "buildResources": "public"
   },
+  "extraMetadata": {
+    "main": "electron/main.cjs"
+  },
   "files": [
     "dist/**/*",
     "electron/**/*",
