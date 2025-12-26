@@ -9,6 +9,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useBranchStore } from "@/stores/branch-store";
+import { useHolidayStore } from "@/stores/holiday-store";
 import { toast } from "sonner";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableEmployeeReport } from "@/components/reports/PrintableEmployeeReport";
@@ -23,8 +24,14 @@ const Reports = () => {
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
+  const { records: holidayRecords, saveRecords } = useHolidayStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+
+  const handleSaveHolidayRecords = (records: typeof holidayRecords) => {
+    saveRecords(records);
+    toast.success(language === 'pt' ? 'Registos de férias guardados' : 'Holiday records saved');
+  };
 
   const selectedBranch = selectedBranchId !== 'all' ? branches.find(b => b.id === selectedBranchId) : undefined;
 
@@ -255,6 +262,8 @@ const Reports = () => {
           <PrintableHolidayMap
             employees={filteredEmployees}
             branch={selectedBranch}
+            holidayRecords={holidayRecords}
+            onSaveRecords={handleSaveHolidayRecords}
             onClose={() => setOpenReport(null)}
           />
         </DialogContent>
