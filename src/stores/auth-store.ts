@@ -1,14 +1,100 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type UserRole = 'admin' | 'user';
+export type Permission = 
+  | 'employees.view'
+  | 'employees.create'
+  | 'employees.edit'
+  | 'employees.delete'
+  | 'payroll.view'
+  | 'payroll.calculate'
+  | 'payroll.approve'
+  | 'payroll.export'
+  | 'deductions.view'
+  | 'deductions.create'
+  | 'deductions.edit'
+  | 'deductions.delete'
+  | 'branches.view'
+  | 'branches.create'
+  | 'branches.edit'
+  | 'branches.delete'
+  | 'reports.view'
+  | 'reports.export'
+  | 'documents.view'
+  | 'documents.create'
+  | 'laborlaw.view'
+  | 'settings.view'
+  | 'settings.edit'
+  | 'users.view'
+  | 'users.create'
+  | 'users.edit'
+  | 'users.delete';
+
+export type UserRole = 'admin' | 'manager' | 'hr' | 'accountant' | 'viewer';
+
+export const rolePermissions: Record<UserRole, Permission[]> = {
+  admin: [
+    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
+    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export',
+    'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.delete',
+    'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
+    'reports.view', 'reports.export',
+    'documents.view', 'documents.create',
+    'laborlaw.view',
+    'settings.view', 'settings.edit',
+    'users.view', 'users.create', 'users.edit', 'users.delete',
+  ],
+  manager: [
+    'employees.view', 'employees.create', 'employees.edit',
+    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export',
+    'deductions.view', 'deductions.create', 'deductions.edit',
+    'branches.view',
+    'reports.view', 'reports.export',
+    'documents.view', 'documents.create',
+    'laborlaw.view',
+    'settings.view',
+  ],
+  hr: [
+    'employees.view', 'employees.create', 'employees.edit',
+    'payroll.view',
+    'deductions.view', 'deductions.create',
+    'branches.view',
+    'reports.view',
+    'documents.view', 'documents.create',
+    'laborlaw.view',
+  ],
+  accountant: [
+    'employees.view',
+    'payroll.view', 'payroll.calculate', 'payroll.export',
+    'deductions.view', 'deductions.create', 'deductions.edit',
+    'reports.view', 'reports.export',
+    'laborlaw.view',
+  ],
+  viewer: [
+    'employees.view',
+    'payroll.view',
+    'deductions.view',
+    'branches.view',
+    'reports.view',
+    'laborlaw.view',
+  ],
+};
+
+export const roleLabels: Record<UserRole, { pt: string; en: string }> = {
+  admin: { pt: 'Administrador', en: 'Administrator' },
+  manager: { pt: 'Gestor', en: 'Manager' },
+  hr: { pt: 'Recursos Humanos', en: 'Human Resources' },
+  accountant: { pt: 'Contabilista', en: 'Accountant' },
+  viewer: { pt: 'Visualizador', en: 'Viewer' },
+};
 
 export interface AppUser {
   id: string;
   username: string;
-  password: string; // In a real app, this would be hashed
+  password: string;
   name: string;
   role: UserRole;
+  customPermissions?: Permission[]; // Override role permissions
   isActive: boolean;
   createdAt: string;
 }
@@ -22,6 +108,10 @@ interface AuthState {
   login: (username: string, password: string) => { success: boolean; error?: string };
   logout: () => void;
   
+  // Permission check
+  hasPermission: (permission: Permission) => boolean;
+  getUserPermissions: (userId?: string) => Permission[];
+  
   // User management (admin only)
   addUser: (data: Omit<AppUser, 'id' | 'createdAt'>) => AppUser;
   updateUser: (id: string, data: Partial<AppUser>) => void;
@@ -29,7 +119,7 @@ interface AuthState {
   getUsers: () => AppUser[];
 }
 
-// Default admin user - credentials are stored securely
+// Default admin user
 const defaultAdmin: AppUser = {
   id: 'admin-1',
   username: 'sysadmin',
@@ -66,6 +156,24 @@ export const useAuthStore = create<AuthState>()(
         set({ currentUser: null, isAuthenticated: false });
       },
       
+      hasPermission: (permission: Permission) => {
+        const user = get().currentUser;
+        if (!user) return false;
+        
+        // Use custom permissions if defined, otherwise use role permissions
+        const permissions = user.customPermissions || rolePermissions[user.role] || [];
+        return permissions.includes(permission);
+      },
+      
+      getUserPermissions: (userId?: string) => {
+        const user = userId 
+          ? get().users.find(u => u.id === userId)
+          : get().currentUser;
+        
+        if (!user) return [];
+        return user.customPermissions || rolePermissions[user.role] || [];
+      },
+      
       addUser: (data) => {
         const newUser: AppUser = {
           ...data,
@@ -94,7 +202,7 @@ export const useAuthStore = create<AuthState>()(
         const userToDelete = get().users.find(u => u.id === id);
         
         if (userToDelete?.role === 'admin' && admins.length <= 1) {
-          return; // Can't delete last admin
+          return;
         }
         
         set((state) => ({

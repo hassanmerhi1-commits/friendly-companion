@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/lib/i18n';
-import { useAuthStore, type AppUser, type UserRole } from '@/stores/auth-store';
-import { UserPlus, Users, Shield, Pencil, Trash2 } from 'lucide-react';
+import { useAuthStore, type AppUser, type UserRole, roleLabels, rolePermissions, type Permission } from '@/stores/auth-store';
+import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -22,9 +23,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+const roleIcons: Record<UserRole, React.ReactNode> = {
+  admin: <Shield className="h-4 w-4" />,
+  manager: <Briefcase className="h-4 w-4" />,
+  hr: <Users className="h-4 w-4" />,
+  accountant: <Calculator className="h-4 w-4" />,
+  viewer: <Eye className="h-4 w-4" />,
+};
+
 const UsersPage = () => {
   const { t, language } = useLanguage();
-  const { users, currentUser, addUser, updateUser, deleteUser } = useAuthStore();
+  const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useAuthStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<AppUser | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -34,18 +43,18 @@ const UsersPage = () => {
     username: '',
     password: '',
     name: '',
-    role: 'user' as UserRole,
+    role: 'viewer' as UserRole,
     isActive: true,
   });
 
-  const isAdmin = currentUser?.role === 'admin';
+  const canManageUsers = hasPermission('users.view');
 
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-96">
           <p className="text-muted-foreground">
-            {language === 'pt' ? 'Acesso restrito a administradores' : 'Admin access only'}
+            {language === 'pt' ? 'Acesso restrito' : 'Access restricted'}
           </p>
         </div>
       </MainLayout>
@@ -68,7 +77,7 @@ const UsersPage = () => {
         username: '',
         password: '',
         name: '',
-        role: 'user',
+        role: 'viewer',
         isActive: true,
       });
     }
@@ -118,6 +127,14 @@ const UsersPage = () => {
     setUserToDelete(null);
   };
 
+  const getRoleLabel = (role: UserRole) => {
+    return language === 'pt' ? roleLabels[role].pt : roleLabels[role].en;
+  };
+
+  const getPermissionCount = (role: UserRole) => {
+    return rolePermissions[role]?.length || 0;
+  };
+
   return (
     <MainLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
@@ -126,13 +143,15 @@ const UsersPage = () => {
             {language === 'pt' ? 'Utilizadores' : 'Users'}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {language === 'pt' ? 'Gerir utilizadores do sistema' : 'Manage system users'}
+            {language === 'pt' ? 'Gerir utilizadores e permissões' : 'Manage users and permissions'}
           </p>
         </div>
-        <Button variant="accent" onClick={() => handleOpenDialog()}>
-          <UserPlus className="h-5 w-5 mr-2" />
-          {language === 'pt' ? 'Adicionar Utilizador' : 'Add User'}
-        </Button>
+        {hasPermission('users.create') && (
+          <Button variant="accent" onClick={() => handleOpenDialog()}>
+            <UserPlus className="h-5 w-5 mr-2" />
+            {language === 'pt' ? 'Adicionar Utilizador' : 'Add User'}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -140,18 +159,16 @@ const UsersPage = () => {
           <Card key={user.id} className={!user.isActive ? 'opacity-50' : ''}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-lg font-medium flex items-center gap-2">
-                {user.role === 'admin' ? (
-                  <Shield className="h-4 w-4 text-primary" />
-                ) : (
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                )}
+                <span className="text-primary">{roleIcons[user.role]}</span>
                 {user.name}
               </CardTitle>
               <div className="flex gap-1">
-                <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(user)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                {user.id !== currentUser?.id && (
+                {hasPermission('users.edit') && (
+                  <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(user)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                {user.id !== currentUser?.id && hasPermission('users.delete') && (
                   <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(user)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -160,27 +177,19 @@ const UsersPage = () => {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">@{user.username}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className={`text-xs px-2 py-1 rounded ${
-                  user.role === 'admin' 
-                    ? 'bg-primary/20 text-primary' 
-                    : 'bg-muted text-muted-foreground'
-                }`}>
-                  {user.role === 'admin' 
-                    ? (language === 'pt' ? 'Administrador' : 'Admin')
-                    : (language === 'pt' ? 'Utilizador' : 'User')
-                  }
-                </span>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  user.isActive 
-                    ? 'bg-green-500/20 text-green-600' 
-                    : 'bg-red-500/20 text-red-600'
-                }`}>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                  {getRoleLabel(user.role)}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {getPermissionCount(user.role)} {language === 'pt' ? 'permissões' : 'permissions'}
+                </Badge>
+                <Badge variant={user.isActive ? 'default' : 'destructive'} className={user.isActive ? 'bg-green-600' : ''}>
                   {user.isActive 
                     ? (language === 'pt' ? 'Ativo' : 'Active')
                     : (language === 'pt' ? 'Inativo' : 'Inactive')
                   }
-                </span>
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -189,7 +198,7 @@ const UsersPage = () => {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editUser 
@@ -230,7 +239,7 @@ const UsersPage = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label>{language === 'pt' ? 'Perfil' : 'Role'}</Label>
+              <Label>{language === 'pt' ? 'Perfil / Permissões' : 'Role / Permissions'}</Label>
               <Select
                 value={formData.role}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, role: v as UserRole }))}
@@ -240,13 +249,40 @@ const UsersPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">
-                    {language === 'pt' ? 'Administrador' : 'Admin'}
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      {getRoleLabel('admin')} - {language === 'pt' ? 'Acesso total' : 'Full access'}
+                    </div>
                   </SelectItem>
-                  <SelectItem value="user">
-                    {language === 'pt' ? 'Utilizador' : 'User'}
+                  <SelectItem value="manager">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4" />
+                      {getRoleLabel('manager')} - {language === 'pt' ? 'Gestão operacional' : 'Operational management'}
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="hr">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      {getRoleLabel('hr')} - {language === 'pt' ? 'Funcionários e documentos' : 'Employees and documents'}
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="accountant">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-4 w-4" />
+                      {getRoleLabel('accountant')} - {language === 'pt' ? 'Folha salarial e relatórios' : 'Payroll and reports'}
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="viewer">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      {getRoleLabel('viewer')} - {language === 'pt' ? 'Apenas visualizar' : 'View only'}
+                    </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {getPermissionCount(formData.role)} {language === 'pt' ? 'permissões incluídas' : 'permissions included'}
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               <Switch
