@@ -6,6 +6,7 @@ import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown } fr
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
+import { useBranchStore } from "@/stores/branch-store";
 import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportEmployeesToCSV } from "@/lib/export-utils";
@@ -26,6 +27,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
 function formatDate(dateString: string): string {
@@ -39,18 +47,30 @@ function formatDate(dateString: string): string {
 const Employees = () => {
   const { t, language } = useLanguage();
   const { employees, deleteEmployee } = useEmployeeStore();
+  const { branches } = useBranchStore();
   const [search, setSearch] = useState("");
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
-    emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
-    emp.email.toLowerCase().includes(search.toLowerCase()) ||
-    emp.department.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
+      emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
+      emp.email.toLowerCase().includes(search.toLowerCase()) ||
+      emp.department.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
+    
+    return matchesSearch && matchesBranch;
+  });
+
+  const getBranchName = (branchId?: string) => {
+    if (!branchId) return '-';
+    const branch = branches.find(b => b.id === branchId);
+    return branch ? `${branch.name}` : '-';
+  };
 
   function getStatusLabel(status: Employee["status"]): string {
     const labels = {
@@ -136,10 +156,20 @@ const Employees = () => {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button variant="outline">
-          <Filter className="h-4 w-4 mr-2" />
-          {t.common.filter}
-        </Button>
+        <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
+          <SelectTrigger className="w-[200px]">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder={language === 'pt' ? 'Filtrar por filial' : 'Filter by branch'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{language === 'pt' ? 'Todas as filiais' : 'All branches'}</SelectItem>
+            {branches.map(branch => (
+              <SelectItem key={branch.id} value={branch.id}>
+                {branch.name} ({branch.city})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Employee Table */}
@@ -150,6 +180,9 @@ const Employees = () => {
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.employees.employee}
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {language === 'pt' ? 'Filial' : 'Branch'}
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.employees.department}
@@ -185,6 +218,9 @@ const Employees = () => {
                         <p className="text-sm text-muted-foreground">{employee.email}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-foreground">{getBranchName(employee.branchId)}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div>
