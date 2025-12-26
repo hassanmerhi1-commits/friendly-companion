@@ -16,12 +16,22 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod } = usePayrollStore();
   const { getActiveEmployees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
   
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
+
+  // Get or create current period
+  const getOrCreateCurrentPeriod = () => {
+    let period = getCurrentPeriod();
+    if (!period) {
+      const now = new Date();
+      period = createPeriod(now.getFullYear(), now.getMonth() + 1);
+    }
+    return period;
+  };
 
   const currentPeriod = getCurrentPeriod();
   const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
@@ -33,12 +43,20 @@ const Payroll = () => {
   }), { gross: 0, deductions: 0, net: 0 });
 
   const handleCalculate = () => {
-    if (!currentPeriod) return;
     const activeEmployees = getActiveEmployees();
-    generateEntriesForPeriod(currentPeriod.id, activeEmployees);
+    
+    if (activeEmployees.length === 0) {
+      toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
+      return;
+    }
+    
+    // Get or create period for current month
+    const period = getOrCreateCurrentPeriod();
+    
+    generateEntriesForPeriod(period.id, activeEmployees);
     
     // Apply pending deductions to each entry
-    const updatedEntries = getEntriesForPeriod(currentPeriod.id);
+    const updatedEntries = getEntriesForPeriod(period.id);
     updatedEntries.forEach(entry => {
       const pendingAmount = getTotalPendingByEmployee(entry.employeeId);
       if (pendingAmount > 0) {
@@ -48,11 +66,11 @@ const Payroll = () => {
           totalDeductions: entry.totalDeductions + pendingAmount,
         });
         const deductions = getPendingDeductions(entry.employeeId);
-        deductions.forEach(d => applyDeductionToPayroll(d.id, currentPeriod.id));
+        deductions.forEach(d => applyDeductionToPayroll(d.id, period.id));
       }
     });
     
-    toast.success(t.payroll.calculatePayroll);
+    toast.success(language === 'pt' ? 'Folha calculada com sucesso!' : 'Payroll calculated successfully!');
   };
 
   const handleExport = () => {
