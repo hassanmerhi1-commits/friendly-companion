@@ -38,7 +38,7 @@ export interface Employee {
   otherAllowances: number;
   
   // Family Allowance (Abono de Família)
-  dependents: number; // Number of dependents for family allowance
+  familyAllowance: number; // Fixed money value for family allowance
   
   // Banking
   paymentMethod: PaymentMethod;
@@ -78,7 +78,7 @@ export interface EmployeeFormData {
   mealAllowance: number;
   transportAllowance: number;
   otherAllowances: number;
-  dependents?: number; // Number of dependents for family allowance
+  familyAllowance?: number; // Fixed money value for family allowance
   branchId?: string;
   paymentMethod: PaymentMethod;
   bankName?: string;

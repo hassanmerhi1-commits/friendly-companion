@@ -38,7 +38,7 @@ const defaultFormData: EmployeeFormData = {
   mealAllowance: 0,
   transportAllowance: 0,
   otherAllowances: 0,
-  dependents: 0,
+  familyAllowance: 0,
   paymentMethod: 'bank_transfer',
   bankName: '',
   bankAccountNumber: '',
@@ -75,7 +75,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         mealAllowance: employee.mealAllowance,
         transportAllowance: employee.transportAllowance,
         otherAllowances: employee.otherAllowances,
-        dependents: employee.dependents || 0,
+        familyAllowance: employee.familyAllowance || 0,
         branchId: employee.branchId,
         paymentMethod: employee.paymentMethod,
         bankName: employee.bankName,
@@ -324,16 +324,15 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Nº de Dependentes (Abono Familiar)' : 'Dependents (Family Allowance)'}</Label>
+                  <Label>{language === 'pt' ? 'Abono Familiar (Kz)' : 'Family Allowance (Kz)'}</Label>
                   <Input
                     type="number"
                     min={0}
-                    max={6}
-                    value={formData.dependents || 0}
-                    onChange={(e) => updateField('dependents', Number(e.target.value))}
+                    value={formData.familyAllowance || 0}
+                    onChange={(e) => updateField('familyAllowance', Number(e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {language === 'pt' ? 'Máximo 6 dependentes - 5.000 Kz por dependente' : 'Max 6 dependents - 5,000 Kz per dependent'}
+                    {language === 'pt' ? 'Valor fixo mensal do abono familiar' : 'Fixed monthly family allowance amount'}
                   </p>
                 </div>
               </div>

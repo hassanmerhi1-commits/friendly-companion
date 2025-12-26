@@ -340,7 +340,7 @@ export interface PayrollInput {
   mealAllowance?: number;
   transportAllowance?: number;
   otherAllowances?: number;
-  dependents?: number; // For family allowance
+  familyAllowanceValue?: number; // Fixed value for family allowance
   overtimeHoursNormal?: number;
   overtimeHoursNight?: number;
   overtimeHoursHoliday?: number;
@@ -388,7 +388,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     mealAllowance = 0,
     transportAllowance = 0,
     otherAllowances = 0,
-    dependents = 0,
+    familyAllowanceValue = 0,
     overtimeHoursNormal = 0,
     overtimeHoursNight = 0,
     overtimeHoursHoliday = 0,
@@ -414,8 +414,8 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     ? calculateHolidaySubsidy(baseSalary) 
     : 0;
   
-  // Calculate family allowance
-  const familyAllowance = calculateFamilyAllowance(dependents);
+  // Use the fixed family allowance value directly
+  const familyAllowance = familyAllowanceValue;
 
   // =========================================================================
   // INSS Calculation (According to AGT Angola simulator)
@@ -468,6 +468,6 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     inssEmployer,
     netSalary,
     totalEmployerCost,
-    dependents,
+    dependents: 0, // No longer used but kept for compatibility
   };
 }

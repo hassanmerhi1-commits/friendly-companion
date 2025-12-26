@@ -66,8 +66,8 @@ export interface PayrollEntry {
   overtimeHoursNight: number;
   overtimeHoursHoliday: number;
   
-  // Dependents for family allowance
-  dependents: number;
+  // Dependents for family allowance (deprecated - using familyAllowance value)
+  dependents?: number;
   
   // Notes
   notes?: string;
