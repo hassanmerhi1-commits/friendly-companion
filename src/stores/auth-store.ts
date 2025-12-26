@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 export type Permission = 
   | 'employees.view'
@@ -216,6 +217,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'payrollao-auth',
+      storage: createJSONStorage(() => createElectronStorage('users')),
     }
   )
 );

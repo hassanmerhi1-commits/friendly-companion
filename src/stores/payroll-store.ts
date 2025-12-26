@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import { calculatePayroll } from '@/lib/angola-labor-law';
+import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface PayrollState {
   periods: PayrollPeriod[];
@@ -103,8 +104,8 @@ export const usePayrollStore = create<PayrollState>()(
               otherAllowances: emp.otherAllowances,
               familyAllowanceValue: emp.familyAllowance || 0,
               isRetired: emp.isRetired,
-              include13thMonth: false, // Now manually controlled per employee
-              includeHolidaySubsidy: false, // Now uses employee's fixed value
+              include13thMonth: false,
+              includeHolidaySubsidy: false,
             });
             
             const now = new Date().toISOString();
@@ -115,9 +116,7 @@ export const usePayrollStore = create<PayrollState>()(
               employeeId: emp.id,
               employee: emp,
               ...payrollResult,
-              // Use employee's fixed holiday subsidy value
               holidaySubsidy: emp.holidaySubsidy || 0,
-              // Recalculate gross with holiday subsidy
               grossSalary: payrollResult.grossSalary + (emp.holidaySubsidy || 0),
               netSalary: payrollResult.netSalary + (emp.holidaySubsidy || 0),
               totalEmployerCost: payrollResult.totalEmployerCost + (emp.holidaySubsidy || 0),
@@ -132,7 +131,6 @@ export const usePayrollStore = create<PayrollState>()(
             };
           });
         
-        // Remove existing entries for this period and add new ones
         set((state) => ({
           entries: [
             ...state.entries.filter((e) => e.payrollPeriodId !== periodId),
@@ -140,7 +138,6 @@ export const usePayrollStore = create<PayrollState>()(
           ],
         }));
         
-        // Update period totals
         get().calculatePeriod(periodId);
       },
       
@@ -151,7 +148,6 @@ export const usePayrollStore = create<PayrollState>()(
         const hasSubsidy = entry.thirteenthMonth > 0;
         const baseSalary = entry.baseSalary;
         
-        // Calculate proportional 13th month: (baseSalary * 50%) * (monthsWorked / 12)
         const subsidyValue = hasSubsidy ? 0 : (baseSalary * 0.5 * monthsWorked / 12);
         const difference = hasSubsidy ? -entry.thirteenthMonth : subsidyValue;
         
@@ -170,7 +166,6 @@ export const usePayrollStore = create<PayrollState>()(
           ),
         }));
         
-        // Recalculate period totals
         if (entry.payrollPeriodId) {
           get().calculatePeriod(entry.payrollPeriodId);
         }
@@ -228,7 +223,6 @@ export const usePayrollStore = create<PayrollState>()(
         
         const entries = get().getEntriesForPeriod(periodId);
         
-        // Calculate totals
         const totals = entries.reduce(
           (acc, entry) => ({
             baseSalary: acc.baseSalary + entry.baseSalary,
@@ -258,7 +252,6 @@ export const usePayrollStore = create<PayrollState>()(
           }
         );
         
-        // Group by department
         const departmentMap = new Map<string, { count: number; gross: number; net: number }>();
         entries.forEach((entry) => {
           const dept = entry.employee?.department || 'Sem Departamento';
@@ -344,6 +337,7 @@ export const usePayrollStore = create<PayrollState>()(
     }),
     {
       name: 'payrollao-payroll',
+      storage: createJSONStorage(() => createElectronStorage('payroll_records')),
     }
   )
 );

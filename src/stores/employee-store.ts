@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Employee, EmployeeFormData } from '@/types/employee';
+import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface EmployeeState {
   employees: Employee[];
@@ -70,6 +71,7 @@ export const useEmployeeStore = create<EmployeeState>()(
     }),
     {
       name: 'payrollao-employees',
+      storage: createJSONStorage(() => createElectronStorage('employees')),
     }
   )
 );

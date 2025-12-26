@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
+import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface DeductionState {
   deductions: Deduction[];
@@ -92,6 +93,7 @@ export const useDeductionStore = create<DeductionState>()(
     }),
     {
       name: 'payrollao-deductions',
+      storage: createJSONStorage(() => createElectronStorage('deductions')),
     }
   )
 );
