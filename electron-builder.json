@@ -2,12 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.payrollao.app",
   "productName": "PayrollAO",
+  "asar": false,
   "directories": {
     "output": "release",
     "buildResources": "public"
   },
   "extraMetadata": {
-    "main": "electron/main.cjs"
+    "main": "index.js"
   },
   "files": [
     "dist/**/*",
