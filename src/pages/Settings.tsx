@@ -16,6 +16,7 @@ import {
   getBackupStats,
   type AppBackupData 
 } from "@/lib/data-backup";
+import { NetworkSettings } from "@/components/settings/NetworkSettings";
 
 const Settings = () => {
   const { t } = useLanguage();
@@ -89,6 +90,9 @@ const Settings = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          {/* Network Settings Section */}
+          <NetworkSettings />
+
           {/* Data Backup Section */}
           <div className="stat-card animate-slide-up border-2 border-accent/20">
             <div className="flex items-center gap-3 mb-6">
