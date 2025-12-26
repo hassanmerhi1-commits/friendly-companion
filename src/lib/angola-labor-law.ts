@@ -9,8 +9,9 @@
 // ============================================================================
 
 export const INSS_RATES = {
-  // Starting from July 2025, employer rate increased to 15%
-  EMPLOYER_RATE: 0.15, // 15% (was 8% before July 2025)
+  // Employer rate: 8% of gross salary (Lei de Protecção Social)
+  EMPLOYER_RATE: 0.08, // 8%
+  // Employee rate: 3% of gross salary
   EMPLOYEE_RATE: 0.03, // 3%
   // Retired employees returning to work pay 8% instead of 3%
   RETIRED_EMPLOYEE_RATE: 0.08,
@@ -94,7 +95,7 @@ export const LABOR_LAW = {
   
   // Holiday Subsidy (Subsídio de Férias)
   HOLIDAY_SUBSIDY: {
-    RATE: 1.0, // 100% of base salary (paid when taking vacation)
+    RATE: 0.5, // 50% of base salary (paid when taking vacation)
   },
   
   // Probation Period (Período Experimental - Artigo 16)
