@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
+import companyLogo from '@/assets/company-logo.jpg';
 
 interface PrintableBonusSheetProps {
   entries: PayrollEntry[];
@@ -84,7 +85,9 @@ export function PrintableBonusSheet({
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; font-size: 10px; padding: 20px; }
-          .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+          .header { display: flex; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #333; padding-bottom: 15px; gap: 20px; }
+          .logo { width: 80px; height: auto; }
+          .header-info { flex: 1; text-align: center; }
           .company-name { font-size: 18px; font-weight: bold; color: #2c3e50; }
           .branch-info { font-size: 12px; margin-top: 8px; color: #555; }
           .document-title { font-size: 16px; font-weight: bold; margin: 15px 0; text-transform: uppercase; color: #e67e22; background: #fef9e7; padding: 8px; border-radius: 4px; }
@@ -123,17 +126,20 @@ export function PrintableBonusSheet({
       <div ref={printRef} className="bg-white text-black p-4 text-xs">
         {/* Header */}
         <div className="header">
-          <div className="company-name">{companyName}</div>
-          <div>NIF: {companyNif}</div>
-          <div className="branch-info">
-            <strong>{t.branchLabel}:</strong> {branch.name} ({branch.code})
-            {warehouseName && <> | <strong>{t.warehouseLabel}:</strong> {warehouseName}</>}
+          <img src={companyLogo} alt="Company Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+          <div className="header-info">
+            <div className="company-name">{companyName}</div>
+            <div>NIF: {companyNif}</div>
+            <div className="branch-info">
+              <strong>{t.branchLabel}:</strong> {branch.name} ({branch.code})
+              {warehouseName && <> | <strong>{t.warehouseLabel}:</strong> {warehouseName}</>}
+            </div>
+            <div className="branch-info">
+              {branch.address}, {branch.city} - {branch.province}
+            </div>
+            <div className="document-title">{t.title}</div>
+            <div className="period">{t.period}: {periodLabel}</div>
           </div>
-          <div className="branch-info">
-            {branch.address}, {branch.city} - {branch.province}
-          </div>
-          <div className="document-title">{t.title}</div>
-          <div className="period">{t.period}: {periodLabel}</div>
         </div>
 
         {/* Bonus Table */}
