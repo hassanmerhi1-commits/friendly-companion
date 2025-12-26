@@ -76,6 +76,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         transportAllowance: employee.transportAllowance,
         otherAllowances: employee.otherAllowances,
         dependents: employee.dependents || 0,
+        branchId: employee.branchId,
         paymentMethod: employee.paymentMethod,
         bankName: employee.bankName,
         bankAccountNumber: employee.bankAccountNumber,
@@ -219,6 +220,24 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
             <TabsContent value="employment" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label>{language === 'pt' ? 'Filial' : 'Branch'}</Label>
+                  <Select
+                    value={formData.branchId || ''}
+                    onValueChange={(v) => updateField('branchId', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'pt' ? 'Selecionar filial' : 'Select branch'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name} ({branch.city})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>{t.employees.department}</Label>
                   <Select
                     value={formData.department}
@@ -234,13 +253,14 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>{t.employees.position}</Label>
-                  <Input
-                    value={formData.position}
-                    onChange={(e) => updateField('position', e.target.value)}
-                  />
-                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t.employees.position}</Label>
+                <Input
+                  value={formData.position}
+                  onChange={(e) => updateField('position', e.target.value)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
