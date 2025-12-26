@@ -23,7 +23,7 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth } = usePayrollStore();
   const { getActiveEmployees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
   const { branches } = useBranchStore();
@@ -33,8 +33,6 @@ const Payroll = () => {
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [printBonusSheetOpen, setPrintBonusSheetOpen] = useState(false);
   const [bonusBranchId, setBonusBranchId] = useState<string>('');
-  const [includeHolidaySubsidy, setIncludeHolidaySubsidy] = useState(false);
-  const [include13thMonth, setInclude13thMonth] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [warehouseName, setWarehouseName] = useState<string>('');
 
@@ -81,6 +79,14 @@ const Payroll = () => {
     net: acc.net + e.netSalary,
   }), { gross: 0, deductions: 0, net: 0 });
 
+  // Calculate months worked for an employee
+  const getMonthsWorked = (hireDate: string): number => {
+    const hire = new Date(hireDate);
+    const now = new Date();
+    const months = (now.getFullYear() - hire.getFullYear()) * 12 + (now.getMonth() - hire.getMonth());
+    return Math.min(Math.max(months, 0), 12); // Cap at 12 months
+  };
+
   const handleCalculate = () => {
     const activeEmployees = getActiveEmployees();
     
@@ -92,7 +98,7 @@ const Payroll = () => {
     // Get or create period for current month
     const period = getOrCreateCurrentPeriod();
     
-    generateEntriesForPeriod(period.id, activeEmployees, { includeHolidaySubsidy, include13thMonth });
+    generateEntriesForPeriod(period.id, activeEmployees);
     
     // Apply pending deductions to each entry
     const updatedEntries = getEntriesForPeriod(period.id);
@@ -110,6 +116,11 @@ const Payroll = () => {
     });
     
     toast.success(language === 'pt' ? 'Folha calculada com sucesso!' : 'Payroll calculated successfully!');
+  };
+
+  const handleToggle13thMonth = (entry: PayrollEntry) => {
+    const monthsWorked = entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12;
+    toggle13thMonth(entry.id, monthsWorked);
   };
 
   const handleExport = () => {
@@ -159,31 +170,18 @@ const Payroll = () => {
         </div>
       </div>
 
-      {/* Subsidy Options */}
+      {/* Calculate Payroll Button */}
       <div className="stat-card mb-6">
         <div className="flex flex-wrap items-center gap-6">
-          <h3 className="font-semibold text-foreground">
-            {language === 'pt' ? 'Opções de Subsídios' : 'Subsidy Options'}
-          </h3>
-          <div className="flex items-center gap-2">
-            <Checkbox 
-              id="holidaySubsidy" 
-              checked={includeHolidaySubsidy} 
-              onCheckedChange={(checked) => setIncludeHolidaySubsidy(checked === true)}
-            />
-            <Label htmlFor="holidaySubsidy" className="cursor-pointer">
-              {language === 'pt' ? 'Subsídio de Férias (50% do salário base)' : 'Holiday Subsidy (50% of base salary)'}
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox 
-              id="thirteenthMonth" 
-              checked={include13thMonth} 
-              onCheckedChange={(checked) => setInclude13thMonth(checked === true)}
-            />
-            <Label htmlFor="thirteenthMonth" className="cursor-pointer">
-              {language === 'pt' ? 'Subsídio de Natal (50% do salário base)' : '13th Month / Christmas Bonus (50% of base salary)'}
-            </Label>
+          <div>
+            <h3 className="font-semibold text-foreground">
+              {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {language === 'pt' 
+                ? 'Sub. Férias é definido por funcionário. Sub. Natal pode ser activado individualmente na tabela.' 
+                : 'Holiday subsidy is per employee. 13th month can be toggled individually in the table.'}
+            </p>
           </div>
           <Button variant="accent" onClick={handleCalculate}>
             <Calculator className="h-4 w-4 mr-2" />
@@ -299,7 +297,22 @@ const Payroll = () => {
                     <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
                     <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.familyAllowance || 0)}</td>
                     <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
+                        <Button 
+                          variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => handleToggle13thMonth(entry)}
+                          className="h-6 px-2 text-xs"
+                          title={language === 'pt' 
+                            ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
+                            : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
+                        >
+                          {entry.thirteenthMonth > 0 ? '✓' : '+'}
+                        </Button>
+                      </div>
+                    </td>
                     <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
                     <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
                     <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>

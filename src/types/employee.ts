@@ -43,6 +43,9 @@ export interface Employee {
   // Monthly Bonus (Bónus Mensal) - separate from subsidies
   monthlyBonus: number; // User-defined bonus value
   
+  // Holiday Subsidy (Subsídio de Férias) - per worker value
+  holidaySubsidy: number; // Fixed money value for holiday subsidy
+  
   // Banking
   paymentMethod: PaymentMethod;
   bankName?: string;
@@ -83,6 +86,7 @@ export interface EmployeeFormData {
   otherAllowances: number;
   familyAllowance?: number; // Fixed money value for family allowance
   monthlyBonus?: number; // User-defined bonus value
+  holidaySubsidy?: number; // Fixed money value for holiday subsidy
   branchId?: string;
   paymentMethod: PaymentMethod;
   bankName?: string;
