@@ -128,6 +128,13 @@ export const LABOR_LAW = {
   TRANSPORT_ALLOWANCE: {
     TYPICAL_AMOUNT: 25000, // Typical monthly transport allowance in AOA
   },
+  
+  // Family Allowance (Abono de Família)
+  // Paid per dependent
+  FAMILY_ALLOWANCE: {
+    PER_DEPENDENT: 5000, // AOA per dependent per month
+    MAX_DEPENDENTS: 6, // Maximum dependents eligible
+  },
 } as const;
 
 // ============================================================================
@@ -285,6 +292,14 @@ export function formatAOA(value: number): string {
 }
 
 /**
+ * Calculate family allowance (Abono de Família)
+ */
+export function calculateFamilyAllowance(dependents: number): number {
+  const eligibleDependents = Math.min(dependents, LABOR_LAW.FAMILY_ALLOWANCE.MAX_DEPENDENTS);
+  return eligibleDependents * LABOR_LAW.FAMILY_ALLOWANCE.PER_DEPENDENT;
+}
+
+/**
  * Calculate complete payroll for an employee
  */
 export interface PayrollInput {
@@ -292,6 +307,7 @@ export interface PayrollInput {
   mealAllowance?: number;
   transportAllowance?: number;
   otherAllowances?: number;
+  dependents?: number; // For family allowance
   overtimeHoursNormal?: number;
   overtimeHoursNight?: number;
   overtimeHoursHoliday?: number;
@@ -307,6 +323,7 @@ export interface PayrollResult {
   mealAllowance: number;
   transportAllowance: number;
   otherAllowances: number;
+  familyAllowance: number;
   overtimeNormal: number;
   overtimeNight: number;
   overtimeHoliday: number;
@@ -327,6 +344,9 @@ export interface PayrollResult {
   
   // Total cost to employer
   totalEmployerCost: number;
+  
+  // Dependents
+  dependents: number;
 }
 
 export function calculatePayroll(input: PayrollInput): PayrollResult {
@@ -335,6 +355,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     mealAllowance = 0,
     transportAllowance = 0,
     otherAllowances = 0,
+    dependents = 0,
     overtimeHoursNormal = 0,
     overtimeHoursNight = 0,
     overtimeHoursHoliday = 0,
@@ -359,13 +380,16 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const holidaySubsidy = includeHolidaySubsidy 
     ? calculateHolidaySubsidy(baseSalary) 
     : 0;
+  
+  // Calculate family allowance
+  const familyAllowance = calculateFamilyAllowance(dependents);
 
   // Calculate gross salary (taxable income)
-  // Note: Meal and transport allowances are typically not taxed
+  // Note: Meal, transport, and family allowances are typically not taxed
   const taxableIncome = baseSalary + overtimeNormal + overtimeNight + overtimeHoliday + 
                         thirteenthMonth + holidaySubsidy + otherAllowances;
   
-  const grossSalary = taxableIncome + mealAllowance + transportAllowance;
+  const grossSalary = taxableIncome + mealAllowance + transportAllowance + familyAllowance;
 
   // Calculate deductions
   const irt = calculateIRT(taxableIncome);
@@ -381,6 +405,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     mealAllowance,
     transportAllowance,
     otherAllowances,
+    familyAllowance,
     overtimeNormal,
     overtimeNight,
     overtimeHoliday,
@@ -393,5 +418,6 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     inssEmployer,
     netSalary,
     totalEmployerCost,
+    dependents,
   };
 }

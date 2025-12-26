@@ -38,6 +38,7 @@ const defaultFormData: EmployeeFormData = {
   mealAllowance: 0,
   transportAllowance: 0,
   otherAllowances: 0,
+  dependents: 0,
   paymentMethod: 'bank_transfer',
   bankName: '',
   bankAccountNumber: '',
@@ -45,7 +46,7 @@ const defaultFormData: EmployeeFormData = {
 };
 
 export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFormDialogProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { addEmployee, updateEmployee } = useEmployeeStore();
   const { branches } = useBranchStore();
   const [formData, setFormData] = useState<EmployeeFormData>(defaultFormData);
@@ -74,6 +75,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         mealAllowance: employee.mealAllowance,
         transportAllowance: employee.transportAllowance,
         otherAllowances: employee.otherAllowances,
+        dependents: employee.dependents || 0,
         paymentMethod: employee.paymentMethod,
         bankName: employee.bankName,
         bankAccountNumber: employee.bankAccountNumber,
@@ -292,13 +294,28 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
 
             {/* Compensation Tab */}
             <TabsContent value="compensation" className="space-y-4">
-              <div className="space-y-2">
-                <Label>{t.employees.baseSalary} (Kz)</Label>
-                <Input
-                  type="number"
-                  value={formData.baseSalary}
-                  onChange={(e) => updateField('baseSalary', Number(e.target.value))}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.employees.baseSalary} (Kz)</Label>
+                  <Input
+                    type="number"
+                    value={formData.baseSalary}
+                    onChange={(e) => updateField('baseSalary', Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{language === 'pt' ? 'Nº de Dependentes (Abono Familiar)' : 'Dependents (Family Allowance)'}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={6}
+                    value={formData.dependents || 0}
+                    onChange={(e) => updateField('dependents', Number(e.target.value))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'pt' ? 'Máximo 6 dependentes - 5.000 Kz por dependente' : 'Max 6 dependents - 5,000 Kz per dependent'}
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
