@@ -39,30 +39,10 @@ function getPeriodDates(year: number, month: number) {
   };
 }
 
-// Sample payroll data
-const currentDate = new Date();
-const currentYear = currentDate.getFullYear();
-const currentMonth = currentDate.getMonth() + 1;
-
-const samplePeriod: PayrollPeriod = {
-  id: 'period-current',
-  year: currentYear,
-  month: currentMonth,
-  ...getPeriodDates(currentYear, currentMonth),
-  status: 'draft',
-  periodType: 'monthly',
-  totalGross: 0,
-  totalNet: 0,
-  totalDeductions: 0,
-  totalEmployerCosts: 0,
-  employeeCount: 0,
-  createdAt: new Date().toISOString(),
-};
-
 export const usePayrollStore = create<PayrollState>()(
   persist(
     (set, get) => ({
-      periods: [samplePeriod],
+      periods: [],
       entries: [],
       
       createPeriod: (year: number, month: number) => {
