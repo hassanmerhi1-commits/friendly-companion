@@ -13,6 +13,7 @@ import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useDeductionStore } from "@/stores/deduction-store";
 import { useBranchStore } from "@/stores/branch-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
@@ -27,6 +28,7 @@ const Payroll = () => {
   const { getActiveEmployees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
   const { branches } = useBranchStore();
+  const { settings } = useSettingsStore();
   
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
@@ -354,6 +356,8 @@ const Payroll = () => {
             <SalaryReceipt
               entry={selectedEntry}
               employee={selectedEntry.employee}
+              companyName={settings.companyName}
+              companyNif={settings.nif}
               periodLabel={periodLabel}
               onClose={() => setReceiptOpen(false)}
             />
@@ -370,6 +374,8 @@ const Payroll = () => {
           <PrintablePayrollSheet
             entries={currentEntries}
             periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
             branch={selectedBranch}
             warehouseName={warehouseName}
           />
@@ -388,6 +394,8 @@ const Payroll = () => {
             <PrintableBonusSheet
               entries={bonusSheetEntries}
               periodLabel={periodLabel}
+              companyName={settings.companyName}
+              companyNif={settings.nif}
               branch={bonusBranch}
               warehouseName={warehouseName}
             />
