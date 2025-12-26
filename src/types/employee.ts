@@ -40,6 +40,9 @@ export interface Employee {
   // Family Allowance (Abono de Família)
   familyAllowance: number; // Fixed money value for family allowance
   
+  // Monthly Bonus (Bónus Mensal) - separate from subsidies
+  monthlyBonus: number; // User-defined bonus value
+  
   // Banking
   paymentMethod: PaymentMethod;
   bankName?: string;
@@ -79,6 +82,7 @@ export interface EmployeeFormData {
   transportAllowance: number;
   otherAllowances: number;
   familyAllowance?: number; // Fixed money value for family allowance
+  monthlyBonus?: number; // User-defined bonus value
   branchId?: string;
   paymentMethod: PaymentMethod;
   bankName?: string;
