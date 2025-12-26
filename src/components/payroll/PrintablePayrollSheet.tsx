@@ -12,14 +12,16 @@ interface PrintablePayrollSheetProps {
   companyName?: string;
   companyNif?: string;
   branch?: Branch;
+  warehouseName?: string;
 }
 
 export function PrintablePayrollSheet({
   entries,
   periodLabel,
-  companyName = 'DISTRI-GOOI, LDA',
+  companyName = 'DISTRI-GOOD, LDA',
   companyNif = '5417201524',
   branch,
+  warehouseName,
 }: PrintablePayrollSheetProps) {
   const { language } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
@@ -138,14 +140,30 @@ export function PrintablePayrollSheet({
         <div className="header">
           <div className="company-name">{companyName}</div>
           <div>NIF: {companyNif}</div>
-          {branch && <div>{branch.address}, {branch.city} - {branch.province}</div>}
+          {branch && (
+            <div>
+              <strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {branch.name} ({branch.code})
+              {warehouseName && <> | <strong>{language === 'pt' ? 'Armazém' : 'Warehouse'}:</strong> {warehouseName}</>}
+            </div>
+          )}
+          {branch && (
+            <div>
+              {branch.address}, {branch.city} - {branch.province}
+              {branch.city && branch.province && (
+                <span> ({language === 'pt' ? 'Município' : 'Municipality'}: {branch.city}, {language === 'pt' ? 'Província' : 'Province'}: {branch.province})</span>
+              )}
+            </div>
+          )}
           <div className="document-title">{t.title}</div>
           <div className="period">{t.period}: {periodLabel}</div>
         </div>
 
-        {/* Main Payroll Table */}
+        {/* Main Payroll Table - ABONOS/EARNINGS Section */}
         <table>
           <thead>
+            <tr>
+              <th colSpan={9} style={{ background: '#4a90d9', color: 'white' }}>{language === 'pt' ? 'ABONOS / RENDIMENTOS' : 'EARNINGS / INCOME'}</th>
+            </tr>
             <tr>
               <th style={{ width: '20px' }}>Nº</th>
               <th style={{ width: '140px' }}>{t.employee}</th>
@@ -156,12 +174,6 @@ export function PrintablePayrollSheet({
               <th>{t.holidaySubsidy}</th>
               <th>{t.thirteenthMonth}</th>
               <th>{t.grossSalary}</th>
-              <th>{t.irt}</th>
-              <th>{t.inssEmployee}</th>
-              <th>{t.otherDeductions}</th>
-              <th>{t.totalDeductions}</th>
-              <th className="net-salary">{t.netSalary}</th>
-              <th>{t.signature}</th>
             </tr>
           </thead>
           <tbody>
@@ -175,13 +187,7 @@ export function PrintablePayrollSheet({
                 <td>{formatAOA(entry.familyAllowance || 0)}</td>
                 <td>{formatAOA(entry.holidaySubsidy)}</td>
                 <td>{formatAOA(entry.thirteenthMonth)}</td>
-                <td>{formatAOA(entry.grossSalary)}</td>
-                <td>{formatAOA(entry.irt)}</td>
-                <td>{formatAOA(entry.inssEmployee)}</td>
-                <td>{formatAOA(entry.otherDeductions)}</td>
-                <td>{formatAOA(entry.totalDeductions)}</td>
-                <td className="net-salary">{formatAOA(entry.netSalary)}</td>
-                <td style={{ width: '80px' }}></td>
+                <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.grossSalary)}</td>
               </tr>
             ))}
             {/* Totals Row */}
@@ -194,8 +200,98 @@ export function PrintablePayrollSheet({
               <td>{formatAOA(totals.holidaySubsidy)}</td>
               <td>{formatAOA(totals.thirteenthMonth)}</td>
               <td>{formatAOA(totals.grossSalary)}</td>
-              <td>{formatAOA(totals.irt)}</td>
-              <td>{formatAOA(totals.inssEmployee)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* DESCONTOS/DEDUCTIONS Section - Separate Tables for IRT and INSS */}
+        <div style={{ display: 'flex', gap: '20px', marginTop: '15px' }}>
+          {/* IRT Table */}
+          <table style={{ flex: '1' }}>
+            <thead>
+              <tr>
+                <th colSpan={3} style={{ background: '#e74c3c', color: 'white' }}>{language === 'pt' ? 'IMPOSTO (IRT)' : 'TAX (IRT)'}</th>
+              </tr>
+              <tr>
+                <th style={{ width: '20px' }}>Nº</th>
+                <th>{t.employee}</th>
+                <th>{t.irt}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, idx) => (
+                <tr key={entry.id}>
+                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                  <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                  <td>{formatAOA(entry.irt)}</td>
+                </tr>
+              ))}
+              <tr className="totals-row">
+                <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
+                <td>{formatAOA(totals.irt)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* INSS Table */}
+          <table style={{ flex: '1' }}>
+            <thead>
+              <tr>
+                <th colSpan={4} style={{ background: '#27ae60', color: 'white' }}>{language === 'pt' ? 'SEGURANÇA SOCIAL (INSS)' : 'SOCIAL SECURITY (INSS)'}</th>
+              </tr>
+              <tr>
+                <th style={{ width: '20px' }}>Nº</th>
+                <th>{t.employee}</th>
+                <th>{t.inssEmployee} (3%)</th>
+                <th>{t.inssEmployer} (8%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, idx) => (
+                <tr key={entry.id}>
+                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                  <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                  <td>{formatAOA(entry.inssEmployee)}</td>
+                  <td>{formatAOA(entry.inssEmployer)}</td>
+                </tr>
+              ))}
+              <tr className="totals-row">
+                <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
+                <td>{formatAOA(totals.inssEmployee)}</td>
+                <td>{formatAOA(totals.inssEmployer)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Net Salary and Other Deductions */}
+        <table style={{ marginTop: '15px' }}>
+          <thead>
+            <tr>
+              <th colSpan={6} style={{ background: '#2c3e50', color: 'white' }}>{language === 'pt' ? 'RESUMO / LÍQUIDO' : 'SUMMARY / NET'}</th>
+            </tr>
+            <tr>
+              <th style={{ width: '20px' }}>Nº</th>
+              <th>{t.employee}</th>
+              <th>{t.otherDeductions}</th>
+              <th>{t.totalDeductions}</th>
+              <th className="net-salary">{t.netSalary}</th>
+              <th>{t.signature}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry, idx) => (
+              <tr key={entry.id}>
+                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                <td>{formatAOA(entry.otherDeductions)}</td>
+                <td>{formatAOA(entry.totalDeductions)}</td>
+                <td className="net-salary">{formatAOA(entry.netSalary)}</td>
+                <td style={{ width: '80px' }}></td>
+              </tr>
+            ))}
+            <tr className="totals-row">
+              <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
               <td>{formatAOA(totals.otherDeductions)}</td>
               <td>{formatAOA(totals.totalDeductions)}</td>
               <td className="net-salary">{formatAOA(totals.netSalary)}</td>
