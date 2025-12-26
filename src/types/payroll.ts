@@ -38,6 +38,7 @@ export interface PayrollEntry {
   transportAllowance: number;
   otherAllowances: number;
   familyAllowance: number; // Abono de Família
+  monthlyBonus: number; // Bónus Mensal - user-defined
   overtimeNormal: number;
   overtimeNight: number;
   overtimeHoliday: number;

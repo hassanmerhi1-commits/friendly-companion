@@ -118,6 +118,7 @@ export const usePayrollStore = create<PayrollState>()(
               employeeId: emp.id,
               employee: emp,
               ...payrollResult,
+              monthlyBonus: emp.monthlyBonus || 0,
               otherDeductions: 0,
               overtimeHoursNormal: 0,
               overtimeHoursNight: 0,
