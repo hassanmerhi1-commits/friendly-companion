@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -30,8 +32,11 @@ const Payroll = () => {
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
   const [includeHolidaySubsidy, setIncludeHolidaySubsidy] = useState(false);
   const [include13thMonth, setInclude13thMonth] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [warehouseName, setWarehouseName] = useState<string>('');
 
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
+  const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
 
   // Get or create current period
   const getOrCreateCurrentPeriod = () => {
@@ -143,7 +148,7 @@ const Payroll = () => {
               onCheckedChange={(checked) => setIncludeHolidaySubsidy(checked === true)}
             />
             <Label htmlFor="holidaySubsidy" className="cursor-pointer">
-              {language === 'pt' ? 'Subsídio de Férias (100% do salário base)' : 'Holiday Subsidy (100% of base salary)'}
+              {language === 'pt' ? 'Subsídio de Férias (50% do salário base)' : 'Holiday Subsidy (50% of base salary)'}
             </Label>
           </div>
           <div className="flex items-center gap-2">
@@ -160,6 +165,39 @@ const Payroll = () => {
             <Calculator className="h-4 w-4 mr-2" />
             {t.payroll.calculatePayroll}
           </Button>
+        </div>
+      </div>
+
+      {/* Branch and Warehouse Selection for Print */}
+      <div className="stat-card mb-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <h3 className="font-semibold text-foreground">
+            {language === 'pt' ? 'Dados da Folha Salarial' : 'Payroll Sheet Details'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Label>{language === 'pt' ? 'Filial:' : 'Branch:'}</Label>
+            <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={language === 'pt' ? 'Selecionar filial' : 'Select branch'} />
+              </SelectTrigger>
+              <SelectContent>
+                {branches.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label>{language === 'pt' ? 'Armazém:' : 'Warehouse:'}</Label>
+            <Input 
+              value={warehouseName} 
+              onChange={(e) => setWarehouseName(e.target.value)}
+              placeholder={language === 'pt' ? 'Nome do armazém' : 'Warehouse name'}
+              className="w-[200px]"
+            />
+          </div>
         </div>
       </div>
 
@@ -257,7 +295,8 @@ const Payroll = () => {
           <PrintablePayrollSheet
             entries={currentEntries}
             periodLabel={periodLabel}
-            branch={headquarters}
+            branch={selectedBranch}
+            warehouseName={warehouseName}
           />
         </DialogContent>
       </Dialog>
