@@ -14,6 +14,8 @@ import Settings from "./pages/Settings";
 import Branches from "./pages/Branches";
 import Deductions from "./pages/Deductions";
 import UsersPage from "./pages/Users";
+import LaborLaw from "./pages/LaborLaw";
+import Documents from "./pages/Documents";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +46,8 @@ const AppRoutes = () => {
       <Route path="/branches" element={<ProtectedRoute><Branches /></ProtectedRoute>} />
       <Route path="/deductions" element={<ProtectedRoute><Deductions /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+      <Route path="/labor-law" element={<ProtectedRoute><LaborLaw /></ProtectedRoute>} />
+      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
