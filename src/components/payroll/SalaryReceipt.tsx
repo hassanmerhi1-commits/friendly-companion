@@ -49,56 +49,53 @@ export function SalaryReceipt({
           <title>Recibo Salarial - ${employee.firstName} ${employee.lastName}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 10px; color: #1a1a1a; font-size: 10px; }
-            .page-container { display: flex; flex-direction: column; gap: 15px; }
-            .receipt-wrapper { border: 1px dashed #999; padding: 15px; page-break-inside: avoid; }
-            .copy-label { text-align: center; font-size: 9px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-            .receipt { max-width: 100%; }
-            .header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-            .logo { width: 50px; height: auto; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 0; color: #1a1a1a; font-size: 9px; }
+            .page-container { display: flex; flex-direction: row; gap: 10px; align-items: stretch; width: 100%; }
+            .receipt-wrapper { flex: 1; border: 1px dashed #999; padding: 10px; page-break-inside: avoid; }
+            .divider { width: 0; border-left: 2px dashed #999; }
+            .copy-label { text-align: center; font-size: 8px; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+            .receipt { width: 100%; }
+            .header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+            .logo { width: 44px; height: auto; }
             .header-text { flex: 1; }
-            .company-name { font-size: 14px; font-weight: bold; margin-bottom: 2px; }
-            .company-info { font-size: 9px; color: #666; }
-            .receipt-title { font-size: 12px; font-weight: bold; text-transform: uppercase; text-align: center; margin: 10px 0; background: #f0f0f0; padding: 5px; }
-            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-            .info-section { background: #f8f8f8; padding: 8px; border-radius: 3px; }
-            .info-label { font-size: 8px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
-            .info-value { font-size: 10px; font-weight: 500; }
-            .info-detail { font-size: 8px; color: #555; margin-top: 2px; }
-            .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-            .section-title { font-size: 9px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
-            .line-item { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #eee; }
+            .company-name { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
+            .company-info { font-size: 8px; color: #666; }
+            .receipt-title { font-size: 11px; font-weight: bold; text-transform: uppercase; text-align: center; margin: 8px 0; background: #f0f0f0; padding: 4px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+            .info-section { background: #f8f8f8; padding: 7px; border-radius: 3px; }
+            .info-label { font-size: 7px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+            .info-value { font-size: 9px; font-weight: 600; }
+            .info-detail { font-size: 7px; color: #555; margin-top: 2px; }
+            .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            .section-title { font-size: 8px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+            .line-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px dotted #eee; }
             .line-item.deduction .amount { color: #c00; }
-            .line-item .label { font-size: 9px; }
-            .line-item .amount { font-size: 9px; font-family: monospace; }
-            .subtotal { display: flex; justify-content: space-between; font-weight: bold; padding: 5px 0; border-top: 1px solid #333; margin-top: 5px; }
-            .net-salary { display: flex; justify-content: space-between; align-items: center; background: #e8f4e8; padding: 10px; margin-top: 12px; border-radius: 4px; }
-            .net-label { font-size: 11px; font-weight: bold; }
-            .net-amount { font-size: 16px; font-weight: bold; color: #27ae60; }
-            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
+            .line-item .label { font-size: 8px; }
+            .line-item .amount { font-size: 8px; font-family: monospace; }
+            .subtotal { display: flex; justify-content: space-between; font-weight: bold; padding: 4px 0; border-top: 1px solid #333; margin-top: 4px; }
+            .net-salary { display: flex; justify-content: space-between; align-items: center; background: #e8f4e8; padding: 8px; margin-top: 10px; border-radius: 4px; }
+            .net-label { font-size: 10px; font-weight: bold; }
+            .net-amount { font-size: 14px; font-weight: bold; color: #27ae60; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
             .signature { text-align: center; }
-            .signature-line { border-top: 1px solid #333; margin-top: 30px; padding-top: 5px; font-size: 8px; }
-            .legal-note { margin-top: 10px; font-size: 7px; color: #666; text-align: center; border-top: 1px solid #ddd; padding-top: 8px; }
-            .cut-line { border-top: 2px dashed #999; margin: 5px 0; position: relative; }
-            .cut-line::after { content: '✂'; position: absolute; left: 50%; top: -8px; background: white; padding: 0 5px; font-size: 10px; color: #999; }
-            @media print { 
-              body { padding: 5px; } 
-              .receipt-wrapper { border: 1px dashed #ccc; }
-              @page { size: A4 portrait; margin: 10mm; }
+            .signature-line { border-top: 1px solid #333; margin-top: 22px; padding-top: 5px; font-size: 7px; }
+            .legal-note { margin-top: 8px; font-size: 6px; color: #666; text-align: center; border-top: 1px solid #ddd; padding-top: 6px; }
+            @media print {
+              @page { size: A4 landscape; margin: 10mm; }
+              body { padding: 0; }
+              .receipt-wrapper { border: 1px dashed #bbb; }
             }
           </style>
         </head>
         <body>
           <div class="page-container">
-            <!-- Employee Copy -->
             <div class="receipt-wrapper">
               <div class="copy-label">${language === 'pt' ? 'VIA DO FUNCIONÁRIO' : 'EMPLOYEE COPY'}</div>
               ${receiptHtml}
             </div>
-            
-            <div class="cut-line"></div>
-            
-            <!-- Company Copy -->
+
+            <div class="divider" aria-hidden="true"></div>
+
             <div class="receipt-wrapper">
               <div class="copy-label">${language === 'pt' ? 'VIA DA EMPRESA (ARQUIVO)' : 'COMPANY COPY (ARCHIVE)'}</div>
               ${receiptHtml}

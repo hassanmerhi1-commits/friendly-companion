@@ -39,16 +39,16 @@ export interface IRTBracket {
 export const IRT_BRACKETS: IRTBracket[] = [
   { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },
   { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 6_500 },
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 14_500 },
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 32_500 },
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 70_500 },
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 170_500 },
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 275_500 },
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 385_500 },
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 500_500 },
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_100_500 },
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_325_500 },
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500 },
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250 },
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_250 },
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250 },
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_249 },
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_249 },
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_249 },
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_249 },
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_249 },
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_248 },
 ];
 
 // ============================================================================
