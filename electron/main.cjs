@@ -8,6 +8,13 @@ const dataFilePath = path.join(userDataPath, 'payroll-data.json');
 
 let mainWindow;
 
+// Get the correct path for production vs development
+function getDistPath() {
+  // In production, use app.getAppPath() which points to the app directory
+  const appPath = app.getAppPath();
+  return path.join(appPath, 'dist', 'index.html');
+}
+
 // Create the main application window
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -31,7 +38,9 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:8080');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    const indexPath = getDistPath();
+    console.log('Loading from:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on('closed', () => {
