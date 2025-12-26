@@ -14,8 +14,7 @@ interface PayrollState {
   getCurrentPeriod: () => PayrollPeriod | undefined;
   updatePeriodStatus: (id: string, status: PayrollPeriod['status']) => void;
   
-  // Entry management
-  generateEntriesForPeriod: (periodId: string, employees: Employee[]) => void;
+  generateEntriesForPeriod: (periodId: string, employees: Employee[], options?: { includeHolidaySubsidy?: boolean; include13thMonth?: boolean }) => void;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => void;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
   recalculateEntry: (id: string) => void;
@@ -89,12 +88,13 @@ export const usePayrollStore = create<PayrollState>()(
         }));
       },
       
-      generateEntriesForPeriod: (periodId: string, employees: Employee[]) => {
+      generateEntriesForPeriod: (periodId: string, employees: Employee[], options?: { includeHolidaySubsidy?: boolean; include13thMonth?: boolean }) => {
         const period = get().getPeriod(periodId);
         if (!period) return;
         
-        // Check if it's December for 13th month
-        const include13thMonth = period.month === 12;
+        // Use provided options or fallback to December auto-detection for 13th month
+        const include13thMonth = options?.include13thMonth ?? (period.month === 12);
+        const includeHolidaySubsidy = options?.includeHolidaySubsidy ?? false;
         
         const newEntries: PayrollEntry[] = employees
           .filter((emp) => emp.status === 'active')
@@ -107,6 +107,7 @@ export const usePayrollStore = create<PayrollState>()(
               dependents: emp.dependents || 0,
               isRetired: emp.isRetired,
               include13thMonth,
+              includeHolidaySubsidy,
             });
             
             const now = new Date().toISOString();
