@@ -6,17 +6,274 @@ const os = require('os');
 
 // Get the user data path for storing app data
 const userDataPath = app.getPath('userData');
-const dataFilePath = path.join(userDataPath, 'payroll-data.json');
+const dbPath = path.join(userDataPath, 'payroll.db');
 const networkConfigPath = path.join(userDataPath, 'network-config.json');
 
 let mainWindow;
 let httpServer = null;
 let serverPort = 3847;
+let db = null;
 
 // Get the correct path for production vs development
 function getDistPath() {
   const appPath = app.getAppPath();
   return path.join(appPath, 'dist', 'index.html');
+}
+
+// ============= SQLite DATABASE =============
+
+function initDatabase() {
+  try {
+    const Database = require('better-sqlite3');
+    db = new Database(dbPath);
+    
+    // Enable WAL mode for better concurrent access
+    db.pragma('journal_mode = WAL');
+    
+    // Create tables
+    db.exec(`
+      -- Employees table
+      CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        position TEXT,
+        department TEXT,
+        branch_id TEXT,
+        hire_date TEXT,
+        birth_date TEXT,
+        salary REAL DEFAULT 0,
+        bank_name TEXT,
+        bank_account TEXT,
+        iban TEXT,
+        nif TEXT,
+        social_security TEXT,
+        address TEXT,
+        phone TEXT,
+        email TEXT,
+        emergency_contact TEXT,
+        emergency_phone TEXT,
+        status TEXT DEFAULT 'active',
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Branches table
+      CREATE TABLE IF NOT EXISTS branches (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        address TEXT,
+        phone TEXT,
+        manager TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Deductions table
+      CREATE TABLE IF NOT EXISTS deductions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT,
+        value REAL DEFAULT 0,
+        is_percentage INTEGER DEFAULT 0,
+        is_mandatory INTEGER DEFAULT 0,
+        description TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Payroll records table
+      CREATE TABLE IF NOT EXISTS payroll_records (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        base_salary REAL DEFAULT 0,
+        gross_salary REAL DEFAULT 0,
+        net_salary REAL DEFAULT 0,
+        total_deductions REAL DEFAULT 0,
+        total_bonuses REAL DEFAULT 0,
+        deductions_json TEXT,
+        bonuses_json TEXT,
+        status TEXT DEFAULT 'pending',
+        paid_at TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+      );
+      
+      -- Holidays table
+      CREATE TABLE IF NOT EXISTS holidays (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        type TEXT DEFAULT 'national',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Users table (for app authentication)
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT,
+        role TEXT DEFAULT 'user',
+        status TEXT DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Settings table
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Documents table
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT,
+        name TEXT NOT NULL,
+        type TEXT,
+        file_path TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+      );
+    `);
+    
+    console.log('SQLite database initialized at:', dbPath);
+    return true;
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    return false;
+  }
+}
+
+// Generic database operations
+function dbGetAll(table) {
+  try {
+    const stmt = db.prepare(`SELECT * FROM ${table}`);
+    return stmt.all();
+  } catch (error) {
+    console.error(`Error getting all from ${table}:`, error);
+    return [];
+  }
+}
+
+function dbGetById(table, id) {
+  try {
+    const stmt = db.prepare(`SELECT * FROM ${table} WHERE id = ?`);
+    return stmt.get(id);
+  } catch (error) {
+    console.error(`Error getting ${id} from ${table}:`, error);
+    return null;
+  }
+}
+
+function dbInsert(table, data) {
+  try {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map(() => '?').join(', ');
+    
+    const stmt = db.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`);
+    const result = stmt.run(...values);
+    return { success: true, changes: result.changes };
+  } catch (error) {
+    console.error(`Error inserting into ${table}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+function dbUpdate(table, id, data) {
+  try {
+    const updates = Object.keys(data).map(key => `${key} = ?`).join(', ');
+    const values = [...Object.values(data), id];
+    
+    const stmt = db.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
+    const result = stmt.run(...values);
+    return { success: true, changes: result.changes };
+  } catch (error) {
+    console.error(`Error updating ${table}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+function dbDelete(table, id) {
+  try {
+    const stmt = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+    const result = stmt.run(id);
+    return { success: true, changes: result.changes };
+  } catch (error) {
+    console.error(`Error deleting from ${table}:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+function dbQuery(sql, params = []) {
+  try {
+    const stmt = db.prepare(sql);
+    if (sql.trim().toUpperCase().startsWith('SELECT')) {
+      return stmt.all(...params);
+    } else {
+      return stmt.run(...params);
+    }
+  } catch (error) {
+    console.error('Error executing query:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Export all data for sync
+function dbExportAll() {
+  try {
+    return {
+      employees: dbGetAll('employees'),
+      branches: dbGetAll('branches'),
+      deductions: dbGetAll('deductions'),
+      payroll_records: dbGetAll('payroll_records'),
+      holidays: dbGetAll('holidays'),
+      users: dbGetAll('users'),
+      settings: dbGetAll('settings'),
+      documents: dbGetAll('documents'),
+      exportedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error exporting data:', error);
+    return null;
+  }
+}
+
+// Import all data for sync
+function dbImportAll(data) {
+  try {
+    const tables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays', 'users', 'settings', 'documents'];
+    
+    db.exec('BEGIN TRANSACTION');
+    
+    for (const table of tables) {
+      if (data[table] && Array.isArray(data[table])) {
+        // Clear existing data
+        db.exec(`DELETE FROM ${table}`);
+        
+        // Insert new data
+        for (const row of data[table]) {
+          dbInsert(table, row);
+        }
+      }
+    }
+    
+    db.exec('COMMIT');
+    return { success: true };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    console.error('Error importing data:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 // Get local IP addresses
@@ -93,34 +350,6 @@ function createWindow() {
   });
 }
 
-// Read data from file
-function readDataFile() {
-  try {
-    if (fs.existsSync(dataFilePath)) {
-      const data = fs.readFileSync(dataFilePath, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Error reading data file:', error);
-  }
-  return null;
-}
-
-// Write data to file
-function writeDataFile(data) {
-  try {
-    const dir = path.dirname(dataFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf-8');
-    return true;
-  } catch (error) {
-    console.error('Error writing data file:', error);
-    return false;
-  }
-}
-
 // ============= HTTP SERVER FOR LAN SHARING =============
 
 function startServer(port = 3847) {
@@ -145,24 +374,24 @@ function startServer(port = 3847) {
         return;
       }
 
-      // GET /api/data - Fetch all data
+      // GET /api/data - Fetch all data (for sync)
       if (req.method === 'GET' && req.url === '/api/data') {
-        const data = readDataFile();
+        const data = dbExportAll();
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: data || {} }));
         return;
       }
 
-      // POST /api/data - Update all data
+      // POST /api/data - Import all data (for sync)
       if (req.method === 'POST' && req.url === '/api/data') {
         let body = '';
         req.on('data', chunk => { body += chunk; });
         req.on('end', () => {
           try {
             const data = JSON.parse(body);
-            const success = writeDataFile(data);
-            res.writeHead(success ? 200 : 500);
-            res.end(JSON.stringify({ success }));
+            const result = dbImportAll(data);
+            res.writeHead(result.success ? 200 : 500);
+            res.end(JSON.stringify(result));
           } catch (error) {
             res.writeHead(400);
             res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
@@ -171,10 +400,92 @@ function startServer(port = 3847) {
         return;
       }
 
+      // GET /api/:table - Get all records from a table
+      const getMatch = req.url.match(/^\/api\/(\w+)$/);
+      if (req.method === 'GET' && getMatch) {
+        const table = getMatch[1];
+        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays', 'settings'];
+        if (allowedTables.includes(table)) {
+          const data = dbGetAll(table);
+          res.writeHead(200);
+          res.end(JSON.stringify({ success: true, data }));
+          return;
+        }
+      }
+
+      // GET /api/:table/:id - Get single record
+      const getByIdMatch = req.url.match(/^\/api\/(\w+)\/(.+)$/);
+      if (req.method === 'GET' && getByIdMatch) {
+        const [, table, id] = getByIdMatch;
+        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        if (allowedTables.includes(table)) {
+          const data = dbGetById(table, id);
+          res.writeHead(data ? 200 : 404);
+          res.end(JSON.stringify({ success: !!data, data }));
+          return;
+        }
+      }
+
+      // POST /api/:table - Insert record
+      if (req.method === 'POST' && getMatch) {
+        const table = getMatch[1];
+        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        if (allowedTables.includes(table)) {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body);
+              const result = dbInsert(table, data);
+              res.writeHead(result.success ? 200 : 500);
+              res.end(JSON.stringify(result));
+            } catch (error) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
+            }
+          });
+          return;
+        }
+      }
+
+      // PUT /api/:table/:id - Update record
+      if (req.method === 'PUT' && getByIdMatch) {
+        const [, table, id] = getByIdMatch;
+        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        if (allowedTables.includes(table)) {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body);
+              const result = dbUpdate(table, id, data);
+              res.writeHead(result.success ? 200 : 500);
+              res.end(JSON.stringify(result));
+            } catch (error) {
+              res.writeHead(400);
+              res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
+            }
+          });
+          return;
+        }
+      }
+
+      // DELETE /api/:table/:id - Delete record
+      if (req.method === 'DELETE' && getByIdMatch) {
+        const [, table, id] = getByIdMatch;
+        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        if (allowedTables.includes(table)) {
+          const result = dbDelete(table, id);
+          res.writeHead(result.success ? 200 : 500);
+          res.end(JSON.stringify(result));
+          return;
+        }
+      }
+
       // GET /api/ping - Health check
       if (req.method === 'GET' && req.url === '/api/ping') {
         res.writeHead(200);
-        res.end(JSON.stringify({ success: true, message: 'PayrollAO Server', timestamp: Date.now() }));
+        res.end(JSON.stringify({ success: true, message: 'PayrollAO Server (SQLite)', timestamp: Date.now() }));
         return;
       }
 
@@ -190,7 +501,7 @@ function startServer(port = 3847) {
     });
 
     httpServer.listen(port, '0.0.0.0', () => {
-      console.log(`PayrollAO LAN Server running on port ${port}`);
+      console.log(`PayrollAO LAN Server (SQLite) running on port ${port}`);
       const ips = getLocalIPAddresses();
       console.log('Available at:', ips.map(ip => `http://${ip.address}:${port}`).join(', '));
       resolve({ success: true, port, addresses: ips });
@@ -326,17 +637,50 @@ async function pingServer(serverIP, port = 3847) {
 
 // ============= IPC HANDLERS =============
 
-// Storage operations
+// Database operations
+ipcMain.handle('db:getAll', (event, table) => {
+  return dbGetAll(table);
+});
+
+ipcMain.handle('db:getById', (event, table, id) => {
+  return dbGetById(table, id);
+});
+
+ipcMain.handle('db:insert', (event, table, data) => {
+  return dbInsert(table, data);
+});
+
+ipcMain.handle('db:update', (event, table, id, data) => {
+  return dbUpdate(table, id, data);
+});
+
+ipcMain.handle('db:delete', (event, table, id) => {
+  return dbDelete(table, id);
+});
+
+ipcMain.handle('db:query', (event, sql, params) => {
+  return dbQuery(sql, params);
+});
+
+ipcMain.handle('db:export', () => {
+  return dbExportAll();
+});
+
+ipcMain.handle('db:import', (event, data) => {
+  return dbImportAll(data);
+});
+
+// Legacy storage operations (for backward compatibility)
 ipcMain.handle('storage:read', () => {
-  return readDataFile();
+  return dbExportAll();
 });
 
 ipcMain.handle('storage:write', (event, data) => {
-  return writeDataFile(data);
+  return dbImportAll(data);
 });
 
 ipcMain.handle('storage:getPath', () => {
-  return dataFilePath;
+  return dbPath;
 });
 
 // Network operations
@@ -395,6 +739,9 @@ ipcMain.handle('network:pingServer', async (event, serverIP, port) => {
 // ============= APP LIFECYCLE =============
 
 app.whenReady().then(async () => {
+  // Initialize database first
+  initDatabase();
+  
   createWindow();
 
   // Auto-start server if configured as server mode
@@ -418,6 +765,9 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     stopServer();
+    if (db) {
+      db.close();
+    }
     app.quit();
   }
 });
