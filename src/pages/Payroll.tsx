@@ -56,6 +56,22 @@ const Payroll = () => {
   const currentPeriod = getCurrentPeriod();
   const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
   
+  // Filter entries by branch for payroll sheet
+  const payrollSheetEntries = selectedBranchId 
+    ? currentEntries
+        .filter(e => {
+          if (e.employee?.branchId === selectedBranchId) return true;
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee?.branchId === selectedBranchId;
+        })
+        .map(e => {
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee 
+            ? { ...e, employee: { ...e.employee, ...currentEmployee } }
+            : e;
+        })
+    : currentEntries;
+
   // Filter entries by branch for bonus sheet - check both entry.employee.branchId and current employee branchId
   const bonusSheetEntries = bonusBranchId 
     ? currentEntries
@@ -372,7 +388,7 @@ const Payroll = () => {
             <DialogTitle>{language === 'pt' ? 'Folha Salarial Completa' : 'Complete Payroll Sheet'}</DialogTitle>
           </DialogHeader>
           <PrintablePayrollSheet
-            entries={currentEntries}
+            entries={payrollSheetEntries}
             periodLabel={periodLabel}
             companyName={settings.companyName}
             companyNif={settings.nif}
