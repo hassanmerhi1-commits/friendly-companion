@@ -30,7 +30,7 @@ export const useEmployeeStore = create<EmployeeState>()(
           id: crypto.randomUUID(),
           employeeNumber: data.employeeNumber || generateEmployeeNumber(),
           status: 'active',
-          dependents: data.dependents || 0,
+          familyAllowance: data.familyAllowance || 0,
           createdAt: now,
           updatedAt: now,
         };
