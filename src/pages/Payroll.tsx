@@ -3,8 +3,9 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Table } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -27,6 +28,8 @@ const Payroll = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  const [includeHolidaySubsidy, setIncludeHolidaySubsidy] = useState(false);
+  const [include13thMonth, setInclude13thMonth] = useState(false);
 
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
 
@@ -60,7 +63,7 @@ const Payroll = () => {
     // Get or create period for current month
     const period = getOrCreateCurrentPeriod();
     
-    generateEntriesForPeriod(period.id, activeEmployees);
+    generateEntriesForPeriod(period.id, activeEmployees, { includeHolidaySubsidy, include13thMonth });
     
     // Apply pending deductions to each entry
     const updatedEntries = getEntriesForPeriod(period.id);
@@ -124,6 +127,35 @@ const Payroll = () => {
             <Printer className="h-4 w-4 mr-2" />
             {language === 'pt' ? 'Imprimir Folha' : 'Print Sheet'}
           </Button>
+        </div>
+      </div>
+
+      {/* Subsidy Options */}
+      <div className="stat-card mb-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <h3 className="font-semibold text-foreground">
+            {language === 'pt' ? 'Opções de Subsídios' : 'Subsidy Options'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="holidaySubsidy" 
+              checked={includeHolidaySubsidy} 
+              onCheckedChange={(checked) => setIncludeHolidaySubsidy(checked === true)}
+            />
+            <Label htmlFor="holidaySubsidy" className="cursor-pointer">
+              {language === 'pt' ? 'Subsídio de Férias (100% do salário base)' : 'Holiday Subsidy (100% of base salary)'}
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="thirteenthMonth" 
+              checked={include13thMonth} 
+              onCheckedChange={(checked) => setInclude13thMonth(checked === true)}
+            />
+            <Label htmlFor="thirteenthMonth" className="cursor-pointer">
+              {language === 'pt' ? 'Subsídio de Natal (50% do salário base)' : '13th Month / Christmas Bonus (50% of base salary)'}
+            </Label>
+          </div>
           <Button variant="accent" onClick={handleCalculate}>
             <Calculator className="h-4 w-4 mr-2" />
             {t.payroll.calculatePayroll}
