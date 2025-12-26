@@ -38,6 +38,7 @@ const Payroll = () => {
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [warehouseName, setWarehouseName] = useState<string>('');
 
+  const { employees } = useEmployeeStore();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
@@ -55,9 +56,23 @@ const Payroll = () => {
   const currentPeriod = getCurrentPeriod();
   const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
   
-  // Filter entries by branch for bonus sheet
+  // Filter entries by branch for bonus sheet - check both entry.employee.branchId and current employee branchId
   const bonusSheetEntries = bonusBranchId 
-    ? currentEntries.filter(e => e.employee?.branchId === bonusBranchId)
+    ? currentEntries
+        .filter(e => {
+          // First check entry's employee branchId
+          if (e.employee?.branchId === bonusBranchId) return true;
+          // Also check current employee record in case it was updated after payroll generation
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee?.branchId === bonusBranchId;
+        })
+        .map(e => {
+          // Merge in latest employee data to ensure branchId is current
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee 
+            ? { ...e, employee: { ...e.employee, ...currentEmployee } }
+            : e;
+        })
     : [];
   
   const totals = currentEntries.reduce((acc, e) => ({
