@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
@@ -20,12 +20,29 @@ export function PrintableBonusSheet({
   entries,
   periodLabel,
   companyName = 'DISTRI-GOOD, LDA',
-  companyNif = '5417201524',
+  companyNif = '5402155682',
   branch,
   warehouseName,
 }: PrintableBonusSheetProps) {
   const { language } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
+  const [logoBase64, setLogoBase64] = useState<string>('');
+
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/jpeg'));
+      }
+    };
+    img.src = companyLogo;
+  }, []);
 
   const t = {
     title: language === 'pt' ? 'FOLHA DE BÓNUS MENSAL' : 'MONTHLY BONUS SHEET',
@@ -57,6 +74,10 @@ export function PrintableBonusSheet({
 
     const printWindow = window.open('', '', 'width=1000,height=800');
     if (!printWindow) return;
+
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
+    if (logoImg && logoBase64) logoImg.src = logoBase64;
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -91,7 +112,7 @@ export function PrintableBonusSheet({
         </style>
       </head>
       <body>
-        ${content.innerHTML}
+        ${clonedContent.innerHTML}
       </body>
       </html>
     `);

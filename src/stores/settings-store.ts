@@ -23,7 +23,7 @@ interface SettingsStore {
 
 const defaultSettings: CompanySettings = {
   companyName: 'DISTRI-GOOD, LDA',
-  nif: '5417201524',
+  nif: '5402155682',
   address: 'Rua dos Coqueiros, 123',
   city: 'Luanda',
   bank: 'Banco Angolano de Investimentos',

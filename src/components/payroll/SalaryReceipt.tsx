@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -25,12 +25,29 @@ export function SalaryReceipt({
   employee,
   branch,
   companyName = 'DISTRI-GOOD, LDA',
-  companyNif = '5417201524',
+  companyNif = '5402155682',
   periodLabel,
   onClose,
 }: SalaryReceiptProps) {
   const { t, language } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
+  const [logoBase64, setLogoBase64] = useState<string>('');
+
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/jpeg'));
+      }
+    };
+    img.src = companyLogo;
+  }, []);
 
   const handlePrint = () => {
     const printContent = printRef.current;
@@ -39,8 +56,14 @@ export function SalaryReceipt({
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Get the receipt HTML content
-    const receiptHtml = printContent.innerHTML;
+    // Clone and replace logo with base64
+    const clonedContent = printContent.cloneNode(true) as HTMLElement;
+    const logoImgs = clonedContent.querySelectorAll('img.logo') as NodeListOf<HTMLImageElement>;
+    logoImgs.forEach(img => {
+      if (logoBase64) img.src = logoBase64;
+    });
+
+    const receiptHtml = clonedContent.innerHTML;
 
     printWindow.document.write(`
       <!DOCTYPE html>

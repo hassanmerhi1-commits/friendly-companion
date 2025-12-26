@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,7 +32,7 @@ export function PrintableHolidayMap({
   employees,
   branch,
   companyName = 'DISTRI-GOOD, LDA',
-  companyNif = '5417201524',
+  companyNif = '5402155682',
   year = new Date().getFullYear(),
   holidayRecords = [],
   onSaveRecords,
@@ -42,6 +42,23 @@ export function PrintableHolidayMap({
   const printRef = useRef<HTMLDivElement>(null);
   const [editableRecords, setEditableRecords] = useState<HolidayRecord[]>(holidayRecords);
   const [selectedYear, setSelectedYear] = useState(year);
+  const [logoBase64, setLogoBase64] = useState<string>('');
+
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/jpeg'));
+      }
+    };
+    img.src = companyLogo;
+  }, []);
 
   const t = {
     title: language === 'pt' ? 'MAPA DE FÉRIAS' : 'HOLIDAY MAP',
@@ -184,6 +201,10 @@ export function PrintableHolidayMap({
     const printWindow = window.open('', '', 'width=1200,height=800');
     if (!printWindow) return;
 
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
+    if (logoImg && logoBase64) logoImg.src = logoBase64;
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -221,7 +242,7 @@ export function PrintableHolidayMap({
         </style>
       </head>
       <body>
-        ${content.innerHTML}
+        ${clonedContent.innerHTML}
       </body>
       </html>
     `);
