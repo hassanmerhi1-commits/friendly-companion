@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Branch, BranchFormData } from '@/types/branch';
+import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface BranchState {
   branches: Branch[];
@@ -12,6 +13,7 @@ interface BranchState {
   getBranchesByCity: (city: string) => Branch[];
   getBranchesByProvince: (province: string) => Branch[];
 }
+
 function generateBranchCode(province: string, branches: Branch[]): string {
   const provinceCode = province.substring(0, 3).toUpperCase();
   const existingInProvince = branches.filter(b => b.province === province).length;
@@ -81,6 +83,7 @@ export const useBranchStore = create<BranchState>()(
     }),
     {
       name: 'payrollao-branches',
+      storage: createJSONStorage(() => createElectronStorage('branches')),
     }
   )
 );

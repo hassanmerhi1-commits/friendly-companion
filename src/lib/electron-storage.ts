@@ -9,10 +9,31 @@
 declare global {
   interface Window {
     electronAPI?: {
+      db: {
+        getAll: (table: string) => Promise<any[]>;
+        getById: (table: string, id: string) => Promise<any>;
+        insert: (table: string, data: any) => Promise<any>;
+        update: (table: string, id: string, data: any) => Promise<any>;
+        delete: (table: string, id: string) => Promise<any>;
+        query: (sql: string, params?: any[]) => Promise<any>;
+        export: () => Promise<any>;
+        import: (data: any) => Promise<any>;
+      };
       storage: {
         read: () => Promise<Record<string, unknown> | null>;
         write: (data: Record<string, unknown>) => Promise<boolean>;
         getPath: () => Promise<string>;
+      };
+      network: {
+        getConfig: () => Promise<any>;
+        setConfig: (config: any) => Promise<any>;
+        getLocalIPs: () => Promise<string[]>;
+        startServer: (port: number) => Promise<any>;
+        stopServer: () => Promise<any>;
+        getServerStatus: () => Promise<any>;
+        fetchFromServer: (serverIP: string, port: number) => Promise<any>;
+        pushToServer: (serverIP: string, port: number, data: any) => Promise<any>;
+        pingServer: (serverIP: string, port: number) => Promise<any>;
       };
       platform: string;
       isElectron: boolean;
