@@ -20,30 +20,32 @@ export const INSS_RATES = {
 // ============================================================================
 // IRT - Imposto sobre o Rendimento do Trabalho
 // Personal Income Tax Brackets (Group A - Employment Income)
-// Based on 2024 PIT Code
+// Based on Diário da República nº 247, December 2023 (effective January 2024)
+// Formula: IRT = Parcela Fixa + (Rendimento - Limite Inferior) × Taxa
 // ============================================================================
 
 export interface IRTBracket {
   min: number;
   max: number;
   rate: number;
-  baseAmount: number;
+  fixedAmount: number; // Parcela fixa (fixed amount to add)
 }
 
 // IRT progressive tax brackets for Group A (Employment Income)
+// Updated according to DR nº 247/2023
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 100_000, rate: 0, baseAmount: 0 },
-  { min: 100_001, max: 150_000, rate: 0.13, baseAmount: 0 },
-  { min: 150_001, max: 200_000, rate: 0.16, baseAmount: 6_500 },
-  { min: 200_001, max: 300_000, rate: 0.18, baseAmount: 14_500 },
-  { min: 300_001, max: 500_000, rate: 0.19, baseAmount: 32_500 },
-  { min: 500_001, max: 1_000_000, rate: 0.20, baseAmount: 70_500 },
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, baseAmount: 170_500 },
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, baseAmount: 275_500 },
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, baseAmount: 385_500 },
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, baseAmount: 500_500 },
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, baseAmount: 1_100_500 },
-  { min: 10_000_001, max: Infinity, rate: 0.25, baseAmount: 2_325_500 },
+  { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },
+  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 6_500 },
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 14_500 },
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 32_500 },
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 70_500 },
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 170_500 },
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 275_500 },
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 385_500 },
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 500_500 },
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_100_500 },
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_325_500 },
 ];
 
 // ============================================================================
@@ -163,12 +165,16 @@ export const NATIONAL_HOLIDAYS = [
 /**
  * Calculate IRT (Income Tax) for a given monthly salary
  * Based on Group A - Employment Income
+ * Formula: IRT = Parcela Fixa + (Rendimento - Limite Inferior do Escalão) × Taxa
+ * According to Diário da República nº 247, December 2023
  */
 export function calculateIRT(monthlySalary: number): number {
+  // Salaries up to 100,000 AOA are exempt
   if (monthlySalary <= 100_000) {
     return 0;
   }
 
+  // Find the applicable bracket
   const bracket = IRT_BRACKETS.find(
     (b) => monthlySalary >= b.min && monthlySalary <= b.max
   );
@@ -176,11 +182,13 @@ export function calculateIRT(monthlySalary: number): number {
   if (!bracket) {
     // Use highest bracket for salaries above 10,000,000
     const highestBracket = IRT_BRACKETS[IRT_BRACKETS.length - 1];
-    return highestBracket.baseAmount + 
-           (monthlySalary - highestBracket.min + 1) * highestBracket.rate;
+    const excess = monthlySalary - highestBracket.min + 1;
+    return Math.round(highestBracket.fixedAmount + (excess * highestBracket.rate));
   }
 
-  return bracket.baseAmount + (monthlySalary - bracket.min + 1) * bracket.rate;
+  // Calculate: Fixed Amount + (Salary - Lower Limit of Bracket) × Rate
+  const excess = monthlySalary - bracket.min + 1;
+  return Math.round(bracket.fixedAmount + (excess * bracket.rate));
 }
 
 /**
