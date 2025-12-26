@@ -193,9 +193,11 @@ export function calculateIRT(monthlySalary: number): number {
 
 /**
  * Calculate INSS contributions
+ * INSS is calculated only on the base salary (salário base)
+ * Employee: 3%, Employer: 8%
  */
 export function calculateINSS(
-  grossSalary: number,
+  baseSalary: number,
   isRetired: boolean = false
 ): { employeeContribution: number; employerContribution: number } {
   const employeeRate = isRetired 
@@ -203,8 +205,8 @@ export function calculateINSS(
     : INSS_RATES.EMPLOYEE_RATE;
   
   return {
-    employeeContribution: Math.round(grossSalary * employeeRate),
-    employerContribution: Math.round(grossSalary * INSS_RATES.EMPLOYER_RATE),
+    employeeContribution: Math.round(baseSalary * employeeRate),
+    employerContribution: Math.round(baseSalary * INSS_RATES.EMPLOYER_RATE),
   };
 }
 
@@ -401,9 +403,11 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const grossSalary = taxableIncome + mealAllowance + transportAllowance + familyAllowance;
 
   // Calculate deductions
+  // IRT is calculated on taxable income
   const irt = calculateIRT(taxableIncome);
+  // INSS is calculated only on base salary (salário base)
   const { employeeContribution: inssEmployee, employerContribution: inssEmployer } = 
-    calculateINSS(taxableIncome, isRetired);
+    calculateINSS(baseSalary, isRetired);
 
   const totalDeductions = irt + inssEmployee;
   const netSalary = grossSalary - totalDeductions;
