@@ -3,12 +3,15 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Table } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useDeductionStore } from "@/stores/deduction-store";
+import { useBranchStore } from "@/stores/branch-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
+import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -19,9 +22,13 @@ const Payroll = () => {
   const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod } = usePayrollStore();
   const { getActiveEmployees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
+  const { branches } = useBranchStore();
   
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
+  const [printSheetOpen, setPrintSheetOpen] = useState(false);
+
+  const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
 
   // Get or create current period
   const getOrCreateCurrentPeriod = () => {
@@ -97,19 +104,25 @@ const Payroll = () => {
     ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
     : ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+  const periodLabel = `${monthNames[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
   return (
     <MainLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.payroll.title}</h1>
           <p className="text-muted-foreground mt-1">
-            {monthNames[new Date().getMonth()]} {new Date().getFullYear()} • {t.payroll.paymentPeriod}
+            {periodLabel} • {t.payroll.paymentPeriod}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleExport} disabled={currentEntries.length === 0}>
             <FileDown className="h-4 w-4 mr-2" />
             {t.export.excel}
+          </Button>
+          <Button variant="outline" onClick={() => setPrintSheetOpen(true)} disabled={currentEntries.length === 0}>
+            <Printer className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Imprimir Folha' : 'Print Sheet'}
           </Button>
           <Button variant="accent" onClick={handleCalculate}>
             <Calculator className="h-4 w-4 mr-2" />
@@ -130,37 +143,46 @@ const Payroll = () => {
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold">{t.payroll.employeeDetails}</h2>
           </div>
-          <table className="w-full">
-            <thead className="bg-muted/30">
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">{t.employees.employee}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.receipt.otherDeductions}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.net}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.common.actions}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {currentEntries.map(entry => (
-                <tr key={entry.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                  <td className="px-4 py-3 text-right font-mono">{formatAOA(entry.grossSalary)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-destructive">{formatAOA(entry.irt)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-destructive">{formatAOA(entry.inssEmployee)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-destructive">{formatAOA(entry.otherDeductions)}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-primary">{formatAOA(entry.netSalary)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
-                      <Receipt className="h-4 w-4 mr-1" />
-                      {t.receipt.viewReceipt}
-                    </Button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead className="bg-muted/30">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase">{t.employees.employee}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.employees.baseSalary}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Abono Fam.' : 'Family'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Férias' : 'Holiday'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Outros' : 'Other'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.net}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.common.actions}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {currentEntries.map(entry => (
+                  <tr key={entry.id} className="hover:bg-muted/20">
+                    <td className="px-3 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.familyAllowance || 0)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.otherDeductions)}</td>
+                    <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">{formatAOA(entry.netSalary)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
+                        <Receipt className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -177,6 +199,7 @@ const Payroll = () => {
         </div>
       </div>
 
+      {/* Individual Receipt Dialog */}
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -186,10 +209,24 @@ const Payroll = () => {
             <SalaryReceipt
               entry={selectedEntry}
               employee={selectedEntry.employee}
-              periodLabel={`${monthNames[new Date().getMonth()]} ${new Date().getFullYear()}`}
+              periodLabel={periodLabel}
               onClose={() => setReceiptOpen(false)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Printable Payroll Sheet Dialog */}
+      <Dialog open={printSheetOpen} onOpenChange={setPrintSheetOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{language === 'pt' ? 'Folha Salarial Completa' : 'Complete Payroll Sheet'}</DialogTitle>
+          </DialogHeader>
+          <PrintablePayrollSheet
+            entries={currentEntries}
+            periodLabel={periodLabel}
+            branch={headquarters}
+          />
         </DialogContent>
       </Dialog>
     </MainLayout>

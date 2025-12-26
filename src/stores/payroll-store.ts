@@ -104,6 +104,7 @@ export const usePayrollStore = create<PayrollState>()(
               mealAllowance: emp.mealAllowance,
               transportAllowance: emp.transportAllowance,
               otherAllowances: emp.otherAllowances,
+              dependents: emp.dependents || 0,
               isRetired: emp.isRetired,
               include13thMonth,
             });

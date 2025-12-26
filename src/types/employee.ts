@@ -29,12 +29,16 @@ export interface Employee {
   hireDate: string;
   contractEndDate?: string; // For fixed-term contracts
   status: EmployeeStatus;
+  branchId?: string; // Link to branch
   
   // Compensation
   baseSalary: number;
   mealAllowance: number;
   transportAllowance: number;
   otherAllowances: number;
+  
+  // Family Allowance (Abono de Família)
+  dependents: number; // Number of dependents for family allowance
   
   // Banking
   paymentMethod: PaymentMethod;
@@ -74,6 +78,8 @@ export interface EmployeeFormData {
   mealAllowance: number;
   transportAllowance: number;
   otherAllowances: number;
+  dependents?: number; // Number of dependents for family allowance
+  branchId?: string;
   paymentMethod: PaymentMethod;
   bankName?: string;
   bankAccountNumber?: string;

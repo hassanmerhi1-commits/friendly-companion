@@ -37,6 +37,7 @@ export interface PayrollEntry {
   mealAllowance: number;
   transportAllowance: number;
   otherAllowances: number;
+  familyAllowance: number; // Abono de Família
   overtimeNormal: number;
   overtimeNight: number;
   overtimeHoliday: number;
@@ -64,6 +65,9 @@ export interface PayrollEntry {
   overtimeHoursNormal: number;
   overtimeHoursNight: number;
   overtimeHoursHoliday: number;
+  
+  // Dependents for family allowance
+  dependents: number;
   
   // Notes
   notes?: string;
