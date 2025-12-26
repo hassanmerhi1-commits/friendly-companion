@@ -13,51 +13,10 @@ interface DeductionState {
   getTotalPendingByEmployee: (employeeId: string) => number;
 }
 
-// Sample deductions
-const sampleDeductions: Deduction[] = [
-  {
-    id: 'ded-1',
-    employeeId: '1',
-    type: 'salary_advance',
-    description: 'Adiantamento salarial - Dezembro',
-    amount: 50000,
-    date: '2025-12-10',
-    isApplied: false,
-    installments: 1,
-    currentInstallment: 1,
-    createdAt: '2025-12-10T08:00:00Z',
-    updatedAt: '2025-12-10T08:00:00Z',
-  },
-  {
-    id: 'ded-2',
-    employeeId: '3',
-    type: 'warehouse_loss',
-    description: 'Perda de mercadoria - Lote #4521',
-    amount: 25000,
-    date: '2025-12-15',
-    isApplied: false,
-    createdAt: '2025-12-15T08:00:00Z',
-    updatedAt: '2025-12-15T08:00:00Z',
-  },
-  {
-    id: 'ded-3',
-    employeeId: '2',
-    type: 'salary_advance',
-    description: 'Adiantamento para despesas médicas',
-    amount: 100000,
-    date: '2025-12-05',
-    isApplied: false,
-    installments: 2,
-    currentInstallment: 1,
-    createdAt: '2025-12-05T08:00:00Z',
-    updatedAt: '2025-12-05T08:00:00Z',
-  },
-];
-
 export const useDeductionStore = create<DeductionState>()(
   persist(
     (set, get) => ({
-      deductions: sampleDeductions,
+      deductions: [],
 
       addDeduction: (data: DeductionFormData) => {
         const now = new Date().toISOString();

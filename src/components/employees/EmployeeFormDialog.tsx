@@ -129,7 +129,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   <Input
                     value={formData.firstName}
                     onChange={(e) => updateField('firstName', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -137,7 +136,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   <Input
                     value={formData.lastName}
                     onChange={(e) => updateField('lastName', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -149,7 +147,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                     type="email"
                     value={formData.email}
                     onChange={(e) => updateField('email', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -157,7 +154,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   <Input
                     value={formData.phone}
                     onChange={(e) => updateField('phone', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -241,7 +237,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   <Input
                     value={formData.position}
                     onChange={(e) => updateField('position', e.target.value)}
-                    required
                   />
                 </div>
               </div>
@@ -303,7 +298,6 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   type="number"
                   value={formData.baseSalary}
                   onChange={(e) => updateField('baseSalary', Number(e.target.value))}
-                  required
                 />
               </div>
 
