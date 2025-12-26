@@ -1,11 +1,22 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { registerSW } from "virtual:pwa-register";
+import { initElectronStorage, isElectron } from "./lib/electron-storage";
 
-// Ensure the Service Worker is registered so the app is installable (PWA)
-registerSW({
-  immediate: true,
-});
+// Only register PWA service worker when NOT in Electron
+if (!isElectron()) {
+  import("virtual:pwa-register").then(({ registerSW }) => {
+    registerSW({
+      immediate: true,
+    });
+  });
+}
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Initialize Electron storage if running in Electron
+async function init() {
+  await initElectronStorage();
+  
+  createRoot(document.getElementById("root")!).render(<App />);
+}
+
+init();
