@@ -1,18 +1,32 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
+import { 
+  exportDataToFile, 
+  readFileAsJson, 
+  validateBackupData, 
+  importDataFromBackup,
+  getBackupStats,
+  type AppBackupData 
+} from "@/lib/data-backup";
 
 const Settings = () => {
   const { t } = useLanguage();
   const { settings, updateSettings } = useSettingsStore();
   const [formData, setFormData] = useState(settings);
+  const [stats, setStats] = useState(getBackupStats());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setStats(getBackupStats());
+  }, []);
 
   const handleChange = (field: string, value: string | number | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -21,6 +35,49 @@ const Settings = () => {
   const handleSave = () => {
     updateSettings(formData);
     toast.success(t.settings.changesSaved || "Alterações guardadas com sucesso!");
+  };
+
+  const handleExport = () => {
+    exportDataToFile();
+    toast.success(t.settings.exportSuccess || "Dados exportados com sucesso!");
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.json')) {
+      toast.error(t.settings.invalidFile || "Ficheiro inválido. Selecione um ficheiro .json de backup.");
+      return;
+    }
+
+    try {
+      const data = await readFileAsJson(file);
+      
+      if (!validateBackupData(data)) {
+        toast.error(t.settings.importError || "Erro ao importar ficheiro. Verifique se é um backup válido.");
+        return;
+      }
+
+      importDataFromBackup(data as AppBackupData);
+      toast.success(t.settings.importSuccess || "Dados importados com sucesso! A página será recarregada.");
+      
+      // Reload page to refresh all stores
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch {
+      toast.error(t.settings.importError || "Erro ao importar ficheiro.");
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   return (
@@ -32,6 +89,73 @@ const Settings = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          {/* Data Backup Section */}
+          <div className="stat-card animate-slide-up border-2 border-accent/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-foreground">{t.settings.dataBackup || "Cópia de Segurança"}</h2>
+                <p className="text-sm text-muted-foreground">{t.settings.dataBackupDesc || "Exportar e importar todos os dados"}</p>
+              </div>
+            </div>
+            
+            {/* Current Data Stats */}
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+              <h3 className="text-sm font-medium text-foreground mb-3">{t.settings.currentData || "Dados Actuais"}</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold text-accent">{stats.employees}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.employees || "Funcionários"}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-accent">{stats.branches}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.branches || "Filiais"}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-accent">{stats.payrollPeriods}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.payrollPeriods || "Períodos"}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-accent">{stats.payrollEntries}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.payrollEntries || "Registos"}</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-accent">{stats.deductions}</p>
+                  <p className="text-xs text-muted-foreground">{t.settings.deductionsCount || "Descontos"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Export/Import Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button 
+                variant="accent" 
+                className="flex-1"
+                onClick={handleExport}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {t.settings.exportData || "Exportar Dados"}
+              </Button>
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={handleImportClick}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {t.settings.importData || "Importar Dados"}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+          </div>
+
           <div className="stat-card animate-slide-up">
             <div className="flex items-center gap-3 mb-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
