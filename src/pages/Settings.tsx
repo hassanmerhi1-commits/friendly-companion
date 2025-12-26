@@ -17,6 +17,7 @@ import {
   type AppBackupData 
 } from "@/lib/data-backup";
 import { NetworkSettings } from "@/components/settings/NetworkSettings";
+import { SQLiteBackupSettings } from "@/components/settings/SQLiteBackupSettings";
 
 const Settings = () => {
   const { t } = useLanguage();
@@ -93,7 +94,10 @@ const Settings = () => {
           {/* Network Settings Section */}
           <NetworkSettings />
 
-          {/* Data Backup Section */}
+          {/* SQLite Database Backup (Electron only) */}
+          <SQLiteBackupSettings />
+
+          {/* Data Backup Section (JSON/localStorage fallback) */}
           <div className="stat-card animate-slide-up border-2 border-accent/20">
             <div className="flex items-center gap-3 mb-6">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
