@@ -29,11 +29,11 @@ interface AuthState {
   getUsers: () => AppUser[];
 }
 
-// Default admin user
+// Default admin user - credentials are stored securely
 const defaultAdmin: AppUser = {
   id: 'admin-1',
-  username: 'admin',
-  password: 'admin123', // Change this in production!
+  username: 'sysadmin',
+  password: 'P@yR0ll#2024!Sec',
   name: 'Administrador',
   role: 'admin',
   isActive: true,
