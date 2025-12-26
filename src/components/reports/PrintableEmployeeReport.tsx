@@ -10,6 +10,7 @@ import companyLogo from '@/assets/company-logo.jpg';
 interface PrintableEmployeeReportProps {
   employees: Employee[];
   branches: Branch[];
+  branch?: Branch;
   companyName?: string;
   companyNif?: string;
   onClose?: () => void;
@@ -18,6 +19,7 @@ interface PrintableEmployeeReportProps {
 export function PrintableEmployeeReport({
   employees,
   branches,
+  branch,
   companyName = 'DISTRI-GOOD, LDA',
   companyNif = '5417201524',
   onClose,
@@ -125,6 +127,15 @@ export function PrintableEmployeeReport({
           <div className="header-info">
             <div className="company-name">{companyName}</div>
             <div>NIF: {companyNif}</div>
+            {branch && (
+              <>
+                <div style={{ marginTop: '5px' }}>
+                  <strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {branch.name} ({branch.code})
+                </div>
+                <div>{branch.address}</div>
+                <div>{branch.city}, {branch.province}</div>
+              </>
+            )}
             <div className="document-title">{t.title}</div>
             <div className="generated">{t.generatedOn}: {new Date().toLocaleDateString('pt-AO')}</div>
           </div>

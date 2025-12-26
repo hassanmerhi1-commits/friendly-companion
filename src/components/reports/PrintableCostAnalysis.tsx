@@ -4,11 +4,13 @@ import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import type { PayrollEntry } from '@/types/payroll';
+import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/company-logo.jpg';
 
 interface PrintableCostAnalysisProps {
   entries: PayrollEntry[];
   periodLabel: string;
+  branch?: Branch;
   companyName?: string;
   companyNif?: string;
   onClose?: () => void;
@@ -17,6 +19,7 @@ interface PrintableCostAnalysisProps {
 export function PrintableCostAnalysis({
   entries,
   periodLabel,
+  branch,
   companyName = 'DISTRI-GOOD, LDA',
   companyNif = '5417201524',
   onClose,
@@ -130,6 +133,15 @@ export function PrintableCostAnalysis({
           <div className="header-info">
             <div className="company-name">{companyName}</div>
             <div>NIF: {companyNif}</div>
+            {branch && (
+              <>
+                <div style={{ marginTop: '5px' }}>
+                  <strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {branch.name} ({branch.code})
+                </div>
+                <div>{branch.address}</div>
+                <div>{branch.city}, {branch.province}</div>
+              </>
+            )}
             <div className="document-title">{t.title}</div>
             <div className="period">{t.period}: {periodLabel}</div>
             <div className="generated" style={{ fontSize: '9px', color: '#666' }}>{t.generatedOn}: {new Date().toLocaleDateString('pt-AO')}</div>
