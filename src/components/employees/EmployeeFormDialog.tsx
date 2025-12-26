@@ -40,6 +40,7 @@ const defaultFormData: EmployeeFormData = {
   otherAllowances: 0,
   familyAllowance: 0,
   monthlyBonus: 0,
+  holidaySubsidy: 0,
   paymentMethod: 'bank_transfer',
   bankName: '',
   bankAccountNumber: '',
@@ -78,6 +79,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         otherAllowances: employee.otherAllowances,
         familyAllowance: employee.familyAllowance || 0,
         monthlyBonus: employee.monthlyBonus || 0,
+        holidaySubsidy: employee.holidaySubsidy || 0,
         branchId: employee.branchId,
         paymentMethod: employee.paymentMethod,
         bankName: employee.bankName,
@@ -347,6 +349,18 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   />
                   <p className="text-xs text-muted-foreground">
                     {language === 'pt' ? 'Valor fixo do bónus mensal garantido' : 'Fixed guaranteed monthly bonus amount'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>{language === 'pt' ? 'Subsídio de Férias (Kz)' : 'Holiday Subsidy (Kz)'}</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={formData.holidaySubsidy || 0}
+                    onChange={(e) => updateField('holidaySubsidy', Number(e.target.value))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'pt' ? 'Valor fixo do subsídio de férias (definido por funcionário)' : 'Fixed holiday subsidy amount (per employee)'}
                   </p>
                 </div>
               </div>

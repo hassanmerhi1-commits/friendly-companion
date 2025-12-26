@@ -32,6 +32,7 @@ export const useEmployeeStore = create<EmployeeState>()(
           status: 'active',
           familyAllowance: data.familyAllowance || 0,
           monthlyBonus: data.monthlyBonus || 0,
+          holidaySubsidy: data.holidaySubsidy || 0,
           createdAt: now,
           updatedAt: now,
         };
