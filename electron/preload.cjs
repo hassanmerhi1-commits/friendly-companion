@@ -2,7 +2,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Storage operations
+  // Database operations (SQLite)
+  db: {
+    getAll: (table) => ipcRenderer.invoke('db:getAll', table),
+    getById: (table, id) => ipcRenderer.invoke('db:getById', table, id),
+    insert: (table, data) => ipcRenderer.invoke('db:insert', table, data),
+    update: (table, id, data) => ipcRenderer.invoke('db:update', table, id, data),
+    delete: (table, id) => ipcRenderer.invoke('db:delete', table, id),
+    query: (sql, params) => ipcRenderer.invoke('db:query', sql, params),
+    export: () => ipcRenderer.invoke('db:export'),
+    import: (data) => ipcRenderer.invoke('db:import', data),
+  },
+  
+  // Legacy storage operations (backward compatibility)
   storage: {
     read: () => ipcRenderer.invoke('storage:read'),
     write: (data) => ipcRenderer.invoke('storage:write', data),
