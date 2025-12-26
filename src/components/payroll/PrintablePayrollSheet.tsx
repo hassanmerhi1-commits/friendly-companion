@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
+import companyLogo from '@/assets/company-logo.jpg';
 
 interface PrintablePayrollSheetProps {
   entries: PayrollEntry[];
@@ -95,7 +96,9 @@ export function PrintablePayrollSheet({
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; font-size: 9px; padding: 15px; }
-          .header { text-align: center; margin-bottom: 20px; }
+          .header { display: flex; align-items: center; margin-bottom: 20px; gap: 20px; }
+          .logo { width: 80px; height: auto; }
+          .header-info { flex: 1; text-align: center; }
           .company-name { font-size: 16px; font-weight: bold; }
           .document-title { font-size: 14px; font-weight: bold; margin: 10px 0; text-transform: uppercase; }
           .period { font-size: 11px; margin-bottom: 10px; }
@@ -138,24 +141,24 @@ export function PrintablePayrollSheet({
       <div ref={printRef} className="bg-white text-black p-4 text-xs">
         {/* Header */}
         <div className="header">
-          <div className="company-name">{companyName}</div>
-          <div>NIF: {companyNif}</div>
-          {branch && (
-            <div>
-              <strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {branch.name} ({branch.code})
-              {warehouseName && <> | <strong>{language === 'pt' ? 'Armazém' : 'Warehouse'}:</strong> {warehouseName}</>}
-            </div>
-          )}
-          {branch && (
-            <div>
-              {branch.address}, {branch.city} - {branch.province}
-              {branch.city && branch.province && (
-                <span> ({language === 'pt' ? 'Município' : 'Municipality'}: {branch.city}, {language === 'pt' ? 'Província' : 'Province'}: {branch.province})</span>
-              )}
-            </div>
-          )}
-          <div className="document-title">{t.title}</div>
-          <div className="period">{t.period}: {periodLabel}</div>
+          <img src={companyLogo} alt="Company Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+          <div className="header-info">
+            <div className="company-name">{companyName}</div>
+            <div>NIF: {companyNif}</div>
+            {branch && (
+              <div>
+                <strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {branch.name} ({branch.code})
+                {warehouseName && <> | <strong>{language === 'pt' ? 'Armazém' : 'Warehouse'}:</strong> {warehouseName}</>}
+              </div>
+            )}
+            {branch && (
+              <div>
+                {branch.address}, {branch.city} - {branch.province}
+              </div>
+            )}
+            <div className="document-title">{t.title}</div>
+            <div className="period">{t.period}: {periodLabel}</div>
+          </div>
         </div>
 
         {/* Main Payroll Table - ABONOS/EARNINGS Section */}
