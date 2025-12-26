@@ -2,6 +2,8 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { FileText, Calendar, TrendingUp, Users, DollarSign } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -22,6 +24,21 @@ const Reports = () => {
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+
+  const selectedBranch = selectedBranchId !== 'all' ? branches.find(b => b.id === selectedBranchId) : undefined;
+
+  // Filter employees and entries by branch
+  const filteredEmployees = selectedBranchId === 'all' 
+    ? employees 
+    : employees.filter(e => e.branchId === selectedBranchId);
+
+  const filteredEntries = selectedBranchId === 'all'
+    ? entries
+    : entries.filter(e => {
+        const emp = employees.find(emp => emp.id === e.employeeId);
+        return emp?.branchId === selectedBranchId;
+      });
 
   const currentPeriod = periods.length > 0 ? periods[periods.length - 1] : null;
   const periodLabel = currentPeriod 
@@ -30,13 +47,13 @@ const Reports = () => {
 
   const handleOpenReport = (type: ReportType) => {
     if (type === 'salary' || type === 'cost') {
-      if (entries.length === 0) {
+      if (filteredEntries.length === 0) {
         toast.error(language === 'pt' ? 'Nenhum processamento salarial encontrado. Processe a folha primeiro.' : 'No payroll data found. Process payroll first.');
         return;
       }
     }
     if (type === 'employee' || type === 'holiday') {
-      if (employees.length === 0) {
+      if (filteredEmployees.length === 0) {
         toast.error(language === 'pt' ? 'Nenhum funcionário registado.' : 'No employees registered.');
         return;
       }
@@ -52,7 +69,7 @@ const Reports = () => {
       description: t.reports.monthlySalaryDesc, 
       icon: DollarSign, 
       color: 'bg-blue-500',
-      available: entries.length > 0
+      available: filteredEntries.length > 0
     },
     { 
       id: "2", 
@@ -61,7 +78,7 @@ const Reports = () => {
       description: t.reports.employeeReportDesc, 
       icon: Users, 
       color: 'bg-emerald-500',
-      available: employees.length > 0
+      available: filteredEmployees.length > 0
     },
     { 
       id: "3", 
@@ -70,7 +87,7 @@ const Reports = () => {
       description: t.reports.costAnalysisDesc, 
       icon: TrendingUp, 
       color: 'bg-purple-500',
-      available: entries.length > 0
+      available: filteredEntries.length > 0
     },
     { 
       id: "4", 
@@ -79,13 +96,13 @@ const Reports = () => {
       description: t.reports.holidayMapDesc, 
       icon: Calendar, 
       color: 'bg-green-500',
-      available: employees.length > 0
+      available: filteredEmployees.length > 0
     },
   ];
 
   const stats = {
-    employees: employees.length,
-    activeEmployees: employees.filter(e => e.status === 'active').length,
+    employees: filteredEmployees.length,
+    activeEmployees: filteredEmployees.filter(e => e.status === 'active').length,
     branches: branches.length,
     payrollPeriods: periods.length
   };
@@ -96,6 +113,38 @@ const Reports = () => {
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.reports.title}</h1>
           <p className="text-muted-foreground mt-1">{t.reports.subtitle}</p>
+        </div>
+      </div>
+
+      {/* Branch Selection */}
+      <div className="stat-card mb-6 animate-fade-in">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-sm font-medium mb-2 block">
+              {language === 'pt' ? 'Seleccionar Filial' : 'Select Branch'}
+            </Label>
+            <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+              <SelectTrigger>
+                <SelectValue placeholder={language === 'pt' ? 'Todas as filiais' : 'All branches'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {language === 'pt' ? 'Todas as Filiais' : 'All Branches'}
+                </SelectItem>
+                {branches.filter(b => b.isActive).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code}) - {branch.city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedBranch && (
+            <div className="text-sm text-muted-foreground">
+              <p><strong>{language === 'pt' ? 'Endereço' : 'Address'}:</strong> {selectedBranch.address}</p>
+              <p><strong>{language === 'pt' ? 'Cidade' : 'City'}:</strong> {selectedBranch.city}, {selectedBranch.province}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,8 +209,9 @@ const Reports = () => {
             <DialogTitle>{t.reports.monthlySalaryReport}</DialogTitle>
           </DialogHeader>
           <PrintablePayrollSheet
-            entries={entries}
+            entries={filteredEntries}
             periodLabel={periodLabel}
+            branch={selectedBranch}
           />
         </DialogContent>
       </Dialog>
@@ -173,8 +223,9 @@ const Reports = () => {
             <DialogTitle>{t.reports.employeeReport}</DialogTitle>
           </DialogHeader>
           <PrintableEmployeeReport
-            employees={employees}
+            employees={filteredEmployees}
             branches={branches}
+            branch={selectedBranch}
             onClose={() => setOpenReport(null)}
           />
         </DialogContent>
@@ -187,8 +238,9 @@ const Reports = () => {
             <DialogTitle>{t.reports.costAnalysis}</DialogTitle>
           </DialogHeader>
           <PrintableCostAnalysis
-            entries={entries}
+            entries={filteredEntries}
             periodLabel={periodLabel}
+            branch={selectedBranch}
             onClose={() => setOpenReport(null)}
           />
         </DialogContent>
@@ -201,7 +253,8 @@ const Reports = () => {
             <DialogTitle>{t.reports.holidayMap}</DialogTitle>
           </DialogHeader>
           <PrintableHolidayMap
-            employees={employees}
+            employees={filteredEmployees}
+            branch={selectedBranch}
             onClose={() => setOpenReport(null)}
           />
         </DialogContent>
