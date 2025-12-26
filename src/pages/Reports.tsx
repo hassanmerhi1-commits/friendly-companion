@@ -10,6 +10,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useHolidayStore } from "@/stores/holiday-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableEmployeeReport } from "@/components/reports/PrintableEmployeeReport";
@@ -25,6 +26,7 @@ const Reports = () => {
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
   const { records: holidayRecords, saveRecords } = useHolidayStore();
+  const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
 
@@ -218,6 +220,8 @@ const Reports = () => {
           <PrintablePayrollSheet
             entries={filteredEntries}
             periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
             branch={selectedBranch}
           />
         </DialogContent>
@@ -232,6 +236,8 @@ const Reports = () => {
           <PrintableEmployeeReport
             employees={filteredEmployees}
             branches={branches}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
             branch={selectedBranch}
             onClose={() => setOpenReport(null)}
           />
@@ -247,6 +253,8 @@ const Reports = () => {
           <PrintableCostAnalysis
             entries={filteredEntries}
             periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
             branch={selectedBranch}
             onClose={() => setOpenReport(null)}
           />
@@ -261,6 +269,8 @@ const Reports = () => {
           </DialogHeader>
           <PrintableHolidayMap
             employees={filteredEmployees}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
             branch={selectedBranch}
             holidayRecords={holidayRecords}
             onSaveRecords={handleSaveHolidayRecords}
