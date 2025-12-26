@@ -32,23 +32,23 @@ export interface IRTBracket {
 }
 
 // IRT progressive tax brackets for Group A (Employment Income)
-// Updated according to AGT Angola simulator and DR nº 247/2023
-// Formula: IRT = (Rendimento Coletável - Limite Inferior) × Taxa + Parcela Fixa
-// Rendimento Coletável = Rendimento Bruto Tributável - INSS (3%)
+// Updated according to AGT Angola simulator (quiosqueagt.minfin.gov.ao/simulador/irt)
+// Formula: IRT = (Rendimento Coletável - Limite Inferior) × Taxa
+// Rendimento Coletável = (Salário Base + Sub. Férias + Sub. Natal) - INSS
+// Note: Transport, Meal, and Family allowances are NOT taxable for IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 70_000, rate: 0, fixedAmount: 0 },
-  { min: 70_001, max: 100_000, rate: 0.10, fixedAmount: 0 },
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 3_000 },
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 9_500 },
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 17_500 },
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 35_500 },
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 73_500 },
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 173_500 },
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 278_500 },
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 388_500 },
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 503_500 },
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_103_500 },
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_328_500 },
+  { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },
+  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 6_500 },
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 14_500 },
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 32_500 },
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 70_500 },
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 170_500 },
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 275_500 },
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 385_500 },
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 500_500 },
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_100_500 },
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_325_500 },
 ];
 
 // ============================================================================
@@ -169,25 +169,23 @@ export const NATIONAL_HOLIDAYS = [
  * Calculate IRT (Income Tax) for a given taxable income
  * Based on Group A - Employment Income
  * Formula: IRT = Parcela Fixa + (Rendimento Coletável - Limite Inferior) × Taxa
- * According to AGT Angola simulator
+ * According to AGT Angola simulator (quiosqueagt.minfin.gov.ao/simulador/irt)
  * 
  * IMPORTANT: The taxable income should ALREADY have INSS deducted
- * Rendimento Coletável = Rendimento Bruto Tributável - INSS (3% of base salary)
  * 
- * Non-taxable items (should NOT be included):
- * - Abono de Família (Family Allowance)
- * 
- * Taxable items:
+ * IRT Taxable items (Rendimento Tributável):
  * - Salário Base
- * - Subsídio de Férias
+ * - Subsídio de Férias (50% of base)
  * - Subsídio de Natal (13º mês)
- * - Subsídio de Transporte
+ * 
+ * NON-Taxable for IRT:
  * - Subsídio de Alimentação
- * - Overtime
+ * - Subsídio de Transporte  
+ * - Abono de Família (Family Allowance)
  */
 export function calculateIRT(taxableIncome: number): number {
-  // Salaries up to 70,000 AOA are exempt
-  if (taxableIncome <= 70_000) {
+  // Salaries up to 100,000 AOA are exempt
+  if (taxableIncome <= 100_000) {
     return 0;
   }
 
@@ -200,21 +198,28 @@ export function calculateIRT(taxableIncome: number): number {
     // Use highest bracket for salaries above 10,000,000
     const highestBracket = IRT_BRACKETS[IRT_BRACKETS.length - 1];
     const excess = taxableIncome - highestBracket.min;
-    return Math.round(highestBracket.fixedAmount + (excess * highestBracket.rate));
+    return Math.round(highestBracket.fixedAmount + (excess * highestBracket.rate) * 100) / 100;
   }
 
   // Calculate: Fixed Amount + (Income - Lower Limit of Bracket) × Rate
   const excess = taxableIncome - bracket.min;
-  return Math.round(bracket.fixedAmount + (excess * bracket.rate));
+  return Math.round((bracket.fixedAmount + (excess * bracket.rate)) * 100) / 100;
 }
 
 /**
  * Calculate INSS contributions
- * INSS is calculated only on the base salary (salário base)
- * Employee: 3%, Employer: 8%
+ * According to AGT simulator, INSS (3%) is calculated on:
+ * - Salário Base
+ * - Subsídio de Alimentação
+ * - Subsídio de Transporte
+ * - Abono de Família
+ * 
+ * NOT included in INSS base:
+ * - Subsídio de Férias
+ * - Subsídio de Natal (13º mês)
  */
 export function calculateINSS(
-  baseSalary: number,
+  inssBase: number, // base + transport + meal + family allowance
   isRetired: boolean = false
 ): { employeeContribution: number; employerContribution: number } {
   const employeeRate = isRetired 
@@ -222,8 +227,8 @@ export function calculateINSS(
     : INSS_RATES.EMPLOYEE_RATE;
   
   return {
-    employeeContribution: Math.round(baseSalary * employeeRate),
-    employerContribution: Math.round(baseSalary * INSS_RATES.EMPLOYER_RATE),
+    employeeContribution: Math.round(inssBase * employeeRate * 100) / 100,
+    employerContribution: Math.round(inssBase * INSS_RATES.EMPLOYER_RATE * 100) / 100,
   };
 }
 
@@ -409,31 +414,37 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     ? calculateHolidaySubsidy(baseSalary) 
     : 0;
   
-  // Calculate family allowance (NOT taxable for IRT)
+  // Calculate family allowance
   const familyAllowance = calculateFamilyAllowance(dependents);
 
-  // INSS is calculated ONLY on base salary (salário base)
-  // NOT on subsidies (férias, natal) or allowances
+  // =========================================================================
+  // INSS Calculation (According to AGT Angola simulator)
+  // INSS base = Base + Transport + Meal + Family Allowance
+  // NOT including: Holiday Subsidy (Férias) and 13th Month (Natal)
+  // =========================================================================
+  const inssBase = baseSalary + transportAllowance + mealAllowance + familyAllowance;
   const { employeeContribution: inssEmployee, employerContribution: inssEmployer } = 
-    calculateINSS(baseSalary, isRetired);
+    calculateINSS(inssBase, isRetired);
 
-  // Taxable income for IRT calculation
-  // According to AGT Angola:
-  // - Family allowance (Abono de Família) is NOT taxable
-  // - Transport, meal allowances, holiday subsidy, 13th month ARE taxable
-  // - INSS must be deducted before calculating IRT
-  const taxableGrossIncome = baseSalary + transportAllowance + mealAllowance + 
-                              overtimeNormal + overtimeNight + overtimeHoliday + 
-                              thirteenthMonth + holidaySubsidy + otherAllowances;
+  // =========================================================================
+  // IRT Calculation (According to AGT Angola simulator)
+  // IRT taxable = Base + Holiday Subsidy + 13th Month + Overtime
+  // NOT taxable: Transport, Meal, Family Allowance
+  // Then subtract INSS to get Rendimento Coletável
+  // =========================================================================
+  const irtTaxableGross = baseSalary + holidaySubsidy + thirteenthMonth + 
+                          overtimeNormal + overtimeNight + overtimeHoliday + otherAllowances;
   
-  // Rendimento Coletável = Gross Taxable Income - INSS (3% of base salary)
-  const taxableIncomeForIRT = taxableGrossIncome - inssEmployee;
+  // Rendimento Coletável = IRT Taxable Gross - INSS
+  const rendimentoColetavel = irtTaxableGross - inssEmployee;
   
   // Calculate IRT on the rendimento coletável
-  const irt = calculateIRT(taxableIncomeForIRT);
+  const irt = calculateIRT(rendimentoColetavel);
 
   // Gross salary includes everything (for display purposes)
-  const grossSalary = taxableGrossIncome + familyAllowance;
+  const grossSalary = baseSalary + mealAllowance + transportAllowance + familyAllowance +
+                      overtimeNormal + overtimeNight + overtimeHoliday +
+                      thirteenthMonth + holidaySubsidy + otherAllowances;
 
   const totalDeductions = irt + inssEmployee;
   const netSalary = grossSalary - totalDeductions;
