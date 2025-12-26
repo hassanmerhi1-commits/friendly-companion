@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -15,6 +15,7 @@ import { useDeductionStore } from "@/stores/deduction-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
+import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -30,6 +31,8 @@ const Payroll = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
+  const [printBonusSheetOpen, setPrintBonusSheetOpen] = useState(false);
+  const [bonusBranchId, setBonusBranchId] = useState<string>('');
   const [includeHolidaySubsidy, setIncludeHolidaySubsidy] = useState(false);
   const [include13thMonth, setInclude13thMonth] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
@@ -37,6 +40,7 @@ const Payroll = () => {
 
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
+  const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
   // Get or create current period
   const getOrCreateCurrentPeriod = () => {
@@ -50,6 +54,11 @@ const Payroll = () => {
 
   const currentPeriod = getCurrentPeriod();
   const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
+  
+  // Filter entries by branch for bonus sheet
+  const bonusSheetEntries = bonusBranchId 
+    ? currentEntries.filter(e => e.employee?.branchId === bonusBranchId)
+    : [];
   
   const totals = currentEntries.reduce((acc, e) => ({
     gross: acc.gross + e.grossSalary,
@@ -201,6 +210,44 @@ const Payroll = () => {
         </div>
       </div>
 
+      {/* Bonus Sheet by Branch */}
+      <div className="stat-card mb-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Gift className="h-4 w-4 text-accent" />
+            {language === 'pt' ? 'Folha de Bónus por Filial' : 'Bonus Sheet by Branch'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Label>{language === 'pt' ? 'Selecionar Filial:' : 'Select Branch:'}</Label>
+            <Select value={bonusBranchId} onValueChange={setBonusBranchId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={language === 'pt' ? 'Escolher filial' : 'Choose branch'} />
+              </SelectTrigger>
+              <SelectContent>
+                {branches.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button 
+            variant="accent" 
+            onClick={() => setPrintBonusSheetOpen(true)} 
+            disabled={!bonusBranchId || bonusSheetEntries.length === 0}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Imprimir Folha de Bónus' : 'Print Bonus Sheet'}
+          </Button>
+          {bonusBranchId && (
+            <span className="text-sm text-muted-foreground">
+              {bonusSheetEntries.length} {language === 'pt' ? 'funcionários' : 'employees'}
+            </span>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard title={t.payroll.grossSalaries} value={formatAOA(totals.gross)} icon={DollarSign} variant="accent" delay={0} />
         <StatCard title={t.payroll.totalDeductions} value={formatAOA(totals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={50} />
@@ -298,6 +345,25 @@ const Payroll = () => {
             branch={selectedBranch}
             warehouseName={warehouseName}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Printable Bonus Sheet Dialog */}
+      <Dialog open={printBonusSheetOpen} onOpenChange={setPrintBonusSheetOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'pt' ? 'Folha de Bónus' : 'Bonus Sheet'} - {bonusBranch?.name || ''}
+            </DialogTitle>
+          </DialogHeader>
+          {bonusBranch && (
+            <PrintableBonusSheet
+              entries={bonusSheetEntries}
+              periodLabel={periodLabel}
+              branch={bonusBranch}
+              warehouseName={warehouseName}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </MainLayout>
