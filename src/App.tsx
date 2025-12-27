@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
+import { isDeviceActivated } from "@/lib/device-security";
+import { DeviceActivation } from "@/components/DeviceActivation";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
 import Employees from "./pages/Employees";
@@ -53,15 +56,46 @@ const AppRoutes = () => {
   );
 };
 
+function AppContent() {
+  const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Check device activation on mount
+    setDeviceActivated(isDeviceActivated());
+  }, []);
+
+  // Show loading while checking activation
+  if (deviceActivated === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">A verificar...</div>
+      </div>
+    );
+  }
+
+  // Show activation screen if device is not activated
+  if (!deviceActivated) {
+    return (
+      <DeviceActivation 
+        onActivated={() => setDeviceActivated(true)} 
+      />
+    );
+  }
+
+  return (
+    <HashRouter>
+      <AppRoutes />
+    </HashRouter>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
+        <AppContent />
       </TooltipProvider>
     </LanguageProvider>
   </QueryClientProvider>
