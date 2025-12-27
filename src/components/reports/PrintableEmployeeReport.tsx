@@ -5,7 +5,7 @@ import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
-import companyLogo from '@/assets/company-logo.jpg';
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 interface PrintableEmployeeReportProps {
   employees: Employee[];
