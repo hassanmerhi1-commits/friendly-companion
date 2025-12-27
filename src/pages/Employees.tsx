@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
+import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportEmployeesToCSV } from "@/lib/export-utils";
 import type { Employee } from "@/types/employee";
@@ -28,6 +29,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useReactToPrint } from "react-to-print";
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('pt-AO', {
@@ -54,6 +62,9 @@ const Employees = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [cardDialogOpen, setCardDialogOpen] = useState(false);
+  const [employeeForCard, setEmployeeForCard] = useState<Employee | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const filteredEmployees = employees.filter(emp => {
     const matchesSearch = emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,6 +131,16 @@ const Employees = () => {
     exportEmployeesToCSV(employees, language);
     toast.success(t.export.success);
   };
+
+  const handlePrintCard = (emp: Employee) => {
+    setEmployeeForCard(emp);
+    setCardDialogOpen(true);
+  };
+
+  const handlePrint = useReactToPrint({
+    contentRef: cardRef,
+    documentTitle: employeeForCard ? `Cartao-${employeeForCard.firstName}-${employeeForCard.lastName}` : 'Cartao-Funcionario',
+  });
 
   return (
     <MainLayout>
@@ -261,6 +282,10 @@ const Employees = () => {
                           <Pencil className="h-4 w-4 mr-2" />
                           {t.common.edit}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          {language === 'pt' ? 'Cartão ID' : 'ID Card'}
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleDeleteClick(employee)}
                           className="text-destructive"
@@ -309,6 +334,34 @@ const Employees = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Employee Card Dialog */}
+      <Dialog open={cardDialogOpen} onOpenChange={setCardDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              {language === 'pt' ? 'Cartão de Identificação' : 'ID Card'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {employeeForCard && (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <PrintableEmployeeCard ref={cardRef} employee={employeeForCard} />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setCardDialogOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button variant="accent" onClick={() => handlePrint()}>
+              <FileDown className="h-4 w-4 mr-2" />
+              {language === 'pt' ? 'Imprimir Cartão' : 'Print Card'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };
