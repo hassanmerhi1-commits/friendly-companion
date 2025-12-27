@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
-import { calculatePayroll } from '@/lib/angola-labor-law';
+import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
 import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface PayrollState {
@@ -20,6 +20,10 @@ interface PayrollState {
   updateEntry: (id: string, data: Partial<PayrollEntry>) => void;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
   recalculateEntry: (id: string) => void;
+  
+  // Absence and overtime updates
+  updateAbsences: (entryId: string, daysAbsent: number) => void;
+  updateOvertime: (entryId: string, hoursNormal: number, hoursNight: number, hoursHoliday: number) => void;
   
   // Summary
   getPayrollSummary: (periodId: string) => PayrollSummary | null;
@@ -121,6 +125,8 @@ export const usePayrollStore = create<PayrollState>()(
               netSalary: payrollResult.netSalary + (emp.holidaySubsidy || 0),
               totalEmployerCost: payrollResult.totalEmployerCost + (emp.holidaySubsidy || 0),
               monthlyBonus: emp.monthlyBonus || 0,
+              absenceDeduction: 0,
+              daysAbsent: 0,
               otherDeductions: 0,
               overtimeHoursNormal: 0,
               overtimeHoursNight: 0,
@@ -177,6 +183,76 @@ export const usePayrollStore = create<PayrollState>()(
             e.id === id ? { ...e, ...data, updatedAt: new Date().toISOString() } : e
           ),
         }));
+      },
+      
+      // Update absence days and recalculate deduction
+      updateAbsences: (entryId: string, daysAbsent: number) => {
+        const entry = get().entries.find((e) => e.id === entryId);
+        if (!entry) return;
+        
+        const absenceDeduction = calculateAbsenceDeduction(entry.baseSalary, daysAbsent);
+        const oldAbsenceDeduction = entry.absenceDeduction || 0;
+        const difference = absenceDeduction - oldAbsenceDeduction;
+        
+        set((state) => ({
+          entries: state.entries.map((e) =>
+            e.id === entryId
+              ? {
+                  ...e,
+                  daysAbsent,
+                  absenceDeduction,
+                  totalDeductions: e.totalDeductions + difference,
+                  netSalary: e.netSalary - difference,
+                  updatedAt: new Date().toISOString(),
+                }
+              : e
+          ),
+        }));
+        
+        if (entry.payrollPeriodId) {
+          get().calculatePeriod(entry.payrollPeriodId);
+        }
+      },
+      
+      // Update overtime hours and recalculate values
+      updateOvertime: (entryId: string, hoursNormal: number, hoursNight: number, hoursHoliday: number) => {
+        const entry = get().entries.find((e) => e.id === entryId);
+        if (!entry) return;
+        
+        const hourlyRate = calculateHourlyRate(entry.baseSalary);
+        
+        // Calculate overtime with progressive rates for normal hours
+        const overtimeNormal = calculateOvertime(hourlyRate, hoursNormal, 'normal', 0);
+        const overtimeNight = calculateOvertime(hourlyRate, hoursNight, 'night', 0);
+        const overtimeHoliday = calculateOvertime(hourlyRate, hoursHoliday, 'holiday', 0);
+        
+        const oldOvertimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
+        const newOvertimeTotal = overtimeNormal + overtimeNight + overtimeHoliday;
+        const difference = newOvertimeTotal - oldOvertimeTotal;
+        
+        set((state) => ({
+          entries: state.entries.map((e) =>
+            e.id === entryId
+              ? {
+                  ...e,
+                  overtimeHoursNormal: hoursNormal,
+                  overtimeHoursNight: hoursNight,
+                  overtimeHoursHoliday: hoursHoliday,
+                  overtimeNormal,
+                  overtimeNight,
+                  overtimeHoliday,
+                  grossSalary: e.grossSalary + difference,
+                  netSalary: e.netSalary + difference,
+                  totalEmployerCost: e.totalEmployerCost + difference,
+                  updatedAt: new Date().toISOString(),
+                }
+              : e
+          ),
+        }));
+        
+        if (entry.payrollPeriodId) {
+          get().calculatePeriod(entry.payrollPeriodId);
+        }
       },
       
       getEntriesForPeriod: (periodId: string) => {

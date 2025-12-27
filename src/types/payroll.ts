@@ -39,9 +39,9 @@ export interface PayrollEntry {
   otherAllowances: number;
   familyAllowance: number; // Abono de Família
   monthlyBonus: number; // Bónus Mensal - user-defined
-  overtimeNormal: number;
-  overtimeNight: number;
-  overtimeHoliday: number;
+  overtimeNormal: number; // Calculated overtime value for normal hours
+  overtimeNight: number; // Calculated overtime value for night hours
+  overtimeHoliday: number; // Calculated overtime value for holiday hours
   thirteenthMonth: number;
   holidaySubsidy: number;
   grossSalary: number;
@@ -49,6 +49,7 @@ export interface PayrollEntry {
   // Deductions
   irt: number;
   inssEmployee: number;
+  absenceDeduction: number; // Desconto por faltas - based on 22 working days
   otherDeductions: number;
   totalDeductions: number;
   
@@ -62,10 +63,13 @@ export interface PayrollEntry {
   // Status
   status: PayrollStatus;
   
-  // Overtime hours input
+  // Overtime hours input (for tracking and calculation)
   overtimeHoursNormal: number;
   overtimeHoursNight: number;
   overtimeHoursHoliday: number;
+  
+  // Absences
+  daysAbsent: number; // Dias de falta
   
   // Dependents for family allowance (deprecated - using familyAllowance value)
   dependents?: number;
