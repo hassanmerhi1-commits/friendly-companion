@@ -162,12 +162,28 @@ function initDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
+        password TEXT NOT NULL,
         name TEXT,
         role TEXT DEFAULT 'user',
+        permissions TEXT,
         status TEXT DEFAULT 'active',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      -- Absences table
+      CREATE TABLE IF NOT EXISTS absences (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        days INTEGER DEFAULT 1,
+        reason TEXT,
+        status TEXT DEFAULT 'approved',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
       -- Settings table
