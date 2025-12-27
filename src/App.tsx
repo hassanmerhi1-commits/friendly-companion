@@ -60,11 +60,30 @@ const AppRoutes = () => {
   );
 };
 
+// Check if we're in development/preview mode (not Electron)
+const isDevelopmentPreview = () => {
+  const isElectron = typeof window !== 'undefined' && 
+    (window as any).electronAPI?.isElectron === true;
+  const isDev = import.meta.env.DEV;
+  return !isElectron && isDev;
+};
+
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Bypass checks in development preview mode
+    if (isDevelopmentPreview()) {
+      setDeviceActivated(true);
+      setProvinceSelected(true);
+      // Set a default province for preview
+      if (!isProvinceSelected()) {
+        localStorage.setItem('payroll_selected_province', 'Luanda');
+      }
+      return;
+    }
+    
     // Check device activation on mount
     setDeviceActivated(isDeviceActivated());
     setProvinceSelected(isProvinceSelected());
