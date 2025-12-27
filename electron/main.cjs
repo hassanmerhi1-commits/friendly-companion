@@ -4,11 +4,27 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 
-// Get the app's directory for storing data (same folder as the executable)
-const appDir = app.isPackaged 
-  ? path.dirname(app.getPath('exe')) 
-  : path.join(__dirname, '..');
-const dataDir = path.join(appDir, 'data');
+// Get the data directory - both dev and win-unpacked use project root's data folder
+function getDataDir() {
+  if (app.isPackaged) {
+    const exeDir = path.dirname(app.getPath('exe'));
+    
+    // Check if running from win-unpacked (portable version inside project)
+    // Path: ProjectRoot/dist-electron/win-unpacked/PayrollAO.exe
+    if (exeDir.includes('win-unpacked')) {
+      const projectRoot = path.join(exeDir, '..', '..');
+      return path.join(projectRoot, 'data');
+    }
+    
+    // Installed version - use folder next to exe
+    return path.join(exeDir, 'data');
+  }
+  
+  // Development mode: electron/main.cjs -> go up one level to project root
+  return path.join(__dirname, '..', 'data');
+}
+
+const dataDir = getDataDir();
 
 // Ensure data directory exists
 if (!require('fs').existsSync(dataDir)) {
