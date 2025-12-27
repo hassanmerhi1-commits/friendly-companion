@@ -1,14 +1,25 @@
 // Electron SQLite Storage Utility
 // This provides a custom Zustand storage that uses SQLite when running in Electron
+// Each province has its own separate data storage
 
 // Import type from electron-storage (types are defined there)
 import { isElectron } from './electron-storage';
+import { getProvinceStoragePrefix, isProvinceSelected } from './province-storage';
+
+// Get province-specific storage name
+function getProvinceStorageKey(baseName: string): string {
+  const prefix = getProvinceStoragePrefix();
+  return `${baseName}-${prefix}`;
+}
 
 // Create a Zustand storage adapter that uses SQLite in Electron
 export function createElectronStorage<T>(tableName: string) {
   return {
     getItem: async (name: string): Promise<string | null> => {
-      if (isElectron()) {
+      // Use province-specific storage key
+      const storageKey = getProvinceStorageKey(name);
+      
+      if (isElectron() && isProvinceSelected()) {
         try {
           const rows = await window.electronAPI!.db.getAll(tableName);
           if (rows && rows.length > 0) {
@@ -20,13 +31,16 @@ export function createElectronStorage<T>(tableName: string) {
           console.error(`Error reading from SQLite table ${tableName}:`, error);
         }
       }
-      // Fallback to localStorage
-      return localStorage.getItem(name);
+      // Fallback to localStorage with province prefix
+      return localStorage.getItem(storageKey);
     },
     
     setItem: async (name: string, value: string): Promise<void> => {
-      // Always save to localStorage as backup
-      localStorage.setItem(name, value);
+      // Use province-specific storage key
+      const storageKey = getProvinceStorageKey(name);
+      
+      // Always save to localStorage as backup with province prefix
+      localStorage.setItem(storageKey, value);
       
       if (isElectron()) {
         try {
@@ -40,7 +54,8 @@ export function createElectronStorage<T>(tableName: string) {
     },
     
     removeItem: async (name: string): Promise<void> => {
-      localStorage.removeItem(name);
+      const storageKey = getProvinceStorageKey(name);
+      localStorage.removeItem(storageKey);
       // SQLite data persists - clearing would need explicit action
     },
   };

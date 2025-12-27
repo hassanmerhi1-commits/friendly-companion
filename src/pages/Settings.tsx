@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
@@ -18,12 +18,14 @@ import {
 } from "@/lib/data-backup";
 import { NetworkSettings } from "@/components/settings/NetworkSettings";
 import { SQLiteBackupSettings } from "@/components/settings/SQLiteBackupSettings";
+import { getSelectedProvince, clearProvinceSelection, ANGOLA_PROVINCES } from "@/lib/province-storage";
 
 const Settings = () => {
   const { t } = useLanguage();
   const { settings, updateSettings } = useSettingsStore();
   const [formData, setFormData] = useState(settings);
   const [stats, setStats] = useState(getBackupStats());
+  const currentProvince = getSelectedProvince();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,6 +84,13 @@ const Settings = () => {
     }
   };
 
+  const handleChangeProvince = () => {
+    if (confirm("Tem certeza que deseja mudar de província? Você será redirecionado para selecionar uma nova província.")) {
+      clearProvinceSelection();
+      window.location.reload();
+    }
+  };
+
   return (
     <MainLayout>
       <div className="mb-8 animate-fade-in">
@@ -91,6 +100,31 @@ const Settings = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          {/* Current Province Section */}
+          <div className="stat-card animate-slide-up border-2 border-primary/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-foreground">Província Actual</h2>
+                <p className="text-sm text-muted-foreground">Base de dados isolada por província</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+              <div>
+                <p className="text-2xl font-bold text-primary">{currentProvince || "Não selecionada"}</p>
+                <p className="text-sm text-muted-foreground">
+                  Cada província tem a sua própria base de dados independente
+                </p>
+              </div>
+              <Button variant="outline" onClick={handleChangeProvince}>
+                Mudar Província
+              </Button>
+            </div>
+          </div>
+
           {/* Network Settings Section */}
           <NetworkSettings />
 

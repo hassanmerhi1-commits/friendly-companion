@@ -7,7 +7,9 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
 import { isDeviceActivated } from "@/lib/device-security";
+import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
+import { ProvinceSelector } from "@/components/ProvinceSelector";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
 import Employees from "./pages/Employees";
@@ -58,14 +60,16 @@ const AppRoutes = () => {
 
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
+  const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Check device activation on mount
     setDeviceActivated(isDeviceActivated());
+    setProvinceSelected(isProvinceSelected());
   }, []);
 
-  // Show loading while checking activation
-  if (deviceActivated === null) {
+  // Show loading while checking
+  if (deviceActivated === null || provinceSelected === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">A verificar...</div>
@@ -78,6 +82,19 @@ function AppContent() {
     return (
       <DeviceActivation 
         onActivated={() => setDeviceActivated(true)} 
+      />
+    );
+  }
+
+  // Show province selector if no province is selected
+  if (!provinceSelected) {
+    return (
+      <ProvinceSelector 
+        onProvinceSelected={() => {
+          setProvinceSelected(true);
+          // Reload the page to reinitialize storage with the new province
+          window.location.reload();
+        }} 
       />
     );
   }

@@ -3,7 +3,10 @@
  * 
  * Syncs localStorage data with a local file when running in Electron.
  * This ensures data persists independently of the browser.
+ * Each province has its own separate data file.
  */
+
+import { getProvinceStoragePrefix, isProvinceSelected } from './province-storage';
 
 // Type definitions for Electron API exposed via preload
 declare global {
@@ -20,9 +23,9 @@ declare global {
         import: (data: any) => Promise<any>;
       };
       storage: {
-        read: () => Promise<Record<string, unknown> | null>;
-        write: (data: Record<string, unknown>) => Promise<boolean>;
-        getPath: () => Promise<string>;
+        read: (fileName?: string) => Promise<Record<string, unknown> | null>;
+        write: (data: Record<string, unknown>, fileName?: string) => Promise<boolean>;
+        getPath: (fileName?: string) => Promise<string>;
       };
       network: {
         getConfig: () => Promise<any>;
@@ -49,7 +52,20 @@ const STORAGE_KEYS = [
   'payrollao-deductions',
   'payrollao-holidays',
   'payrollao-settings',
+  'payrollao-absences',
 ];
+
+// Get province-specific storage key
+function getProvinceKey(baseKey: string): string {
+  const prefix = getProvinceStoragePrefix();
+  return `${baseKey}-${prefix}`;
+}
+
+// Get the data file name for the current province
+function getProvinceDataFileName(): string {
+  const prefix = getProvinceStoragePrefix();
+  return `payroll-data-${prefix}.json`;
+}
 
 // Check if running in Electron
 export function isElectron(): boolean {
@@ -59,18 +75,21 @@ export function isElectron(): boolean {
 // Load data from Electron file storage to localStorage
 export async function loadFromElectronStorage(): Promise<void> {
   if (!isElectron()) return;
+  if (!isProvinceSelected()) return;
 
   try {
-    const data = await window.electronAPI!.storage.read();
+    const fileName = getProvinceDataFileName();
+    const data = await window.electronAPI!.storage.read(fileName);
     
     if (data) {
-      // Write each key to localStorage
+      // Write each key to localStorage with province prefix
       for (const key of STORAGE_KEYS) {
+        const provinceKey = getProvinceKey(key);
         if (data[key]) {
-          localStorage.setItem(key, JSON.stringify(data[key]));
+          localStorage.setItem(provinceKey, JSON.stringify(data[key]));
         }
       }
-      console.log('[Electron] Loaded data from file storage');
+      console.log(`[Electron] Loaded data from ${fileName}`);
     }
   } catch (error) {
     console.error('[Electron] Error loading from file storage:', error);
@@ -80,13 +99,16 @@ export async function loadFromElectronStorage(): Promise<void> {
 // Save current localStorage data to Electron file storage
 export async function saveToElectronStorage(): Promise<boolean> {
   if (!isElectron()) return false;
+  if (!isProvinceSelected()) return false;
 
   try {
     const data: Record<string, unknown> = {};
+    const fileName = getProvinceDataFileName();
     
-    // Collect all storage keys
+    // Collect all storage keys with province prefix
     for (const key of STORAGE_KEYS) {
-      const value = localStorage.getItem(key);
+      const provinceKey = getProvinceKey(key);
+      const value = localStorage.getItem(provinceKey);
       if (value) {
         try {
           data[key] = JSON.parse(value);
@@ -96,9 +118,9 @@ export async function saveToElectronStorage(): Promise<boolean> {
       }
     }
 
-    const success = await window.electronAPI!.storage.write(data);
+    const success = await window.electronAPI!.storage.write(data, fileName);
     if (success) {
-      console.log('[Electron] Saved data to file storage');
+      console.log(`[Electron] Saved data to ${fileName}`);
     }
     return success;
   } catch (error) {
@@ -110,8 +132,12 @@ export async function saveToElectronStorage(): Promise<boolean> {
 // Get the path where data is stored
 export async function getStoragePath(): Promise<string | null> {
   if (!isElectron()) return null;
-  return window.electronAPI!.storage.getPath();
+  const fileName = getProvinceDataFileName();
+  return window.electronAPI!.storage.getPath(fileName);
 }
+
+// Re-export for use in stores
+export { getProvinceKey };
 
 // Debounce function to prevent too many writes
 function debounce<T extends (...args: unknown[]) => unknown>(
