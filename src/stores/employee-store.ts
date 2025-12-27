@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Employee, EmployeeFormData } from '@/types/employee';
 import { createElectronStorage } from '@/lib/electron-sqlite-storage';
-
+import { usePayrollStore } from '@/stores/payroll-store';
 interface EmployeeState {
   employees: Employee[];
   addEmployee: (data: EmployeeFormData) => { success: boolean; employee?: Employee; error?: string };
@@ -118,6 +118,10 @@ export const useEmployeeStore = create<EmployeeState>()(
       },
       
       deleteEmployee: (id: string) => {
+        // Clean up payroll entries for this employee
+        const payrollStore = usePayrollStore.getState();
+        payrollStore.removeEntriesForEmployee(id);
+        
         set((state) => ({
           employees: state.employees.filter((emp) => emp.id !== id),
         }));

@@ -20,6 +20,7 @@ interface PayrollState {
   updateEntry: (id: string, data: Partial<PayrollEntry>) => void;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
   recalculateEntry: (id: string) => void;
+  removeEntriesForEmployee: (employeeId: string) => void;
   
   // Absence and overtime updates
   updateAbsences: (entryId: string, daysAbsent: number) => void;
@@ -276,6 +277,12 @@ export const usePayrollStore = create<PayrollState>()(
       
       getEntriesForPeriod: (periodId: string) => {
         return get().entries.filter((e) => e.payrollPeriodId === periodId);
+      },
+      
+      removeEntriesForEmployee: (employeeId: string) => {
+        set((state) => ({
+          entries: state.entries.filter((e) => e.employeeId !== employeeId),
+        }));
       },
       
       recalculateEntry: (id: string) => {
