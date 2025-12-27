@@ -15,7 +15,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { toast } from "sonner";
 
-type DocumentType = 'advertencia' | 'ferias' | 'disciplinar' | 'suspensao';
+type DocumentType = 'advertencia' | 'ferias' | 'disciplinar' | 'suspensao' | 'contrato';
 
 interface DocumentData {
   employeeId: string;
@@ -28,6 +28,28 @@ interface DocumentData {
   returnDate?: string;
   witnessName?: string;
   infraction?: string;
+}
+
+interface ContractData {
+  workerName: string;
+  workerNationality: string;
+  workerIdNumber: string;
+  workerIdExpiry: string;
+  workerIdIssuer: string;
+  workerAddress: string;
+  workerMunicipality: string;
+  workerProvince: string;
+  position: string;
+  department: string;
+  workLocation: string;
+  contractStartDate: string;
+  contractEndDate: string;
+  baseSalary: string;
+  foodAllowance: string;
+  transportAllowance: string;
+  workHoursStart: string;
+  workHoursEnd: string;
+  workDays: string;
 }
 
 const Documents = () => {
@@ -43,7 +65,29 @@ const Documents = () => {
     reason: '',
     details: '',
   });
+  const [contractData, setContractData] = useState<ContractData>({
+    workerName: '',
+    workerNationality: 'Angolana',
+    workerIdNumber: '',
+    workerIdExpiry: '',
+    workerIdIssuer: '',
+    workerAddress: '',
+    workerMunicipality: '',
+    workerProvince: 'Luanda',
+    position: '',
+    department: '',
+    workLocation: '',
+    contractStartDate: new Date().toISOString().split('T')[0],
+    contractEndDate: '',
+    baseSalary: '',
+    foodAllowance: '',
+    transportAllowance: '',
+    workHoursStart: '08:00',
+    workHoursEnd: '17:00',
+    workDays: 'Segunda a Sexta-feira',
+  });
   const [previewOpen, setPreviewOpen] = useState(false);
+  const contractPrintRef = useRef<HTMLDivElement>(null);
 
   const t = {
     title: language === 'pt' ? 'Documentos Disciplinares' : 'Disciplinary Documents',
@@ -76,6 +120,29 @@ const Documents = () => {
     witness: language === 'pt' ? 'Testemunha' : 'Witness',
     infraction: language === 'pt' ? 'Infração' : 'Infraction',
     
+    // Contract fields
+    contrato: language === 'pt' ? 'Contrato de Trabalho' : 'Work Contract',
+    contratoDesc: language === 'pt' ? 'Contrato formal de trabalho a termo certo' : 'Formal fixed-term employment contract',
+    workerName: language === 'pt' ? 'Nome do Trabalhador' : 'Worker Name',
+    nationality: language === 'pt' ? 'Nacionalidade' : 'Nationality',
+    idNumber: language === 'pt' ? 'Nº do BI' : 'ID Number',
+    idExpiry: language === 'pt' ? 'Validade do BI' : 'ID Expiry',
+    idIssuer: language === 'pt' ? 'Emitido por' : 'Issued by',
+    address: language === 'pt' ? 'Endereço' : 'Address',
+    municipality: language === 'pt' ? 'Município' : 'Municipality',
+    province: language === 'pt' ? 'Província' : 'Province',
+    position: language === 'pt' ? 'Cargo/Função' : 'Position',
+    department: language === 'pt' ? 'Departamento' : 'Department',
+    workLocation: language === 'pt' ? 'Local de Trabalho' : 'Work Location',
+    contractStart: language === 'pt' ? 'Início do Contrato' : 'Contract Start',
+    contractEnd: language === 'pt' ? 'Fim do Contrato' : 'Contract End',
+    baseSalary: language === 'pt' ? 'Salário Base (AOA)' : 'Base Salary (AOA)',
+    foodAllowance: language === 'pt' ? 'Subsídio de Alimentação (AOA)' : 'Food Allowance (AOA)',
+    transportAllowance: language === 'pt' ? 'Subsídio de Transporte (AOA)' : 'Transport Allowance (AOA)',
+    workHoursStart: language === 'pt' ? 'Hora de Entrada' : 'Start Time',
+    workHoursEnd: language === 'pt' ? 'Hora de Saída' : 'End Time',
+    workDays: language === 'pt' ? 'Dias de Trabalho' : 'Work Days',
+    
     // Document content
     companyName: 'DISTRI-GOOI, LDA',
     companyNif: 'NIF: 5417201524',
@@ -83,6 +150,7 @@ const Documents = () => {
   };
 
   const documentTypes: { type: DocumentType; icon: React.ReactNode; label: string; desc: string }[] = [
+    { type: 'contrato', icon: <FileText className="h-5 w-5" />, label: t.contrato, desc: t.contratoDesc },
     { type: 'advertencia', icon: <AlertTriangle className="h-5 w-5" />, label: t.advertencia, desc: t.advertenciaDesc },
     { type: 'ferias', icon: <Calendar className="h-5 w-5" />, label: t.ferias, desc: t.feriasDesc },
     { type: 'disciplinar', icon: <FileText className="h-5 w-5" />, label: t.disciplinar, desc: t.disciplinarDesc },
@@ -123,6 +191,149 @@ const Documents = () => {
     `);
     printWindow.document.close();
     printWindow.print();
+  };
+
+  const handlePrintContract = () => {
+    const content = contractPrintRef.current;
+    if (!content) return;
+    
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return;
+    
+    // Print two copies - one for company, one for worker
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Contrato de Trabalho</title>
+        <style>
+          body { font-family: 'Times New Roman', serif; margin: 30px; line-height: 1.5; font-size: 11px; }
+          .contract-copy { page-break-after: always; }
+          .contract-copy:last-child { page-break-after: avoid; }
+          .header { text-align: center; margin-bottom: 20px; }
+          .company-name { font-size: 16px; font-weight: bold; }
+          .document-title { font-size: 14px; font-weight: bold; margin: 20px 0; text-transform: uppercase; text-align: center; }
+          .clause { margin: 15px 0; }
+          .clause-title { font-weight: bold; }
+          .signature-section { margin-top: 40px; display: flex; justify-content: space-between; }
+          .signature-box { width: 200px; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
+          .copy-label { text-align: right; font-size: 10px; font-style: italic; margin-bottom: 10px; }
+          @media print { 
+            body { margin: 15px; }
+            .contract-copy { page-break-after: always; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="contract-copy">
+          <div class="copy-label">1ª Via - Empregador</div>
+          ${content.innerHTML}
+        </div>
+        <div class="contract-copy">
+          <div class="copy-label">2ª Via - Trabalhador</div>
+          ${content.innerHTML}
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
+  const renderContractContent = () => {
+    const startDate = contractData.contractStartDate ? new Date(contractData.contractStartDate).toLocaleDateString('pt-AO') : '___/___/______';
+    const endDate = contractData.contractEndDate ? new Date(contractData.contractEndDate).toLocaleDateString('pt-AO') : '___/___/______';
+    const totalSalary = (parseFloat(contractData.baseSalary || '0') + parseFloat(contractData.foodAllowance || '0') + parseFloat(contractData.transportAllowance || '0')).toLocaleString('pt-AO');
+    
+    return (
+      <div ref={contractPrintRef} style={{ fontSize: '12px', lineHeight: '1.5' }}>
+        <div className="header">
+          <div className="company-name">{t.companyName}</div>
+          <div>{t.companyNif}</div>
+          {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+        </div>
+        
+        <div className="document-title">CONTRATO DE TRABALHO A TERMO CERTO</div>
+        
+        <div className="content">
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 1ª - DAS PARTES CONTRATANTES:</span></p>
+            <p><strong>PRIMEIRA CONTRATANTE (EMPREGADORA):</strong> {t.companyName}, sociedade comercial por quotas de direito angolano, com sede em {companyBranch?.address || 'Luanda'}, {companyBranch?.city || 'Luanda'}, contribuinte fiscal nº 5417201524.</p>
+            <p><strong>SEGUNDA CONTRATANTE (TRABALHADOR/A):</strong> {contractData.workerName || '______________________________'}, de nacionalidade {contractData.workerNationality}, portador(a) do Bilhete de Identidade nº {contractData.workerIdNumber || '_______________'}, válido até {contractData.workerIdExpiry ? new Date(contractData.workerIdExpiry).toLocaleDateString('pt-AO') : '___/___/______'}, passado pelo {contractData.workerIdIssuer || '_______________'}, residente em {contractData.workerAddress || '______________________________'}, Município de {contractData.workerMunicipality || '_______________'}, Província de {contractData.workerProvince}.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 2ª - DO OBJECTO:</span></p>
+            <p>A PRIMEIRA CONTRATANTE admite ao seu serviço a SEGUNDA CONTRATANTE para exercer as funções de <strong>{contractData.position || '_______________'}</strong>, no departamento de <strong>{contractData.department || '_______________'}</strong>.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 3ª - DO LOCAL DE TRABALHO:</span></p>
+            <p>O local de trabalho será em {contractData.workLocation || companyBranch?.address || 'Luanda'}.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 4ª - DA DURAÇÃO:</span></p>
+            <p>O presente contrato é celebrado a termo certo, com início em {startDate} e termo em {endDate}, podendo ser renovado nos termos da Lei Geral do Trabalho (Lei nº 12/23).</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 5ª - DA RETRIBUIÇÃO:</span></p>
+            <p>A SEGUNDA CONTRATANTE terá direito a uma remuneração mensal composta por:</p>
+            <p>- Salário Base: {parseFloat(contractData.baseSalary || '0').toLocaleString('pt-AO')} AOA</p>
+            <p>- Subsídio de Alimentação: {parseFloat(contractData.foodAllowance || '0').toLocaleString('pt-AO')} AOA</p>
+            <p>- Subsídio de Transporte: {parseFloat(contractData.transportAllowance || '0').toLocaleString('pt-AO')} AOA</p>
+            <p><strong>Total: {totalSalary} AOA</strong></p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 6ª - DO HORÁRIO DE TRABALHO:</span></p>
+            <p>O horário de trabalho será de {contractData.workDays}, das {contractData.workHoursStart} às {contractData.workHoursEnd}, com intervalo para almoço, perfazendo 44 horas semanais, nos termos do Art. 95 da LGT.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 7ª - DOS DEVERES:</span></p>
+            <p>A SEGUNDA CONTRATANTE obriga-se a cumprir com zelo, diligência e assiduidade as funções que lhe forem confiadas, bem como a observar as normas internas da empresa e a legislação laboral em vigor.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 8ª - DO PERÍODO EXPERIMENTAL:</span></p>
+            <p>Nos primeiros 60 (sessenta) dias, qualquer das partes pode rescindir o contrato sem aviso prévio nem direito a indemnização.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 9ª - DAS DISPOSIÇÕES FINAIS:</span></p>
+            <p>Aos casos omissos aplica-se o disposto na Lei Geral do Trabalho (Lei nº 12/23) e demais legislação complementar.</p>
+          </div>
+
+          <div className="clause">
+            <p><span className="clause-title">CLÁUSULA 10ª - DAS VIAS:</span></p>
+            <p>O presente contrato é feito em duplicado, ficando uma via em poder de cada uma das partes. DUAS VIAS DO PRESENTE CONTRATO DEVERÃO SER REMETIDAS AO CENTRO DE EMPREGO COMPETENTE.</p>
+          </div>
+
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <p>Luanda, aos {new Date().toLocaleDateString('pt-AO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>
+
+          <div className="signature-section">
+            <div className="signature-box">
+              <p style={{ marginTop: '40px' }}>_________________________</p>
+              <p>A PRIMEIRA CONTRATANTE</p>
+              <p>(Empregador)</p>
+            </div>
+            <div className="signature-box">
+              <p style={{ marginTop: '40px' }}>_________________________</p>
+              <p>A SEGUNDA CONTRATANTE</p>
+              <p>(Trabalhador/a)</p>
+            </div>
+          </div>
+
+          <div className="legal-note" style={{ marginTop: '30px', fontSize: '10px' }}>
+            <strong>Base Legal:</strong> Lei Geral do Trabalho (Lei nº 12/23), Artigos 14-23 (Contrato de Trabalho a Termo)
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderDocumentContent = () => {
@@ -311,7 +522,11 @@ const Documents = () => {
     }
   };
 
-  const isFormValid = documentData.employeeId && documentData.date && documentData.reason;
+  const isFormValid = selectedType === 'contrato' 
+    ? (contractData.workerName && contractData.position && contractData.baseSalary)
+    : (documentData.employeeId && documentData.date && documentData.reason);
+
+  const isContractFormValid = contractData.workerName && contractData.position && contractData.baseSalary;
 
   return (
     <MainLayout>
@@ -323,7 +538,7 @@ const Documents = () => {
       </div>
 
       {/* Document Type Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {documentTypes.map(({ type, icon, label, desc }) => (
           <Card 
             key={type}
@@ -352,149 +567,362 @@ const Documents = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{t.selectEmployee}</Label>
-              <Select 
-                value={documentData.employeeId} 
-                onValueChange={(v) => setDocumentData(prev => ({ ...prev, employeeId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t.selectEmployee} />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.length === 0 ? (
-                    <SelectItem value="none" disabled>{t.noEmployees}</SelectItem>
-                  ) : (
-                    employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} - {emp.position}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t.date}</Label>
-              <Input 
-                type="date" 
-                value={documentData.date}
-                onChange={(e) => setDocumentData(prev => ({ ...prev, date: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          {(selectedType === 'ferias' || selectedType === 'suspensao') && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label>{t.startDate}</Label>
-                <Input 
-                  type="date"
-                  value={documentData.startDate || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, startDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.endDate}</Label>
-                <Input 
-                  type="date"
-                  value={documentData.endDate || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, endDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.duration}</Label>
-                <Input 
-                  type="number"
-                  value={documentData.duration || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, duration: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.returnDate}</Label>
-                <Input 
-                  type="date"
-                  value={documentData.returnDate || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, returnDate: e.target.value }))}
-                />
-              </div>
-            </div>
-          )}
-
-          {selectedType === 'disciplinar' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t.infraction}</Label>
-                <Input 
-                  value={documentData.infraction || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, infraction: e.target.value }))}
-                  placeholder={language === 'pt' ? 'Ex: Abandono de posto, Insubordinação...' : 'e.g.: Job abandonment, Insubordination...'}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.witness}</Label>
-                <Input 
-                  value={documentData.witnessName || ''}
-                  onChange={(e) => setDocumentData(prev => ({ ...prev, witnessName: e.target.value }))}
-                  placeholder={language === 'pt' ? 'Nome da testemunha' : 'Witness name'}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>{t.reason}</Label>
-            <Input 
-              value={documentData.reason}
-              onChange={(e) => setDocumentData(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder={language === 'pt' ? 'Motivo principal' : 'Main reason'}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>{t.details}</Label>
-            <Textarea 
-              value={documentData.details}
-              onChange={(e) => setDocumentData(prev => ({ ...prev, details: e.target.value }))}
-              placeholder={language === 'pt' ? 'Descrição detalhada dos factos...' : 'Detailed description of facts...'}
-              rows={4}
-            />
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" disabled={!isFormValid}>
-                  {t.preview}
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center justify-between">
-                    {t[selectedType]}
-                    <Button onClick={handlePrint} variant="accent" size="sm">
-                      <Printer className="h-4 w-4 mr-2" />
-                      {t.print}
-                    </Button>
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="prose prose-sm max-w-none p-4 bg-white text-black rounded-lg border">
-                  {renderDocumentContent()}
+          {/* Contract Form */}
+          {selectedType === 'contrato' ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.workerName} *</Label>
+                  <Input 
+                    value={contractData.workerName}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerName: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Nome completo do trabalhador' : 'Full worker name'}
+                  />
                 </div>
-              </DialogContent>
-            </Dialog>
-            <Button 
-              variant="accent" 
-              disabled={!isFormValid}
-              onClick={() => {
-                setPreviewOpen(true);
-                toast.success(language === 'pt' ? 'Documento gerado!' : 'Document generated!');
-              }}
-            >
-              {t.generate}
-            </Button>
-          </div>
+                <div className="space-y-2">
+                  <Label>{t.nationality}</Label>
+                  <Input 
+                    value={contractData.workerNationality}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerNationality: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.province}</Label>
+                  <Input 
+                    value={contractData.workerProvince}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerProvince: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.idNumber}</Label>
+                  <Input 
+                    value={contractData.workerIdNumber}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerIdNumber: e.target.value }))}
+                    placeholder="000000000LA000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.idExpiry}</Label>
+                  <Input 
+                    type="date"
+                    value={contractData.workerIdExpiry}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerIdExpiry: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.idIssuer}</Label>
+                  <Input 
+                    value={contractData.workerIdIssuer}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerIdIssuer: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Ex: Arquivo de Identificação Civil' : 'e.g.: Civil ID Archive'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.municipality}</Label>
+                  <Input 
+                    value={contractData.workerMunicipality}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerMunicipality: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Ex: Talatona' : 'e.g.: Talatona'}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.address}</Label>
+                  <Input 
+                    value={contractData.workerAddress}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workerAddress: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Endereço completo' : 'Full address'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.workLocation}</Label>
+                  <Input 
+                    value={contractData.workLocation}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workLocation: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Local de trabalho' : 'Work location'}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.position} *</Label>
+                  <Input 
+                    value={contractData.position}
+                    onChange={(e) => setContractData(prev => ({ ...prev, position: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Ex: Assistente Administrativo' : 'e.g.: Administrative Assistant'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.department}</Label>
+                  <Input 
+                    value={contractData.department}
+                    onChange={(e) => setContractData(prev => ({ ...prev, department: e.target.value }))}
+                    placeholder={language === 'pt' ? 'Ex: Recursos Humanos' : 'e.g.: Human Resources'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.contractStart}</Label>
+                  <Input 
+                    type="date"
+                    value={contractData.contractStartDate}
+                    onChange={(e) => setContractData(prev => ({ ...prev, contractStartDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.contractEnd}</Label>
+                  <Input 
+                    type="date"
+                    value={contractData.contractEndDate}
+                    onChange={(e) => setContractData(prev => ({ ...prev, contractEndDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.baseSalary} *</Label>
+                  <Input 
+                    type="number"
+                    value={contractData.baseSalary}
+                    onChange={(e) => setContractData(prev => ({ ...prev, baseSalary: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.foodAllowance}</Label>
+                  <Input 
+                    type="number"
+                    value={contractData.foodAllowance}
+                    onChange={(e) => setContractData(prev => ({ ...prev, foodAllowance: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.transportAllowance}</Label>
+                  <Input 
+                    type="number"
+                    value={contractData.transportAllowance}
+                    onChange={(e) => setContractData(prev => ({ ...prev, transportAllowance: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.workHoursStart}</Label>
+                  <Input 
+                    type="time"
+                    value={contractData.workHoursStart}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workHoursStart: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.workHoursEnd}</Label>
+                  <Input 
+                    type="time"
+                    value={contractData.workHoursEnd}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workHoursEnd: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.workDays}</Label>
+                  <Input 
+                    value={contractData.workDays}
+                    onChange={(e) => setContractData(prev => ({ ...prev, workDays: e.target.value }))}
+                    placeholder="Segunda a Sexta-feira"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={!isContractFormValid}>
+                      {t.preview}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center justify-between">
+                        {t.contrato}
+                        <Button onClick={handlePrintContract} variant="accent" size="sm">
+                          <Printer className="h-4 w-4 mr-2" />
+                          {language === 'pt' ? 'Imprimir (2 vias)' : 'Print (2 copies)'}
+                        </Button>
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="prose prose-sm max-w-none p-4 bg-white text-black rounded-lg border">
+                      {renderContractContent()}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button 
+                  variant="accent" 
+                  disabled={!isContractFormValid}
+                  onClick={() => {
+                    setPreviewOpen(true);
+                    toast.success(language === 'pt' ? 'Contrato gerado!' : 'Contract generated!');
+                  }}
+                >
+                  {t.generate}
+                </Button>
+              </div>
+            </>
+          ) : (
+            /* Other document types form */
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{t.selectEmployee}</Label>
+                  <Select 
+                    value={documentData.employeeId} 
+                    onValueChange={(v) => setDocumentData(prev => ({ ...prev, employeeId: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t.selectEmployee} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.length === 0 ? (
+                        <SelectItem value="none" disabled>{t.noEmployees}</SelectItem>
+                      ) : (
+                        employees.map(emp => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.firstName} {emp.lastName} - {emp.position}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t.date}</Label>
+                  <Input 
+                    type="date" 
+                    value={documentData.date}
+                    onChange={(e) => setDocumentData(prev => ({ ...prev, date: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {(selectedType === 'ferias' || selectedType === 'suspensao') && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>{t.startDate}</Label>
+                    <Input 
+                      type="date"
+                      value={documentData.startDate || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, startDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t.endDate}</Label>
+                    <Input 
+                      type="date"
+                      value={documentData.endDate || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, endDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t.duration}</Label>
+                    <Input 
+                      type="number"
+                      value={documentData.duration || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, duration: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t.returnDate}</Label>
+                    <Input 
+                      type="date"
+                      value={documentData.returnDate || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, returnDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {selectedType === 'disciplinar' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>{t.infraction}</Label>
+                    <Input 
+                      value={documentData.infraction || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, infraction: e.target.value }))}
+                      placeholder={language === 'pt' ? 'Ex: Abandono de posto, Insubordinação...' : 'e.g.: Job abandonment, Insubordination...'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t.witness}</Label>
+                    <Input 
+                      value={documentData.witnessName || ''}
+                      onChange={(e) => setDocumentData(prev => ({ ...prev, witnessName: e.target.value }))}
+                      placeholder={language === 'pt' ? 'Nome da testemunha' : 'Witness name'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>{t.reason}</Label>
+                <Input 
+                  value={documentData.reason}
+                  onChange={(e) => setDocumentData(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder={language === 'pt' ? 'Motivo principal' : 'Main reason'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t.details}</Label>
+                <Textarea 
+                  value={documentData.details}
+                  onChange={(e) => setDocumentData(prev => ({ ...prev, details: e.target.value }))}
+                  placeholder={language === 'pt' ? 'Descrição detalhada dos factos...' : 'Detailed description of facts...'}
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={!isFormValid}>
+                      {t.preview}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center justify-between">
+                        {t[selectedType]}
+                        <Button onClick={handlePrint} variant="accent" size="sm">
+                          <Printer className="h-4 w-4 mr-2" />
+                          {t.print}
+                        </Button>
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="prose prose-sm max-w-none p-4 bg-white text-black rounded-lg border">
+                      {renderDocumentContent()}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button 
+                  variant="accent" 
+                  disabled={!isFormValid}
+                  onClick={() => {
+                    setPreviewOpen(true);
+                    toast.success(language === 'pt' ? 'Documento gerado!' : 'Document generated!');
+                  }}
+                >
+                  {t.generate}
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </MainLayout>
