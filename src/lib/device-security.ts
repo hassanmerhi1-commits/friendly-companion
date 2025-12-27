@@ -6,20 +6,25 @@ const MASTER_ACTIVATION_PASSWORD = 'HM@PayrollSec2024!';
 
 // Generate a unique device fingerprint based on browser/system characteristics
 export function generateDeviceFingerprint(): string {
-  const components = [
-    navigator.userAgent,
-    navigator.language,
-    navigator.hardwareConcurrency?.toString() || 'unknown',
-    screen.width.toString(),
-    screen.height.toString(),
-    screen.colorDepth.toString(),
-    new Date().getTimezoneOffset().toString(),
-    navigator.platform || 'unknown',
-  ];
-  
-  // Create a hash from the components
-  const fingerprint = components.join('|');
-  return btoa(fingerprint).substring(0, 32);
+  try {
+    const components = [
+      navigator?.userAgent || 'unknown',
+      navigator?.language || 'unknown',
+      navigator?.hardwareConcurrency?.toString() || 'unknown',
+      screen?.width?.toString() || 'unknown',
+      screen?.height?.toString() || 'unknown',
+      screen?.colorDepth?.toString() || 'unknown',
+      new Date().getTimezoneOffset().toString(),
+      navigator?.platform || 'unknown',
+    ];
+    
+    // Create a hash from the components
+    const fingerprint = components.join('|');
+    return btoa(fingerprint).substring(0, 32);
+  } catch (error) {
+    console.error('Error generating device fingerprint:', error);
+    return 'fallback-device-id';
+  }
 }
 
 // Validate the master password
@@ -48,16 +53,21 @@ export function storeDeviceId(deviceId: string): void {
 
 // Check if the current device is activated
 export function isDeviceActivated(): boolean {
-  const storedId = getStoredDeviceId();
-  const currentId = generateDeviceFingerprint();
-  
-  // If no stored ID, device is not activated
-  if (!storedId) {
+  try {
+    const storedId = getStoredDeviceId();
+    const currentId = generateDeviceFingerprint();
+    
+    // If no stored ID, device is not activated
+    if (!storedId) {
+      return false;
+    }
+    
+    // Compare stored ID with current device fingerprint
+    return storedId === currentId;
+  } catch (error) {
+    console.error('Error checking device activation:', error);
     return false;
   }
-  
-  // Compare stored ID with current device fingerprint
-  return storedId === currentId;
 }
 
 // Activate the current device
