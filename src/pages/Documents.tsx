@@ -311,6 +311,14 @@ const Documents = () => {
             <p>O presente contrato é feito em duplicado, ficando uma via em poder de cada uma das partes. DUAS VIAS DO PRESENTE CONTRATO DEVERÃO SER REMETIDAS AO CENTRO DE EMPREGO COMPETENTE.</p>
           </div>
 
+          <div className="clause" style={{ marginTop: '20px' }}>
+            <p><span className="clause-title">OBSERVAÇÕES:</span></p>
+            <p style={{ borderBottom: '1px solid #000', height: '20px', marginBottom: '8px' }}>&nbsp;</p>
+            <p style={{ borderBottom: '1px solid #000', height: '20px', marginBottom: '8px' }}>&nbsp;</p>
+            <p style={{ borderBottom: '1px solid #000', height: '20px', marginBottom: '8px' }}>&nbsp;</p>
+            <p style={{ borderBottom: '1px solid #000', height: '20px', marginBottom: '8px' }}>&nbsp;</p>
+          </div>
+
           <div style={{ marginTop: '20px', textAlign: 'center' }}>
             <p>Luanda, aos {new Date().toLocaleDateString('pt-AO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
