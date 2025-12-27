@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { toast } from "sonner";
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 type DocumentType = 'advertencia' | 'ferias' | 'disciplinar' | 'suspensao' | 'contrato';
 
@@ -88,7 +89,24 @@ const Documents = () => {
   });
   const [previewOpen, setPreviewOpen] = useState(false);
   const contractPrintRef = useRef<HTMLDivElement>(null);
+  const [logoBase64, setLogoBase64] = useState<string>('');
 
+  // Convert logo to base64 for print window
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL('image/jpeg'));
+      }
+    };
+    img.src = companyLogo;
+  }, []);
   const t = {
     title: language === 'pt' ? 'Documentos Disciplinares' : 'Disciplinary Documents',
     subtitle: language === 'pt' ? 'Gerar documentos oficiais para gestão de recursos humanos' : 'Generate official HR management documents',
@@ -166,6 +184,13 @@ const Documents = () => {
     
     const printWindow = window.open('', '', 'width=800,height=600');
     if (!printWindow) return;
+
+    // Clone and replace logo with base64
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
+    if (logoImg && logoBase64) {
+      logoImg.src = logoBase64;
+    }
     
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -174,7 +199,9 @@ const Documents = () => {
         <title>${t[selectedType]}</title>
         <style>
           body { font-family: 'Times New Roman', serif; margin: 40px; line-height: 1.6; }
-          .header { text-align: center; margin-bottom: 40px; }
+          .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
+          .logo { width: 80px; height: auto; }
+          .header-info { flex: 1; text-align: center; }
           .company-name { font-size: 18px; font-weight: bold; }
           .document-title { font-size: 20px; font-weight: bold; margin: 30px 0; text-transform: uppercase; text-align: center; }
           .content { text-align: justify; }
@@ -186,7 +213,7 @@ const Documents = () => {
           @media print { body { margin: 20px; } }
         </style>
       </head>
-      <body>${content.innerHTML}</body>
+      <body>${clonedContent.innerHTML}</body>
       </html>
     `);
     printWindow.document.close();
@@ -199,6 +226,13 @@ const Documents = () => {
     
     const printWindow = window.open('', '', 'width=800,height=600');
     if (!printWindow) return;
+
+    // Clone and replace logo with base64
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
+    if (logoImg && logoBase64) {
+      logoImg.src = logoBase64;
+    }
     
     // Print two copies - one for company, one for worker
     printWindow.document.write(`
@@ -210,7 +244,9 @@ const Documents = () => {
           body { font-family: 'Times New Roman', serif; margin: 30px; line-height: 1.5; font-size: 11px; }
           .contract-copy { page-break-after: always; }
           .contract-copy:last-child { page-break-after: avoid; }
-          .header { text-align: center; margin-bottom: 20px; }
+          .header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+          .logo { width: 70px; height: auto; }
+          .header-info { flex: 1; text-align: center; }
           .company-name { font-size: 16px; font-weight: bold; }
           .document-title { font-size: 14px; font-weight: bold; margin: 20px 0; text-transform: uppercase; text-align: center; }
           .clause { margin: 15px 0; }
@@ -227,11 +263,11 @@ const Documents = () => {
       <body>
         <div class="contract-copy">
           <div class="copy-label">1ª Via - Empregador</div>
-          ${content.innerHTML}
+          ${clonedContent.innerHTML}
         </div>
         <div class="contract-copy">
           <div class="copy-label">2ª Via - Trabalhador</div>
-          ${content.innerHTML}
+          ${clonedContent.innerHTML}
         </div>
       </body>
       </html>
@@ -247,10 +283,13 @@ const Documents = () => {
     
     return (
       <div ref={contractPrintRef} style={{ fontSize: '12px', lineHeight: '1.5' }}>
-        <div className="header">
-          <div className="company-name">{t.companyName}</div>
-          <div>{t.companyNif}</div>
-          {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+        <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+          <img src={companyLogo} alt="Logo" className="logo" style={{ width: '70px', height: 'auto' }} />
+          <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+            <div className="company-name">{t.companyName}</div>
+            <div>{t.companyNif}</div>
+            {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+          </div>
         </div>
         
         <div className="document-title">CONTRATO DE TRABALHO A TERMO CERTO</div>
@@ -355,10 +394,13 @@ const Documents = () => {
       case 'advertencia':
         return (
           <div ref={printRef}>
-            <div className="header">
-              <div className="company-name">{t.companyName}</div>
-              <div>{t.companyNif}</div>
-              {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+            <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
+              <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+              <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+                <div className="company-name">{t.companyName}</div>
+                <div>{t.companyNif}</div>
+                {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+              </div>
             </div>
             <div className="document-title">ADVERTÊNCIA DISCIPLINAR</div>
             <div className="content">
@@ -395,9 +437,12 @@ const Documents = () => {
       case 'ferias':
         return (
           <div ref={printRef}>
-            <div className="header">
-              <div className="company-name">{t.companyName}</div>
-              <div>{t.companyNif}</div>
+            <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
+              <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+              <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+                <div className="company-name">{t.companyName}</div>
+                <div>{t.companyNif}</div>
+              </div>
             </div>
             <div className="document-title">GUIA DE FÉRIAS</div>
             <div className="content">
@@ -438,9 +483,12 @@ const Documents = () => {
       case 'disciplinar':
         return (
           <div ref={printRef}>
-            <div className="header">
-              <div className="company-name">{t.companyName}</div>
-              <div>{t.companyNif}</div>
+            <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
+              <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+              <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+                <div className="company-name">{t.companyName}</div>
+                <div>{t.companyNif}</div>
+              </div>
             </div>
             <div className="document-title">PROCESSO DISCIPLINAR</div>
             <div className="content">
@@ -484,9 +532,12 @@ const Documents = () => {
       case 'suspensao':
         return (
           <div ref={printRef}>
-            <div className="header">
-              <div className="company-name">{t.companyName}</div>
-              <div>{t.companyNif}</div>
+            <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
+              <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
+              <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
+                <div className="company-name">{t.companyName}</div>
+                <div>{t.companyNif}</div>
+              </div>
             </div>
             <div className="document-title">CARTA DE SUSPENSÃO</div>
             <div className="content">
