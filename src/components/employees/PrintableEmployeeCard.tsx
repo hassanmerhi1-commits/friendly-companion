@@ -4,6 +4,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 interface PrintableEmployeeCardProps {
   employee: Employee;
@@ -83,15 +84,25 @@ export const PrintableEmployeeCard = forwardRef<HTMLDivElement, PrintableEmploye
                 }}
               />
 
-              {/* Header with company name */}
+              {/* Header with company logo and name */}
               <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-                <div>
-                  <h1 className="text-white font-bold text-sm tracking-wide">
-                    {settings.companyName || 'EMPRESA'}
-                  </h1>
-                  <p className="text-blue-300 text-[10px] tracking-wider">
-                    CARTÃO DE IDENTIFICAÇÃO
-                  </p>
+                <div className="flex items-center gap-2">
+                  <img 
+                    src={companyLogo} 
+                    alt="Company Logo" 
+                    className="h-8 w-8 rounded object-cover"
+                    style={{ 
+                      border: '1px solid rgba(255,255,255,0.2)',
+                    }}
+                  />
+                  <div>
+                    <h1 className="text-white font-bold text-sm tracking-wide">
+                      {settings.companyName || 'EMPRESA'}
+                    </h1>
+                    <p className="text-blue-300 text-[10px] tracking-wider">
+                      CARTÃO DE IDENTIFICAÇÃO
+                    </p>
+                  </div>
                 </div>
                 <div 
                   className="px-2 py-1 rounded text-[9px] font-bold tracking-wider"
