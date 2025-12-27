@@ -15,7 +15,7 @@ interface PayrollState {
   getCurrentPeriod: () => PayrollPeriod | undefined;
   updatePeriodStatus: (id: string, status: PayrollPeriod['status']) => void;
   
-  generateEntriesForPeriod: (periodId: string, employees: Employee[]) => void;
+  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[]) => void;
   toggle13thMonth: (entryId: string, monthsWorked: number) => void;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => void;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
@@ -94,13 +94,32 @@ export const usePayrollStore = create<PayrollState>()(
         }));
       },
       
-      generateEntriesForPeriod: (periodId: string, employees: Employee[]) => {
+      generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[]) => {
         const period = get().getPeriod(periodId);
         if (!period) return;
+        
+        // Get employees who should receive holiday subsidy this month
+        // (those going on holiday in the NEXT month)
+        const nextMonth = period.month === 12 ? 1 : period.month + 1;
+        const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
+        
+        const employeesForSubsidy = new Set<string>();
+        if (holidayRecords) {
+          holidayRecords.forEach(r => {
+            // If employee has holiday scheduled for next month and subsidy not yet paid
+            if (r.holidayMonth === nextMonth && r.year === nextMonthYear && !r.subsidyPaidInMonth) {
+              employeesForSubsidy.add(r.employeeId);
+            }
+          });
+        }
         
         const newEntries: PayrollEntry[] = employees
           .filter((emp) => emp.status === 'active')
           .map((emp) => {
+            // Only include holiday subsidy if employee goes on holiday next month
+            const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
+            const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
+            
             const payrollResult = calculatePayroll({
               baseSalary: emp.baseSalary,
               mealAllowance: emp.mealAllowance,
@@ -120,10 +139,10 @@ export const usePayrollStore = create<PayrollState>()(
               employeeId: emp.id,
               employee: emp,
               ...payrollResult,
-              holidaySubsidy: emp.holidaySubsidy || 0,
-              grossSalary: payrollResult.grossSalary + (emp.holidaySubsidy || 0),
-              netSalary: payrollResult.netSalary + (emp.holidaySubsidy || 0),
-              totalEmployerCost: payrollResult.totalEmployerCost + (emp.holidaySubsidy || 0),
+              holidaySubsidy: holidaySubsidyAmount,
+              grossSalary: payrollResult.grossSalary + holidaySubsidyAmount,
+              netSalary: payrollResult.netSalary + holidaySubsidyAmount,
+              totalEmployerCost: payrollResult.totalEmployerCost + holidaySubsidyAmount,
               monthlyBonus: emp.monthlyBonus || 0,
               absenceDeduction: 0,
               daysAbsent: 0,
