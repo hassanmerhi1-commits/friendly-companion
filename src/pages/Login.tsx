@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
-import companyLogo from '@/assets/company-logo.jpg';
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 export function LoginPage() {
   const { t, language } = useLanguage();

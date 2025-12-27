@@ -8,7 +8,7 @@ import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import { Printer } from 'lucide-react';
-import companyLogo from '@/assets/company-logo.jpg';
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 interface SalaryReceiptProps {
   entry: PayrollEntry;

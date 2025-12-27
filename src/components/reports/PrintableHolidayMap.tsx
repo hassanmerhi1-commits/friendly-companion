@@ -6,7 +6,7 @@ import { Printer, Save } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
-import companyLogo from '@/assets/company-logo.jpg';
+import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 export interface HolidayRecord {
   employeeId: string;
