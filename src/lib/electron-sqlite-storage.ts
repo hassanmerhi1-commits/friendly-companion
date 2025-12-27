@@ -18,10 +18,15 @@ export function createElectronStorage<T>(tableName: string) {
     getItem: async (name: string): Promise<string | null> => {
       // Use province-specific storage key
       const storageKey = getProvinceStorageKey(name);
-      
-      if (isElectron() && isProvinceSelected()) {
+
+      // Prefer localStorage first (it is always written as the source of truth)
+      const localValue = localStorage.getItem(storageKey);
+      if (localValue) return localValue;
+
+      // Fallback to SQLite (when available) for recovery
+      if (isElectron() && isProvinceSelected() && window.electronAPI?.db) {
         try {
-          const rows = await window.electronAPI!.db.getAll(tableName);
+          const rows = await window.electronAPI.db.getAll(tableName);
           if (rows && rows.length > 0) {
             // Convert SQLite rows back to the state format
             const state = convertRowsToState(tableName, rows);
@@ -31,18 +36,19 @@ export function createElectronStorage<T>(tableName: string) {
           console.error(`Error reading from SQLite table ${tableName}:`, error);
         }
       }
-      // Fallback to localStorage with province prefix
-      return localStorage.getItem(storageKey);
+
+      return null;
     },
-    
+
     setItem: async (name: string, value: string): Promise<void> => {
       // Use province-specific storage key
       const storageKey = getProvinceStorageKey(name);
-      
+
       // Always save to localStorage as backup with province prefix
       localStorage.setItem(storageKey, value);
-      
-      if (isElectron()) {
+
+      // Only sync to SQLite when we are in Electron AND a province is selected
+      if (isElectron() && isProvinceSelected() && window.electronAPI?.db) {
         try {
           const parsed = JSON.parse(value);
           const state = parsed.state;

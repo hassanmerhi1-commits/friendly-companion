@@ -55,7 +55,8 @@ function formatDate(dateString: string): string {
 const Employees = () => {
   const { t, language } = useLanguage();
   const { employees, deleteEmployee } = useEmployeeStore();
-  const { branches } = useBranchStore();
+  const { getActiveBranches } = useBranchStore();
+  const branches = getActiveBranches();
   const [search, setSearch] = useState("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);

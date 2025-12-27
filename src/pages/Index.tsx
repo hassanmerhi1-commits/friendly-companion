@@ -16,8 +16,8 @@ const Index = () => {
 
   const activeEmployees = getActiveEmployees();
   const currentPeriod = getCurrentPeriod();
-  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
-  
+  const employeeIdSet = new Set(employees.map(e => e.id));
+  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id).filter(e => employeeIdSet.has(e.employeeId)) : [];
   const totalPayroll = currentEntries.reduce((sum, e) => sum + e.netSalary, 0);
   const paidEmployees = currentEntries.filter(e => e.status === 'paid').length;
   const pendingCount = currentEntries.filter(e => e.status !== 'paid').length;
