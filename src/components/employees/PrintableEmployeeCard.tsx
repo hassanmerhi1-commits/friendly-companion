@@ -86,15 +86,25 @@ export const PrintableEmployeeCard = forwardRef<HTMLDivElement, PrintableEmploye
 
               {/* Header with company logo and name */}
               <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={companyLogo} 
-                    alt="Company Logo" 
-                    className="h-8 w-8 rounded object-cover"
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="flex-shrink-0 bg-white rounded overflow-hidden"
                     style={{ 
-                      border: '1px solid rgba(255,255,255,0.2)',
+                      width: '36px',
+                      height: '36px',
+                      padding: '2px',
                     }}
-                  />
+                  >
+                    <img 
+                      src={companyLogo} 
+                      alt="Logo" 
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
+                  </div>
                   <div>
                     <h1 className="text-white font-bold text-sm tracking-wide">
                       {settings.companyName || 'EMPRESA'}
