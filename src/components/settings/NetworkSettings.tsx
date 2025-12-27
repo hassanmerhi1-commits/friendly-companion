@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNetworkStore, NetworkMode } from '@/stores/network-store';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -17,7 +19,8 @@ import {
   Copy,
   Globe,
   Download,
-  Upload
+  Upload,
+  Clock
 } from 'lucide-react';
 
 export const NetworkSettings = () => {
@@ -35,7 +38,9 @@ export const NetworkSettings = () => {
     pushToServer,
     testConnection,
     getLocalIPs,
-    refreshServerStatus
+    refreshServerStatus,
+    setAutoSyncEnabled,
+    setAutoSyncInterval
   } = useNetworkStore();
 
   const [localIPs, setLocalIPs] = useState<{ name: string; address: string }[]>([]);
@@ -69,10 +74,10 @@ export const NetworkSettings = () => {
       }
     } else if (mode === 'standalone') {
       await stopServer();
-      await setConfig({ ...config, mode: 'standalone', serverIP: '' });
+      await setConfig({ mode: 'standalone', serverIP: '' });
       toast.success(t.network?.modeChanged || 'Modo alterado para local');
     } else if (mode === 'client') {
-      await setConfig({ ...config, mode: 'client' });
+      await setConfig({ mode: 'client' });
     }
   };
 
@@ -122,6 +127,21 @@ export const NetworkSettings = () => {
     } else {
       toast.error(result.error || 'Falha ao enviar dados');
     }
+  };
+
+  const handleAutoSyncToggle = async (enabled: boolean) => {
+    await setAutoSyncEnabled(enabled);
+    if (enabled) {
+      toast.success('Sincronização automática ativada');
+    } else {
+      toast.success('Sincronização automática desativada');
+    }
+  };
+
+  const handleIntervalChange = async (value: string) => {
+    const seconds = parseInt(value);
+    await setAutoSyncInterval(seconds);
+    toast.success(`Intervalo alterado para ${seconds} segundos`);
   };
 
   const copyToClipboard = (text: string) => {
@@ -356,6 +376,53 @@ export const NetworkSettings = () => {
                 <strong>Baixar:</strong> Copia os dados do servidor para este computador.<br/>
                 <strong>Enviar:</strong> Copia os dados deste computador para o servidor.
               </p>
+
+              {/* Auto-Sync Settings */}
+              <div className="mt-4 p-4 bg-muted/30 rounded-lg border border-border space-y-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-primary" />
+                  <div className="flex-1">
+                    <p className="font-medium">Sincronização Automática</p>
+                    <p className="text-sm text-muted-foreground">
+                      Baixar dados do servidor automaticamente
+                    </p>
+                  </div>
+                  <Switch
+                    checked={config.autoSyncEnabled}
+                    onCheckedChange={handleAutoSyncToggle}
+                    disabled={!serverIP}
+                  />
+                </div>
+
+                {config.autoSyncEnabled && (
+                  <div className="flex items-center gap-3">
+                    <Label className="whitespace-nowrap">Intervalo:</Label>
+                    <Select
+                      value={config.autoSyncInterval.toString()}
+                      onValueChange={handleIntervalChange}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 segundos</SelectItem>
+                        <SelectItem value="30">30 segundos</SelectItem>
+                        <SelectItem value="60">1 minuto</SelectItem>
+                        <SelectItem value="120">2 minutos</SelectItem>
+                        <SelectItem value="300">5 minutos</SelectItem>
+                        <SelectItem value="600">10 minutos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {config.autoSyncEnabled && (
+                  <p className="text-xs text-muted-foreground">
+                    <RefreshCw className="h-3 w-3 inline mr-1" />
+                    A sincronizar automaticamente a cada {config.autoSyncInterval} segundos
+                  </p>
+                )}
+              </div>
 
               {lastSyncTime && (
                 <p className="text-xs text-muted-foreground">

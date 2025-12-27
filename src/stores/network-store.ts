@@ -7,6 +7,8 @@ interface NetworkConfig {
   mode: NetworkMode;
   serverIP: string;
   serverPort: number;
+  autoSyncEnabled: boolean;
+  autoSyncInterval: number; // in seconds
 }
 
 interface IPAddress {
@@ -26,17 +28,22 @@ interface NetworkState {
   isConnected: boolean;
   lastSyncTime: number | null;
   isSyncing: boolean;
+  autoSyncTimerId: number | null;
   
   // Actions
-  setConfig: (config: NetworkConfig) => Promise<void>;
+  setConfig: (config: Partial<NetworkConfig>) => Promise<void>;
   refreshServerStatus: () => Promise<void>;
   startServer: (port?: number) => Promise<{ success: boolean; error?: string }>;
   stopServer: () => Promise<void>;
-  pullFromServer: () => Promise<{ success: boolean; error?: string }>;
+  pullFromServer: (silent?: boolean) => Promise<{ success: boolean; error?: string }>;
   pushToServer: () => Promise<{ success: boolean; error?: string }>;
   syncWithServer: () => Promise<{ success: boolean; error?: string }>;
   testConnection: (ip: string, port: number) => Promise<{ success: boolean; error?: string }>;
   getLocalIPs: () => Promise<IPAddress[]>;
+  startAutoSync: () => void;
+  stopAutoSync: () => void;
+  setAutoSyncEnabled: (enabled: boolean) => Promise<void>;
+  setAutoSyncInterval: (seconds: number) => Promise<void>;
 }
 
 // Check if running in Electron
@@ -50,18 +57,23 @@ export const useNetworkStore = create<NetworkState>()(
         mode: 'standalone',
         serverIP: '',
         serverPort: 3847,
+        autoSyncEnabled: false,
+        autoSyncInterval: 30, // default 30 seconds
       },
       serverStatus: null,
       isConnected: false,
       lastSyncTime: null,
       isSyncing: false,
+      autoSyncTimerId: null,
 
-      setConfig: async (config) => {
-        set({ config });
+      setConfig: async (partialConfig) => {
+        const currentConfig = get().config;
+        const newConfig = { ...currentConfig, ...partialConfig };
+        set({ config: newConfig });
         
         if (isElectron) {
           try {
-            await (window as any).electronAPI.network.setConfig(config);
+            await (window as any).electronAPI.network.setConfig(newConfig);
           } catch (error) {
             console.error('Failed to save network config:', error);
           }
@@ -97,8 +109,7 @@ export const useNetworkStore = create<NetworkState>()(
             });
             
             // Update config
-            const { config } = get();
-            await get().setConfig({ ...config, mode: 'server', serverPort: port });
+            await get().setConfig({ mode: 'server', serverPort: port });
           }
           
           return result;
@@ -114,21 +125,26 @@ export const useNetworkStore = create<NetworkState>()(
           await (window as any).electronAPI.network.stopServer();
           set({ serverStatus: { running: false, port: 3847, addresses: [] } });
           
-          // Update config
-          const { config } = get();
-          await get().setConfig({ ...config, mode: 'standalone' });
+          // Update config and stop auto-sync
+          get().stopAutoSync();
+          await get().setConfig({ mode: 'standalone' });
         } catch (error) {
           console.error('Failed to stop server:', error);
         }
       },
 
-  // Pull data FROM server (download server data to this machine)
-      pullFromServer: async () => {
+      // Pull data FROM server (download server data to this machine)
+      pullFromServer: async (silent = false) => {
         if (!isElectron) {
           return { success: false, error: 'Network features require desktop app' };
         }
         
-        const { config } = get();
+        const { config, isSyncing } = get();
+        
+        // Skip if already syncing
+        if (isSyncing) {
+          return { success: false, error: 'Sync already in progress' };
+        }
         
         if (!config.serverIP) {
           return { success: false, error: 'Server IP not configured' };
@@ -154,8 +170,10 @@ export const useNetworkStore = create<NetworkState>()(
                 isSyncing: false
               });
               
-              // Force page reload to refresh all stores from SQLite
-              window.location.reload();
+              // Only reload if not silent (manual sync)
+              if (!silent) {
+                window.location.reload();
+              }
               
               return { success: true };
             }
@@ -164,7 +182,7 @@ export const useNetworkStore = create<NetworkState>()(
             return { success: false, error: 'Failed to import data to local database' };
           }
           
-          set({ isSyncing: false });
+          set({ isSyncing: false, isConnected: false });
           return { success: false, error: result.error || 'Failed to fetch data from server' };
         } catch (error: any) {
           set({ isSyncing: false, isConnected: false });
@@ -248,6 +266,72 @@ export const useNetworkStore = create<NetworkState>()(
           return [];
         }
       },
+
+      startAutoSync: () => {
+        const { config, autoSyncTimerId } = get();
+        
+        // Clear existing timer
+        if (autoSyncTimerId) {
+          clearInterval(autoSyncTimerId);
+        }
+        
+        if (config.mode !== 'client' || !config.serverIP || !config.autoSyncEnabled) {
+          return;
+        }
+        
+        console.log(`Starting auto-sync every ${config.autoSyncInterval} seconds`);
+        
+        const timerId = window.setInterval(async () => {
+          const { config: currentConfig, isSyncing } = get();
+          
+          // Only sync if still in client mode with auto-sync enabled
+          if (currentConfig.mode === 'client' && currentConfig.autoSyncEnabled && !isSyncing) {
+            console.log('Auto-sync: pulling from server...');
+            const result = await get().pullFromServer(true); // silent mode
+            if (result.success) {
+              console.log('Auto-sync: completed successfully');
+            } else {
+              console.warn('Auto-sync: failed -', result.error);
+            }
+          }
+        }, config.autoSyncInterval * 1000);
+        
+        set({ autoSyncTimerId: timerId });
+      },
+
+      stopAutoSync: () => {
+        const { autoSyncTimerId } = get();
+        
+        if (autoSyncTimerId) {
+          clearInterval(autoSyncTimerId);
+          set({ autoSyncTimerId: null });
+          console.log('Auto-sync stopped');
+        }
+      },
+
+      setAutoSyncEnabled: async (enabled: boolean) => {
+        await get().setConfig({ autoSyncEnabled: enabled });
+        
+        if (enabled) {
+          get().startAutoSync();
+        } else {
+          get().stopAutoSync();
+        }
+      },
+
+      setAutoSyncInterval: async (seconds: number) => {
+        const minInterval = 10; // minimum 10 seconds
+        const validInterval = Math.max(minInterval, seconds);
+        
+        await get().setConfig({ autoSyncInterval: validInterval });
+        
+        // Restart auto-sync with new interval if enabled
+        const { config } = get();
+        if (config.autoSyncEnabled) {
+          get().stopAutoSync();
+          get().startAutoSync();
+        }
+      },
     }),
     {
       name: 'network-storage',
@@ -268,7 +352,17 @@ if (isElectron) {
     try {
       const config = await (window as any).electronAPI.network.getConfig();
       if (config && config.mode) {
-        useNetworkStore.setState({ config });
+        useNetworkStore.setState({ 
+          config: { 
+            ...useNetworkStore.getState().config,
+            ...config 
+          } 
+        });
+        
+        // Start auto-sync if enabled in client mode
+        if (config.mode === 'client' && config.autoSyncEnabled) {
+          store.startAutoSync();
+        }
       }
     } catch (error) {
       console.error('Failed to load network config:', error);
