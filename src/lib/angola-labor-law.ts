@@ -60,7 +60,8 @@ export const LABOR_LAW = {
   // Working Hours (Artigo 98)
   WEEKLY_HOURS: 44, // Maximum regular weekly hours
   DAILY_HOURS: 8, // Maximum regular daily hours
-  WORKING_DAYS_PER_MONTH: 22, // Standard working days for salary calculations (5.5 days × 4 weeks)
+  WORKING_DAYS_PER_WEEK: 6, // 6 days work week (Monday-Saturday)
+  WORKING_DAYS_PER_MONTH: 26, // Standard working days for salary calculations (6 days × 4.33 weeks)
   
   // Overtime Rates (Artigo 185 and 188 - Lei n.º 12/23)
   // Up to 30 hours/month: +50% (150% of normal rate)
