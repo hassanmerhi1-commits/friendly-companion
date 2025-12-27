@@ -4,10 +4,19 @@ const fs = require('fs');
 const http = require('http');
 const os = require('os');
 
-// Get the user data path for storing app data
-const userDataPath = app.getPath('userData');
-const dbPath = path.join(userDataPath, 'payroll.db');
-const networkConfigPath = path.join(userDataPath, 'network-config.json');
+// Get the app's directory for storing data (same folder as the executable)
+const appDir = app.isPackaged 
+  ? path.dirname(app.getPath('exe')) 
+  : path.join(__dirname, '..');
+const dataDir = path.join(appDir, 'data');
+
+// Ensure data directory exists
+if (!require('fs').existsSync(dataDir)) {
+  require('fs').mkdirSync(dataDir, { recursive: true });
+}
+
+const dbPath = path.join(dataDir, 'payroll.db');
+const networkConfigPath = path.join(dataDir, 'network-config.json');
 
 let mainWindow;
 let httpServer = null;
