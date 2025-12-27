@@ -9,7 +9,8 @@ import {
   MapPin,
   UserCog,
   Scale,
-  FileWarning
+  FileWarning,
+  CreditCard
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function Sidebar() {
   const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: t.nav.employees, href: "/employees", icon: Users },
+    { name: language === 'pt' ? 'Cartões ID' : 'ID Cards', href: "/employee-cards", icon: CreditCard },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
     { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
     { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
