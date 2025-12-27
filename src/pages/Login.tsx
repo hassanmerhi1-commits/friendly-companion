@@ -80,6 +80,11 @@ export function LoginPage() {
             </Button>
           </form>
           
+          <div className="mt-6 pt-4 border-t border-border text-center">
+            <p className="text-xs text-muted-foreground">
+              Desenvolvido por <span className="font-medium">Hassan Merhi</span>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
