@@ -211,7 +211,17 @@ const Payroll = () => {
             <FileDown className="h-4 w-4 mr-2" />
             {t.export.excel}
           </Button>
-          <Button variant="outline" onClick={() => setPrintSheetOpen(true)} disabled={currentEntries.length === 0}>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              if (!selectedBranchId) {
+                toast.error(language === 'pt' ? 'Selecione uma filial primeiro' : 'Select a branch first');
+                return;
+              }
+              setPrintSheetOpen(true);
+            }} 
+            disabled={currentEntries.length === 0}
+          >
             <Printer className="h-4 w-4 mr-2" />
             {language === 'pt' ? 'Imprimir Folha' : 'Print Sheet'}
           </Button>
