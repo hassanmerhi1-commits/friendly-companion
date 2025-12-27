@@ -13,6 +13,7 @@ import { AlertTriangle, FileText, Calendar, UserX, Printer, Download, Plus } fro
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
 import companyLogo from '@/assets/distri-good-logo.jpeg';
 
@@ -57,6 +58,7 @@ const Documents = () => {
   const { language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { branches } = useBranchStore();
+  const { settings } = useSettingsStore();
   const printRef = useRef<HTMLDivElement>(null);
   
   const [selectedType, setSelectedType] = useState<DocumentType>('advertencia');
@@ -177,6 +179,9 @@ const Documents = () => {
 
   const selectedEmployee = employees.find(e => e.id === documentData.employeeId);
   const companyBranch = branches.find(b => b.isHeadquarters) || branches[0];
+  
+  // Full headquarters address from settings
+  const headquartersAddress = `${settings.address}, ${settings.municipality}, ${settings.city}, ${settings.province}`;
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -286,9 +291,9 @@ const Documents = () => {
         <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
           <img src={companyLogo} alt="Logo" className="logo" style={{ width: '70px', height: 'auto' }} />
           <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-            <div className="company-name">{t.companyName}</div>
-            <div>{t.companyNif}</div>
-            {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+            <div className="company-name">{settings.companyName}</div>
+            <div>NIF: {settings.nif}</div>
+            <div>{headquartersAddress}</div>
           </div>
         </div>
         
@@ -297,7 +302,7 @@ const Documents = () => {
         <div className="content">
           <div className="clause">
             <p><span className="clause-title">CLÁUSULA 1ª - DAS PARTES CONTRATANTES:</span></p>
-            <p><strong>PRIMEIRA CONTRATANTE (EMPREGADORA):</strong> {t.companyName}, sociedade comercial por quotas de direito angolano, com sede em {companyBranch?.address || 'Luanda'}, {companyBranch?.city || 'Luanda'}, contribuinte fiscal nº 5417201524.</p>
+            <p><strong>PRIMEIRA CONTRATANTE (EMPREGADORA):</strong> {settings.companyName}, sociedade comercial por quotas de direito angolano, com sede em {headquartersAddress}, contribuinte fiscal nº {settings.nif}.</p>
             <p><strong>SEGUNDA CONTRATANTE (TRABALHADOR/A):</strong> {contractData.workerName || '______________________________'}, de nacionalidade {contractData.workerNationality}, portador(a) do Bilhete de Identidade nº {contractData.workerIdNumber || '_______________'}, válido até {contractData.workerIdExpiry ? new Date(contractData.workerIdExpiry).toLocaleDateString('pt-AO') : '___/___/______'}, passado pelo {contractData.workerIdIssuer || '_______________'}, residente em {contractData.workerAddress || '______________________________'}, Município de {contractData.workerMunicipality || '_______________'}, Província de {contractData.workerProvince}.</p>
           </div>
 
@@ -397,9 +402,9 @@ const Documents = () => {
             <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
               <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-                <div className="company-name">{t.companyName}</div>
-                <div>{t.companyNif}</div>
-                {companyBranch && <div>{companyBranch.address}, {companyBranch.city}</div>}
+                <div className="company-name">{settings.companyName}</div>
+                <div>NIF: {settings.nif}</div>
+                <div>{headquartersAddress}</div>
               </div>
             </div>
             <div className="document-title">ADVERTÊNCIA DISCIPLINAR</div>
@@ -440,8 +445,9 @@ const Documents = () => {
             <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
               <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-                <div className="company-name">{t.companyName}</div>
-                <div>{t.companyNif}</div>
+                <div className="company-name">{settings.companyName}</div>
+                <div>NIF: {settings.nif}</div>
+                <div>{headquartersAddress}</div>
               </div>
             </div>
             <div className="document-title">GUIA DE FÉRIAS</div>
@@ -486,8 +492,9 @@ const Documents = () => {
             <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
               <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-                <div className="company-name">{t.companyName}</div>
-                <div>{t.companyNif}</div>
+                <div className="company-name">{settings.companyName}</div>
+                <div>NIF: {settings.nif}</div>
+                <div>{headquartersAddress}</div>
               </div>
             </div>
             <div className="document-title">PROCESSO DISCIPLINAR</div>
@@ -535,8 +542,9 @@ const Documents = () => {
             <div className="header" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
               <img src={companyLogo} alt="Logo" className="logo" style={{ width: '80px', height: 'auto' }} />
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
-                <div className="company-name">{t.companyName}</div>
-                <div>{t.companyNif}</div>
+                <div className="company-name">{settings.companyName}</div>
+                <div>NIF: {settings.nif}</div>
+                <div>{headquartersAddress}</div>
               </div>
             </div>
             <div className="document-title">CARTA DE SUSPENSÃO</div>

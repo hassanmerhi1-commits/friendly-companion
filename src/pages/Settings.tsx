@@ -189,7 +189,7 @@ const Settings = () => {
                   onChange={(e) => handleChange("nif", e.target.value)} 
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label>{t.settings.address}</Label>
                 <Input 
                   value={formData.address} 
@@ -197,10 +197,24 @@ const Settings = () => {
                 />
               </div>
               <div className="space-y-2">
+                <Label>{t.settings.municipality}</Label>
+                <Input 
+                  value={formData.municipality || ''} 
+                  onChange={(e) => handleChange("municipality", e.target.value)} 
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>{t.settings.city}</Label>
                 <Input 
                   value={formData.city} 
                   onChange={(e) => handleChange("city", e.target.value)} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t.settings.province}</Label>
+                <Input 
+                  value={formData.province || ''} 
+                  onChange={(e) => handleChange("province", e.target.value)} 
                 />
               </div>
             </div>

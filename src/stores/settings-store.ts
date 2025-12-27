@@ -7,6 +7,8 @@ export interface CompanySettings {
   nif: string;
   address: string;
   city: string;
+  province: string;
+  municipality: string;
   bank: string;
   iban: string;
   payday: number;
@@ -25,8 +27,10 @@ interface SettingsStore {
 const defaultSettings: CompanySettings = {
   companyName: 'DISTRI-GOOD, LDA',
   nif: '5402155682',
-  address: 'Rua dos Coqueiros, 123',
-  city: 'Luanda',
+  address: 'Estrada de Catete, Bairro Villa Nova n 320 B Viana',
+  city: 'Viana',
+  province: 'Luanda',
+  municipality: 'Viana',
   bank: 'Banco Angolano de Investimentos',
   iban: 'AO06 0000 0000 0000 0000 0000 0',
   payday: 27,
