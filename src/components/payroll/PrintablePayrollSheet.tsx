@@ -113,7 +113,7 @@ export function PrintablePayrollSheet({
       logoImg.src = logoBase64;
     }
 
-    printWindow.document.write(`
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -151,9 +151,35 @@ export function PrintablePayrollSheet({
         ${clonedContent.innerHTML}
       </body>
       </html>
-    `);
+    `;
+
+    printWindow.document.write(htmlContent);
     printWindow.document.close();
-    printWindow.print();
+
+    // Wait for images to load before printing
+    const images = printWindow.document.querySelectorAll('img');
+    if (images.length === 0) {
+      printWindow.print();
+    } else {
+      let loadedCount = 0;
+      const totalImages = images.length;
+      
+      const checkAllLoaded = () => {
+        loadedCount++;
+        if (loadedCount >= totalImages) {
+          printWindow.print();
+        }
+      };
+
+      images.forEach((img) => {
+        if (img.complete) {
+          checkAllLoaded();
+        } else {
+          img.onload = checkAllLoaded;
+          img.onerror = checkAllLoaded;
+        }
+      });
+    }
   };
 
   return (
