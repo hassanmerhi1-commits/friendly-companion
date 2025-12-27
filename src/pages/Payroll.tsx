@@ -14,6 +14,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useDeductionStore } from "@/stores/deduction-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useHolidayStore } from "@/stores/holiday-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
@@ -30,6 +31,7 @@ const Payroll = () => {
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
   const { branches } = useBranchStore();
   const { settings } = useSettingsStore();
+  const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
   
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
@@ -119,11 +121,21 @@ const Payroll = () => {
     // Get or create period for current month
     const period = getOrCreateCurrentPeriod();
     
-    generateEntriesForPeriod(period.id, activeEmployees);
+    // Pass holiday records to check who should receive holiday subsidy this month
+    // (employees going on holiday NEXT month get their subsidy THIS month)
+    generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
     
-    // Apply pending deductions to each entry
+    // Mark subsidy as paid for employees who received it
     const updatedEntries = getEntriesForPeriod(period.id);
     updatedEntries.forEach(entry => {
+      // If holiday subsidy was added, mark it as paid
+      if (entry.holidaySubsidy > 0) {
+        const nextMonth = period.month === 12 ? 1 : period.month + 1;
+        const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
+        markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
+      }
+      
+      // Apply pending deductions
       const pendingAmount = getTotalPendingByEmployee(entry.employeeId);
       if (pendingAmount > 0) {
         updateEntry(entry.id, { 
@@ -136,7 +148,17 @@ const Payroll = () => {
       }
     });
     
-    toast.success(language === 'pt' ? 'Folha calculada com sucesso!' : 'Payroll calculated successfully!');
+    // Show info about holiday subsidies
+    const subsidyCount = updatedEntries.filter(e => e.holidaySubsidy > 0).length;
+    if (subsidyCount > 0) {
+      toast.success(
+        language === 'pt' 
+          ? `Folha calculada! ${subsidyCount} funcionário(s) receberão subsídio de férias (férias no próximo mês).`
+          : `Payroll calculated! ${subsidyCount} employee(s) will receive holiday subsidy (holiday next month).`
+      );
+    } else {
+      toast.success(language === 'pt' ? 'Folha calculada com sucesso!' : 'Payroll calculated successfully!');
+    }
   };
 
   const handleToggle13thMonth = (entry: PayrollEntry) => {
