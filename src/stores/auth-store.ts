@@ -218,6 +218,11 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'payrollao-auth',
       storage: createJSONStorage(() => createElectronStorage('users')),
+      // Only persist users list, NOT the session state
+      partialize: (state) => ({ 
+        users: state.users,
+        // Exclude currentUser and isAuthenticated - session always starts logged out
+      }),
     }
   )
 );
