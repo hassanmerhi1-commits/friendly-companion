@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Camera, User, X } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
@@ -19,6 +21,7 @@ interface EmployeeFormDialogProps {
 }
 
 const defaultFormData: EmployeeFormData = {
+  photoUrl: '',
   firstName: '',
   lastName: '',
   email: '',
@@ -53,10 +56,12 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
   const { branches } = useBranchStore();
   const [formData, setFormData] = useState<EmployeeFormData>(defaultFormData);
   const [activeTab, setActiveTab] = useState('personal');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (employee) {
       setFormData({
+        photoUrl: employee.photoUrl || '',
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
@@ -110,6 +115,39 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem válida');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('A imagem deve ter menos de 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      updateField('photoUrl', base64);
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    updateField('photoUrl', '');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -130,6 +168,47 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
 
             {/* Personal Info Tab */}
             <TabsContent value="personal" className="space-y-4">
+              {/* Profile Photo Section */}
+              <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="relative">
+                  <Avatar className="h-20 w-20 border-2 border-primary/20">
+                    <AvatarImage src={formData.photoUrl} alt="Foto do funcionário" />
+                    <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                      <User className="h-8 w-8" />
+                    </AvatarFallback>
+                  </Avatar>
+                  {formData.photoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Label className="text-sm font-medium">Foto do Funcionário</Label>
+                  <p className="text-xs text-muted-foreground mb-2">JPG, PNG ou GIF. Máximo 2MB.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {formData.photoUrl ? 'Alterar Foto' : 'Carregar Foto'}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{t.employees.firstName}</Label>
