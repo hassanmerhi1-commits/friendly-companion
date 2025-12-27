@@ -29,9 +29,10 @@ import type { PayrollEntry } from "@/types/payroll";
 const Payroll = () => {
   const { t, language } = useLanguage();
   const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth } = usePayrollStore();
-  const { getActiveEmployees } = useEmployeeStore();
+  const { employees, getActiveEmployees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
-  const { branches } = useBranchStore();
+  const { getActiveBranches } = useBranchStore();
+  const branches = getActiveBranches();
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = useAbsenceStore();
@@ -47,7 +48,6 @@ const Payroll = () => {
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
 
   const pendingAbsences = getPendingAbsences();
-  const { employees } = useEmployeeStore();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
@@ -63,8 +63,8 @@ const Payroll = () => {
   };
 
   const currentPeriod = getCurrentPeriod();
-  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
-  
+  const employeeIdSet = new Set(employees.map(emp => emp.id));
+  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id).filter(e => employeeIdSet.has(e.employeeId)) : [];
   // Filter entries by branch for payroll sheet
   const payrollSheetEntries = selectedBranchId 
     ? currentEntries

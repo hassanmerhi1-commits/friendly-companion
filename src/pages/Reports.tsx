@@ -24,7 +24,8 @@ const Reports = () => {
   const { t, language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
-  const { branches } = useBranchStore();
+  const { getActiveBranches } = useBranchStore();
+  const branches = getActiveBranches();
   const { records: holidayRecords, saveRecords } = useHolidayStore();
   const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
@@ -38,13 +39,17 @@ const Reports = () => {
   const selectedBranch = selectedBranchId !== 'all' ? branches.find(b => b.id === selectedBranchId) : undefined;
 
   // Filter employees and entries by branch
-  const filteredEmployees = selectedBranchId === 'all' 
-    ? employees 
+  const filteredEmployees = selectedBranchId === 'all'
+    ? employees
     : employees.filter(e => e.branchId === selectedBranchId);
 
+  // Always hide payroll entries for employees that no longer exist
+  const employeeIdSet = new Set(employees.map(e => e.id));
+  const entriesWithExistingEmployees = entries.filter(e => employeeIdSet.has(e.employeeId));
+
   const filteredEntries = selectedBranchId === 'all'
-    ? entries
-    : entries.filter(e => {
+    ? entriesWithExistingEmployees
+    : entriesWithExistingEmployees.filter(e => {
         const emp = employees.find(emp => emp.id === e.employeeId);
         return emp?.branchId === selectedBranchId;
       });
@@ -140,7 +145,7 @@ const Reports = () => {
                 <SelectItem value="all">
                   {language === 'pt' ? 'Todas as Filiais' : 'All Branches'}
                 </SelectItem>
-                {branches.filter(b => b.isActive).map((branch) => (
+                {branches.map((branch) => (
                   <SelectItem key={branch.id} value={branch.id}>
                     {branch.name} ({branch.code}) - {branch.city}
                   </SelectItem>
