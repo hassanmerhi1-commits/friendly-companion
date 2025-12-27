@@ -22,6 +22,12 @@ interface ServerStatus {
   addresses: IPAddress[];
 }
 
+interface ServerConfigFile {
+  exists: boolean;
+  serverIP: string;
+  serverPort: number;
+}
+
 interface NetworkState {
   config: NetworkConfig;
   serverStatus: ServerStatus | null;
@@ -29,6 +35,8 @@ interface NetworkState {
   lastSyncTime: number | null;
   isSyncing: boolean;
   autoSyncTimerId: number | null;
+  serverConfigFile: ServerConfigFile | null;
+  serverConfigFilePath: string | null;
   
   // Actions
   setConfig: (config: Partial<NetworkConfig>) => Promise<void>;
@@ -44,6 +52,12 @@ interface NetworkState {
   stopAutoSync: () => void;
   setAutoSyncEnabled: (enabled: boolean) => Promise<void>;
   setAutoSyncInterval: (seconds: number) => Promise<void>;
+  // Dolly-style server config file
+  readServerConfigFile: () => Promise<ServerConfigFile>;
+  writeServerConfigFile: (ip: string, port: number) => Promise<{ success: boolean; path?: string; error?: string }>;
+  deleteServerConfigFile: () => Promise<{ success: boolean; error?: string }>;
+  getServerConfigFilePath: () => Promise<string>;
+  applyServerConfigFile: () => Promise<{ success: boolean; error?: string }>;
 }
 
 // Check if running in Electron
@@ -65,6 +79,8 @@ export const useNetworkStore = create<NetworkState>()(
       lastSyncTime: null,
       isSyncing: false,
       autoSyncTimerId: null,
+      serverConfigFile: null,
+      serverConfigFilePath: null,
 
       setConfig: async (partialConfig) => {
         const currentConfig = get().config;
@@ -332,6 +348,100 @@ export const useNetworkStore = create<NetworkState>()(
           get().startAutoSync();
         }
       },
+
+      // Dolly-style server config file methods
+      readServerConfigFile: async () => {
+        if (!isElectron) {
+          return { exists: false, serverIP: '', serverPort: 3847 };
+        }
+        
+        try {
+          const result = await (window as any).electronAPI.network.readServerConfigFile();
+          set({ serverConfigFile: result });
+          return result;
+        } catch (error) {
+          console.error('Failed to read server-config.txt:', error);
+          return { exists: false, serverIP: '', serverPort: 3847 };
+        }
+      },
+
+      writeServerConfigFile: async (ip: string, port: number) => {
+        if (!isElectron) {
+          return { success: false, error: 'Desktop app required' };
+        }
+        
+        try {
+          const result = await (window as any).electronAPI.network.writeServerConfigFile(ip, port);
+          if (result.success) {
+            set({ serverConfigFilePath: result.path });
+          }
+          return result;
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      },
+
+      deleteServerConfigFile: async () => {
+        if (!isElectron) {
+          return { success: false, error: 'Desktop app required' };
+        }
+        
+        try {
+          const result = await (window as any).electronAPI.network.deleteServerConfigFile();
+          if (result.success) {
+            set({ serverConfigFile: null });
+          }
+          return result;
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      },
+
+      getServerConfigFilePath: async () => {
+        if (!isElectron) return '';
+        
+        try {
+          const path = await (window as any).electronAPI.network.getServerConfigFilePath();
+          set({ serverConfigFilePath: path });
+          return path;
+        } catch (error) {
+          return '';
+        }
+      },
+
+      // Apply settings from server-config.txt and connect automatically
+      applyServerConfigFile: async () => {
+        if (!isElectron) {
+          return { success: false, error: 'Desktop app required' };
+        }
+        
+        try {
+          const configFile = await get().readServerConfigFile();
+          
+          if (!configFile.exists) {
+            return { success: false, error: 'No server-config.txt found' };
+          }
+          
+          // Set client mode with the IP from the file
+          await get().setConfig({
+            mode: 'client',
+            serverIP: configFile.serverIP,
+            serverPort: configFile.serverPort
+          });
+          
+          // Test connection
+          const pingResult = await get().testConnection(configFile.serverIP, configFile.serverPort);
+          
+          if (pingResult.success) {
+            console.log('Connected to server from server-config.txt:', configFile.serverIP);
+            return { success: true };
+          }
+          
+          return { success: false, error: 'Server not reachable' };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      },
     }),
     {
       name: 'network-storage',
@@ -347,6 +457,30 @@ if (isElectron) {
   setTimeout(async () => {
     const store = useNetworkStore.getState();
     await store.refreshServerStatus();
+    
+    // Check for Dolly-style server-config.txt FIRST
+    try {
+      const configFile = await store.readServerConfigFile();
+      await store.getServerConfigFilePath();
+      
+      if (configFile.exists) {
+        console.log('Found server-config.txt:', configFile.serverIP + ':' + configFile.serverPort);
+        
+        // Auto-apply if not already in server mode (server shouldn't connect to itself)
+        const currentConfig = await (window as any).electronAPI.network.getConfig();
+        if (currentConfig.mode !== 'server') {
+          // Auto-connect using the file
+          await store.setConfig({
+            mode: 'client',
+            serverIP: configFile.serverIP,
+            serverPort: configFile.serverPort
+          });
+          console.log('Auto-configured as client from server-config.txt');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check server-config.txt:', error);
+    }
     
     // Load config from Electron storage
     try {
