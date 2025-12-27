@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Branch, BranchFormData } from '@/types/branch';
 import { createElectronStorage } from '@/lib/electron-sqlite-storage';
+import { useEmployeeStore } from '@/stores/employee-store';
+import { usePayrollStore } from '@/stores/payroll-store';
 
 interface BranchState {
   branches: Branch[];
@@ -56,6 +58,16 @@ export const useBranchStore = create<BranchState>()(
       },
 
       deleteBranch: (id: string) => {
+        // Clean up payroll entries for employees in this branch
+        const employeeStore = useEmployeeStore.getState();
+        const payrollStore = usePayrollStore.getState();
+        
+        // Get all employees in this branch and remove their payroll entries
+        const branchEmployees = employeeStore.employees.filter(emp => emp.branchId === id);
+        branchEmployees.forEach(emp => {
+          payrollStore.removeEntriesForEmployee(emp.id);
+        });
+        
         set((state) => ({
           branches: state.branches.map((branch) =>
             branch.id === id
