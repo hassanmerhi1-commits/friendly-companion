@@ -708,11 +708,21 @@ const Documents = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>{t.workLocation}</Label>
-                  <Input 
+                  <Select 
                     value={contractData.workLocation}
-                    onChange={(e) => setContractData(prev => ({ ...prev, workLocation: e.target.value }))}
-                    placeholder={language === 'pt' ? 'Local de trabalho' : 'Work location'}
-                  />
+                    onValueChange={(value) => setContractData(prev => ({ ...prev, workLocation: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'pt' ? 'Selecionar filial' : 'Select branch'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={`${branch.name}, ${branch.address}, ${branch.city}`}>
+                          {branch.name} - {branch.city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
