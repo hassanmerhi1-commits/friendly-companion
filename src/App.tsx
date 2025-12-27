@@ -26,8 +26,28 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Check if we're in development/preview mode (not Electron)
+const isDevelopmentPreview = () => {
+  const isElectron = typeof window !== 'undefined' && 
+    (window as any).electronAPI?.isElectron === true;
+  const isDev = import.meta.env.DEV;
+  return !isElectron && isDev;
+};
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, login } = useAuthStore();
+  
+  // Auto-login as admin in development preview mode
+  useEffect(() => {
+    if (isDevelopmentPreview() && !isAuthenticated) {
+      login('admin', 'admin');
+    }
+  }, [isAuthenticated, login]);
+  
+  // In dev preview, allow access while auto-login happens
+  if (isDevelopmentPreview()) {
+    return <>{children}</>;
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -60,13 +80,6 @@ const AppRoutes = () => {
   );
 };
 
-// Check if we're in development/preview mode (not Electron)
-const isDevelopmentPreview = () => {
-  const isElectron = typeof window !== 'undefined' && 
-    (window as any).electronAPI?.isElectron === true;
-  const isDev = import.meta.env.DEV;
-  return !isElectron && isDev;
-};
 
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
