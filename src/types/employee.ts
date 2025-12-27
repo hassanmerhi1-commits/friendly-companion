@@ -9,6 +9,9 @@ export type PaymentMethod = 'bank_transfer' | 'cash' | 'mobile_money';
 export interface Employee {
   id: string;
   
+  // Profile Photo
+  photoUrl?: string; // Base64 encoded image or file path
+  
   // Personal Information
   firstName: string;
   lastName: string;
@@ -64,6 +67,7 @@ export interface Employee {
 }
 
 export interface EmployeeFormData {
+  photoUrl?: string; // Base64 encoded image
   firstName: string;
   lastName: string;
   email: string;
