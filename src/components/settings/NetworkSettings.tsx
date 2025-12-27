@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useNetworkStore, NetworkMode } from '@/stores/network-store';
 import { useLanguage } from '@/lib/i18n';
@@ -16,7 +15,9 @@ import {
   Check, 
   X,
   Copy,
-  Globe
+  Globe,
+  Download,
+  Upload
 } from 'lucide-react';
 
 export const NetworkSettings = () => {
@@ -30,7 +31,8 @@ export const NetworkSettings = () => {
     setConfig, 
     startServer, 
     stopServer, 
-    syncWithServer,
+    pullFromServer,
+    pushToServer,
     testConnection,
     getLocalIPs,
     refreshServerStatus
@@ -104,13 +106,21 @@ export const NetworkSettings = () => {
     toast.success(t.network?.configSaved || 'Configuração guardada');
   };
 
-  const handleSync = async () => {
-    const result = await syncWithServer();
+  const handlePull = async () => {
+    const result = await pullFromServer();
     if (result.success) {
-      toast.success(t.network?.syncSuccess || 'Dados sincronizados! Recarregue a página.');
-      setTimeout(() => window.location.reload(), 1500);
+      toast.success('Dados baixados do servidor! A recarregar...');
     } else {
-      toast.error(result.error || t.network?.syncFailed || 'Falha na sincronização');
+      toast.error(result.error || 'Falha ao baixar dados');
+    }
+  };
+
+  const handlePush = async () => {
+    const result = await pushToServer();
+    if (result.success) {
+      toast.success('Dados enviados para o servidor com sucesso!');
+    } else {
+      toast.error(result.error || 'Falha ao enviar dados');
     }
   };
 
@@ -285,7 +295,7 @@ export const NetworkSettings = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={handleTestConnection}
@@ -309,20 +319,43 @@ export const NetworkSettings = () => {
                 >
                   {t.common?.save || 'Guardar'}
                 </Button>
+              </div>
 
+              {/* Pull/Push Sync Buttons */}
+              <div className="flex flex-wrap gap-2 pt-2">
                 <Button
-                  variant="accent"
-                  onClick={handleSync}
+                  variant="default"
+                  onClick={handlePull}
                   disabled={isSyncing || !serverIP}
+                  className="flex-1"
                 >
                   {isSyncing ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <Download className="h-4 w-4 mr-2" />
                   )}
-                  {t.network?.sync || 'Sincronizar'}
+                  Baixar do Servidor
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={handlePush}
+                  disabled={isSyncing || !serverIP}
+                  className="flex-1"
+                >
+                  {isSyncing ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-2" />
+                  )}
+                  Enviar para Servidor
                 </Button>
               </div>
+
+              <p className="text-xs text-muted-foreground mt-2">
+                <strong>Baixar:</strong> Copia os dados do servidor para este computador.<br/>
+                <strong>Enviar:</strong> Copia os dados deste computador para o servidor.
+              </p>
 
               {lastSyncTime && (
                 <p className="text-xs text-muted-foreground">
