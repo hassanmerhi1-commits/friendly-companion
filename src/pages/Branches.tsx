@@ -1,62 +1,31 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { useBranchStore } from '@/stores/branch-store';
-import { ANGOLA_PROVINCES, ANGOLA_CITIES, type BranchFormData } from '@/types/branch';
+import { BranchFormDialog } from '@/components/branches/BranchFormDialog';
 import { useLanguage } from '@/lib/i18n';
 import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown } from 'lucide-react';
 import { toast } from 'sonner';
+import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
-  const { branches, addBranch, updateBranch, deleteBranch, getActiveBranches } = useBranchStore();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedProvince, setSelectedProvince] = useState<string>('');
-  const [formData, setFormData] = useState<Partial<BranchFormData>>({
-    name: '',
-    code: '',
-    province: '',
-    city: '',
-    address: '',
-    phone: '',
-    email: '',
-    isHeadquarters: false,
-  });
+  const { deleteBranch, getActiveBranches } = useBranchStore();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
   const activeBranches = getActiveBranches();
-  const cities = selectedProvince ? ANGOLA_CITIES[selectedProvince] || [] : [];
 
-  const handleProvinceChange = (province: string) => {
-    setSelectedProvince(province);
-    setFormData({ ...formData, province, city: '' });
+  const handleAddNew = () => {
+    setEditingBranch(null);
+    setIsDialogOpen(true);
   };
 
-  const handleAddBranch = () => {
-    if (!formData.name || !formData.province || !formData.city) {
-      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
-      return;
-    }
-    addBranch(formData as BranchFormData);
-    setIsAddDialogOpen(false);
-    setFormData({
-      name: '',
-      code: '',
-      province: '',
-      city: '',
-      address: '',
-      phone: '',
-      email: '',
-      isHeadquarters: false,
-    });
-    setSelectedProvince('');
-    toast.success(language === 'pt' ? 'Filial adicionada com sucesso!' : 'Branch added successfully!');
+  const handleEdit = (branch: Branch) => {
+    setEditingBranch(branch);
+    setIsDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
@@ -88,97 +57,16 @@ export default function Branches() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                {addBranchLabel}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{addBranchLabel}</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Nome da Filial *' : 'Branch Name *'}</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder={language === 'pt' ? 'Ex: Filial Viana' : 'Ex: Viana Branch'}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Província *' : 'Province *'}</Label>
-                    <Select value={selectedProvince} onValueChange={handleProvinceChange}>
-                      <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
-                      <SelectContent>
-                        {ANGOLA_PROVINCES.map((p) => (
-                          <SelectItem key={p} value={p}>{p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Cidade *' : 'City *'}</Label>
-                    <Select 
-                      value={formData.city} 
-                      onValueChange={(v) => setFormData({ ...formData, city: v })}
-                      disabled={!selectedProvince}
-                    >
-                      <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
-                      <SelectContent>
-                        {cities.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Endereço' : 'Address'}</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Telefone' : 'Phone'}</Label>
-                    <Input
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+244 XXX XXX XXX"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                  <div>
-                    <Label>{headquartersLabel}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {language === 'pt' ? 'Marcar como sede principal' : 'Mark as main headquarters'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={formData.isHeadquarters}
-                    onCheckedChange={(v) => setFormData({ ...formData, isHeadquarters: v })}
-                  />
-                </div>
-                <Button onClick={handleAddBranch} className="w-full">
-                  {addBranchLabel}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button className="gap-2" onClick={handleAddNew}>
+            <Plus className="h-4 w-4" />
+            {addBranchLabel}
+          </Button>
+          
+          <BranchFormDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            branch={editingBranch}
+          />
         </div>
 
         {/* Stats */}
@@ -275,7 +163,7 @@ export default function Branches() {
                       )}
                     </div>
                     <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
