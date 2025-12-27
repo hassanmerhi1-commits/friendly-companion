@@ -60,14 +60,19 @@ export const LABOR_LAW = {
   // Working Hours (Artigo 98)
   WEEKLY_HOURS: 44, // Maximum regular weekly hours
   DAILY_HOURS: 8, // Maximum regular daily hours
+  WORKING_DAYS_PER_MONTH: 22, // Standard working days for salary calculations (5.5 days × 4 weeks)
   
-  // Overtime Rates (Artigo 110)
+  // Overtime Rates (Artigo 185 and 188 - Lei n.º 12/23)
+  // Up to 30 hours/month: +50% (150% of normal rate)
+  // Over 30 hours/month: +75% (175% of normal rate)
   OVERTIME: {
-    NORMAL_RATE: 1.5, // 50% extra for normal overtime
+    NORMAL_RATE_FIRST_30: 1.5, // 50% extra for first 30 hours/month
+    NORMAL_RATE_OVER_30: 1.75, // 75% extra for hours over 30/month
     NIGHT_RATE: 1.75, // 75% extra for night overtime (20:00-06:00)
     HOLIDAY_RATE: 2.0, // 100% extra for holidays/rest days
     MONTHLY_LIMIT: 40, // Maximum overtime hours per month
     ANNUAL_LIMIT: 200, // Maximum overtime hours per year
+    THRESHOLD_HOURS: 30, // Threshold where rate increases from 50% to 75%
   },
   
   // Night Work (Artigo 100)
@@ -233,20 +238,38 @@ export function calculateINSS(
 }
 
 /**
- * Calculate overtime pay
+ * Calculate overtime pay according to Lei Geral de Trabalho (Lei n.º 12/23)
+ * Artigo 185 and 188:
+ * - Normal overtime up to 30h/month: +50% (1.5x)
+ * - Normal overtime over 30h/month: +75% (1.75x)
+ * - Night overtime: +75% (1.75x)
+ * - Holiday/rest day overtime: +100% (2.0x)
  */
 export function calculateOvertime(
   hourlyRate: number,
   hours: number,
-  type: 'normal' | 'night' | 'holiday'
+  type: 'normal' | 'night' | 'holiday',
+  totalNormalHoursThisMonth: number = 0 // For tracking the 30h threshold
 ): number {
-  const multiplier = {
-    normal: LABOR_LAW.OVERTIME.NORMAL_RATE,
-    night: LABOR_LAW.OVERTIME.NIGHT_RATE,
-    holiday: LABOR_LAW.OVERTIME.HOLIDAY_RATE,
-  }[type];
-
-  return Math.round(hourlyRate * hours * multiplier);
+  if (type === 'night') {
+    return Math.round(hourlyRate * hours * LABOR_LAW.OVERTIME.NIGHT_RATE);
+  }
+  
+  if (type === 'holiday') {
+    return Math.round(hourlyRate * hours * LABOR_LAW.OVERTIME.HOLIDAY_RATE);
+  }
+  
+  // Normal overtime with progressive rate
+  const threshold = LABOR_LAW.OVERTIME.THRESHOLD_HOURS;
+  
+  // Calculate hours at each rate
+  const hoursBeforeThreshold = Math.max(0, Math.min(hours, threshold - totalNormalHoursThisMonth));
+  const hoursAfterThreshold = Math.max(0, hours - hoursBeforeThreshold);
+  
+  const amountFirstRate = hourlyRate * hoursBeforeThreshold * LABOR_LAW.OVERTIME.NORMAL_RATE_FIRST_30;
+  const amountSecondRate = hourlyRate * hoursAfterThreshold * LABOR_LAW.OVERTIME.NORMAL_RATE_OVER_30;
+  
+  return Math.round(amountFirstRate + amountSecondRate);
 }
 
 /**
@@ -256,6 +279,26 @@ export function calculateOvertime(
 export function calculateHourlyRate(monthlySalary: number): number {
   const monthlyHours = (LABOR_LAW.WEEKLY_HOURS * 52) / 12;
   return monthlySalary / monthlyHours;
+}
+
+/**
+ * Calculate daily rate for absence deductions
+ * Based on 22 working days per month (Lei Geral de Trabalho)
+ */
+export function calculateDailyRate(monthlySalary: number): number {
+  return monthlySalary / LABOR_LAW.WORKING_DAYS_PER_MONTH;
+}
+
+/**
+ * Calculate absence deduction
+ * Based on 22 working days per month
+ */
+export function calculateAbsenceDeduction(
+  baseSalary: number,
+  daysAbsent: number
+): number {
+  const dailyRate = calculateDailyRate(baseSalary);
+  return Math.round(dailyRate * daysAbsent);
 }
 
 /**

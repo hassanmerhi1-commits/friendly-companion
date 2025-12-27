@@ -17,6 +17,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
+import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -37,6 +38,8 @@ const Payroll = () => {
   const [bonusBranchId, setBonusBranchId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [warehouseName, setWarehouseName] = useState<string>('');
+  const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
+  const [overtimeEntry, setOvertimeEntry] = useState<PayrollEntry | null>(null);
 
   const { employees } = useEmployeeStore();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
@@ -152,6 +155,11 @@ const Payroll = () => {
   const handleViewReceipt = (entry: PayrollEntry) => {
     setSelectedEntry(entry);
     setReceiptOpen(true);
+  };
+
+  const handleEditOvertime = (entry: PayrollEntry) => {
+    setOvertimeEntry(entry);
+    setOvertimeDialogOpen(true);
   };
 
   const handleApprove = () => {
@@ -292,57 +300,82 @@ const Payroll = () => {
             <h2 className="font-semibold">{t.payroll.employeeDetails}</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1200px]">
               <thead className="bg-muted/30">
                 <tr className="border-b border-border">
                   <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase">{t.employees.employee}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.employees.baseSalary}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Abono Fam.' : 'Family'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Férias' : 'Holiday'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'H. Extra' : 'Overtime'}</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Faltas' : 'Absences'}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Outros' : 'Other'}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.net}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.common.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {currentEntries.map(entry => (
-                  <tr key={entry.id} className="hover:bg-muted/20">
-                    <td className="px-3 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.familyAllowance || 0)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
+                {currentEntries.map(entry => {
+                  const totalOvertimeHours = (entry.overtimeHoursNormal || 0) + (entry.overtimeHoursNight || 0) + (entry.overtimeHoursHoliday || 0);
+                  const totalOvertimeValue = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+                  return (
+                    <tr key={entry.id} className="hover:bg-muted/20">
+                      <td className="px-3 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                      <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
+                      <td className="px-3 py-3 text-right">
                         <Button 
-                          variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
+                          variant="ghost" 
                           size="sm"
-                          onClick={() => handleToggle13thMonth(entry)}
-                          className="h-6 px-2 text-xs"
-                          title={language === 'pt' 
-                            ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
-                            : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
+                          onClick={() => handleEditOvertime(entry)}
+                          className={`h-7 px-2 text-xs font-mono ${totalOvertimeValue > 0 ? 'text-primary' : 'text-muted-foreground'}`}
+                          title={language === 'pt' ? 'Editar horas extra e faltas' : 'Edit overtime and absences'}
                         >
-                          {entry.thirteenthMonth > 0 ? '✓' : '+'}
+                          {totalOvertimeHours > 0 ? `+${totalOvertimeHours}h` : '0h'}
+                          {totalOvertimeValue > 0 && <span className="ml-1 text-primary">+{formatAOA(totalOvertimeValue)}</span>}
+                          <Clock className="h-3 w-3 ml-1" />
                         </Button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.otherDeductions)}</td>
-                    <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">{formatAOA(entry.netSalary)}</td>
-                    <td className="px-3 py-3 text-right">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
-                        <Receipt className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditOvertime(entry)}
+                          className={`h-7 px-2 text-xs font-mono ${(entry.daysAbsent || 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`}
+                          title={language === 'pt' ? 'Editar faltas' : 'Edit absences'}
+                        >
+                          {(entry.daysAbsent || 0) > 0 ? `-${entry.daysAbsent}d` : '0d'}
+                          {(entry.absenceDeduction || 0) > 0 && <span className="ml-1 text-destructive">-{formatAOA(entry.absenceDeduction)}</span>}
+                        </Button>
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
+                          <Button 
+                            variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
+                            size="sm"
+                            onClick={() => handleToggle13thMonth(entry)}
+                            className="h-6 px-2 text-xs"
+                            title={language === 'pt' 
+                              ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
+                              : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
+                          >
+                            {entry.thirteenthMonth > 0 ? '✓' : '+'}
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
+                      <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
+                      <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
+                      <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">{formatAOA(entry.netSalary)}</td>
+                      <td className="px-3 py-3 text-right">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
+                          <Receipt className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -418,6 +451,13 @@ const Payroll = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Overtime and Absence Dialog */}
+      <OvertimeAbsenceDialog
+        open={overtimeDialogOpen}
+        onOpenChange={setOvertimeDialogOpen}
+        entry={overtimeEntry}
+      />
     </MainLayout>
   );
 };
