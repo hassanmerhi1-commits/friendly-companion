@@ -50,8 +50,9 @@ function calculateWorkingDays(startDate: string, endDate: string): number {
   
   while (current <= end) {
     const dayOfWeek = current.getDay();
-    // Count only weekdays (Monday=1 to Friday=5)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    // Count Monday to Saturday (1-6), exclude only Sunday (0)
+    // 6-day work week
+    if (dayOfWeek !== 0) {
       days++;
     }
     current.setDate(current.getDate() + 1);
