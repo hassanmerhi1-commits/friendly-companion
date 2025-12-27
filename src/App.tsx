@@ -97,9 +97,18 @@ function AppContent() {
       return;
     }
     
-    // Check device activation on mount
-    setDeviceActivated(isDeviceActivated());
-    setProvinceSelected(isProvinceSelected());
+    // Check device activation on mount with error handling
+    try {
+      const activated = isDeviceActivated();
+      const provinceOk = isProvinceSelected();
+      setDeviceActivated(activated);
+      setProvinceSelected(provinceOk);
+    } catch (error) {
+      console.error('Error during initial checks:', error);
+      // On error, show activation screen
+      setDeviceActivated(false);
+      setProvinceSelected(false);
+    }
   }, []);
 
   // Show loading while checking
