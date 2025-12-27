@@ -15,7 +15,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
-import companyLogo from "@/assets/company-logo.jpg";
+import companyLogo from "@/assets/distri-good-logo.jpeg";
 
 export function Sidebar() {
   const location = useLocation();
