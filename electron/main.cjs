@@ -25,8 +25,27 @@ let db = null;
 
 // Get the correct path for production vs development
 function getDistPath() {
-  const appPath = app.getAppPath();
-  return path.join(appPath, 'dist', 'index.html');
+  if (app.isPackaged) {
+    // In production, check multiple possible locations
+    const possiblePaths = [
+      path.join(app.getAppPath(), 'dist', 'index.html'),
+      path.join(path.dirname(app.getPath('exe')), 'resources', 'app', 'dist', 'index.html'),
+      path.join(__dirname, '..', 'dist', 'index.html'),
+    ];
+    
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        console.log('Found index.html at:', p);
+        return p;
+      }
+    }
+    
+    // Fallback to default
+    console.log('Using fallback path');
+    return path.join(app.getAppPath(), 'dist', 'index.html');
+  }
+  
+  return path.join(__dirname, '..', 'dist', 'index.html');
 }
 
 // ============= SQLite DATABASE =============
