@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -15,10 +15,12 @@ import { useDeductionStore } from "@/stores/deduction-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useHolidayStore } from "@/stores/holiday-store";
+import { useAbsenceStore } from "@/stores/absence-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
 import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialog";
+import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -32,7 +34,7 @@ const Payroll = () => {
   const { branches } = useBranchStore();
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
-  
+  const { calculateDeductionForEmployee, getPendingAbsences } = useAbsenceStore();
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
@@ -42,7 +44,9 @@ const Payroll = () => {
   const [warehouseName, setWarehouseName] = useState<string>('');
   const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
   const [overtimeEntry, setOvertimeEntry] = useState<PayrollEntry | null>(null);
+  const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
 
+  const pendingAbsences = getPendingAbsences();
   const { employees } = useEmployeeStore();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
@@ -244,6 +248,15 @@ const Payroll = () => {
           <Button variant="accent" onClick={handleCalculate}>
             <Calculator className="h-4 w-4 mr-2" />
             {t.payroll.calculatePayroll}
+          </Button>
+          <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
+            <UserX className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Ausências' : 'Absences'}
+            {pendingAbsences.length > 0 && (
+              <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+                {pendingAbsences.length}
+              </span>
+            )}
           </Button>
         </div>
       </div>
@@ -489,6 +502,12 @@ const Payroll = () => {
         open={overtimeDialogOpen}
         onOpenChange={setOvertimeDialogOpen}
         entry={overtimeEntry}
+      />
+
+      {/* Absence Management Dialog */}
+      <AbsenceDialog
+        open={absenceDialogOpen}
+        onOpenChange={setAbsenceDialogOpen}
       />
     </MainLayout>
   );
