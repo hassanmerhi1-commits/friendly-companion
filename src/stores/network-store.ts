@@ -32,6 +32,8 @@ interface NetworkState {
   refreshServerStatus: () => Promise<void>;
   startServer: (port?: number) => Promise<{ success: boolean; error?: string }>;
   stopServer: () => Promise<void>;
+  pullFromServer: () => Promise<{ success: boolean; error?: string }>;
+  pushToServer: () => Promise<{ success: boolean; error?: string }>;
   syncWithServer: () => Promise<{ success: boolean; error?: string }>;
   testConnection: (ip: string, port: number) => Promise<{ success: boolean; error?: string }>;
   getLocalIPs: () => Promise<IPAddress[]>;
@@ -120,15 +122,16 @@ export const useNetworkStore = create<NetworkState>()(
         }
       },
 
-      syncWithServer: async () => {
+  // Pull data FROM server (download server data to this machine)
+      pullFromServer: async () => {
         if (!isElectron) {
           return { success: false, error: 'Network features require desktop app' };
         }
         
         const { config } = get();
         
-        if (config.mode !== 'client' || !config.serverIP) {
-          return { success: false, error: 'Not configured as client' };
+        if (!config.serverIP) {
+          return { success: false, error: 'Server IP not configured' };
         }
         
         set({ isSyncing: true });
@@ -141,16 +144,65 @@ export const useNetworkStore = create<NetworkState>()(
           );
           
           if (result.success && result.data) {
-            // Update localStorage with server data
-            const data = result.data;
+            // Import data directly to SQLite database
+            const importResult = await (window as any).electronAPI.db.import(result.data);
             
-            if (data.employees) localStorage.setItem('employee-storage', JSON.stringify(data.employees));
-            if (data.branches) localStorage.setItem('branch-storage', JSON.stringify(data.branches));
-            if (data.payroll) localStorage.setItem('payroll-storage', JSON.stringify(data.payroll));
-            if (data.deductions) localStorage.setItem('deduction-storage', JSON.stringify(data.deductions));
-            if (data.holidays) localStorage.setItem('holiday-storage', JSON.stringify(data.holidays));
-            if (data.settings) localStorage.setItem('settings-storage', JSON.stringify(data.settings));
+            if (importResult.success) {
+              set({ 
+                isConnected: true, 
+                lastSyncTime: Date.now(),
+                isSyncing: false
+              });
+              
+              // Force page reload to refresh all stores from SQLite
+              window.location.reload();
+              
+              return { success: true };
+            }
             
+            set({ isSyncing: false });
+            return { success: false, error: 'Failed to import data to local database' };
+          }
+          
+          set({ isSyncing: false });
+          return { success: false, error: result.error || 'Failed to fetch data from server' };
+        } catch (error: any) {
+          set({ isSyncing: false, isConnected: false });
+          return { success: false, error: error.message || 'Pull failed' };
+        }
+      },
+
+      // Push data TO server (upload this machine's data to server)
+      pushToServer: async () => {
+        if (!isElectron) {
+          return { success: false, error: 'Network features require desktop app' };
+        }
+        
+        const { config } = get();
+        
+        if (!config.serverIP) {
+          return { success: false, error: 'Server IP not configured' };
+        }
+        
+        set({ isSyncing: true });
+        
+        try {
+          // Export local SQLite data
+          const localData = await (window as any).electronAPI.db.export();
+          
+          if (!localData) {
+            set({ isSyncing: false });
+            return { success: false, error: 'Failed to export local data' };
+          }
+          
+          // Push to server
+          const result = await (window as any).electronAPI.network.pushToServer(
+            config.serverIP,
+            config.serverPort,
+            localData
+          );
+          
+          if (result.success) {
             set({ 
               isConnected: true, 
               lastSyncTime: Date.now(),
@@ -161,11 +213,16 @@ export const useNetworkStore = create<NetworkState>()(
           }
           
           set({ isSyncing: false });
-          return { success: false, error: result.error || 'Failed to fetch data' };
+          return { success: false, error: result.error || 'Failed to push data to server' };
         } catch (error: any) {
           set({ isSyncing: false, isConnected: false });
-          return { success: false, error: error.message || 'Sync failed' };
+          return { success: false, error: error.message || 'Push failed' };
         }
+      },
+
+      // Legacy sync method (alias for pullFromServer for backward compatibility)
+      syncWithServer: async () => {
+        return get().pullFromServer();
       },
 
       testConnection: async (ip: string, port: number) => {
