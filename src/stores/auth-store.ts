@@ -114,10 +114,11 @@ interface AuthState {
   getUserPermissions: (userId?: string) => Permission[];
   
   // User management (admin only)
-  addUser: (data: Omit<AppUser, 'id' | 'createdAt'>) => AppUser;
-  updateUser: (id: string, data: Partial<AppUser>) => void;
+  addUser: (data: Omit<AppUser, 'id' | 'createdAt'>) => { success: boolean; user?: AppUser; error?: string };
+  updateUser: (id: string, data: Partial<AppUser>) => { success: boolean; error?: string };
   deleteUser: (id: string) => void;
   getUsers: () => AppUser[];
+  isUsernameTaken: (username: string, excludeId?: string) => boolean;
 }
 
 // Default admin user
@@ -176,6 +177,15 @@ export const useAuthStore = create<AuthState>()(
       },
       
       addUser: (data) => {
+        // Check for duplicate username
+        const existingUser = get().users.find(
+          u => u.username.toLowerCase() === data.username.toLowerCase()
+        );
+        
+        if (existingUser) {
+          return { success: false, error: 'Nome de utilizador já existe / Username already exists' };
+        }
+        
         const newUser: AppUser = {
           ...data,
           id: crypto.randomUUID(),
@@ -186,15 +196,34 @@ export const useAuthStore = create<AuthState>()(
           users: [...state.users, newUser],
         }));
         
-        return newUser;
+        return { success: true, user: newUser };
       },
       
       updateUser: (id: string, data: Partial<AppUser>) => {
+        // Check for duplicate username if username is being updated
+        if (data.username) {
+          const existingUser = get().users.find(
+            u => u.username.toLowerCase() === data.username!.toLowerCase() && u.id !== id
+          );
+          
+          if (existingUser) {
+            return { success: false, error: 'Nome de utilizador já existe / Username already exists' };
+          }
+        }
+        
         set((state) => ({
           users: state.users.map((user) =>
             user.id === id ? { ...user, ...data } : user
           ),
         }));
+        
+        return { success: true };
+      },
+      
+      isUsernameTaken: (username: string, excludeId?: string) => {
+        return get().users.some(
+          u => u.username.toLowerCase() === username.toLowerCase() && u.id !== excludeId
+        );
       },
       
       deleteUser: (id: string) => {

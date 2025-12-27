@@ -102,9 +102,17 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
     e.preventDefault();
     
     if (employee) {
-      updateEmployee(employee.id, formData);
+      const result = updateEmployee(employee.id, formData);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
     } else {
-      addEmployee(formData);
+      const result = addEmployee(formData);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
     }
     
     toast.success(t.employeeForm.success);

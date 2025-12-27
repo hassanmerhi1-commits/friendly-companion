@@ -97,16 +97,24 @@ const UsersPage = () => {
       if (formData.password) {
         updateData.password = formData.password;
       }
-      updateUser(editUser.id, updateData);
+      const result = updateUser(editUser.id, updateData);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
       toast.success(language === 'pt' ? 'Utilizador atualizado!' : 'User updated!');
     } else {
-      addUser({
+      const result = addUser({
         username: formData.username,
         password: formData.password,
         name: formData.name,
         role: formData.role,
         isActive: formData.isActive,
       });
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
       toast.success(language === 'pt' ? 'Utilizador criado!' : 'User created!');
     }
     
