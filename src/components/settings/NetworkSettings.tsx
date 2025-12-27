@@ -20,7 +20,9 @@ import {
   Globe,
   Download,
   Upload,
-  Clock
+  Clock,
+  FileText,
+  FolderOpen
 } from 'lucide-react';
 
 export const NetworkSettings = () => {
@@ -31,6 +33,8 @@ export const NetworkSettings = () => {
     isConnected,
     lastSyncTime,
     isSyncing,
+    serverConfigFile,
+    serverConfigFilePath,
     setConfig, 
     startServer, 
     stopServer, 
@@ -40,7 +44,12 @@ export const NetworkSettings = () => {
     getLocalIPs,
     refreshServerStatus,
     setAutoSyncEnabled,
-    setAutoSyncInterval
+    setAutoSyncInterval,
+    writeServerConfigFile,
+    deleteServerConfigFile,
+    getServerConfigFilePath,
+    applyServerConfigFile,
+    readServerConfigFile
   } = useNetworkStore();
 
   const [localIPs, setLocalIPs] = useState<{ name: string; address: string }[]>([]);
@@ -56,6 +65,8 @@ export const NetworkSettings = () => {
     if (isElectron) {
       refreshServerStatus();
       getLocalIPs().then(setLocalIPs);
+      getServerConfigFilePath();
+      readServerConfigFile();
     }
   }, []);
 
@@ -147,6 +158,43 @@ export const NetworkSettings = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success(t.network?.copied || 'Copiado!');
+  };
+
+  const handleCreateServerConfigFile = async () => {
+    if (localIPs.length === 0) {
+      toast.error('Nenhum endereço IP disponível');
+      return;
+    }
+    
+    // Use the first non-internal IP
+    const ip = localIPs[0].address;
+    const port = serverStatus?.port || 3847;
+    
+    const result = await writeServerConfigFile(ip, port);
+    if (result.success) {
+      toast.success(`Ficheiro server-config.txt criado: ${ip}:${port}`);
+      await readServerConfigFile();
+    } else {
+      toast.error(result.error || 'Erro ao criar ficheiro');
+    }
+  };
+
+  const handleDeleteServerConfigFile = async () => {
+    const result = await deleteServerConfigFile();
+    if (result.success) {
+      toast.success('Ficheiro server-config.txt eliminado');
+    } else {
+      toast.error(result.error || 'Erro ao eliminar ficheiro');
+    }
+  };
+
+  const handleApplyServerConfigFile = async () => {
+    const result = await applyServerConfigFile();
+    if (result.success) {
+      toast.success('Configuração aplicada do ficheiro server-config.txt');
+    } else {
+      toast.error(result.error || 'Erro ao aplicar configuração');
+    }
   };
 
   if (!isElectron) {
@@ -241,7 +289,7 @@ export const NetworkSettings = () => {
 
           {/* Server Status */}
           {config.mode === 'server' && serverStatus?.running && (
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-2">
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg space-y-3">
               <p className="text-sm font-medium">{t.network?.serverAddresses || 'Endereços do Servidor:'}</p>
               {localIPs.map((ip, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-sm">
@@ -261,8 +309,79 @@ export const NetworkSettings = () => {
                   </Button>
                 </div>
               ))}
+              
+              {/* Dolly-style server-config.txt */}
+              <div className="mt-4 pt-3 border-t border-border">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Ficheiro de Configuração (Estilo Dolly)</span>
+                </div>
+                
+                {serverConfigFile?.exists ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <code className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                        server-config.txt: {serverConfigFile.serverIP}:{serverConfigFile.serverPort}
+                      </code>
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        <Check className="h-3 w-3 mr-1" />
+                        Ativo
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteServerConfigFile();
+                      }}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Eliminar Ficheiro
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Criar ficheiro <code className="bg-muted px-1">server-config.txt</code> para que os clientes 
+                      conectem automaticamente ao copiar este ficheiro para a pasta deles.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCreateServerConfigFile();
+                      }}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Criar server-config.txt
+                    </Button>
+                  </div>
+                )}
+                
+                {serverConfigFilePath && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <FolderOpen className="h-3 w-3" />
+                    <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{serverConfigFilePath}</code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(serverConfigFilePath);
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
               <p className="text-xs text-muted-foreground mt-2">
-                {t.network?.shareIP || 'Partilhe este endereço com os outros computadores'}
+                {t.network?.shareIP || 'Partilhe este ficheiro com os outros computadores para conexão automática'}
               </p>
             </div>
           )}
@@ -296,6 +415,33 @@ export const NetworkSettings = () => {
           {/* Client Configuration */}
           {config.mode === 'client' && (
             <div className="mt-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+              
+              {/* Dolly-style auto-config detection */}
+              {serverConfigFile?.exists && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                      Ficheiro server-config.txt detectado!
+                    </span>
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-500 mb-2">
+                    Servidor: <code className="bg-green-100 dark:bg-green-900/50 px-1 rounded">
+                      {serverConfigFile.serverIP}:{serverConfigFile.serverPort}
+                    </code>
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleApplyServerConfigFile}
+                    className="border-green-600 text-green-600 hover:bg-green-50"
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Aplicar e Conectar
+                  </Button>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-2">
                   <Label>{t.network?.serverIP || 'Endereço IP do Servidor'}</Label>

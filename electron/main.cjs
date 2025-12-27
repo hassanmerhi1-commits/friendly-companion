@@ -33,6 +33,7 @@ if (!require('fs').existsSync(dataDir)) {
 
 const dbPath = path.join(dataDir, 'payroll.db');
 const networkConfigPath = path.join(dataDir, 'network-config.json');
+const serverConfigPath = path.join(dataDir, 'server-config.txt'); // Dolly-style simple config
 
 let mainWindow;
 let httpServer = null;
@@ -377,6 +378,63 @@ function writeNetworkConfig(config) {
     console.error('Error writing network config:', error);
     return false;
   }
+}
+
+// ============= DOLLY-STYLE SERVER CONFIG FILE =============
+// Simple text file format: IP:PORT (e.g., "10.0.0.45:3847")
+
+// Read server-config.txt (Dolly-style)
+function readServerConfigFile() {
+  try {
+    if (fs.existsSync(serverConfigPath)) {
+      const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
+      if (content) {
+        const parts = content.split(':');
+        if (parts.length >= 2) {
+          return {
+            exists: true,
+            serverIP: parts[0],
+            serverPort: parseInt(parts[1]) || 3847
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error reading server-config.txt:', error);
+  }
+  return { exists: false, serverIP: '', serverPort: 3847 };
+}
+
+// Write server-config.txt (Dolly-style) - Server creates this for clients
+function writeServerConfigFile(ip, port) {
+  try {
+    const content = `${ip}:${port}`;
+    fs.writeFileSync(serverConfigPath, content, 'utf-8');
+    console.log('Server config file created:', content);
+    return { success: true, path: serverConfigPath };
+  } catch (error) {
+    console.error('Error writing server-config.txt:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Delete server-config.txt
+function deleteServerConfigFile() {
+  try {
+    if (fs.existsSync(serverConfigPath)) {
+      fs.unlinkSync(serverConfigPath);
+      console.log('Server config file deleted');
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting server-config.txt:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Get the path to server-config.txt
+function getServerConfigFilePath() {
+  return serverConfigPath;
 }
 
 // Create the main application window
@@ -794,6 +852,23 @@ ipcMain.handle('network:pushToServer', async (event, serverIP, port, data) => {
 
 ipcMain.handle('network:pingServer', async (event, serverIP, port) => {
   return await pingServer(serverIP, port);
+});
+
+// Dolly-style server config file handlers
+ipcMain.handle('network:readServerConfigFile', () => {
+  return readServerConfigFile();
+});
+
+ipcMain.handle('network:writeServerConfigFile', (event, ip, port) => {
+  return writeServerConfigFile(ip, port);
+});
+
+ipcMain.handle('network:deleteServerConfigFile', () => {
+  return deleteServerConfigFile();
+});
+
+ipcMain.handle('network:getServerConfigFilePath', () => {
+  return getServerConfigFilePath();
 });
 
 // ============= APP LIFECYCLE =============
