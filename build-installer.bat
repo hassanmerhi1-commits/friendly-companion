@@ -1,5 +1,9 @@
 @echo off
 title PayrollAO - Building Installer...
+
+REM Change to the directory where the batch file is located
+cd /d "%~dp0"
+
 echo ========================================
 echo    PayrollAO - Build Installer
 echo ========================================
