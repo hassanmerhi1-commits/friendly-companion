@@ -10,6 +10,7 @@ import { isDeviceActivated } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
 import { ProvinceSelector } from "@/components/ProvinceSelector";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
 import Employees from "./pages/Employees";
@@ -144,7 +145,9 @@ function AppContent() {
 
   return (
     <HashRouter>
-      <AppRoutes />
+      <AppErrorBoundary>
+        <AppRoutes />
+      </AppErrorBoundary>
     </HashRouter>
   );
 }
