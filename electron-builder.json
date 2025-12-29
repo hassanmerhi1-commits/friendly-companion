@@ -28,15 +28,11 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/pwa-512x512.png",
     "artifactName": "${productName}-${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
-    "installerIcon": "public/pwa-512x512.png",
-    "uninstallerIcon": "public/pwa-512x512.png",
-    "installerHeaderIcon": "public/pwa-512x512.png",
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "PayrollAO"
