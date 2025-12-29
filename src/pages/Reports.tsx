@@ -203,10 +203,10 @@ const Reports = () => {
         <h2 className="font-display text-lg font-semibold text-foreground mb-4">{t.reports.quickStats}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
-            { label: language === 'pt' ? 'Total Funcionários' : 'Total Employees', value: stats.employees.toString() },
-            { label: language === 'pt' ? 'Funcionários Activos' : 'Active Employees', value: stats.activeEmployees.toString() },
-            { label: language === 'pt' ? 'Filiais' : 'Branches', value: stats.branches.toString() },
-            { label: language === 'pt' ? 'Períodos Processados' : 'Processed Periods', value: stats.payrollPeriods.toString() },
+            { label: language === 'pt' ? 'Total Funcionários' : 'Total Employees', value: String(stats.employees) },
+            { label: language === 'pt' ? 'Funcionários Activos' : 'Active Employees', value: String(stats.activeEmployees) },
+            { label: language === 'pt' ? 'Filiais' : 'Branches', value: String(stats.branches) },
+            { label: language === 'pt' ? 'Períodos Processados' : 'Processed Periods', value: String(stats.payrollPeriods) },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <p className="text-3xl font-display font-bold text-foreground">{stat.value}</p>
