@@ -520,12 +520,14 @@ function dbExportAll() {
       employees: dbGetAll('employees'),
       branches: dbGetAll('branches'),
       deductions: dbGetAll('deductions'),
-      payroll_records: dbGetAll('payroll_records'),
+      payroll_periods: dbGetAll('payroll_periods'),
+      payroll_entries: dbGetAll('payroll_entries'),
       holidays: dbGetAll('holidays'),
+      absences: dbGetAll('absences'),
       users: dbGetAll('users'),
       settings: dbGetAll('settings'),
       documents: dbGetAll('documents'),
-      exportedAt: new Date().toISOString()
+      exportedAt: new Date().toISOString(),
     };
   } catch (error) {
     console.error('Error exporting data:', error);
@@ -536,22 +538,33 @@ function dbExportAll() {
 // Import all data for sync
 function dbImportAll(data) {
   try {
-    const tables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays', 'users', 'settings', 'documents'];
-    
+    const tables = [
+      'employees',
+      'branches',
+      'deductions',
+      'payroll_periods',
+      'payroll_entries',
+      'holidays',
+      'absences',
+      'users',
+      'settings',
+      'documents',
+    ];
+
     db.exec('BEGIN TRANSACTION');
-    
+
     for (const table of tables) {
       if (data[table] && Array.isArray(data[table])) {
         // Clear existing data
         db.exec(`DELETE FROM ${table}`);
-        
+
         // Insert new data
         for (const row of data[table]) {
           dbInsert(table, row);
         }
       }
     }
-    
+
     db.exec('COMMIT');
     return { success: true };
   } catch (error) {
@@ -746,7 +759,18 @@ function startServer(port = 3847) {
       const getMatch = req.url.match(/^\/api\/(\w+)$/);
       if (req.method === 'GET' && getMatch) {
         const table = getMatch[1];
-        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays', 'settings'];
+        const allowedTables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'settings',
+          'documents',
+        ];
         if (allowedTables.includes(table)) {
           const data = dbGetAll(table);
           res.writeHead(200);
@@ -759,7 +783,17 @@ function startServer(port = 3847) {
       const getByIdMatch = req.url.match(/^\/api\/(\w+)\/(.+)$/);
       if (req.method === 'GET' && getByIdMatch) {
         const [, table, id] = getByIdMatch;
-        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        const allowedTables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'documents',
+        ];
         if (allowedTables.includes(table)) {
           const data = dbGetById(table, id);
           res.writeHead(data ? 200 : 404);
@@ -771,10 +805,22 @@ function startServer(port = 3847) {
       // POST /api/:table - Insert record
       if (req.method === 'POST' && getMatch) {
         const table = getMatch[1];
-        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        const allowedTables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'documents',
+        ];
         if (allowedTables.includes(table)) {
           let body = '';
-          req.on('data', chunk => { body += chunk; });
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
           req.on('end', () => {
             try {
               const data = JSON.parse(body);
@@ -793,10 +839,22 @@ function startServer(port = 3847) {
       // PUT /api/:table/:id - Update record
       if (req.method === 'PUT' && getByIdMatch) {
         const [, table, id] = getByIdMatch;
-        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        const allowedTables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'documents',
+        ];
         if (allowedTables.includes(table)) {
           let body = '';
-          req.on('data', chunk => { body += chunk; });
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
           req.on('end', () => {
             try {
               const data = JSON.parse(body);
@@ -815,7 +873,17 @@ function startServer(port = 3847) {
       // DELETE /api/:table/:id - Delete record
       if (req.method === 'DELETE' && getByIdMatch) {
         const [, table, id] = getByIdMatch;
-        const allowedTables = ['employees', 'branches', 'deductions', 'payroll_records', 'holidays'];
+        const allowedTables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'documents',
+        ];
         if (allowedTables.includes(table)) {
           const result = dbDelete(table, id);
           res.writeHead(result.success ? 200 : 500);

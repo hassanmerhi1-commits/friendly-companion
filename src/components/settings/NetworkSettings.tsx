@@ -114,11 +114,31 @@ export const NetworkSettings = () => {
   };
 
   const handleSaveClientConfig = async () => {
+    // Allow inputs like "http://192.168.1.10:3847" or "192.168.1.10:3847"
+    let ip = serverIP.trim();
+    let port = parseInt(serverPort) || 3847;
+
+    ip = ip.replace(/^https?:\/\//, '').trim();
+
+    if (ip.includes('/')) {
+      ip = ip.split('/')[0];
+    }
+
+    if (ip.includes(':')) {
+      const [maybeIp, maybePort] = ip.split(':');
+      ip = (maybeIp || '').trim();
+      const p = parseInt((maybePort || '').trim());
+      if (!Number.isNaN(p)) port = p;
+    }
+
     await setConfig({
       mode: 'client',
-      serverIP,
-      serverPort: parseInt(serverPort) || 3847
+      serverIP: ip,
+      serverPort: port,
     });
+
+    setServerIP(ip);
+    setServerPort(String(port));
     toast.success(t.network?.configSaved || 'Configuração guardada');
   };
 
