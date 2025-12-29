@@ -448,6 +448,17 @@ export const useNetworkStore = create<NetworkState>()(
       partialize: (state) => ({
         config: state.config,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<NetworkState> | undefined;
+        return {
+          ...currentState,
+          ...persisted,
+          config: {
+            ...currentState.config,
+            ...(persisted?.config ?? {}),
+          },
+        } as NetworkState;
+      },
     }
   )
 );

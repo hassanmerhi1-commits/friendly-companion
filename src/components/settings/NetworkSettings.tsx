@@ -53,8 +53,8 @@ export const NetworkSettings = () => {
   } = useNetworkStore();
 
   const [localIPs, setLocalIPs] = useState<{ name: string; address: string }[]>([]);
-  const [serverIP, setServerIP] = useState(config.serverIP);
-  const [serverPort, setServerPort] = useState(config.serverPort.toString());
+  const [serverIP, setServerIP] = useState(config.serverIP ?? "");
+  const [serverPort, setServerPort] = useState(String(config.serverPort ?? 3847));
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
@@ -71,8 +71,8 @@ export const NetworkSettings = () => {
   }, []);
 
   useEffect(() => {
-    setServerIP(config.serverIP);
-    setServerPort(config.serverPort.toString());
+    setServerIP(config.serverIP ?? "");
+    setServerPort(String(config.serverPort ?? 3847));
   }, [config]);
 
   const handleModeChange = async (mode: NetworkMode) => {
@@ -544,7 +544,7 @@ export const NetworkSettings = () => {
                   <div className="flex items-center gap-3">
                     <Label className="whitespace-nowrap">Intervalo:</Label>
                     <Select
-                      value={config.autoSyncInterval.toString()}
+                      value={String(config.autoSyncInterval ?? 30)}
                       onValueChange={handleIntervalChange}
                     >
                       <SelectTrigger className="w-[180px]">
