@@ -867,33 +867,49 @@ function stopServer() {
 
 // Fetch data from remote server (client mode)
 async function fetchFromServer(serverIP, port = 3847) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: serverIP,
-      port: port,
-      path: '/api/data',
-      method: 'GET',
-      timeout: 5000
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          resolve(parsed);
-        } catch (error) {
-          reject({ success: false, error: 'Invalid response' });
-        }
-      });
-    });
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: '/api/data',
+        method: 'GET',
+        timeout: 8000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          const status = res.statusCode || 0;
+
+          if (!data) {
+            resolve({ success: false, error: `Empty response (HTTP ${status})` });
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            if (status >= 400) {
+              resolve({ success: false, error: parsed?.error || `HTTP ${status}` });
+              return;
+            }
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
 
     req.on('error', (error) => {
-      reject({ success: false, error: error.message });
+      resolve({ success: false, error: error.message });
     });
 
     req.on('timeout', () => {
       req.destroy();
-      reject({ success: false, error: 'Connection timeout' });
+      resolve({ success: false, error: 'Connection timeout' });
     });
 
     req.end();
@@ -902,39 +918,55 @@ async function fetchFromServer(serverIP, port = 3847) {
 
 // Push data to remote server (client mode)
 async function pushToServer(serverIP, port, data) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const postData = JSON.stringify(data);
-    
-    const req = http.request({
-      hostname: serverIP,
-      port: port,
-      path: '/api/data',
-      method: 'POST',
-      timeout: 5000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData)
+
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: '/api/data',
+        method: 'POST',
+        timeout: 8000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      },
+      (res) => {
+        let responseData = '';
+        res.on('data', (chunk) => {
+          responseData += chunk;
+        });
+        res.on('end', () => {
+          const status = res.statusCode || 0;
+
+          if (!responseData) {
+            resolve({ success: false, error: `Empty response (HTTP ${status})` });
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(responseData);
+            if (status >= 400) {
+              resolve({ success: false, error: parsed?.error || `HTTP ${status}` });
+              return;
+            }
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
       }
-    }, (res) => {
-      let responseData = '';
-      res.on('data', chunk => { responseData += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseData);
-          resolve(parsed);
-        } catch (error) {
-          reject({ success: false, error: 'Invalid response' });
-        }
-      });
-    });
+    );
 
     req.on('error', (error) => {
-      reject({ success: false, error: error.message });
+      resolve({ success: false, error: error.message });
     });
 
     req.on('timeout', () => {
       req.destroy();
-      reject({ success: false, error: 'Connection timeout' });
+      resolve({ success: false, error: 'Connection timeout' });
     });
 
     req.write(postData);
@@ -945,27 +977,40 @@ async function pushToServer(serverIP, port, data) {
 // Ping server to check connection
 async function pingServer(serverIP, port = 3847) {
   return new Promise((resolve) => {
-    const req = http.request({
-      hostname: serverIP,
-      port: port,
-      path: '/api/ping',
-      method: 'GET',
-      timeout: 3000
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          resolve({ success: true, data: parsed });
-        } catch {
-          resolve({ success: false, error: 'Invalid response' });
-        }
-      });
-    });
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: '/api/ping',
+        method: 'GET',
+        timeout: 4000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          const status = res.statusCode || 0;
 
-    req.on('error', () => {
-      resolve({ success: false, error: 'Connection failed' });
+          if (!data) {
+            resolve({ success: false, error: `Empty response (HTTP ${status})` });
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const ok = status >= 200 && status < 300 && parsed?.success === true;
+            resolve(ok ? { success: true, data: parsed } : { success: false, error: parsed?.error || `HTTP ${status}` });
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+
+    req.on('error', (error) => {
+      resolve({ success: false, error: error.message || 'Connection failed' });
     });
 
     req.on('timeout', () => {
