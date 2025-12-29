@@ -174,30 +174,33 @@ export const useNetworkStore = create<NetworkState>()(
             config.serverIP,
             config.serverPort
           );
-          
+
           if (result.success && result.data) {
             // Import data directly to SQLite database
             const importResult = await (window as any).electronAPI.db.import(result.data);
-            
+
             if (importResult.success) {
-              set({ 
-                isConnected: true, 
+              set({
+                isConnected: true,
                 lastSyncTime: Date.now(),
-                isSyncing: false
+                isSyncing: false,
               });
-              
+
               // Only reload if not silent (manual sync)
               if (!silent) {
                 window.location.reload();
               }
-              
+
               return { success: true };
             }
-            
-            set({ isSyncing: false });
-            return { success: false, error: 'Failed to import data to local database' };
+
+            set({ isSyncing: false, isConnected: false });
+            return {
+              success: false,
+              error: importResult.error || 'Failed to import data to local database',
+            };
           }
-          
+
           set({ isSyncing: false, isConnected: false });
           return { success: false, error: result.error || 'Failed to fetch data from server' };
         } catch (error: any) {
@@ -467,50 +470,48 @@ export const useNetworkStore = create<NetworkState>()(
 if (isElectron) {
   setTimeout(async () => {
     const store = useNetworkStore.getState();
+
+    // 1) Load saved config FIRST
+    let savedConfig: any = null;
+    try {
+      savedConfig = await (window as any).electronAPI.network.getConfig();
+      if (savedConfig && savedConfig.mode) {
+        useNetworkStore.setState({
+          config: {
+            ...useNetworkStore.getState().config,
+            ...savedConfig,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load network config:', error);
+    }
+
+    // 2) Refresh server status
     await store.refreshServerStatus();
-    
-    // Check for Dolly-style server-config.txt FIRST
+
+    // 3) If server-config.txt exists, apply it (but never override a server machine)
     try {
       const configFile = await store.readServerConfigFile();
       await store.getServerConfigFilePath();
-      
-      if (configFile.exists) {
-        console.log('Found server-config.txt:', configFile.serverIP + ':' + configFile.serverPort);
-        
-        // Auto-apply if not already in server mode (server shouldn't connect to itself)
-        const currentConfig = await (window as any).electronAPI.network.getConfig();
-        if (currentConfig.mode !== 'server') {
-          // Auto-connect using the file
-          await store.setConfig({
-            mode: 'client',
-            serverIP: configFile.serverIP,
-            serverPort: configFile.serverPort
-          });
-          console.log('Auto-configured as client from server-config.txt');
-        }
+
+      const current = useNetworkStore.getState().config;
+      if (configFile.exists && current.mode !== 'server') {
+        await store.setConfig({
+          mode: 'client',
+          serverIP: configFile.serverIP,
+          serverPort: configFile.serverPort,
+        });
+        console.log('Auto-configured as client from server-config.txt');
       }
     } catch (error) {
       console.error('Failed to check server-config.txt:', error);
     }
-    
-    // Load config from Electron storage
-    try {
-      const config = await (window as any).electronAPI.network.getConfig();
-      if (config && config.mode) {
-        useNetworkStore.setState({ 
-          config: { 
-            ...useNetworkStore.getState().config,
-            ...config 
-          } 
-        });
-        
-        // Start auto-sync if enabled in client mode
-        if (config.mode === 'client' && config.autoSyncEnabled) {
-          store.startAutoSync();
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load network config:', error);
+
+    // 4) Start auto-sync if enabled
+    const cfg = useNetworkStore.getState().config;
+    if (cfg.mode === 'client' && cfg.autoSyncEnabled) {
+      store.startAutoSync();
     }
   }, 100);
 }
