@@ -28,8 +28,21 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/payrollao-icon.ico",
-    "artifactName": "${productName}-${version}.${ext}"
+    "icon": "public/payrollao-icon.ico"
+  },
+  "nsis": {
+    "artifactName": "${productName} Setup ${version}.${ext}",
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "public/payrollao-icon.ico",
+    "uninstallerIcon": "public/payrollao-icon.ico",
+    "installerHeaderIcon": "public/payrollao-icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "PayrollAO"
+  },
+  "portable": {
+    "artifactName": "${productName} ${version}.${ext}"
   },
   "nsis": {
     "oneClick": false,
