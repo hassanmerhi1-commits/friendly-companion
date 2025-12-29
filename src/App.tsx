@@ -85,6 +85,7 @@ const AppRoutes = () => {
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     // Bypass checks in development preview mode
@@ -106,11 +107,37 @@ function AppContent() {
       setProvinceSelected(provinceOk);
     } catch (error) {
       console.error('Error during initial checks:', error);
+      setInitError(error instanceof Error ? error.message : 'Unknown error');
       // On error, show activation screen
       setDeviceActivated(false);
       setProvinceSelected(false);
     }
   }, []);
+
+  // Show error state with option to force activation
+  if (initError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full space-y-4">
+          <h2 className="text-lg font-semibold text-destructive">Erro de Inicialização</h2>
+          <p className="text-sm text-muted-foreground">{initError}</p>
+          <button 
+            onClick={() => {
+              try {
+                localStorage.removeItem("payroll_device_id");
+                localStorage.removeItem("payroll_activation_date");
+                localStorage.removeItem("payroll_selected_province");
+              } catch {}
+              window.location.reload();
+            }}
+            className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90"
+          >
+            Reiniciar Activação
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading while checking
   if (deviceActivated === null || provinceSelected === null) {
