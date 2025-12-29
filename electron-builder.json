@@ -41,19 +41,6 @@
     "createStartMenuShortcut": true,
     "shortcutName": "PayrollAO"
   },
-  "portable": {
-    "artifactName": "${productName} ${version}.${ext}"
-  },
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "installerIcon": "public/payrollao-icon.ico",
-    "uninstallerIcon": "public/payrollao-icon.ico",
-    "installerHeaderIcon": "public/payrollao-icon.ico",
-    "createDesktopShortcut": true,
-    "createStartMenuShortcut": true,
-    "shortcutName": "PayrollAO"
-  },
   "linux": {
     "target": ["AppImage", "deb"],
     "icon": "public/pwa-512x512.png",
