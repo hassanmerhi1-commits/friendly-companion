@@ -107,10 +107,15 @@ function initDatabase() {
       CREATE TABLE IF NOT EXISTS branches (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        code TEXT,
+        province TEXT,
+        city TEXT,
         address TEXT,
         phone TEXT,
+        email TEXT,
         manager TEXT,
-        status TEXT DEFAULT 'active',
+        is_headquarters INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -206,11 +211,56 @@ function initDatabase() {
       );
     `);
     
+    // Run migrations to add missing columns to existing databases
+    runMigrations();
+    
     console.log('SQLite database initialized at:', dbPath);
     return true;
   } catch (error) {
     console.error('Error initializing database:', error);
     return false;
+  }
+}
+
+// Run database migrations for schema changes
+function runMigrations() {
+  try {
+    // Check and add missing columns to branches table
+    const branchesInfo = db.prepare("PRAGMA table_info(branches)").all();
+    const branchColumns = branchesInfo.map(col => col.name);
+    
+    const branchMigrations = [
+      { column: 'code', sql: "ALTER TABLE branches ADD COLUMN code TEXT" },
+      { column: 'province', sql: "ALTER TABLE branches ADD COLUMN province TEXT" },
+      { column: 'city', sql: "ALTER TABLE branches ADD COLUMN city TEXT" },
+      { column: 'email', sql: "ALTER TABLE branches ADD COLUMN email TEXT" },
+      { column: 'is_headquarters', sql: "ALTER TABLE branches ADD COLUMN is_headquarters INTEGER DEFAULT 0" },
+      { column: 'is_active', sql: "ALTER TABLE branches ADD COLUMN is_active INTEGER DEFAULT 1" },
+    ];
+    
+    for (const migration of branchMigrations) {
+      if (!branchColumns.includes(migration.column)) {
+        try {
+          db.exec(migration.sql);
+          console.log(`Migration: Added column ${migration.column} to branches`);
+        } catch (err) {
+          // Column might already exist, ignore
+        }
+      }
+    }
+    
+    // Migrate old 'status' column to 'is_active' if status exists but is_active doesn't have data
+    if (branchColumns.includes('status')) {
+      try {
+        db.exec("UPDATE branches SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END WHERE is_active IS NULL");
+      } catch (err) {
+        // Ignore migration errors
+      }
+    }
+    
+    console.log('Database migrations completed');
+  } catch (error) {
+    console.error('Error running migrations:', error);
   }
 }
 
