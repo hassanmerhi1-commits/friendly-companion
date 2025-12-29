@@ -75,18 +75,22 @@ function initDatabase() {
     // Enable WAL mode for better concurrent access
     db.pragma('journal_mode = WAL');
     
-    // Create tables
+    // Create tables with full schema matching app types
     db.exec(`
-      -- Employees table
+      -- Employees table (matches src/types/employee.ts Employee interface)
       CREATE TABLE IF NOT EXISTS employees (
         id TEXT PRIMARY KEY,
+        employee_number TEXT,
         name TEXT NOT NULL,
         position TEXT,
         department TEXT,
         branch_id TEXT,
         hire_date TEXT,
         birth_date TEXT,
-        salary REAL DEFAULT 0,
+        contract_type TEXT DEFAULT 'permanent',
+        contract_end_date TEXT,
+        base_salary REAL DEFAULT 0,
+        payment_method TEXT DEFAULT 'bank_transfer',
         bank_name TEXT,
         bank_account TEXT,
         iban TEXT,
@@ -97,13 +101,17 @@ function initDatabase() {
         email TEXT,
         emergency_contact TEXT,
         emergency_phone TEXT,
+        nationality TEXT,
+        gender TEXT,
+        marital_status TEXT,
+        photo TEXT,
         status TEXT DEFAULT 'active',
         notes TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Branches table
+      -- Branches table (matches src/types/branch.ts Branch interface)
       CREATE TABLE IF NOT EXISTS branches (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -113,86 +121,137 @@ function initDatabase() {
         address TEXT,
         phone TEXT,
         email TEXT,
-        manager TEXT,
+        manager_id TEXT,
         is_headquarters INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Deductions table
+      -- Deductions table (matches src/types/deduction.ts Deduction interface)
       CREATE TABLE IF NOT EXISTS deductions (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT,
-        value REAL DEFAULT 0,
-        is_percentage INTEGER DEFAULT 0,
-        is_mandatory INTEGER DEFAULT 0,
-        description TEXT,
-        status TEXT DEFAULT 'active',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-      
-      -- Payroll records table
-      CREATE TABLE IF NOT EXISTS payroll_records (
-        id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
-        month INTEGER NOT NULL,
-        year INTEGER NOT NULL,
-        base_salary REAL DEFAULT 0,
-        gross_salary REAL DEFAULT 0,
-        net_salary REAL DEFAULT 0,
-        total_deductions REAL DEFAULT 0,
-        total_bonuses REAL DEFAULT 0,
-        deductions_json TEXT,
-        bonuses_json TEXT,
-        status TEXT DEFAULT 'pending',
-        paid_at TEXT,
-        notes TEXT,
+        type TEXT NOT NULL,
+        description TEXT,
+        amount REAL DEFAULT 0,
+        date TEXT,
+        payroll_period_id TEXT,
+        is_applied INTEGER DEFAULT 0,
+        installments INTEGER,
+        current_installment INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Holidays table
-      CREATE TABLE IF NOT EXISTS holidays (
+      -- Payroll periods table (matches src/types/payroll.ts PayrollPeriod interface)
+      CREATE TABLE IF NOT EXISTS payroll_periods (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        date TEXT NOT NULL,
-        type TEXT DEFAULT 'national',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        type TEXT DEFAULT 'monthly',
+        start_date TEXT,
+        end_date TEXT,
+        status TEXT DEFAULT 'draft',
+        total_gross REAL DEFAULT 0,
+        total_net REAL DEFAULT 0,
+        total_deductions REAL DEFAULT 0,
+        total_employer_costs REAL DEFAULT 0,
+        processed_at TEXT,
+        approved_at TEXT,
+        paid_at TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Users table (for app authentication)
+      -- Payroll entries table (matches src/types/payroll.ts PayrollEntry interface)
+      CREATE TABLE IF NOT EXISTS payroll_entries (
+        id TEXT PRIMARY KEY,
+        period_id TEXT NOT NULL,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        employee_position TEXT,
+        employee_department TEXT,
+        branch_id TEXT,
+        base_salary REAL DEFAULT 0,
+        gross_salary REAL DEFAULT 0,
+        net_salary REAL DEFAULT 0,
+        irt REAL DEFAULT 0,
+        inss_employee REAL DEFAULT 0,
+        inss_employer REAL DEFAULT 0,
+        total_deductions REAL DEFAULT 0,
+        total_bonuses REAL DEFAULT 0,
+        subsidy_alimentacao REAL DEFAULT 0,
+        subsidy_transporte REAL DEFAULT 0,
+        subsidy_ferias REAL DEFAULT 0,
+        subsidy_natal REAL DEFAULT 0,
+        overtime_hours REAL DEFAULT 0,
+        overtime_amount REAL DEFAULT 0,
+        absence_days INTEGER DEFAULT 0,
+        absence_deduction REAL DEFAULT 0,
+        other_deductions TEXT,
+        other_bonuses TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (period_id) REFERENCES payroll_periods(id),
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+      );
+      
+      -- Holiday records table (matches src/stores/holiday-store.ts HolidayRecord interface)
+      CREATE TABLE IF NOT EXISTS holidays (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        days_used INTEGER DEFAULT 0,
+        start_date TEXT,
+        end_date TEXT,
+        subsidy_paid INTEGER DEFAULT 0,
+        subsidy_paid_month INTEGER,
+        subsidy_paid_year INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+      );
+      
+      -- Users table (matches src/stores/auth-store.ts AppUser interface)
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         name TEXT,
-        role TEXT DEFAULT 'user',
-        permissions TEXT,
-        status TEXT DEFAULT 'active',
+        role TEXT DEFAULT 'viewer',
+        custom_permissions TEXT,
+        is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Absences table
+      -- Absences table (matches src/types/absence.ts Absence interface)
       CREATE TABLE IF NOT EXISTS absences (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
         type TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
         start_date TEXT NOT NULL,
         end_date TEXT NOT NULL,
         days INTEGER DEFAULT 1,
         reason TEXT,
-        status TEXT DEFAULT 'approved',
+        document_path TEXT,
+        justified_at TEXT,
+        justification_document TEXT,
+        justification_notes TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        rejection_reason TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Settings table
+      -- Settings table (key-value store for app settings)
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT,
@@ -225,37 +284,152 @@ function initDatabase() {
 // Run database migrations for schema changes
 function runMigrations() {
   try {
-    // Check and add missing columns to branches table
-    const branchesInfo = db.prepare("PRAGMA table_info(branches)").all();
-    const branchColumns = branchesInfo.map(col => col.name);
-    
-    const branchMigrations = [
-      { column: 'code', sql: "ALTER TABLE branches ADD COLUMN code TEXT" },
-      { column: 'province', sql: "ALTER TABLE branches ADD COLUMN province TEXT" },
-      { column: 'city', sql: "ALTER TABLE branches ADD COLUMN city TEXT" },
-      { column: 'email', sql: "ALTER TABLE branches ADD COLUMN email TEXT" },
-      { column: 'is_headquarters', sql: "ALTER TABLE branches ADD COLUMN is_headquarters INTEGER DEFAULT 0" },
-      { column: 'is_active', sql: "ALTER TABLE branches ADD COLUMN is_active INTEGER DEFAULT 1" },
-    ];
-    
-    for (const migration of branchMigrations) {
-      if (!branchColumns.includes(migration.column)) {
-        try {
-          db.exec(migration.sql);
-          console.log(`Migration: Added column ${migration.column} to branches`);
-        } catch (err) {
-          // Column might already exist, ignore
+    // Helper to add column if missing
+    const addColumnIfMissing = (table, column, sql) => {
+      try {
+        const info = db.prepare(`PRAGMA table_info(${table})`).all();
+        const columns = info.map(col => col.name);
+        if (!columns.includes(column)) {
+          db.exec(sql);
+          console.log(`Migration: Added column ${column} to ${table}`);
         }
+      } catch (err) {
+        console.error(`Migration error for ${table}.${column}:`, err.message);
       }
+    };
+    
+    // ===== EMPLOYEES MIGRATIONS =====
+    addColumnIfMissing('employees', 'employee_number', "ALTER TABLE employees ADD COLUMN employee_number TEXT");
+    addColumnIfMissing('employees', 'contract_type', "ALTER TABLE employees ADD COLUMN contract_type TEXT DEFAULT 'permanent'");
+    addColumnIfMissing('employees', 'contract_end_date', "ALTER TABLE employees ADD COLUMN contract_end_date TEXT");
+    addColumnIfMissing('employees', 'base_salary', "ALTER TABLE employees ADD COLUMN base_salary REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'payment_method', "ALTER TABLE employees ADD COLUMN payment_method TEXT DEFAULT 'bank_transfer'");
+    addColumnIfMissing('employees', 'nationality', "ALTER TABLE employees ADD COLUMN nationality TEXT");
+    addColumnIfMissing('employees', 'gender', "ALTER TABLE employees ADD COLUMN gender TEXT");
+    addColumnIfMissing('employees', 'marital_status', "ALTER TABLE employees ADD COLUMN marital_status TEXT");
+    addColumnIfMissing('employees', 'photo', "ALTER TABLE employees ADD COLUMN photo TEXT");
+    // Migrate old salary to base_salary if base_salary is null/0
+    try {
+      db.exec("UPDATE employees SET base_salary = salary WHERE base_salary IS NULL OR base_salary = 0");
+    } catch (err) { /* ignore */ }
+    
+    // ===== BRANCHES MIGRATIONS =====
+    addColumnIfMissing('branches', 'code', "ALTER TABLE branches ADD COLUMN code TEXT");
+    addColumnIfMissing('branches', 'province', "ALTER TABLE branches ADD COLUMN province TEXT");
+    addColumnIfMissing('branches', 'city', "ALTER TABLE branches ADD COLUMN city TEXT");
+    addColumnIfMissing('branches', 'email', "ALTER TABLE branches ADD COLUMN email TEXT");
+    addColumnIfMissing('branches', 'manager_id', "ALTER TABLE branches ADD COLUMN manager_id TEXT");
+    addColumnIfMissing('branches', 'is_headquarters', "ALTER TABLE branches ADD COLUMN is_headquarters INTEGER DEFAULT 0");
+    addColumnIfMissing('branches', 'is_active', "ALTER TABLE branches ADD COLUMN is_active INTEGER DEFAULT 1");
+    // Migrate old status to is_active
+    try {
+      db.exec("UPDATE branches SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END WHERE is_active IS NULL");
+    } catch (err) { /* ignore */ }
+    
+    // ===== DEDUCTIONS MIGRATIONS =====
+    addColumnIfMissing('deductions', 'employee_id', "ALTER TABLE deductions ADD COLUMN employee_id TEXT");
+    addColumnIfMissing('deductions', 'amount', "ALTER TABLE deductions ADD COLUMN amount REAL DEFAULT 0");
+    addColumnIfMissing('deductions', 'date', "ALTER TABLE deductions ADD COLUMN date TEXT");
+    addColumnIfMissing('deductions', 'payroll_period_id', "ALTER TABLE deductions ADD COLUMN payroll_period_id TEXT");
+    addColumnIfMissing('deductions', 'is_applied', "ALTER TABLE deductions ADD COLUMN is_applied INTEGER DEFAULT 0");
+    addColumnIfMissing('deductions', 'installments', "ALTER TABLE deductions ADD COLUMN installments INTEGER");
+    addColumnIfMissing('deductions', 'current_installment', "ALTER TABLE deductions ADD COLUMN current_installment INTEGER");
+    
+    // ===== USERS MIGRATIONS =====
+    addColumnIfMissing('users', 'is_active', "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
+    addColumnIfMissing('users', 'custom_permissions', "ALTER TABLE users ADD COLUMN custom_permissions TEXT");
+    // Migrate old status to is_active
+    try {
+      db.exec("UPDATE users SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END WHERE is_active IS NULL");
+    } catch (err) { /* ignore */ }
+    
+    // ===== ABSENCES MIGRATIONS =====
+    addColumnIfMissing('absences', 'document_path', "ALTER TABLE absences ADD COLUMN document_path TEXT");
+    addColumnIfMissing('absences', 'justified_at', "ALTER TABLE absences ADD COLUMN justified_at TEXT");
+    addColumnIfMissing('absences', 'justification_document', "ALTER TABLE absences ADD COLUMN justification_document TEXT");
+    addColumnIfMissing('absences', 'justification_notes', "ALTER TABLE absences ADD COLUMN justification_notes TEXT");
+    addColumnIfMissing('absences', 'approved_by', "ALTER TABLE absences ADD COLUMN approved_by TEXT");
+    addColumnIfMissing('absences', 'approved_at', "ALTER TABLE absences ADD COLUMN approved_at TEXT");
+    addColumnIfMissing('absences', 'rejection_reason', "ALTER TABLE absences ADD COLUMN rejection_reason TEXT");
+    
+    // ===== HOLIDAYS MIGRATIONS =====
+    addColumnIfMissing('holidays', 'employee_id', "ALTER TABLE holidays ADD COLUMN employee_id TEXT");
+    addColumnIfMissing('holidays', 'year', "ALTER TABLE holidays ADD COLUMN year INTEGER");
+    addColumnIfMissing('holidays', 'days_used', "ALTER TABLE holidays ADD COLUMN days_used INTEGER DEFAULT 0");
+    addColumnIfMissing('holidays', 'start_date', "ALTER TABLE holidays ADD COLUMN start_date TEXT");
+    addColumnIfMissing('holidays', 'end_date', "ALTER TABLE holidays ADD COLUMN end_date TEXT");
+    addColumnIfMissing('holidays', 'subsidy_paid', "ALTER TABLE holidays ADD COLUMN subsidy_paid INTEGER DEFAULT 0");
+    addColumnIfMissing('holidays', 'subsidy_paid_month', "ALTER TABLE holidays ADD COLUMN subsidy_paid_month INTEGER");
+    addColumnIfMissing('holidays', 'subsidy_paid_year', "ALTER TABLE holidays ADD COLUMN subsidy_paid_year INTEGER");
+    
+    // ===== CREATE NEW TABLES IF MISSING =====
+    // Check if payroll_periods exists
+    try {
+      db.prepare("SELECT 1 FROM payroll_periods LIMIT 1").get();
+    } catch (err) {
+      // Table doesn't exist, create it
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS payroll_periods (
+          id TEXT PRIMARY KEY,
+          year INTEGER NOT NULL,
+          month INTEGER NOT NULL,
+          type TEXT DEFAULT 'monthly',
+          start_date TEXT,
+          end_date TEXT,
+          status TEXT DEFAULT 'draft',
+          total_gross REAL DEFAULT 0,
+          total_net REAL DEFAULT 0,
+          total_deductions REAL DEFAULT 0,
+          total_employer_costs REAL DEFAULT 0,
+          processed_at TEXT,
+          approved_at TEXT,
+          paid_at TEXT,
+          notes TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('Migration: Created payroll_periods table');
     }
     
-    // Migrate old 'status' column to 'is_active' if status exists but is_active doesn't have data
-    if (branchColumns.includes('status')) {
-      try {
-        db.exec("UPDATE branches SET is_active = CASE WHEN status = 'active' THEN 1 ELSE 0 END WHERE is_active IS NULL");
-      } catch (err) {
-        // Ignore migration errors
-      }
+    // Check if payroll_entries exists
+    try {
+      db.prepare("SELECT 1 FROM payroll_entries LIMIT 1").get();
+    } catch (err) {
+      // Table doesn't exist, create it
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS payroll_entries (
+          id TEXT PRIMARY KEY,
+          period_id TEXT NOT NULL,
+          employee_id TEXT NOT NULL,
+          employee_name TEXT,
+          employee_position TEXT,
+          employee_department TEXT,
+          branch_id TEXT,
+          base_salary REAL DEFAULT 0,
+          gross_salary REAL DEFAULT 0,
+          net_salary REAL DEFAULT 0,
+          irt REAL DEFAULT 0,
+          inss_employee REAL DEFAULT 0,
+          inss_employer REAL DEFAULT 0,
+          total_deductions REAL DEFAULT 0,
+          total_bonuses REAL DEFAULT 0,
+          subsidy_alimentacao REAL DEFAULT 0,
+          subsidy_transporte REAL DEFAULT 0,
+          subsidy_ferias REAL DEFAULT 0,
+          subsidy_natal REAL DEFAULT 0,
+          overtime_hours REAL DEFAULT 0,
+          overtime_amount REAL DEFAULT 0,
+          absence_days INTEGER DEFAULT 0,
+          absence_deduction REAL DEFAULT 0,
+          other_deductions TEXT,
+          other_bonuses TEXT,
+          notes TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('Migration: Created payroll_entries table');
     }
     
     console.log('Database migrations completed');
