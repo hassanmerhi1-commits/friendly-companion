@@ -114,6 +114,26 @@ function convertRowsToState(tableName: string, rows: any[]): any {
     };
   }
 
+  // Special handling for branches - map SQLite columns to JS property names
+  if (tableName === 'branches') {
+    const branches = parsed.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      code: row.code || '',
+      province: row.province || '',
+      city: row.city || '',
+      address: row.address || '',
+      phone: row.phone || '',
+      email: row.email || '',
+      manager: row.manager || '',
+      isHeadquarters: row.is_headquarters === 1,
+      isActive: row.is_active !== 0,
+      createdAt: row.created_at || new Date().toISOString(),
+      updatedAt: row.updated_at || new Date().toISOString(),
+    }));
+    return { branches };
+  }
+
   // Special handling for payroll - has both periods and entries
   if (tableName === 'payroll_records') {
     // Separate periods from entries
@@ -140,7 +160,22 @@ async function syncStateToSQLite(tableName: string, state: any): Promise<void> {
     if (tableName === 'employees' && state.employees) {
       itemsToSync = state.employees;
     } else if (tableName === 'branches' && state.branches) {
-      itemsToSync = state.branches;
+      // Map branch fields to SQLite column names
+      itemsToSync = state.branches.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        code: b.code || null,
+        province: b.province || null,
+        city: b.city || null,
+        address: b.address || null,
+        phone: b.phone || null,
+        email: b.email || null,
+        manager: b.manager || null,
+        is_headquarters: b.isHeadquarters ? 1 : 0,
+        is_active: b.isActive !== false ? 1 : 0,
+        created_at: b.createdAt || new Date().toISOString(),
+        updated_at: b.updatedAt || new Date().toISOString(),
+      }));
     } else if (tableName === 'deductions' && state.deductions) {
       itemsToSync = state.deductions;
     } else if (tableName === 'holidays' && state.records) {
