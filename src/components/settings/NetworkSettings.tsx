@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Network, Server, Monitor, FolderOpen, RefreshCw, Check, X, Copy } from "lucide-react";
+import { Network, Server, Monitor, FolderOpen, RefreshCw, Check, X, Copy, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n";
 
@@ -24,72 +24,73 @@ interface ServerStatus {
   addresses: { name: string; address: string }[];
 }
 
+interface DatabaseMode {
+  isClientMode: boolean;
+  dbPath: string;
+  localDbPath: string;
+  isConnectedToRemote: boolean;
+}
+
 export function NetworkSettings() {
   const { t } = useLanguage();
   const [mode, setMode] = useState<'standalone' | 'server' | 'client'>('standalone');
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
+  const [databaseMode, setDatabaseMode] = useState<DatabaseMode | null>(null);
   const [localDataPath, setLocalDataPath] = useState<string>('');
   const [configFilePath, setConfigFilePath] = useState<string>('');
-  const [isConnected, setIsConnected] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load initial state
   useEffect(() => {
     if (!isElectron()) return;
-
-    const loadNetworkState = async () => {
-      try {
-        const api = (window as any).electronAPI;
-        
-        // Get server-config.txt content
-        const config = await api.network.readServerConfigFile();
-        setServerConfig(config);
-        
-        // Get local data path
-        const dataPath = await api.network.getLocalDataPath();
-        setLocalDataPath(dataPath);
-        
-        // Get config file path
-        const cfgPath = await api.network.getServerConfigFilePath();
-        setConfigFilePath(cfgPath);
-        
-        // Get server status
-        const status = await api.network.getServerStatus();
-        setServerStatus(status);
-        
-        // Determine mode based on config and server status
-        if (config.exists && config.serverIP) {
-          // Has a server-config.txt with server IP - this is a client
-          setMode('client');
-          // Test connection
-          testConnection(config.serverIP, config.serverPort);
-        } else if (status.running) {
-          // Server is running - this is the server
-          setMode('server');
-        } else {
-          setMode('standalone');
-        }
-      } catch (error) {
-        console.error('Error loading network state:', error);
-      }
-    };
-
     loadNetworkState();
   }, []);
 
-  const testConnection = async (ip: string, port: number) => {
+  const loadNetworkState = async () => {
     if (!isElectron()) return;
     
-    setIsTesting(true);
+    setIsRefreshing(true);
     try {
       const api = (window as any).electronAPI;
-      const result = await api.network.pingServer(ip, port);
-      setIsConnected(result?.success === true);
-    } catch {
-      setIsConnected(false);
+      
+      // Get database mode (this tells us if we're actually connected to remote DB)
+      const dbMode = await api.network.getDatabaseMode();
+      setDatabaseMode(dbMode);
+      
+      // Get server-config.txt content
+      const config = await api.network.readServerConfigFile();
+      setServerConfig(config);
+      
+      // Get local data path
+      const dataPath = await api.network.getLocalDataPath();
+      setLocalDataPath(dataPath);
+      
+      // Get config file path
+      const cfgPath = await api.network.getServerConfigFilePath();
+      setConfigFilePath(cfgPath);
+      
+      // Get server status
+      const status = await api.network.getServerStatus();
+      setServerStatus(status);
+      
+      // Determine mode based on actual database connection
+      if (dbMode.isClientMode) {
+        // Using remote database - this is a client
+        setMode('client');
+      } else if (status.running) {
+        // Server is running - this is the server
+        setMode('server');
+      } else if (config.exists && config.serverPath) {
+        // Has config but not connected - client that couldn't connect
+        setMode('client');
+      } else {
+        setMode('standalone');
+      }
+    } catch (error) {
+      console.error('Error loading network state:', error);
     }
-    setIsTesting(false);
+    setIsRefreshing(false);
   };
 
   const startServer = async () => {
@@ -153,12 +154,6 @@ export function NetworkSettings() {
     toast.success("Copiado! / Copied!");
   };
 
-  const refreshConnection = () => {
-    if (serverConfig?.serverIP) {
-      testConnection(serverConfig.serverIP, serverConfig.serverPort);
-    }
-  };
-
   if (!isElectron()) {
     return (
       <Card className="border-2 border-muted">
@@ -208,7 +203,7 @@ export function NetworkSettings() {
           <div className="space-y-4">
             <div className="p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground mb-4">
-                Este computador está a funcionar de forma autónoma. Para partilhar dados com outros computadores:
+                Este computador está a funcionar de forma autónoma com base de dados local.
               </p>
               <Button onClick={startServer} className="w-full">
                 <Server className="h-4 w-4 mr-2" />
@@ -216,9 +211,14 @@ export function NetworkSettings() {
               </Button>
             </div>
             
-            <div className="text-xs text-muted-foreground">
-              <p><strong>Para ligar como cliente:</strong> Copie o ficheiro <code>server-config.txt</code> do servidor para a sua pasta <code>data</code>.</p>
-              <p className="mt-1">Caminho: <code>{configFilePath}</code></p>
+            <div className="text-xs text-muted-foreground space-y-2 p-3 bg-muted/30 rounded-lg">
+              <p><strong>Para ligar como cliente:</strong></p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>No servidor, copie o ficheiro <code className="bg-background px-1 rounded">server-config.txt</code></li>
+                <li>Cole na pasta <code className="bg-background px-1 rounded">data</code> deste computador</li>
+                <li>Reinicie a aplicação</li>
+              </ol>
+              <p className="mt-2">Caminho: <code className="bg-background px-1 rounded break-all">{configFilePath}</code></p>
             </div>
           </div>
         )}
@@ -268,8 +268,21 @@ export function NetworkSettings() {
                   <code className="text-sm font-mono">
                     {serverConfig.serverIP}:{serverConfig.serverPath || localDataPath}
                   </code>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="ml-2"
+                    onClick={() => copyToClipboard(`${serverConfig.serverIP}:${serverConfig.serverPath || localDataPath}`)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
                 </div>
               )}
+            </div>
+
+            <div className="text-xs text-muted-foreground space-y-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p><strong>⚠️ Importante:</strong> A pasta de dados deve estar partilhada na rede.</p>
+              <p>Caminho: <code className="bg-background px-1 rounded">{localDataPath}</code></p>
             </div>
 
             <Button variant="destructive" onClick={stopServer} className="w-full">
@@ -281,21 +294,21 @@ export function NetworkSettings() {
         {/* Client Mode */}
         {mode === 'client' && (
           <div className="space-y-4">
-            <div className={`p-4 rounded-lg border ${isConnected ? 'bg-green-500/10 border-green-500/20' : 'bg-destructive/10 border-destructive/20'}`}>
+            <div className={`p-4 rounded-lg border ${databaseMode?.isConnectedToRemote ? 'bg-green-500/10 border-green-500/20' : 'bg-destructive/10 border-destructive/20'}`}>
               <div className="flex items-center gap-2 mb-3">
-                {isConnected ? (
+                {databaseMode?.isConnectedToRemote ? (
                   <>
-                    <Check className="h-5 w-5 text-green-500" />
-                    <span className="font-medium text-green-700 dark:text-green-400">Ligado ao Servidor / Connected to Server</span>
+                    <Database className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-green-700 dark:text-green-400">Ligado à Base de Dados Remota</span>
                   </>
                 ) : (
                   <>
                     <X className="h-5 w-5 text-destructive" />
-                    <span className="font-medium text-destructive">Sem Ligação / Not Connected</span>
+                    <span className="font-medium text-destructive">Sem Ligação à Base de Dados</span>
                   </>
                 )}
-                <Button size="sm" variant="ghost" onClick={refreshConnection} disabled={isTesting} className="ml-auto">
-                  <RefreshCw className={`h-4 w-4 ${isTesting ? 'animate-spin' : ''}`} />
+                <Button size="sm" variant="ghost" onClick={loadNetworkState} disabled={isRefreshing} className="ml-auto">
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
               
@@ -304,18 +317,33 @@ export function NetworkSettings() {
                   <span className="text-muted-foreground">Servidor / Server:</span>
                   <span className="font-mono">{serverConfig?.serverIP}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Porta / Port:</span>
-                  <span className="font-mono">{serverConfig?.serverPort}</span>
-                </div>
                 {serverConfig?.serverPath && (
-                  <div className="flex items-center justify-between">
+                  <div>
                     <span className="text-muted-foreground">Caminho / Path:</span>
-                    <span className="font-mono text-xs">{serverConfig?.serverPath}</span>
+                    <code className="text-xs block mt-1 bg-background p-1 rounded break-all">{serverConfig?.serverPath}</code>
+                  </div>
+                )}
+                {databaseMode && (
+                  <div>
+                    <span className="text-muted-foreground">Base de Dados Actual:</span>
+                    <code className="text-xs block mt-1 bg-background p-1 rounded break-all">{databaseMode.dbPath}</code>
                   </div>
                 )}
               </div>
             </div>
+
+            {!databaseMode?.isConnectedToRemote && (
+              <div className="text-xs text-destructive/80 p-3 bg-destructive/10 rounded-lg space-y-2">
+                <p><strong>Não foi possível aceder à base de dados remota.</strong></p>
+                <p>Verifique que:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>O servidor está ligado</li>
+                  <li>A pasta está partilhada na rede (Share)</li>
+                  <li>Tem permissões de acesso à pasta</li>
+                  <li>O IP e caminho no ficheiro estão correctos</li>
+                </ul>
+              </div>
+            )}
 
             <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-lg">
               <p><strong>Configuração lida de:</strong></p>
