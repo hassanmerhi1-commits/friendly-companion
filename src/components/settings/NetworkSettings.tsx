@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Network, Server, Monitor, FolderOpen, RefreshCw, Check, X, Copy, Database, Link, Unlink } from "lucide-react";
+import { Network, Database, FolderOpen, RefreshCw, Check, X, Copy, Link, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n";
 
@@ -20,12 +20,6 @@ interface ServerConfig {
   serverPath: string;
 }
 
-interface ServerStatus {
-  running: boolean;
-  port: number;
-  addresses: { name: string; address: string }[];
-}
-
 interface DatabaseMode {
   isClientMode: boolean;
   dbPath: string;
@@ -35,14 +29,12 @@ interface DatabaseMode {
 
 export function NetworkSettings() {
   const { t } = useLanguage();
-  const [mode, setMode] = useState<'standalone' | 'server' | 'client'>('standalone');
+  const [mode, setMode] = useState<'standalone' | 'client'>('standalone');
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
-  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
   const [databaseMode, setDatabaseMode] = useState<DatabaseMode | null>(null);
   const [localDataPath, setLocalDataPath] = useState<string>('');
   const [configFilePath, setConfigFilePath] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [connectIP, setConnectIP] = useState<string>('');
   const [connectPath, setConnectPath] = useState<string>('');
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -75,19 +67,8 @@ export function NetworkSettings() {
       const cfgPath = await api.network.getServerConfigFilePath();
       setConfigFilePath(cfgPath);
       
-      // Get server status
-      const status = await api.network.getServerStatus();
-      setServerStatus(status);
-      
       // Determine mode based on actual database connection
       if (dbMode.isClientMode) {
-        // Using remote database - this is a client
-        setMode('client');
-      } else if (status.running) {
-        // Server is running - this is the server
-        setMode('server');
-      } else if (config.exists && config.serverPath) {
-        // Has config but not connected - client that couldn't connect
         setMode('client');
       } else {
         setMode('standalone');
@@ -98,78 +79,18 @@ export function NetworkSettings() {
     setIsRefreshing(false);
   };
 
-  const startServer = async () => {
-    if (!isElectron()) return;
-    
-    try {
-      const api = (window as any).electronAPI;
-      const result = await api.network.startServer(3847);
-      
-      if (result?.success) {
-        toast.success("Servidor iniciado / Server started");
-        
-        // Update network config to remember server mode
-        await api.network.setConfig({ mode: 'server', serverPort: 3847 });
-        
-        // Refresh status
-        const status = await api.network.getServerStatus();
-        setServerStatus(status);
-        setMode('server');
-        
-        // Create server-config.txt with first available IP and data path
-        if (status.addresses?.length > 0) {
-          const ip = status.addresses[0].address;
-          const dataPath = await api.network.getLocalDataPath();
-          setLocalDataPath(dataPath);
-          await api.network.writeServerConfigFile(ip, dataPath);
-          const config = await api.network.readServerConfigFile();
-          setServerConfig(config);
-        }
-      } else {
-        toast.error(result?.error || "Erro ao iniciar servidor");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao iniciar servidor");
-    }
-  };
-
-  const stopServer = async () => {
-    if (!isElectron()) return;
-    
-    try {
-      const api = (window as any).electronAPI;
-      await api.network.stopServer();
-      
-      // Update network config
-      await api.network.setConfig({ mode: 'standalone', serverPort: 3847 });
-      
-      // Delete server-config.txt
-      await api.network.deleteServerConfigFile();
-      
-      setServerStatus({ running: false, port: 3847, addresses: [] });
-      setMode('standalone');
-      setServerConfig({ exists: false, serverIP: '', serverPort: 3847, serverPath: '' });
-      
-      toast.success("Servidor parado / Server stopped");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao parar servidor");
-    }
-  };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copiado! / Copied!");
   };
 
-  const connectToServer = async () => {
+  const connectToDatabase = async () => {
     if (!isElectron()) return;
     
-    // Allow either: full UNC path only OR IP + path
-    const uncPath = connectPath.trim();
-    const ip = connectIP.trim();
+    const path = connectPath.trim();
     
-    if (!uncPath) {
-      toast.error("Preencha o caminho da partilha (UNC)");
+    if (!path) {
+      toast.error("Preencha o caminho da base de dados");
       return;
     }
     
@@ -177,21 +98,10 @@ export function NetworkSettings() {
     try {
       const api = (window as any).electronAPI;
       
-      let configContent: string;
+      // Normalize path separators
+      let configContent = path.replace(/\//g, '\\');
       
-      // If path starts with \\, it's a full UNC - write it directly
-      if (uncPath.startsWith('\\\\') || uncPath.startsWith('//')) {
-        configContent = uncPath.replace(/\//g, '\\');
-      } else if (ip) {
-        // IP + local path format
-        configContent = `${ip}:${uncPath}`;
-      } else {
-        toast.error("Forneça um caminho UNC (\\\\servidor\\partilha) ou IP + caminho local");
-        setIsConnecting(false);
-        return;
-      }
-      
-      // Write config directly as content
+      // Write config
       await api.network.writeServerConfigFile('', configContent);
       
       toast.success("Configuração guardada! A reiniciar...");
@@ -205,7 +115,7 @@ export function NetworkSettings() {
     setIsConnecting(false);
   };
 
-  const disconnectFromServer = async () => {
+  const disconnectFromDatabase = async () => {
     if (!isElectron()) return;
     
     try {
@@ -214,13 +124,11 @@ export function NetworkSettings() {
       // Delete server-config.txt
       await api.network.deleteServerConfigFile();
       
-      toast.success("Desligado do servidor! Reinicie a aplicação.");
-      toast.info("A reiniciar aplicação...", { duration: 2000 });
+      toast.success("Desligado! A reiniciar...");
       
-      // Reload the app to apply the change
       setTimeout(() => {
         window.location.reload();
-      }, 2000);
+      }, 1500);
     } catch (error: any) {
       toast.error(error.message || "Erro ao desligar");
     }
@@ -254,219 +162,144 @@ export function NetworkSettings() {
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Network className="h-5 w-5" />
+            <Database className="h-5 w-5" />
           </div>
           <div>
-            <CardTitle>Rede / Network</CardTitle>
+            <CardTitle>Base de Dados / Database</CardTitle>
             <CardDescription>
-              Modo de ligação: {mode === 'server' ? 'Servidor' : mode === 'client' ? 'Cliente' : 'Autónomo'}
+              {mode === 'client' ? 'Ligado a base de dados remota' : 'Base de dados local'}
             </CardDescription>
           </div>
-          <Badge variant={mode === 'server' ? 'default' : mode === 'client' ? 'secondary' : 'outline'} className="ml-auto">
-            {mode === 'server' && <Server className="h-3 w-3 mr-1" />}
-            {mode === 'client' && <Monitor className="h-3 w-3 mr-1" />}
-            {mode === 'server' ? 'SERVIDOR' : mode === 'client' ? 'CLIENTE' : 'AUTÓNOMO'}
+          <Badge 
+            variant={mode === 'client' ? 'default' : 'outline'} 
+            className="ml-auto"
+          >
+            {mode === 'client' ? 'REMOTA' : 'LOCAL'}
           </Badge>
+          <Button size="sm" variant="ghost" onClick={loadNetworkState} disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Standalone Mode */}
-        {mode === 'standalone' && (
-          <div className="space-y-4">
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-4">
-                Este computador está a funcionar de forma autónoma com base de dados local.
-              </p>
-              <Button onClick={startServer} className="w-full">
-                <Server className="h-4 w-4 mr-2" />
-                Tornar-se Servidor / Become Server
-              </Button>
-            </div>
-            
-            {/* Connect to Server Section */}
-            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-4">
-              <div className="flex items-center gap-2">
-                <Link className="h-4 w-4 text-blue-500" />
-                <span className="font-medium text-sm">Ligar a um Servidor / Connect to Server</span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor="serverPath" className="text-xs">Caminho da Partilha (UNC) / Shared Folder Path</Label>
-                  <Input 
-                    id="serverPath"
-                    placeholder="\\DESKTOP-H3O5GT6\PayrollAOData"
-                    value={connectPath}
-                    onChange={(e) => setConnectPath(e.target.value)}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Cole o caminho UNC completo da pasta partilhada (ex: \\SERVIDOR\NomeDaPartilha)
-                  </p>
-                </div>
-                
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                    Opção avançada: IP + Caminho local
-                  </summary>
-                  <div className="mt-2 space-y-1">
-                    <Label htmlFor="serverIP" className="text-xs">IP do Servidor (opcional)</Label>
-                    <Input 
-                      id="serverIP"
-                      placeholder="Ex: 192.168.1.100"
-                      value={connectIP}
-                      onChange={(e) => setConnectIP(e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
-                </details>
-                
-                <Button 
-                  onClick={connectToServer} 
-                  className="w-full" 
-                  variant="secondary"
-                  disabled={isConnecting || !connectPath.trim()}
-                >
-                  <Link className="h-4 w-4 mr-2" />
-                  {isConnecting ? 'A ligar...' : 'Ligar ao Servidor / Connect'}
-                </Button>
-              </div>
-            </div>
+        
+        {/* Current Database Info */}
+        <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Base de Dados Actual</span>
           </div>
-        )}
+          <code className="text-xs bg-background p-2 rounded block break-all">
+            {databaseMode?.dbPath || localDataPath + '\\payroll.db'}
+          </code>
+          {mode === 'standalone' && (
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 Para partilhar com outros computadores, partilhe a pasta <code className="bg-background px-1 rounded">{localDataPath}</code> na rede Windows.
+            </p>
+          )}
+        </div>
 
-        {/* Server Mode */}
-        {mode === 'server' && (
-          <div className="space-y-4">
-            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Check className="h-5 w-5 text-green-500" />
-                <span className="font-medium text-green-700 dark:text-green-400">Servidor Activo / Server Active</span>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Porta / Port:</span>
-                  <span className="font-mono">{serverStatus?.port || 3847}</span>
-                </div>
-                
-                {serverStatus?.addresses?.map((addr, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-muted-foreground">{addr.name}:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono">{addr.address}</span>
-                      <Button size="sm" variant="ghost" onClick={() => copyToClipboard(addr.address)}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Ficheiro de Configuração / Config File</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Copie este ficheiro para os computadores cliente:
-              </p>
-              <code className="text-xs bg-background p-2 rounded block break-all">{configFilePath}</code>
-              
-              {serverConfig?.exists && (
-                <div className="mt-3 p-2 bg-background rounded">
-                  <p className="text-xs text-muted-foreground mb-1">Conteúdo / Content:</p>
-                  <code className="text-sm font-mono">
-                    {serverConfig.serverIP}:{serverConfig.serverPath || localDataPath}
-                  </code>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="ml-2"
-                    onClick={() => copyToClipboard(`${serverConfig.serverIP}:${serverConfig.serverPath || localDataPath}`)}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs text-muted-foreground space-y-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p><strong>⚠️ Importante:</strong> A pasta de dados deve estar partilhada na rede.</p>
-              <p>Caminho: <code className="bg-background px-1 rounded">{localDataPath}</code></p>
-            </div>
-
-            <Button variant="destructive" onClick={stopServer} className="w-full">
-              Parar Servidor / Stop Server
-            </Button>
-          </div>
-        )}
-
-        {/* Client Mode */}
+        {/* Client Mode - Connected */}
         {mode === 'client' && (
           <div className="space-y-4">
             <div className={`p-4 rounded-lg border ${databaseMode?.isConnectedToRemote ? 'bg-green-500/10 border-green-500/20' : 'bg-destructive/10 border-destructive/20'}`}>
               <div className="flex items-center gap-2 mb-3">
                 {databaseMode?.isConnectedToRemote ? (
                   <>
-                    <Database className="h-5 w-5 text-green-500" />
-                    <span className="font-medium text-green-700 dark:text-green-400">Ligado à Base de Dados Remota</span>
+                    <Check className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-green-700 dark:text-green-400">Ligado / Connected</span>
                   </>
                 ) : (
                   <>
                     <X className="h-5 w-5 text-destructive" />
-                    <span className="font-medium text-destructive">Sem Ligação à Base de Dados</span>
+                    <span className="font-medium text-destructive">Sem Ligação / Not Connected</span>
                   </>
                 )}
-                <Button size="sm" variant="ghost" onClick={loadNetworkState} disabled={isRefreshing} className="ml-auto">
-                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </Button>
               </div>
               
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Servidor / Server:</span>
-                  <span className="font-mono">{serverConfig?.serverIP}</span>
-                </div>
-                {serverConfig?.serverPath && (
-                  <div>
-                    <span className="text-muted-foreground">Caminho / Path:</span>
-                    <code className="text-xs block mt-1 bg-background p-1 rounded break-all">{serverConfig?.serverPath}</code>
-                  </div>
-                )}
-                {databaseMode && (
-                  <div>
-                    <span className="text-muted-foreground">Base de Dados Actual:</span>
-                    <code className="text-xs block mt-1 bg-background p-1 rounded break-all">{databaseMode.dbPath}</code>
-                  </div>
-                )}
-              </div>
+              {!databaseMode?.isConnectedToRemote && (
+                <p className="text-xs text-destructive/80 mb-2">
+                  A base de dados remota não está acessível. Verifique se a pasta está partilhada e acessível.
+                </p>
+              )}
             </div>
 
-            {!databaseMode?.isConnectedToRemote && (
-              <div className="text-xs text-destructive/80 p-3 bg-destructive/10 rounded-lg space-y-2">
-                <p><strong>Não foi possível aceder à base de dados remota.</strong></p>
-                <p>Verifique que:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>O servidor está ligado</li>
-                  <li>A pasta está partilhada na rede (Share)</li>
-                  <li>Tem permissões de acesso à pasta</li>
-                  <li>O IP e caminho estão correctos</li>
-                </ul>
-              </div>
-            )}
-
-            <Button 
-              variant="outline" 
-              onClick={disconnectFromServer} 
-              className="w-full"
-            >
+            <Button variant="destructive" onClick={disconnectFromDatabase} className="w-full">
               <Unlink className="h-4 w-4 mr-2" />
-              Desligar do Servidor / Disconnect
+              Desligar / Disconnect
             </Button>
           </div>
         )}
+
+        {/* Standalone Mode - Connect Option */}
+        {mode === 'standalone' && (
+          <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-4">
+            <div className="flex items-center gap-2">
+              <Link className="h-4 w-4 text-blue-500" />
+              <span className="font-medium text-sm">Ligar a Base de Dados Remota</span>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="dbPath" className="text-xs">Caminho da Base de Dados (UNC ou IP:Caminho)</Label>
+                <Input 
+                  id="dbPath"
+                  placeholder="\\SERVIDOR\PayrollAO\data\payroll.db"
+                  value={connectPath}
+                  onChange={(e) => setConnectPath(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Exemplos: <code>\\SERVIDOR\Partilha\data\payroll.db</code> ou <code>192.168.1.100:C:\PayrollAO\data</code>
+                </p>
+              </div>
+              
+              <Button 
+                onClick={connectToDatabase} 
+                className="w-full" 
+                variant="secondary"
+                disabled={isConnecting || !connectPath.trim()}
+              >
+                <Link className="h-4 w-4 mr-2" />
+                {isConnecting ? 'A ligar...' : 'Ligar / Connect'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Config File Info */}
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+            Informações técnicas / Technical info
+          </summary>
+          <div className="mt-2 p-3 bg-muted/30 rounded-lg space-y-2">
+            <div>
+              <span className="text-muted-foreground">Ficheiro de config:</span>
+              <code className="block mt-1 bg-background p-1 rounded break-all">{configFilePath}</code>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Pasta de dados local:</span>
+              <code className="block mt-1 bg-background p-1 rounded break-all">{localDataPath}</code>
+            </div>
+            {serverConfig?.exists && (
+              <div>
+                <span className="text-muted-foreground">Conteúdo do config:</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="bg-background p-1 rounded break-all flex-1">
+                    {serverConfig.serverIP ? `${serverConfig.serverIP}:${serverConfig.serverPath}` : serverConfig.serverPath}
+                  </code>
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    onClick={() => copyToClipboard(serverConfig.serverIP ? `${serverConfig.serverIP}:${serverConfig.serverPath}` : serverConfig.serverPath)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
       </CardContent>
     </Card>
   );
