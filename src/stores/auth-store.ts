@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { createElectronStorage } from '@/lib/electron-sqlite-storage';
+import { createHybridStorage } from '@/lib/hybrid-storage';
 
 export type Permission = 
   | 'employees.view'
@@ -246,7 +246,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'payrollao-auth',
-      storage: createJSONStorage(() => createElectronStorage('users')),
+      storage: createJSONStorage(() => createHybridStorage('users')),
       // Only persist users list, NOT the session state
       partialize: (state) => ({ 
         users: state.users,

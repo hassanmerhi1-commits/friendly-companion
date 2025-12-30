@@ -1090,6 +1090,170 @@ async function pingServer(serverIP, port = 3847) {
   });
 }
 
+// ============= REMOTE DATABASE OPERATIONS (CLIENT MODE) =============
+// These functions call the server's API directly for live central database mode
+
+async function remoteDbGetAll(serverIP, port, table) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: `/api/${table}`,
+        method: 'GET',
+        timeout: 8000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.success) {
+              resolve({ success: true, data: parsed.data || [] });
+            } else {
+              resolve({ success: false, error: parsed.error || 'Failed to get data' });
+            }
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+    req.on('error', (error) => resolve({ success: false, error: error.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+    req.end();
+  });
+}
+
+async function remoteDbGetById(serverIP, port, table, id) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: `/api/${table}/${encodeURIComponent(id)}`,
+        method: 'GET',
+        timeout: 8000,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+    req.on('error', (error) => resolve({ success: false, error: error.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+    req.end();
+  });
+}
+
+async function remoteDbInsert(serverIP, port, table, data) {
+  return new Promise((resolve) => {
+    const postData = JSON.stringify(data);
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: `/api/${table}`,
+        method: 'POST',
+        timeout: 8000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      },
+      (res) => {
+        let responseData = '';
+        res.on('data', (chunk) => { responseData += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+    req.on('error', (error) => resolve({ success: false, error: error.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function remoteDbUpdate(serverIP, port, table, id, data) {
+  return new Promise((resolve) => {
+    const postData = JSON.stringify(data);
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: `/api/${table}/${encodeURIComponent(id)}`,
+        method: 'PUT',
+        timeout: 8000,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      },
+      (res) => {
+        let responseData = '';
+        res.on('data', (chunk) => { responseData += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+    req.on('error', (error) => resolve({ success: false, error: error.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function remoteDbDelete(serverIP, port, table, id) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      {
+        hostname: serverIP,
+        port: port,
+        path: `/api/${table}/${encodeURIComponent(id)}`,
+        method: 'DELETE',
+        timeout: 8000,
+      },
+      (res) => {
+        let responseData = '';
+        res.on('data', (chunk) => { responseData += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            resolve(parsed);
+          } catch {
+            resolve({ success: false, error: 'Invalid JSON response' });
+          }
+        });
+      }
+    );
+    req.on('error', (error) => resolve({ success: false, error: error.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+    req.end();
+  });
+}
+
 // ============= IPC HANDLERS =============
 
 // Database operations
@@ -1206,6 +1370,27 @@ ipcMain.handle('network:deleteServerConfigFile', () => {
 
 ipcMain.handle('network:getServerConfigFilePath', () => {
   return getServerConfigFilePath();
+});
+
+// Remote database operations (for client mode - live central database)
+ipcMain.handle('remoteDb:getAll', async (event, serverIP, port, table) => {
+  return await remoteDbGetAll(serverIP, port, table);
+});
+
+ipcMain.handle('remoteDb:getById', async (event, serverIP, port, table, id) => {
+  return await remoteDbGetById(serverIP, port, table, id);
+});
+
+ipcMain.handle('remoteDb:insert', async (event, serverIP, port, table, data) => {
+  return await remoteDbInsert(serverIP, port, table, data);
+});
+
+ipcMain.handle('remoteDb:update', async (event, serverIP, port, table, id, data) => {
+  return await remoteDbUpdate(serverIP, port, table, id, data);
+});
+
+ipcMain.handle('remoteDb:delete', async (event, serverIP, port, table, id) => {
+  return await remoteDbDelete(serverIP, port, table, id);
 });
 
 // ============= APP LIFECYCLE =============
