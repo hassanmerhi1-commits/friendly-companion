@@ -91,8 +91,16 @@ function getRemoteDatabasePath() {
 
     // Local Windows path -> admin share fallback
     const cleanedLocal = normalized.replace(/[\\]+$/, '');
-    const adminSharePath = cleanedLocal.replace(/^([A-Za-z]):/, '$1$$');
-    const finalPath = `\\\\${ip}\\${adminSharePath}\\payroll.db`;
+    const isDbFile = cleanedLocal.toLowerCase().endsWith('.db');
+
+    // Convert drive letter to admin share (e.g. C:\... -> C$\...)
+    const adminShareTarget = cleanedLocal.replace(/^([A-Za-z]):/, '$1$$');
+
+    // Support both folder input (append payroll.db) and direct file input
+    const finalPath = isDbFile
+      ? `\\\\${ip}\\${adminShareTarget}`
+      : `\\\\${ip}\\${adminShareTarget}\\payroll.db`;
+
     console.log('Remote database admin-share path:', finalPath);
     return finalPath;
   } catch (error) {
