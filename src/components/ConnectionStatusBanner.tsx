@@ -74,7 +74,7 @@ export const ConnectionStatusBanner = () => {
           <div className="flex items-center gap-2">
             <WifiOff className="h-4 w-4" />
             <AlertDescription className="text-white font-medium font-mono">
-              OFFLINE - \\{config.serverIP}\PayrollAO não acessível
+              OFFLINE - {config.databasePath ? `${config.serverIP}:${config.databasePath}` : config.serverIP} não acessível
               {lastError && <span className="ml-2 opacity-80 font-sans">• {lastError}</span>}
             </AlertDescription>
           </div>

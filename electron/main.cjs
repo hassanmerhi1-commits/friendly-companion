@@ -107,6 +107,9 @@ function initDatabase() {
         photo TEXT,
         status TEXT DEFAULT 'active',
         notes TEXT,
+        family_allowance REAL DEFAULT 0,
+        monthly_bonus REAL DEFAULT 0,
+        holiday_subsidy REAL DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -308,6 +311,9 @@ function runMigrations() {
     addColumnIfMissing('employees', 'gender', "ALTER TABLE employees ADD COLUMN gender TEXT");
     addColumnIfMissing('employees', 'marital_status', "ALTER TABLE employees ADD COLUMN marital_status TEXT");
     addColumnIfMissing('employees', 'photo', "ALTER TABLE employees ADD COLUMN photo TEXT");
+    addColumnIfMissing('employees', 'family_allowance', "ALTER TABLE employees ADD COLUMN family_allowance REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'monthly_bonus', "ALTER TABLE employees ADD COLUMN monthly_bonus REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'holiday_subsidy', "ALTER TABLE employees ADD COLUMN holiday_subsidy REAL DEFAULT 0");
     // Migrate old salary to base_salary if base_salary is null/0
     try {
       db.exec("UPDATE employees SET base_salary = salary WHERE base_salary IS NULL OR base_salary = 0");
