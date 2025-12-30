@@ -46,34 +46,59 @@ let isClientMode = false;
 // Check if server-config.txt exists and use remote database path
 function getRemoteDatabasePath() {
   try {
-    if (fs.existsSync(serverConfigPath)) {
-      const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
-      if (content) {
-        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
-        const colonIndex = content.indexOf(':');
-        if (colonIndex > 0) {
-          const ip = content.substring(0, colonIndex);
-          const remotePath = content.substring(colonIndex + 1);
-          
-          // Skip if it's old port format (just numbers)
-          if (/^\d+$/.test(remotePath)) {
-            return null;
-          }
-          
-          // Convert to UNC path: \\IP\C$\PayrollAO\data\payroll.db
-          // Replace C: with C$ for administrative share
-          let uncPath = remotePath.replace(/^([A-Za-z]):/, '$1$$');
-          uncPath = `\\\\${ip}\\${uncPath}\\payroll.db`;
-          
-          console.log('Remote database path:', uncPath);
-          return uncPath;
-        }
+    if (!fs.existsSync(serverConfigPath)) return null;
+
+    const raw = fs.readFileSync(serverConfigPath, 'utf-8').trim();
+    if (!raw) return null;
+
+    // Supported formats:
+    // 1) IP:PATH
+    //    - PATH can be a local Windows folder (e.g., "C:\\PayrollAO\\data")
+    //    - or a UNC shared folder (e.g., "\\\\SERVER\\ShareName\\PayrollAO\\data")
+    // 2) UNC_PATH_ONLY (e.g., "\\\\SERVER\\ShareName\\PayrollAO\\data")
+    //
+    // Notes:
+    // - If PATH is local (C:\...), we fall back to the Windows admin share (\\IP\C$\...) which
+    //   requires admin shares enabled + permissions.
+    // - If PATH is UNC (\\SERVER\Share...), it works with normal shared folders.
+
+    const colonIndex = raw.indexOf(':');
+
+    // UNC-only (no leading IP)
+    if (colonIndex <= 0) {
+      if (raw.startsWith('\\\\')) {
+        const base = raw.replace(/\//g, '\\').replace(/[\\]+$/, '');
+        return base.toLowerCase().endsWith('.db') ? base : `${base}\\payroll.db`;
       }
+      return null;
     }
+
+    const ip = raw.substring(0, colonIndex);
+    const pathPart = raw.substring(colonIndex + 1);
+
+    // Old port-only format (IP:3847) => not a direct DB path
+    if (/^\d+$/.test(pathPart)) return null;
+
+    const normalized = pathPart.replace(/\//g, '\\').trim();
+
+    // If user provided UNC, use it directly (ignore IP)
+    if (normalized.startsWith('\\\\')) {
+      const base = normalized.replace(/[\\]+$/, '');
+      const finalPath = base.toLowerCase().endsWith('.db') ? base : `${base}\\payroll.db`;
+      console.log('Remote database UNC path:', finalPath);
+      return finalPath;
+    }
+
+    // Local Windows path -> admin share fallback
+    const cleanedLocal = normalized.replace(/[\\]+$/, '');
+    const adminSharePath = cleanedLocal.replace(/^([A-Za-z]):/, '$1$$');
+    const finalPath = `\\\\${ip}\\${adminSharePath}\\payroll.db`;
+    console.log('Remote database admin-share path:', finalPath);
+    return finalPath;
   } catch (error) {
     console.error('Error reading server config for remote path:', error);
+    return null;
   }
-  return null;
 }
 
 // Check for client mode on startup

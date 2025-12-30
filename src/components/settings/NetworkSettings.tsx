@@ -119,7 +119,9 @@ export function NetworkSettings() {
         // Create server-config.txt with first available IP and data path
         if (status.addresses?.length > 0) {
           const ip = status.addresses[0].address;
-          await api.network.writeServerConfigFile(ip, localDataPath);
+          const dataPath = await api.network.getLocalDataPath();
+          setLocalDataPath(dataPath);
+          await api.network.writeServerConfigFile(ip, dataPath);
           const config = await api.network.readServerConfigFile();
           setServerConfig(config);
         }
