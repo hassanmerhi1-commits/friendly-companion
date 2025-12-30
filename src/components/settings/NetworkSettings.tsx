@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Network, Server, Monitor, FolderOpen, RefreshCw, Check, X, Copy, Database } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Network, Server, Monitor, FolderOpen, RefreshCw, Check, X, Copy, Database, Link, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n";
 
@@ -40,6 +42,9 @@ export function NetworkSettings() {
   const [localDataPath, setLocalDataPath] = useState<string>('');
   const [configFilePath, setConfigFilePath] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connectIP, setConnectIP] = useState<string>('');
+  const [connectPath, setConnectPath] = useState<string>('');
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Load initial state
   useEffect(() => {
@@ -154,6 +159,54 @@ export function NetworkSettings() {
     toast.success("Copiado! / Copied!");
   };
 
+  const connectToServer = async () => {
+    if (!isElectron()) return;
+    if (!connectIP.trim() || !connectPath.trim()) {
+      toast.error("Preencha o IP e o caminho do servidor");
+      return;
+    }
+    
+    setIsConnecting(true);
+    try {
+      const api = (window as any).electronAPI;
+      
+      // Write the server-config.txt with the entered IP:Path
+      await api.network.writeServerConfigFile(connectIP.trim(), connectPath.trim());
+      
+      toast.success("Configuração guardada! Reinicie a aplicação para ligar.");
+      toast.info("A reiniciar aplicação...", { duration: 2000 });
+      
+      // Reload the app to apply the new config
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao guardar configuração");
+    }
+    setIsConnecting(false);
+  };
+
+  const disconnectFromServer = async () => {
+    if (!isElectron()) return;
+    
+    try {
+      const api = (window as any).electronAPI;
+      
+      // Delete server-config.txt
+      await api.network.deleteServerConfigFile();
+      
+      toast.success("Desligado do servidor! Reinicie a aplicação.");
+      toast.info("A reiniciar aplicação...", { duration: 2000 });
+      
+      // Reload the app to apply the change
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao desligar");
+    }
+  };
+
   if (!isElectron()) {
     return (
       <Card className="border-2 border-muted">
@@ -211,14 +264,47 @@ export function NetworkSettings() {
               </Button>
             </div>
             
-            <div className="text-xs text-muted-foreground space-y-2 p-3 bg-muted/30 rounded-lg">
-              <p><strong>Para ligar como cliente:</strong></p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>No servidor, copie o ficheiro <code className="bg-background px-1 rounded">server-config.txt</code></li>
-                <li>Cole na pasta <code className="bg-background px-1 rounded">data</code> deste computador</li>
-                <li>Reinicie a aplicação</li>
-              </ol>
-              <p className="mt-2">Caminho: <code className="bg-background px-1 rounded break-all">{configFilePath}</code></p>
+            {/* Connect to Server Section */}
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-4">
+              <div className="flex items-center gap-2">
+                <Link className="h-4 w-4 text-blue-500" />
+                <span className="font-medium text-sm">Ligar a um Servidor / Connect to Server</span>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="serverIP" className="text-xs">IP do Servidor / Server IP</Label>
+                  <Input 
+                    id="serverIP"
+                    placeholder="Ex: 192.168.1.100"
+                    value={connectIP}
+                    onChange={(e) => setConnectIP(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <Label htmlFor="serverPath" className="text-xs">Caminho da Pasta Partilhada / Shared Folder Path</Label>
+                  <Input 
+                    id="serverPath"
+                    placeholder="Ex: C:\PayrollAO\data"
+                    value={connectPath}
+                    onChange={(e) => setConnectPath(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O caminho exacto da pasta de dados no servidor
+                  </p>
+                </div>
+                
+                <Button 
+                  onClick={connectToServer} 
+                  className="w-full" 
+                  variant="secondary"
+                  disabled={isConnecting || !connectIP.trim() || !connectPath.trim()}
+                >
+                  <Link className="h-4 w-4 mr-2" />
+                  {isConnecting ? 'A ligar...' : 'Ligar ao Servidor / Connect'}
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -340,16 +426,19 @@ export function NetworkSettings() {
                   <li>O servidor está ligado</li>
                   <li>A pasta está partilhada na rede (Share)</li>
                   <li>Tem permissões de acesso à pasta</li>
-                  <li>O IP e caminho no ficheiro estão correctos</li>
+                  <li>O IP e caminho estão correctos</li>
                 </ul>
               </div>
             )}
 
-            <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-lg">
-              <p><strong>Configuração lida de:</strong></p>
-              <code className="break-all">{configFilePath}</code>
-              <p className="mt-2">Para desligar do servidor, elimine este ficheiro e reinicie a aplicação.</p>
-            </div>
+            <Button 
+              variant="outline" 
+              onClick={disconnectFromServer} 
+              className="w-full"
+            >
+              <Unlink className="h-4 w-4 mr-2" />
+              Desligar do Servidor / Disconnect
+            </Button>
           </div>
         )}
       </CardContent>
