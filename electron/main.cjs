@@ -722,48 +722,51 @@ function readServerConfigFile() {
       if (content) {
         // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data") or UNC path (\\SERVER\Share\...)
         const colonIndex = content.indexOf(':');
-        
+
         // UNC-only path (no IP prefix) - e.g., \\SERVER\Share\data\payroll.db
         if (colonIndex <= 0 && content.startsWith('\\\\')) {
           return {
             exists: true,
+            raw: content,
             serverIP: '',
             serverPort: 3847,
-            serverPath: content // The full UNC path
+            serverPath: content, // The full UNC path
           };
         }
-        
+
         if (colonIndex > 0) {
           const ip = content.substring(0, colonIndex);
           const restAfterIp = content.substring(colonIndex + 1);
-          
+
           // Check if this is IP:PORT format (old) or IP:PATH format (new)
           // If it's just a number, it's the old port format
           if (/^\d+$/.test(restAfterIp)) {
             // Old format: IP:PORT - treat as port
             return {
               exists: true,
+              raw: content,
               serverIP: ip,
               serverPort: parseInt(restAfterIp) || 3847,
-              serverPath: ''
-            };
-          } else {
-            // New format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
-            // The path might start with a drive letter like C:
-            return {
-              exists: true,
-              serverIP: ip,
-              serverPort: 3847, // Default port
-              serverPath: restAfterIp // Full path including drive letter
+              serverPath: '',
             };
           }
+
+          // New format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+          // The path might start with a drive letter like C:
+          return {
+            exists: true,
+            raw: content,
+            serverIP: ip,
+            serverPort: 3847, // Default port
+            serverPath: restAfterIp, // Full path including drive letter
+          };
         }
       }
     }
   } catch (error) {
     console.error('Error reading server-config.txt:', error);
   }
-  return { exists: false, serverIP: '', serverPort: 3847, serverPath: '' };
+  return { exists: false, raw: '', serverIP: '', serverPort: 3847, serverPath: '' };
 }
 
 // Write server-config.txt (Dolly-style) - Server creates this for clients
@@ -1392,6 +1395,17 @@ async function remoteDbDelete(serverIP, port, table, id) {
 }
 
 // ============= IPC HANDLERS =============
+
+// App controls
+ipcMain.handle('app:relaunch', () => {
+  try {
+    app.relaunch();
+    app.exit(0);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
 
 // Database operations
 ipcMain.handle('db:getAll', (event, table) => {

@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLocalDataPath: () => ipcRenderer.invoke('network:getLocalDataPath'),
     getDatabaseMode: () => ipcRenderer.invoke('network:getDatabaseMode'),
   },
+
+  app: {
+    relaunch: () => ipcRenderer.invoke('app:relaunch'),
+  },
   
   // Platform info
   platform: process.platform,
