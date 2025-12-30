@@ -39,93 +39,43 @@ let mainWindow;
 let httpServer = null;
 let serverPort = 3847;
 let db = null;
-let dbPath = localDbPath; // Will be updated if client mode
+let dbPath = localDbPath;
 let isClientMode = false;
+let clientServerIP = null;
+let clientServerPort = 3847;
 
-// ============= CLIENT MODE DATABASE PATH =============
-// Check if server-config.txt exists and use remote database path
-function getRemoteDatabasePath() {
+// ============= CLIENT MODE (IP:PORT) =============
+// Check if server-config.txt has IP:PORT format for HTTP-based client mode
+function checkClientMode() {
   try {
-    if (!fs.existsSync(serverConfigPath)) return null;
+    if (!fs.existsSync(serverConfigPath)) return false;
 
     const raw = fs.readFileSync(serverConfigPath, 'utf-8').trim();
-    if (!raw) return null;
-
-    // Supported formats:
-    // 1) IP:PATH
-    //    - PATH can be a local Windows folder (e.g., "C:\\PayrollAO\\data")
-    //    - or a UNC shared folder (e.g., "\\\\SERVER\\ShareName\\PayrollAO\\data")
-    // 2) UNC_PATH_ONLY (e.g., "\\\\SERVER\\ShareName\\PayrollAO\\data")
-    //
-    // Notes:
-    // - If PATH is local (C:\...), we fall back to the Windows admin share (\\IP\C$\...) which
-    //   requires admin shares enabled + permissions.
-    // - If PATH is UNC (\\SERVER\Share...), it works with normal shared folders.
+    if (!raw) return false;
 
     const colonIndex = raw.indexOf(':');
-
-    // UNC-only (no leading IP)
-    if (colonIndex <= 0) {
-      if (raw.startsWith('\\\\')) {
-        const base = raw.replace(/\//g, '\\').replace(/[\\]+$/, '');
-        return base.toLowerCase().endsWith('.db') ? base : `${base}\\payroll.db`;
-      }
-      return null;
-    }
+    if (colonIndex <= 0) return false;
 
     const ip = raw.substring(0, colonIndex);
-    const pathPart = raw.substring(colonIndex + 1);
+    const portPart = raw.substring(colonIndex + 1);
 
-    // Old port-only format (IP:3847) => not a direct DB path
-    if (/^\d+$/.test(pathPart)) return null;
-
-    const normalized = pathPart.replace(/\//g, '\\').trim();
-
-    // If user provided UNC, use it directly (ignore IP)
-    if (normalized.startsWith('\\\\')) {
-      const base = normalized.replace(/[\\]+$/, '');
-      const finalPath = base.toLowerCase().endsWith('.db') ? base : `${base}\\payroll.db`;
-      console.log('Remote database UNC path:', finalPath);
-      return finalPath;
+    // Check if it's IP:PORT format (port is a number)
+    if (/^\d+$/.test(portPart)) {
+      clientServerIP = ip;
+      clientServerPort = parseInt(portPart) || 3847;
+      console.log(`CLIENT MODE: Will connect to server at ${clientServerIP}:${clientServerPort}`);
+      return true;
     }
 
-    // Local Windows path -> admin share fallback
-    const cleanedLocal = normalized.replace(/[\\]+$/, '');
-    const isDbFile = cleanedLocal.toLowerCase().endsWith('.db');
-
-    // Convert drive letter to admin share (e.g. C:\... -> C$\...)
-    const adminShareTarget = cleanedLocal.replace(/^([A-Za-z]):/, '$1$$');
-
-    // Support both folder input (append payroll.db) and direct file input
-    const finalPath = isDbFile
-      ? `\\\\${ip}\\${adminShareTarget}`
-      : `\\\\${ip}\\${adminShareTarget}\\payroll.db`;
-
-    console.log('Remote database admin-share path:', finalPath);
-    return finalPath;
+    return false;
   } catch (error) {
-    console.error('Error reading server config for remote path:', error);
-    return null;
+    console.error('Error checking client mode:', error);
+    return false;
   }
 }
 
 // Check for client mode on startup
-const remotePath = getRemoteDatabasePath();
-if (remotePath) {
-  // Verify the remote database exists
-  try {
-    if (fs.existsSync(remotePath)) {
-      dbPath = remotePath;
-      isClientMode = true;
-      console.log('CLIENT MODE: Using remote database at', dbPath);
-    } else {
-      console.log('Remote database not accessible, using local database');
-    }
-  } catch (error) {
-    console.error('Cannot access remote database:', error.message);
-    console.log('Using local database instead');
-  }
-}
+isClientMode = checkClientMode();
 
 // Get the correct path for production vs development
 function getDistPath() {
@@ -155,6 +105,13 @@ function getDistPath() {
 // ============= SQLite DATABASE =============
 
 function initDatabase() {
+  // In client mode, we don't need a local database - all operations go to server
+  if (isClientMode) {
+    console.log('CLIENT MODE: Skipping local database initialization');
+    console.log(`All database operations will be routed to ${clientServerIP}:${clientServerPort}`);
+    return true;
+  }
+
   try {
     const Database = require('better-sqlite3');
     db = new Database(dbPath);
@@ -710,76 +667,44 @@ function writeNetworkConfig(config) {
   }
 }
 
-// ============= DOLLY-STYLE SERVER CONFIG FILE =============
-// Simple text file format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
-// This allows clients to connect to a server's database folder
+// ============= SERVER CONFIG FILE (IP:PORT) =============
+// Simple text file format: IP:PORT (e.g., "192.168.1.100:3847")
+// This allows clients to connect to the server's HTTP API
 
-// Read server-config.txt (Dolly-style)
+// Read server-config.txt
 function readServerConfigFile() {
   try {
     if (fs.existsSync(serverConfigPath)) {
       const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
       if (content) {
-        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data") or UNC path (\\SERVER\Share\...)
         const colonIndex = content.indexOf(':');
-
-        // UNC-only path (no IP prefix) - e.g., \\SERVER\Share\data\payroll.db
-        if (colonIndex <= 0 && content.startsWith('\\\\')) {
-          return {
-            exists: true,
-            raw: content,
-            serverIP: '',
-            serverPort: 3847,
-            serverPath: content, // The full UNC path
-          };
-        }
 
         if (colonIndex > 0) {
           const ip = content.substring(0, colonIndex);
-          const restAfterIp = content.substring(colonIndex + 1);
+          const portPart = content.substring(colonIndex + 1);
 
-          // Check if this is IP:PORT format (old) or IP:PATH format (new)
-          // If it's just a number, it's the old port format
-          if (/^\d+$/.test(restAfterIp)) {
-            // Old format: IP:PORT - treat as port
+          // IP:PORT format
+          if (/^\d+$/.test(portPart)) {
             return {
               exists: true,
               raw: content,
               serverIP: ip,
-              serverPort: parseInt(restAfterIp) || 3847,
-              serverPath: '',
+              serverPort: parseInt(portPart) || 3847,
             };
           }
-
-          // New format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
-          // The path might start with a drive letter like C:
-          return {
-            exists: true,
-            raw: content,
-            serverIP: ip,
-            serverPort: 3847, // Default port
-            serverPath: restAfterIp, // Full path including drive letter
-          };
         }
       }
     }
   } catch (error) {
     console.error('Error reading server-config.txt:', error);
   }
-  return { exists: false, raw: '', serverIP: '', serverPort: 3847, serverPath: '' };
+  return { exists: false, raw: '', serverIP: '', serverPort: 3847 };
 }
 
-// Write server-config.txt (Dolly-style) - Server creates this for clients
-// Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data") or just UNC path
-function writeServerConfigFile(ip, pathOrPort) {
+// Write server-config.txt - format: IP:PORT (e.g., "192.168.1.100:3847")
+function writeServerConfigFile(ip, port) {
   try {
-    let content;
-    // If ip is empty and pathOrPort is a full UNC or content, use it directly
-    if (!ip && pathOrPort) {
-      content = pathOrPort;
-    } else {
-      content = `${ip}:${pathOrPort}`;
-    }
+    const content = `${ip}:${port}`;
     fs.writeFileSync(serverConfigPath, content, 'utf-8');
     console.log('Server config file created:', content);
     return { success: true, path: serverConfigPath, content };
@@ -1407,36 +1332,64 @@ ipcMain.handle('app:relaunch', () => {
   }
 });
 
-// Database operations
-ipcMain.handle('db:getAll', (event, table) => {
+// Database operations - route to remote server if in client mode
+ipcMain.handle('db:getAll', async (event, table) => {
+  if (isClientMode && clientServerIP) {
+    const result = await remoteDbGetAll(clientServerIP, clientServerPort, table);
+    if (result.success) return result.data || [];
+    console.error('Remote db:getAll failed:', result.error);
+    return [];
+  }
   return dbGetAll(table);
 });
 
-ipcMain.handle('db:getById', (event, table, id) => {
+ipcMain.handle('db:getById', async (event, table, id) => {
+  if (isClientMode && clientServerIP) {
+    const result = await remoteDbGetById(clientServerIP, clientServerPort, table, id);
+    if (result.success) return result.data || null;
+    console.error('Remote db:getById failed:', result.error);
+    return null;
+  }
   return dbGetById(table, id);
 });
 
-ipcMain.handle('db:insert', (event, table, data) => {
+ipcMain.handle('db:insert', async (event, table, data) => {
+  if (isClientMode && clientServerIP) {
+    return await remoteDbInsert(clientServerIP, clientServerPort, table, data);
+  }
   return dbInsert(table, data);
 });
 
-ipcMain.handle('db:update', (event, table, id, data) => {
+ipcMain.handle('db:update', async (event, table, id, data) => {
+  if (isClientMode && clientServerIP) {
+    return await remoteDbUpdate(clientServerIP, clientServerPort, table, id, data);
+  }
   return dbUpdate(table, id, data);
 });
 
-ipcMain.handle('db:delete', (event, table, id) => {
+ipcMain.handle('db:delete', async (event, table, id) => {
+  if (isClientMode && clientServerIP) {
+    return await remoteDbDelete(clientServerIP, clientServerPort, table, id);
+  }
   return dbDelete(table, id);
 });
 
 ipcMain.handle('db:query', (event, sql, params) => {
+  // Note: raw SQL queries are not supported in client mode for security
+  if (isClientMode && clientServerIP) {
+    console.warn('db:query is not supported in client mode');
+    return { success: false, error: 'Not supported in client mode' };
+  }
   return dbQuery(sql, params);
 });
 
 ipcMain.handle('db:export', () => {
+  // Export from local db only (for backup purposes)
   return dbExportAll();
 });
 
 ipcMain.handle('db:import', (event, data) => {
+  // Import to local db only
   return dbImportAll(data);
 });
 
@@ -1531,9 +1484,11 @@ ipcMain.handle('network:getLocalDataPath', () => {
 ipcMain.handle('network:getDatabaseMode', () => {
   return {
     isClientMode: isClientMode,
-    dbPath: dbPath,
+    dbPath: isClientMode ? `${clientServerIP}:${clientServerPort}` : dbPath,
     localDbPath: localDbPath,
-    isConnectedToRemote: isClientMode && db !== null
+    serverIP: clientServerIP,
+    serverPort: clientServerPort,
+    isConnectedToRemote: isClientMode
   };
 });
 
