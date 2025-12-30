@@ -788,8 +788,9 @@ function getServerConfigFilePath() {
 }
 
 // Get local data path (for server mode - tells clients where the database is)
+// Returns the full path to the database file including payroll.db
 function getLocalDataPath() {
-  return dataDir;
+  return path.join(dataDir, 'payroll.db');
 }
 
 // Create the main application window
