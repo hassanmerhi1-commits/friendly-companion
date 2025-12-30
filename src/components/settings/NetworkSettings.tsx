@@ -163,8 +163,13 @@ export function NetworkSettings() {
 
   const connectToServer = async () => {
     if (!isElectron()) return;
-    if (!connectIP.trim() || !connectPath.trim()) {
-      toast.error("Preencha o IP e o caminho do servidor");
+    
+    // Allow either: full UNC path only OR IP + path
+    const uncPath = connectPath.trim();
+    const ip = connectIP.trim();
+    
+    if (!uncPath) {
+      toast.error("Preencha o caminho da partilha (UNC)");
       return;
     }
     
@@ -172,16 +177,28 @@ export function NetworkSettings() {
     try {
       const api = (window as any).electronAPI;
       
-      // Write the server-config.txt with the entered IP:Path
-      await api.network.writeServerConfigFile(connectIP.trim(), connectPath.trim());
+      let configContent: string;
       
-      toast.success("Configuração guardada! Reinicie a aplicação para ligar.");
-      toast.info("A reiniciar aplicação...", { duration: 2000 });
+      // If path starts with \\, it's a full UNC - write it directly
+      if (uncPath.startsWith('\\\\') || uncPath.startsWith('//')) {
+        configContent = uncPath.replace(/\//g, '\\');
+      } else if (ip) {
+        // IP + local path format
+        configContent = `${ip}:${uncPath}`;
+      } else {
+        toast.error("Forneça um caminho UNC (\\\\servidor\\partilha) ou IP + caminho local");
+        setIsConnecting(false);
+        return;
+      }
       
-      // Reload the app to apply the new config
+      // Write config directly as content
+      await api.network.writeServerConfigFile('', configContent);
+      
+      toast.success("Configuração guardada! A reiniciar...");
+      
       setTimeout(() => {
         window.location.reload();
-      }, 2000);
+      }, 1500);
     } catch (error: any) {
       toast.error(error.message || "Erro ao guardar configuração");
     }
@@ -275,33 +292,40 @@ export function NetworkSettings() {
               
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label htmlFor="serverIP" className="text-xs">IP do Servidor / Server IP</Label>
-                  <Input 
-                    id="serverIP"
-                    placeholder="Ex: 192.168.1.100"
-                    value={connectIP}
-                    onChange={(e) => setConnectIP(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-1">
-                  <Label htmlFor="serverPath" className="text-xs">Caminho da Pasta Partilhada / Shared Folder Path</Label>
+                  <Label htmlFor="serverPath" className="text-xs">Caminho da Partilha (UNC) / Shared Folder Path</Label>
                   <Input 
                     id="serverPath"
-                    placeholder="Ex: C:\PayrollAO\data"
+                    placeholder="\\DESKTOP-H3O5GT6\PayrollAOData"
                     value={connectPath}
                     onChange={(e) => setConnectPath(e.target.value)}
+                    className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground">
-                    O caminho exacto da pasta de dados no servidor
+                    Cole o caminho UNC completo da pasta partilhada (ex: \\SERVIDOR\NomeDaPartilha)
                   </p>
                 </div>
+                
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                    Opção avançada: IP + Caminho local
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    <Label htmlFor="serverIP" className="text-xs">IP do Servidor (opcional)</Label>
+                    <Input 
+                      id="serverIP"
+                      placeholder="Ex: 192.168.1.100"
+                      value={connectIP}
+                      onChange={(e) => setConnectIP(e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                </details>
                 
                 <Button 
                   onClick={connectToServer} 
                   className="w-full" 
                   variant="secondary"
-                  disabled={isConnecting || !connectIP.trim() || !connectPath.trim()}
+                  disabled={isConnecting || !connectPath.trim()}
                 >
                   <Link className="h-4 w-4 mr-2" />
                   {isConnecting ? 'A ligar...' : 'Ligar ao Servidor / Connect'}
