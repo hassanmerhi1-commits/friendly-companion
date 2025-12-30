@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { createElectronStorage } from '@/lib/electron-sqlite-storage';
+import { createHybridStorage } from '@/lib/hybrid-storage';
 
 export interface HolidayRecord {
   employeeId: string;
@@ -138,7 +138,7 @@ export const useHolidayStore = create<HolidayState>()(
     }),
     {
       name: 'payrollao-holidays',
-      storage: createJSONStorage(() => createElectronStorage('holidays')),
+      storage: createJSONStorage(() => createHybridStorage('holidays')),
     }
   )
 );

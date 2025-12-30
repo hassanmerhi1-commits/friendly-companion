@@ -22,6 +22,13 @@ declare global {
         export: () => Promise<any>;
         import: (data: any) => Promise<any>;
       };
+      remoteDb: {
+        getAll: (ip: string, port: number, table: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+        getById: (ip: string, port: number, table: string, id: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+        insert: (ip: string, port: number, table: string, data: any) => Promise<{ success: boolean; error?: string }>;
+        update: (ip: string, port: number, table: string, id: string, data: any) => Promise<{ success: boolean; error?: string }>;
+        delete: (ip: string, port: number, table: string, id: string) => Promise<{ success: boolean; error?: string }>;
+      };
       storage: {
         read: (fileName?: string) => Promise<Record<string, unknown> | null>;
         write: (data: Record<string, unknown>, fileName?: string) => Promise<boolean>;
@@ -37,6 +44,10 @@ declare global {
         fetchFromServer: (serverIP: string, port: number) => Promise<any>;
         pushToServer: (serverIP: string, port: number, data: any) => Promise<any>;
         pingServer: (serverIP: string, port: number) => Promise<any>;
+        readServerConfigFile: () => Promise<any>;
+        writeServerConfigFile: (ip: string, port: number) => Promise<any>;
+        deleteServerConfigFile: () => Promise<any>;
+        getServerConfigFilePath: () => Promise<string>;
       };
       platform: string;
       isElectron: boolean;

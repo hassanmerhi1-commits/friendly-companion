@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Database operations (SQLite)
+  // Database operations (SQLite - local)
   db: {
     getAll: (table) => ipcRenderer.invoke('db:getAll', table),
     getById: (table, id) => ipcRenderer.invoke('db:getById', table, id),
@@ -12,6 +12,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     query: (sql, params) => ipcRenderer.invoke('db:query', sql, params),
     export: () => ipcRenderer.invoke('db:export'),
     import: (data) => ipcRenderer.invoke('db:import', data),
+  },
+  
+  // Remote database operations (for client mode - calls server API directly)
+  remoteDb: {
+    getAll: (serverIP, port, table) => ipcRenderer.invoke('remoteDb:getAll', serverIP, port, table),
+    getById: (serverIP, port, table, id) => ipcRenderer.invoke('remoteDb:getById', serverIP, port, table, id),
+    insert: (serverIP, port, table, data) => ipcRenderer.invoke('remoteDb:insert', serverIP, port, table, data),
+    update: (serverIP, port, table, id, data) => ipcRenderer.invoke('remoteDb:update', serverIP, port, table, id, data),
+    delete: (serverIP, port, table, id) => ipcRenderer.invoke('remoteDb:delete', serverIP, port, table, id),
   },
   
   // Legacy storage operations (backward compatibility)
