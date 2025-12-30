@@ -8,12 +8,12 @@
     "buildResources": "public"
   },
   "extraMetadata": {
-    "main": "index.js"
+    "main": "index.cjs"
   },
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "index.js",
+    "index.cjs",
     "public/pwa-192x192.png",
     "public/pwa-512x512.png"
   ],
