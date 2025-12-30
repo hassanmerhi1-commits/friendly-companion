@@ -46,27 +46,41 @@ export function NetworkSettings() {
 
   const loadNetworkState = async () => {
     if (!isElectron()) return;
-    
+
     setIsRefreshing(true);
     try {
       const api = (window as any).electronAPI;
-      
+
       // Get database mode (this tells us if we're actually connected to remote DB)
       const dbMode = await api.network.getDatabaseMode();
       setDatabaseMode(dbMode);
-      
+
       // Get server-config.txt content
       const config = await api.network.readServerConfigFile();
       setServerConfig(config);
-      
+
+      // Keep the input filled with the currently saved config, so it never looks "empty"
+      if (config?.exists) {
+        const raw = (config as any).raw as string | undefined;
+        const inferred =
+          (raw && raw.trim())
+            ? raw.trim()
+            : config.serverIP
+              ? (config.serverPath ? `${config.serverIP}:${config.serverPath}` : `${config.serverIP}:${config.serverPort}`)
+              : (config.serverPath || '');
+        setConnectPath(inferred || '');
+      } else {
+        setConnectPath('');
+      }
+
       // Get local data path
       const dataPath = await api.network.getLocalDataPath();
       setLocalDataPath(dataPath);
-      
+
       // Get config file path
       const cfgPath = await api.network.getServerConfigFilePath();
       setConfigFilePath(cfgPath);
-      
+
       // Determine mode based on actual database connection
       if (dbMode.isClientMode) {
         setMode('client');
@@ -86,29 +100,33 @@ export function NetworkSettings() {
 
   const connectToDatabase = async () => {
     if (!isElectron()) return;
-    
+
     const path = connectPath.trim();
-    
+
     if (!path) {
       toast.error("Preencha o caminho da base de dados");
       return;
     }
-    
+
     setIsConnecting(true);
     try {
       const api = (window as any).electronAPI;
-      
+
       // Normalize path separators
       let configContent = path.replace(/\//g, '\\');
-      
+
       // Write config
       await api.network.writeServerConfigFile('', configContent);
-      
+
       toast.success("Configuração guardada! A reiniciar...");
-      
+
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        if (api.app?.relaunch) {
+          api.app.relaunch();
+        } else {
+          window.location.reload();
+        }
+      }, 800);
     } catch (error: any) {
       toast.error(error.message || "Erro ao guardar configuração");
     }
@@ -117,18 +135,22 @@ export function NetworkSettings() {
 
   const disconnectFromDatabase = async () => {
     if (!isElectron()) return;
-    
+
     try {
       const api = (window as any).electronAPI;
-      
+
       // Delete server-config.txt
       await api.network.deleteServerConfigFile();
-      
+
       toast.success("Desligado! A reiniciar...");
-      
+
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        if (api.app?.relaunch) {
+          api.app.relaunch();
+        } else {
+          window.location.reload();
+        }
+      }, 800);
     } catch (error: any) {
       toast.error(error.message || "Erro ao desligar");
     }
