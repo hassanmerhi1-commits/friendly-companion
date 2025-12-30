@@ -749,11 +749,16 @@ function readServerConfigFile() {
 }
 
 // Write server-config.txt (Dolly-style) - Server creates this for clients
-// Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+// Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data") or just UNC path
 function writeServerConfigFile(ip, pathOrPort) {
   try {
-    // Support both old format (IP, port) and new format (IP, path)
-    const content = `${ip}:${pathOrPort}`;
+    let content;
+    // If ip is empty and pathOrPort is a full UNC or content, use it directly
+    if (!ip && pathOrPort) {
+      content = pathOrPort;
+    } else {
+      content = `${ip}:${pathOrPort}`;
+    }
     fs.writeFileSync(serverConfigPath, content, 'utf-8');
     console.log('Server config file created:', content);
     return { success: true, path: serverConfigPath, content };
