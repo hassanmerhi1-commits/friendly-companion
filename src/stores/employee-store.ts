@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import type { Employee, EmployeeFormData } from '@/types/employee';
-import { createHybridStorage } from '@/lib/hybrid-storage';
 import { usePayrollStore } from '@/stores/payroll-store';
 interface EmployeeState {
   employees: Employee[];
@@ -137,7 +136,6 @@ export const useEmployeeStore = create<EmployeeState>()(
     }),
     {
       name: 'payrollao-employees',
-      storage: createJSONStorage(() => createHybridStorage('employees')),
     }
   )
 );

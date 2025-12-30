@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { createHybridStorage } from '@/lib/hybrid-storage';
+import { persist } from 'zustand/middleware';
 
 export interface HolidayRecord {
   employeeId: string;
@@ -138,7 +137,6 @@ export const useHolidayStore = create<HolidayState>()(
     }),
     {
       name: 'payrollao-holidays',
-      storage: createJSONStorage(() => createHybridStorage('holidays')),
     }
   )
 );

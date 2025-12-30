@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { createHybridStorage } from '@/lib/hybrid-storage';
+import { persist } from 'zustand/middleware';
 import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
 
@@ -305,7 +304,6 @@ export const useAbsenceStore = create<AbsenceStore>()(
     }),
     {
       name: 'payroll-absences',
-      storage: createJSONStorage(() => createHybridStorage('absences')),
     }
   )
 );
