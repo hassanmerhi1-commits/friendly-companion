@@ -31,7 +31,7 @@ if (!require('fs').existsSync(dataDir)) {
   require('fs').mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'payroll.db');
+const localDbPath = path.join(dataDir, 'payroll.db');
 const networkConfigPath = path.join(dataDir, 'network-config.json');
 const serverConfigPath = path.join(dataDir, 'server-config.txt'); // Dolly-style simple config
 
@@ -39,6 +39,60 @@ let mainWindow;
 let httpServer = null;
 let serverPort = 3847;
 let db = null;
+let dbPath = localDbPath; // Will be updated if client mode
+let isClientMode = false;
+
+// ============= CLIENT MODE DATABASE PATH =============
+// Check if server-config.txt exists and use remote database path
+function getRemoteDatabasePath() {
+  try {
+    if (fs.existsSync(serverConfigPath)) {
+      const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
+      if (content) {
+        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+        const colonIndex = content.indexOf(':');
+        if (colonIndex > 0) {
+          const ip = content.substring(0, colonIndex);
+          const remotePath = content.substring(colonIndex + 1);
+          
+          // Skip if it's old port format (just numbers)
+          if (/^\d+$/.test(remotePath)) {
+            return null;
+          }
+          
+          // Convert to UNC path: \\IP\C$\PayrollAO\data\payroll.db
+          // Replace C: with C$ for administrative share
+          let uncPath = remotePath.replace(/^([A-Za-z]):/, '$1$$');
+          uncPath = `\\\\${ip}\\${uncPath}\\payroll.db`;
+          
+          console.log('Remote database path:', uncPath);
+          return uncPath;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error reading server config for remote path:', error);
+  }
+  return null;
+}
+
+// Check for client mode on startup
+const remotePath = getRemoteDatabasePath();
+if (remotePath) {
+  // Verify the remote database exists
+  try {
+    if (fs.existsSync(remotePath)) {
+      dbPath = remotePath;
+      isClientMode = true;
+      console.log('CLIENT MODE: Using remote database at', dbPath);
+    } else {
+      console.log('Remote database not accessible, using local database');
+    }
+  } catch (error) {
+    console.error('Cannot access remote database:', error.message);
+    console.log('Using local database instead');
+  }
+}
 
 // Get the correct path for production vs development
 function getDistPath() {
@@ -1408,6 +1462,16 @@ ipcMain.handle('network:getServerConfigFilePath', () => {
 
 ipcMain.handle('network:getLocalDataPath', () => {
   return dataDir;
+});
+
+// Get database connection mode info
+ipcMain.handle('network:getDatabaseMode', () => {
+  return {
+    isClientMode: isClientMode,
+    dbPath: dbPath,
+    localDbPath: localDbPath,
+    isConnectedToRemote: isClientMode && db !== null
+  };
 });
 
 // Remote database operations (for client mode - live central database)

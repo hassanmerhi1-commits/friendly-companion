@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteServerConfigFile: () => ipcRenderer.invoke('network:deleteServerConfigFile'),
     getServerConfigFilePath: () => ipcRenderer.invoke('network:getServerConfigFilePath'),
     getLocalDataPath: () => ipcRenderer.invoke('network:getLocalDataPath'),
+    getDatabaseMode: () => ipcRenderer.invoke('network:getDatabaseMode'),
   },
   
   // Platform info
