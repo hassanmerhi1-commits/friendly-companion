@@ -720,9 +720,19 @@ function readServerConfigFile() {
     if (fs.existsSync(serverConfigPath)) {
       const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
       if (content) {
-        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
-        // Split on first colon only to preserve Windows paths with drive letters
+        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data") or UNC path (\\SERVER\Share\...)
         const colonIndex = content.indexOf(':');
+        
+        // UNC-only path (no IP prefix) - e.g., \\SERVER\Share\data\payroll.db
+        if (colonIndex <= 0 && content.startsWith('\\\\')) {
+          return {
+            exists: true,
+            serverIP: '',
+            serverPort: 3847,
+            serverPath: content // The full UNC path
+          };
+        }
+        
         if (colonIndex > 0) {
           const ip = content.substring(0, colonIndex);
           const restAfterIp = content.substring(colonIndex + 1);
