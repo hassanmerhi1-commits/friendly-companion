@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import type { Branch, BranchFormData } from '@/types/branch';
-import { createHybridStorage } from '@/lib/hybrid-storage';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 
@@ -95,7 +94,6 @@ export const useBranchStore = create<BranchState>()(
     }),
     {
       name: 'payrollao-branches',
-      storage: createJSONStorage(() => createHybridStorage('branches')),
     }
   )
 );

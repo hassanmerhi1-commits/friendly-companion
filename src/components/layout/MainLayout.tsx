@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { ConnectionStatusBanner } from "@/components/ConnectionStatusBanner";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -12,7 +11,6 @@ export function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-background flex flex-col">
       <Sidebar />
       <main className="pl-64 flex-1 flex flex-col">
-        <ConnectionStatusBanner />
         <div className="flex justify-end p-4 pb-0">
           <LanguageSwitcher />
         </div>

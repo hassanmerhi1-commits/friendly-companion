@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
-import { createHybridStorage } from '@/lib/hybrid-storage';
 
 interface DeductionState {
   deductions: Deduction[];
@@ -93,7 +92,6 @@ export const useDeductionStore = create<DeductionState>()(
     }),
     {
       name: 'payrollao-deductions',
-      storage: createJSONStorage(() => createHybridStorage('deductions')),
     }
   )
 );
