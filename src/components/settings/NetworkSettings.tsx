@@ -249,9 +249,9 @@ export function NetworkSettings() {
                   onChange={(e) => setConnectPath(e.target.value)}
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Exemplos: <code>\\SERVIDOR\Partilha\data\payroll.db</code> ou <code>192.168.1.100:C:\PayrollAO\data</code>
-                </p>
+                 <p className="text-xs text-muted-foreground">
+                   Exemplos: <code>\\SERVIDOR\Partilha\data\payroll.db</code> (recomendado) ou <code>192.168.1.100:C:\PayrollAO\data</code> / <code>192.168.1.100:C:\PayrollAO\data\payroll.db</code>
+                 </p>
               </div>
               
               <Button 
