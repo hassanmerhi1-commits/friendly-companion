@@ -71,9 +71,13 @@ export const NetworkSettings = () => {
   }, []);
 
   useEffect(() => {
-    setServerIP(config.serverIP ?? "");
-    setServerPort(String(config.serverPort ?? 3847));
-  }, [config]);
+    // Format IP as UNC path when displaying
+    if (config.serverIP) {
+      setServerIP(`\\\\${config.serverIP}\\PayrollAO`);
+    } else {
+      setServerIP("");
+    }
+  }, [config.serverIP]);
 
   const handleModeChange = async (mode: NetworkMode) => {
     if (mode === 'server') {
@@ -114,21 +118,44 @@ export const NetworkSettings = () => {
   };
 
   const handleSaveClientConfig = async () => {
-    // Allow inputs like "http://192.168.1.10:3847" or "192.168.1.10:3847"
+    // Parse various input formats:
+    // - UNC style: \\192.168.1.100\PayrollAO
+    // - IP:port: 192.168.1.100:3847
+    // - Plain IP: 192.168.1.100
+    // - URL: http://192.168.1.100:3847
     let ip = serverIP.trim();
-    let port = parseInt(serverPort) || 3847;
+    let port = 3847; // default port
 
+    // Handle UNC path format: \\IP\PayrollAO
+    if (ip.startsWith('\\\\')) {
+      const uncMatch = ip.match(/^\\\\([^\\]+)/);
+      if (uncMatch) {
+        ip = uncMatch[1];
+      }
+    }
+
+    // Remove protocol if present
     ip = ip.replace(/^https?:\/\//, '').trim();
 
+    // Remove path after IP
     if (ip.includes('/')) {
       ip = ip.split('/')[0];
     }
+    if (ip.includes('\\')) {
+      ip = ip.split('\\')[0];
+    }
 
+    // Parse port if included (IP:port format)
     if (ip.includes(':')) {
       const [maybeIp, maybePort] = ip.split(':');
       ip = (maybeIp || '').trim();
       const p = parseInt((maybePort || '').trim());
       if (!Number.isNaN(p)) port = p;
+    }
+
+    if (!ip) {
+      toast.error('Endereço IP inválido');
+      return;
     }
 
     await setConfig({
@@ -137,9 +164,8 @@ export const NetworkSettings = () => {
       serverPort: port,
     });
 
-    setServerIP(ip);
-    setServerPort(String(port));
-    toast.success(t.network?.configSaved || 'Configuração guardada. A recarregar para conectar ao servidor...');
+    setServerIP(`\\\\${ip}\\PayrollAO`); // Show UNC format
+    toast.success('Configuração guardada. A recarregar para conectar ao servidor...');
     
     // Reload after a short delay to apply client mode and load data from server
     setTimeout(() => {
@@ -284,15 +310,15 @@ export const NetworkSettings = () => {
             ) : (
               <WifiOff className="h-4 w-4 text-orange-600" />
             )}
-            <span className={`text-sm font-medium ${isConnected ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
+            <span className={`text-sm font-medium font-mono ${isConnected ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
               {isConnected 
-                ? `Connected to ${config.serverIP}:${config.serverPort}` 
-                : `Configured: ${config.serverIP}:${config.serverPort} (not connected)`}
+                ? `Conectado: \\\\${config.serverIP}\\PayrollAO` 
+                : `Configurado: \\\\${config.serverIP}\\PayrollAO (offline)`}
             </span>
           </div>
           {isConnected && lastSyncTime && (
             <p className="text-xs text-green-600 dark:text-green-500 mt-1">
-              Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
+              Última sync: {new Date(lastSyncTime).toLocaleTimeString()}
             </p>
           )}
         </div>
@@ -358,8 +384,8 @@ export const NetworkSettings = () => {
               <p className="text-sm font-medium">{t.network?.serverAddresses || 'Endereços do Servidor:'}</p>
               {localIPs.map((ip, idx) => (
                 <div key={idx} className="flex items-center gap-2 text-sm">
-                  <code className="bg-background px-2 py-1 rounded">
-                    {ip.address}:{serverStatus.port}
+                  <code className="bg-background px-2 py-1 rounded font-mono">
+                    \\{ip.address}\PayrollAO
                   </code>
                   <span className="text-muted-foreground">({ip.name})</span>
                   <Button 
@@ -367,14 +393,16 @@ export const NetworkSettings = () => {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      copyToClipboard(`${ip.address}:${serverStatus.port}`);
+                      copyToClipboard(`\\\\${ip.address}\\PayrollAO`);
                     }}
                   >
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
               ))}
-              
+              <p className="text-xs text-muted-foreground mt-1">
+                Porta HTTP: {serverStatus.port}
+              </p>
               {/* Dolly-style server-config.txt */}
               <div className="mt-4 pt-3 border-t border-border">
                 <div className="flex items-center gap-2 mb-2">
@@ -385,8 +413,8 @@ export const NetworkSettings = () => {
                 {serverConfigFile?.exists ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
-                      <code className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
-                        server-config.txt: {serverConfigFile.serverIP}:{serverConfigFile.serverPort}
+                      <code className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded font-mono">
+                        \\{serverConfigFile.serverIP}\PayrollAO
                       </code>
                       <Badge variant="outline" className="text-green-600 border-green-600">
                         <Check className="h-3 w-3 mr-1" />
@@ -507,23 +535,17 @@ export const NetworkSettings = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-2">
-                  <Label>{t.network?.serverIP || 'Endereço IP do Servidor'}</Label>
-                  <Input
-                    placeholder="192.168.1.100"
-                    value={serverIP}
-                    onChange={(e) => setServerIP(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t.network?.port || 'Porta'}</Label>
-                  <Input
-                    placeholder="3847"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Caminho do Servidor (UNC ou IP)</Label>
+                <Input
+                  placeholder="\\192.168.1.100\PayrollAO ou 192.168.1.100"
+                  value={serverIP}
+                  onChange={(e) => setServerIP(e.target.value)}
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Formatos aceites: <code className="bg-muted px-1">\\IP\PayrollAO</code> ou <code className="bg-muted px-1">IP:porta</code>
+                </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
