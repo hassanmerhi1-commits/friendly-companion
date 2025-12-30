@@ -139,7 +139,12 @@ export const NetworkSettings = () => {
 
     setServerIP(ip);
     setServerPort(String(port));
-    toast.success(t.network?.configSaved || 'Configuração guardada');
+    toast.success(t.network?.configSaved || 'Configuração guardada. A recarregar para conectar ao servidor...');
+    
+    // Reload after a short delay to apply client mode and load data from server
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
 
   const handlePull = async () => {
@@ -243,7 +248,7 @@ export const NetworkSettings = () => {
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Globe className="h-5 w-5" />
         </div>
-        <div>
+        <div className="flex-1">
           <h2 className="font-display font-semibold text-foreground">
             {t.network?.title || 'Rede Local (LAN)'}
           </h2>
@@ -251,7 +256,47 @@ export const NetworkSettings = () => {
             {t.network?.subtitle || 'Partilhar dados com outros computadores na rede'}
           </p>
         </div>
+        {/* Current Mode Badge */}
+        <Badge 
+          variant={config.mode === 'server' ? 'default' : config.mode === 'client' ? 'secondary' : 'outline'}
+          className={
+            config.mode === 'server' ? 'bg-green-600' : 
+            config.mode === 'client' && isConnected ? 'bg-blue-600 text-white' :
+            config.mode === 'client' ? 'bg-orange-500 text-white' : ''
+          }
+        >
+          {config.mode === 'server' ? 'SERVER' : 
+           config.mode === 'client' ? (isConnected ? 'CONNECTED' : 'CLIENT') : 
+           'OFFLINE'}
+        </Badge>
       </div>
+
+      {/* Connection Status Banner for Client Mode */}
+      {config.mode === 'client' && config.serverIP && (
+        <div className={`mb-4 p-3 rounded-lg border ${
+          isConnected 
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <Check className="h-4 w-4 text-green-600" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-orange-600" />
+            )}
+            <span className={`text-sm font-medium ${isConnected ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
+              {isConnected 
+                ? `Connected to ${config.serverIP}:${config.serverPort}` 
+                : `Configured: ${config.serverIP}:${config.serverPort} (not connected)`}
+            </span>
+          </div>
+          {isConnected && lastSyncTime && (
+            <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+              Last sync: {new Date(lastSyncTime).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Mode Selection */}
       <div className="space-y-4 mb-6">
