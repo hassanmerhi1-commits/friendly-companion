@@ -1,20 +1,21 @@
 @echo off
-setlocal enableextensions
+setlocal enableextensions enabledelayedexpansion
 
 title PayrollAO - Building Installer...
 
 REM Always run from the folder where this .bat file lives
-cd /d "%~dp0%"
+REM Use quotes to handle paths with spaces and special characters
+cd /d "%~dp0"
 
 echo ========================================
 echo    PayrollAO - Build Installer
 echo ========================================
 echo.
-echo Working directory: %CD%
+echo Working directory: "%CD%"
 echo.
 
 if not exist "package.json" (
-    echo ERROR: package.json not found in %CD%
+    echo ERROR: package.json not found in "%CD%"
     echo Make sure you are running this .bat from the project root.
     goto :end
 )
@@ -49,7 +50,7 @@ echo ========================================
 echo    BUILD COMPLETE!
 echo ========================================
 echo.
-echo Your output should be in: %CD%\release
+echo Your output should be in: "%CD%\release"
 if exist "release" (
     echo.
     echo Contents of release folder:
@@ -82,4 +83,3 @@ goto :end
 :end
 echo.
 pause
-
