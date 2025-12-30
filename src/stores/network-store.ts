@@ -7,6 +7,7 @@ interface NetworkConfig {
   mode: NetworkMode;
   serverIP: string;
   serverPort: number;
+  databasePath: string; // Full path to database on server, e.g., C:\...\payroll.db
   autoSyncEnabled: boolean;
   autoSyncInterval: number; // in seconds
 }
@@ -71,6 +72,7 @@ export const useNetworkStore = create<NetworkState>()(
         mode: 'standalone',
         serverIP: '',
         serverPort: 3847,
+        databasePath: '', // e.g., C:\Users\user\AppData\Local\Programs\PayrollAO\data\payroll.db
         autoSyncEnabled: false,
         autoSyncInterval: 30, // default 30 seconds
       },

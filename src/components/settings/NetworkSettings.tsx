@@ -71,13 +71,15 @@ export const NetworkSettings = () => {
   }, []);
 
   useEffect(() => {
-    // Format IP as UNC path when displaying
-    if (config.serverIP) {
-      setServerIP(`\\\\${config.serverIP}\\PayrollAO`);
+    // Format as IP:PATH when displaying
+    if (config.serverIP && config.databasePath) {
+      setServerIP(`${config.serverIP}:${config.databasePath}`);
+    } else if (config.serverIP) {
+      setServerIP(config.serverIP);
     } else {
       setServerIP("");
     }
-  }, [config.serverIP]);
+  }, [config.serverIP, config.databasePath]);
 
   const handleModeChange = async (mode: NetworkMode) => {
     if (mode === 'server') {
@@ -105,7 +107,16 @@ export const NetworkSettings = () => {
     setIsTesting(true);
     setTestResult(null);
 
-    const result = await testConnection(serverIP, parseInt(serverPort) || 3847);
+    // Extract just the IP for testing (handle IP:PATH format)
+    let testIp = serverIP.trim();
+    if (testIp.match(/^[\d.]+:[A-Za-z]:\\/)) {
+      testIp = testIp.substring(0, testIp.indexOf(':'));
+    } else if (testIp.startsWith('\\\\')) {
+      const match = testIp.match(/^\\\\([^\\]+)/);
+      if (match) testIp = match[1];
+    }
+
+    const result = await testConnection(testIp, parseInt(serverPort) || 3847);
     
     setIsTesting(false);
     setTestResult(result.success ? 'success' : 'error');
@@ -118,39 +129,48 @@ export const NetworkSettings = () => {
   };
 
   const handleSaveClientConfig = async () => {
-    // Parse various input formats:
-    // - UNC style: \\192.168.1.100\PayrollAO
-    // - IP:port: 192.168.1.100:3847
-    // - Plain IP: 192.168.1.100
-    // - URL: http://192.168.1.100:3847
-    let ip = serverIP.trim();
+    // Parse the IP:PATH format like 10.0.0.45:C:\Users\user\AppData\Local\...\payroll.db
+    // Also accept: \\IP\share, IP:port, plain IP
+    let input = serverIP.trim();
+    let ip = '';
     let port = 3847; // default port
+    let dbPath = '';
 
     // Handle UNC path format: \\IP\PayrollAO
-    if (ip.startsWith('\\\\')) {
-      const uncMatch = ip.match(/^\\\\([^\\]+)/);
+    if (input.startsWith('\\\\')) {
+      const uncMatch = input.match(/^\\\\([^\\]+)/);
       if (uncMatch) {
         ip = uncMatch[1];
       }
+    } 
+    // Handle IP:PATH format like 10.0.0.45:C:\...\payroll.db
+    else if (input.match(/^[\d.]+:[A-Za-z]:\\/)) {
+      // Format: IP:DriveLetter:\path
+      const colonIndex = input.indexOf(':');
+      ip = input.substring(0, colonIndex);
+      dbPath = input.substring(colonIndex + 1);
     }
-
-    // Remove protocol if present
-    ip = ip.replace(/^https?:\/\//, '').trim();
-
-    // Remove path after IP
-    if (ip.includes('/')) {
-      ip = ip.split('/')[0];
-    }
-    if (ip.includes('\\')) {
-      ip = ip.split('\\')[0];
-    }
-
-    // Parse port if included (IP:port format)
-    if (ip.includes(':')) {
-      const [maybeIp, maybePort] = ip.split(':');
-      ip = (maybeIp || '').trim();
-      const p = parseInt((maybePort || '').trim());
+    // Handle IP:port format
+    else if (input.match(/^[\d.]+:\d+$/)) {
+      const [maybeIp, maybePort] = input.split(':');
+      ip = maybeIp.trim();
+      const p = parseInt(maybePort.trim());
       if (!Number.isNaN(p)) port = p;
+    }
+    // Plain IP
+    else {
+      // Remove protocol if present
+      ip = input.replace(/^https?:\/\//, '').trim();
+      // Remove path after IP
+      if (ip.includes('/')) ip = ip.split('/')[0];
+      if (ip.includes('\\')) ip = ip.split('\\')[0];
+      // Check for port
+      if (ip.includes(':')) {
+        const [maybeIp, maybePort] = ip.split(':');
+        ip = maybeIp.trim();
+        const p = parseInt(maybePort.trim());
+        if (!Number.isNaN(p)) port = p;
+      }
     }
 
     if (!ip) {
@@ -162,9 +182,16 @@ export const NetworkSettings = () => {
       mode: 'client',
       serverIP: ip,
       serverPort: port,
+      databasePath: dbPath,
     });
 
-    setServerIP(`\\\\${ip}\\PayrollAO`); // Show UNC format
+    // Display the saved format
+    if (dbPath) {
+      setServerIP(`${ip}:${dbPath}`);
+    } else {
+      setServerIP(ip);
+    }
+    
     toast.success('Configuração guardada. A recarregar para conectar ao servidor...');
     
     // Reload after a short delay to apply client mode and load data from server
@@ -312,8 +339,8 @@ export const NetworkSettings = () => {
             )}
             <span className={`text-sm font-medium font-mono ${isConnected ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`}>
               {isConnected 
-                ? `Conectado: \\\\${config.serverIP}\\PayrollAO` 
-                : `Configurado: \\\\${config.serverIP}\\PayrollAO (offline)`}
+                ? `Conectado: ${config.databasePath ? `${config.serverIP}:${config.databasePath}` : config.serverIP}` 
+                : `Configurado: ${config.databasePath ? `${config.serverIP}:${config.databasePath}` : config.serverIP} (offline)`}
             </span>
           </div>
           {isConnected && lastSyncTime && (
@@ -536,15 +563,15 @@ export const NetworkSettings = () => {
               )}
 
               <div className="space-y-2">
-                <Label>Caminho do Servidor (UNC ou IP)</Label>
+                <Label>Caminho do Servidor (IP:Path)</Label>
                 <Input
-                  placeholder="\\192.168.1.100\PayrollAO ou 192.168.1.100"
+                  placeholder="10.0.0.45:C:\Users\user\AppData\Local\Programs\PayrollAO\data\payroll.db"
                   value={serverIP}
                   onChange={(e) => setServerIP(e.target.value)}
-                  className="font-mono"
+                  className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Formatos aceites: <code className="bg-muted px-1">\\IP\PayrollAO</code> ou <code className="bg-muted px-1">IP:porta</code>
+                  Formato: <code className="bg-muted px-1">IP:C:\caminho\para\payroll.db</code> ou apenas <code className="bg-muted px-1">IP</code>
                 </p>
               </div>
 
