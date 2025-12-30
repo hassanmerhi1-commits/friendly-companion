@@ -624,7 +624,8 @@ function writeNetworkConfig(config) {
 }
 
 // ============= DOLLY-STYLE SERVER CONFIG FILE =============
-// Simple text file format: IP:PORT (e.g., "10.0.0.45:3847")
+// Simple text file format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+// This allows clients to connect to a server's database folder
 
 // Read server-config.txt (Dolly-style)
 function readServerConfigFile() {
@@ -632,29 +633,51 @@ function readServerConfigFile() {
     if (fs.existsSync(serverConfigPath)) {
       const content = fs.readFileSync(serverConfigPath, 'utf-8').trim();
       if (content) {
-        const parts = content.split(':');
-        if (parts.length >= 2) {
-          return {
-            exists: true,
-            serverIP: parts[0],
-            serverPort: parseInt(parts[1]) || 3847
-          };
+        // Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+        // Split on first colon only to preserve Windows paths with drive letters
+        const colonIndex = content.indexOf(':');
+        if (colonIndex > 0) {
+          const ip = content.substring(0, colonIndex);
+          const restAfterIp = content.substring(colonIndex + 1);
+          
+          // Check if this is IP:PORT format (old) or IP:PATH format (new)
+          // If it's just a number, it's the old port format
+          if (/^\d+$/.test(restAfterIp)) {
+            // Old format: IP:PORT - treat as port
+            return {
+              exists: true,
+              serverIP: ip,
+              serverPort: parseInt(restAfterIp) || 3847,
+              serverPath: ''
+            };
+          } else {
+            // New format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+            // The path might start with a drive letter like C:
+            return {
+              exists: true,
+              serverIP: ip,
+              serverPort: 3847, // Default port
+              serverPath: restAfterIp // Full path including drive letter
+            };
+          }
         }
       }
     }
   } catch (error) {
     console.error('Error reading server-config.txt:', error);
   }
-  return { exists: false, serverIP: '', serverPort: 3847 };
+  return { exists: false, serverIP: '', serverPort: 3847, serverPath: '' };
 }
 
 // Write server-config.txt (Dolly-style) - Server creates this for clients
-function writeServerConfigFile(ip, port) {
+// Format: IP:PATH (e.g., "10.0.0.45:C:\PayrollAO\data")
+function writeServerConfigFile(ip, pathOrPort) {
   try {
-    const content = `${ip}:${port}`;
+    // Support both old format (IP, port) and new format (IP, path)
+    const content = `${ip}:${pathOrPort}`;
     fs.writeFileSync(serverConfigPath, content, 'utf-8');
     console.log('Server config file created:', content);
-    return { success: true, path: serverConfigPath };
+    return { success: true, path: serverConfigPath, content };
   } catch (error) {
     console.error('Error writing server-config.txt:', error);
     return { success: false, error: error.message };
@@ -678,6 +701,11 @@ function deleteServerConfigFile() {
 // Get the path to server-config.txt
 function getServerConfigFilePath() {
   return serverConfigPath;
+}
+
+// Get local data path (for server mode - tells clients where the database is)
+function getLocalDataPath() {
+  return dataDir;
 }
 
 // Create the main application window
@@ -1376,6 +1404,10 @@ ipcMain.handle('network:deleteServerConfigFile', () => {
 
 ipcMain.handle('network:getServerConfigFilePath', () => {
   return getServerConfigFilePath();
+});
+
+ipcMain.handle('network:getLocalDataPath', () => {
+  return dataDir;
 });
 
 // Remote database operations (for client mode - live central database)

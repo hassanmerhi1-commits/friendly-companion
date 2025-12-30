@@ -43,9 +43,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pingServer: (serverIP, port) => ipcRenderer.invoke('network:pingServer', serverIP, port),
     // Dolly-style server config file
     readServerConfigFile: () => ipcRenderer.invoke('network:readServerConfigFile'),
-    writeServerConfigFile: (ip, port) => ipcRenderer.invoke('network:writeServerConfigFile', ip, port),
+    writeServerConfigFile: (ip, pathOrPort) => ipcRenderer.invoke('network:writeServerConfigFile', ip, pathOrPort),
     deleteServerConfigFile: () => ipcRenderer.invoke('network:deleteServerConfigFile'),
     getServerConfigFilePath: () => ipcRenderer.invoke('network:getServerConfigFilePath'),
+    getLocalDataPath: () => ipcRenderer.invoke('network:getLocalDataPath'),
   },
   
   // Platform info
