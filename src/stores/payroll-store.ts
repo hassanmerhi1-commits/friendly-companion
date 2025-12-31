@@ -1,9 +1,8 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
-import { createElectronStorage } from '@/lib/electron-sqlite-storage';
 
 interface PayrollState {
   periods: PayrollPeriod[];
@@ -439,7 +438,6 @@ export const usePayrollStore = create<PayrollState>()(
     }),
     {
       name: 'payrollao-payroll',
-      storage: createJSONStorage(() => createElectronStorage('payroll_records')),
     }
   )
 );

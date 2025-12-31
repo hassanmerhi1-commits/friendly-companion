@@ -12,11 +12,7 @@ if (!isElectron()) {
   });
 }
 
-// Initialize Electron storage if running in Electron
-async function init() {
-  await initElectronStorage();
-  
-  createRoot(document.getElementById("root")!).render(<App />);
-}
+// Simple init - no automatic storage sync
+initElectronStorage();
 
-init();
+createRoot(document.getElementById("root")!).render(<App />);
