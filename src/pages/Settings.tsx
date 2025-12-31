@@ -19,6 +19,7 @@ import {
 import { SQLiteBackupSettings } from "@/components/settings/SQLiteBackupSettings";
 import { DataResetSettings } from "@/components/settings/DataResetSettings";
 import { NetworkSettings } from "@/components/settings/NetworkSettings";
+import { DatabaseSettings } from "@/components/settings/DatabaseSettings";
 import { getSelectedProvince, clearProvinceSelection, ANGOLA_PROVINCES } from "@/lib/province-storage";
 
 const Settings = () => {
@@ -128,6 +129,9 @@ const Settings = () => {
 
           {/* Network Settings */}
           <NetworkSettings />
+
+          {/* Database Creation (Electron only) */}
+          <DatabaseSettings />
 
           {/* SQLite Database Backup (Electron only) */}
           <SQLiteBackupSettings />
