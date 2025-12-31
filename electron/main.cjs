@@ -1,14 +1,12 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
 const os = require('os');
 
 // ============= PATHS AND CONFIGURATION =============
 // Install location is always C:\PayrollAO
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
-const SERVER_CONFIG_FILE_PATH = path.join(INSTALL_DIR, 'server-config.txt');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
 
 // Ensure install directory exists
@@ -31,17 +29,14 @@ if (!fs.existsSync(IP_FILE_PATH)) {
 }
 
 let mainWindow;
-let httpServer = null;
-let serverPort = 3847;
 let db = null;
 let dbPath = null;
 let isClientMode = false;
-let isUNCPath = false;
 
-// ============= IP FILE PARSING =============
+// ============= IP FILE PARSING (DOLLY STYLE) =============
 // Format: 
 //   Server: C:\PayrollAO\payroll.db (local path)
-//   Client: 10.0.0.10:C:\PayrollAO\payroll.db (converts to \\10.0.0.10\C\PayrollAO\payroll.db)
+//   Client: 10.0.0.10:C:\PayrollAO\payroll.db (converts to \\10.0.0.10\C$\PayrollAO\payroll.db)
 
 function parseIPFile() {
   try {
@@ -100,7 +95,6 @@ function checkDatabaseExists(dbFilePath) {
 }
 
 // ============= ACTIVATION SYSTEM =============
-// One-time activation on first install, stored permanently
 
 function isAppActivated() {
   try {
@@ -127,11 +121,9 @@ function activateApp() {
 }
 
 // ============= DATABASE CREATION =============
-// Only created manually via Settings button
 
 function createNewDatabase(customPath = null) {
   try {
-    // Get path from IP file or use custom path
     let targetPath = customPath;
     
     if (!targetPath) {
@@ -145,27 +137,21 @@ function createNewDatabase(customPath = null) {
       targetPath = ipConfig.path;
     }
 
-    // Check if database already exists
     if (fs.existsSync(targetPath)) {
       return { success: false, error: 'Database already exists at this location.' };
     }
 
-    // Ensure parent directory exists
     const parentDir = path.dirname(targetPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
-    // Create new database with all tables
     const Database = require('better-sqlite3');
     const newDb = new Database(targetPath);
     
-    // Enable WAL mode
     newDb.pragma('journal_mode = WAL');
     
-    // Create all tables
     newDb.exec(`
-      -- Employees table
       CREATE TABLE IF NOT EXISTS employees (
         id TEXT PRIMARY KEY,
         employee_number TEXT,
@@ -202,7 +188,6 @@ function createNewDatabase(customPath = null) {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Branches table
       CREATE TABLE IF NOT EXISTS branches (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -219,7 +204,6 @@ function createNewDatabase(customPath = null) {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Deductions table
       CREATE TABLE IF NOT EXISTS deductions (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -236,7 +220,6 @@ function createNewDatabase(customPath = null) {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Payroll periods table
       CREATE TABLE IF NOT EXISTS payroll_periods (
         id TEXT PRIMARY KEY,
         year INTEGER NOT NULL,
@@ -257,7 +240,6 @@ function createNewDatabase(customPath = null) {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Payroll entries table
       CREATE TABLE IF NOT EXISTS payroll_entries (
         id TEXT PRIMARY KEY,
         period_id TEXT NOT NULL,
@@ -291,7 +273,6 @@ function createNewDatabase(customPath = null) {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Holiday records table
       CREATE TABLE IF NOT EXISTS holidays (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -307,7 +288,6 @@ function createNewDatabase(customPath = null) {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Users table
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
@@ -320,7 +300,6 @@ function createNewDatabase(customPath = null) {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Absences table
       CREATE TABLE IF NOT EXISTS absences (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -342,14 +321,12 @@ function createNewDatabase(customPath = null) {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
-      -- Settings table
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
-      -- Documents table
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,
         employee_id TEXT,
@@ -360,7 +337,6 @@ function createNewDatabase(customPath = null) {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
 
-      -- Insert default admin user
       INSERT OR IGNORE INTO users (id, username, password, name, role, is_active) 
       VALUES ('admin-001', 'admin', 'admin', 'Administrador', 'admin', 1);
     `);
@@ -401,7 +377,6 @@ function getDistPath() {
 // ============= SQLite DATABASE =============
 
 function initDatabase() {
-  // Parse IP file to get database path
   const ipConfig = parseIPFile();
   
   if (!ipConfig.valid) {
@@ -411,9 +386,7 @@ function initDatabase() {
 
   dbPath = ipConfig.path;
   isClientMode = ipConfig.isClient;
-  isUNCPath = ipConfig.isClient; // UNC paths are used for client mode
 
-  // Check if database exists
   if (!checkDatabaseExists(dbPath)) {
     console.log('Database not found at:', dbPath);
     return { success: false, error: `Database not found at: ${dbPath}`, needsDatabase: true };
@@ -426,10 +399,10 @@ function initDatabase() {
     // Enable WAL mode for better concurrent access
     db.pragma('journal_mode = WAL');
     
-    // Run migrations to add any missing columns
     runMigrations();
     
     console.log('SQLite database initialized at:', dbPath);
+    console.log('Mode:', isClientMode ? 'CLIENT (UNC path)' : 'SERVER (local path)');
     return { success: true };
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -437,7 +410,6 @@ function initDatabase() {
   }
 }
 
-// Run database migrations for schema changes
 function runMigrations() {
   try {
     const addColumnIfMissing = (table, column, sql) => {
@@ -595,7 +567,6 @@ function dbQuery(sql, params = []) {
   }
 }
 
-// Export all data
 function dbExportAll() {
   try {
     if (!db) return null;
@@ -618,7 +589,6 @@ function dbExportAll() {
   }
 }
 
-// Import all data
 function dbImportAll(data) {
   try {
     if (!db) return { success: false, error: 'Database not connected' };
@@ -647,7 +617,7 @@ function dbImportAll(data) {
   }
 }
 
-// Get local IP addresses
+// Get local IP addresses (for display only)
 function getLocalIPAddresses() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -655,7 +625,7 @@ function getLocalIPAddresses() {
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        addresses.push({ name: name, address: iface.address });
+        addresses.push(iface.address);
       }
     }
   }
@@ -689,93 +659,6 @@ function writeIPFile(content) {
   }
 }
 
-// ==================== SERVER-CONFIG (LAN CLIENT MODE) ====================
-// Stored in: C:\PayrollAO\server-config.txt
-// Format: IP:PORT
-
-function readServerConfigFile() {
-  try {
-    if (!fs.existsSync(SERVER_CONFIG_FILE_PATH)) {
-      return { exists: false, path: SERVER_CONFIG_FILE_PATH };
-    }
-
-    const content = fs.readFileSync(SERVER_CONFIG_FILE_PATH, 'utf-8').trim();
-    const match = content.match(/^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/);
-
-    if (!match) {
-      return { exists: true, path: SERVER_CONFIG_FILE_PATH, content, error: 'Invalid format (expected IP:PORT)' };
-    }
-
-    return {
-      exists: true,
-      path: SERVER_CONFIG_FILE_PATH,
-      content,
-      serverIP: match[1],
-      serverPort: Number(match[2]),
-    };
-  } catch (error) {
-    console.error('Error reading server config file:', error);
-    return { exists: false, path: SERVER_CONFIG_FILE_PATH, error: error.message };
-  }
-}
-
-function writeServerConfigFile(ip, port) {
-  try {
-    const portNum = Number(port) || 3847;
-    const content = `${ip}:${portNum}`;
-    fs.writeFileSync(SERVER_CONFIG_FILE_PATH, content, 'utf-8');
-    return { success: true, path: SERVER_CONFIG_FILE_PATH, content };
-  } catch (error) {
-    console.error('Error writing server config file:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-function deleteServerConfigFile() {
-  try {
-    if (fs.existsSync(SERVER_CONFIG_FILE_PATH)) {
-      fs.unlinkSync(SERVER_CONFIG_FILE_PATH);
-    }
-    return { success: true, path: SERVER_CONFIG_FILE_PATH };
-  } catch (error) {
-    console.error('Error deleting server config file:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-function pingServer(serverIP, port) {
-  return new Promise((resolve) => {
-    try {
-      const targetPort = Number(port) || 3847;
-      const req = http.get(
-        {
-          host: serverIP,
-          port: targetPort,
-          path: '/api/ping',
-          timeout: 2000,
-        },
-        (res) => {
-          let body = '';
-          res.on('data', (c) => (body += c));
-          res.on('end', () => {
-            resolve({ success: res.statusCode === 200, status: res.statusCode, body });
-          });
-        }
-      );
-
-      req.on('timeout', () => {
-        req.destroy(new Error('timeout'));
-      });
-
-      req.on('error', (err) => {
-        resolve({ success: false, error: err.message });
-      });
-    } catch (error) {
-      resolve({ success: false, error: error.message });
-    }
-  });
-}
-
 // Create the main application window
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -804,177 +687,6 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-  });
-}
-
-// ============= HTTP SERVER FOR LAN SHARING =============
-
-function startServer(port = 3847) {
-  return new Promise((resolve, reject) => {
-    if (httpServer) {
-      resolve({ success: true, port: serverPort, message: 'Server already running' });
-      return;
-    }
-
-    serverPort = port;
-
-    httpServer = http.createServer((req, res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.setHeader('Content-Type', 'application/json');
-
-      if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
-
-      // GET /api/data - Fetch all data
-      if (req.method === 'GET' && req.url === '/api/data') {
-        const data = dbExportAll();
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, data: data || {} }));
-        return;
-      }
-
-      // POST /api/data - Import all data
-      if (req.method === 'POST' && req.url === '/api/data') {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-          try {
-            const data = JSON.parse(body);
-            const result = dbImportAll(data);
-            res.writeHead(result.success ? 200 : 500);
-            res.end(JSON.stringify(result));
-          } catch (error) {
-            res.writeHead(400);
-            res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
-          }
-        });
-        return;
-      }
-
-      const allowedTables = [
-        'employees', 'branches', 'deductions', 'payroll_periods',
-        'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents',
-      ];
-
-      // GET /api/:table
-      const getMatch = req.url.match(/^\/api\/(\w+)$/);
-      if (req.method === 'GET' && getMatch) {
-        const table = getMatch[1];
-        if (allowedTables.includes(table)) {
-          const data = dbGetAll(table);
-          res.writeHead(200);
-          res.end(JSON.stringify({ success: true, data }));
-          return;
-        }
-      }
-
-      // GET /api/:table/:id
-      const getByIdMatch = req.url.match(/^\/api\/(\w+)\/(.+)$/);
-      if (req.method === 'GET' && getByIdMatch) {
-        const [, table, id] = getByIdMatch;
-        if (allowedTables.includes(table)) {
-          const data = dbGetById(table, id);
-          res.writeHead(data ? 200 : 404);
-          res.end(JSON.stringify({ success: !!data, data }));
-          return;
-        }
-      }
-
-      // POST /api/:table
-      if (req.method === 'POST' && getMatch) {
-        const table = getMatch[1];
-        if (allowedTables.includes(table)) {
-          let body = '';
-          req.on('data', chunk => { body += chunk; });
-          req.on('end', () => {
-            try {
-              const data = JSON.parse(body);
-              const result = dbInsert(table, data);
-              res.writeHead(result.success ? 200 : 500);
-              res.end(JSON.stringify(result));
-            } catch (error) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
-            }
-          });
-          return;
-        }
-      }
-
-      // PUT /api/:table/:id
-      if (req.method === 'PUT' && getByIdMatch) {
-        const [, table, id] = getByIdMatch;
-        if (allowedTables.includes(table)) {
-          let body = '';
-          req.on('data', chunk => { body += chunk; });
-          req.on('end', () => {
-            try {
-              const data = JSON.parse(body);
-              const result = dbUpdate(table, id, data);
-              res.writeHead(result.success ? 200 : 500);
-              res.end(JSON.stringify(result));
-            } catch (error) {
-              res.writeHead(400);
-              res.end(JSON.stringify({ success: false, error: 'Invalid JSON' }));
-            }
-          });
-          return;
-        }
-      }
-
-      // DELETE /api/:table/:id
-      if (req.method === 'DELETE' && getByIdMatch) {
-        const [, table, id] = getByIdMatch;
-        if (allowedTables.includes(table)) {
-          const result = dbDelete(table, id);
-          res.writeHead(result.success ? 200 : 500);
-          res.end(JSON.stringify(result));
-          return;
-        }
-      }
-
-      // GET /api/ping
-      if (req.method === 'GET' && req.url === '/api/ping') {
-        res.writeHead(200);
-        res.end(JSON.stringify({ success: true, message: 'PayrollAO Server', timestamp: Date.now() }));
-        return;
-      }
-
-      res.writeHead(404);
-      res.end(JSON.stringify({ success: false, error: 'Not found' }));
-    });
-
-    httpServer.on('error', (error) => {
-      console.error('Server error:', error);
-      httpServer = null;
-      reject({ success: false, error: error.message });
-    });
-
-    httpServer.listen(port, '0.0.0.0', () => {
-      console.log(`PayrollAO Server running on port ${port}`);
-      const ips = getLocalIPAddresses();
-      console.log('Available at:', ips.map(ip => `http://${ip.address}:${port}`).join(', '));
-      resolve({ success: true, port, addresses: ips });
-    });
-  });
-}
-
-function stopServer() {
-  return new Promise((resolve) => {
-    if (httpServer) {
-      httpServer.close(() => {
-        httpServer = null;
-        console.log('Server stopped');
-        resolve({ success: true });
-      });
-    } else {
-      resolve({ success: true, message: 'Server not running' });
-    }
   });
 }
 
@@ -1020,6 +732,7 @@ ipcMain.handle('db:getStatus', () => {
     configured: ipConfig.valid,
     path: ipConfig.path,
     isClient: ipConfig.isClient,
+    serverIP: ipConfig.serverIP || null,
     exists: ipConfig.valid ? checkDatabaseExists(ipConfig.path) : false,
     connected: db !== null,
     error: ipConfig.error,
@@ -1066,66 +779,9 @@ ipcMain.handle('db:import', (event, data) => {
   return dbImportAll(data);
 });
 
-// Legacy storage operations
-ipcMain.handle('storage:read', () => {
-  return dbExportAll();
-});
-
-ipcMain.handle('storage:write', (event, data) => {
-  return dbImportAll(data);
-});
-
-ipcMain.handle('storage:getPath', () => {
-  return dbPath;
-});
-
-// Network operations
+// Network info (display only - no HTTP server)
 ipcMain.handle('network:getLocalIPs', () => {
   return getLocalIPAddresses();
-});
-
-ipcMain.handle('network:startServer', async (event, port) => {
-  try {
-    return await startServer(port);
-  } catch (error) {
-    return error;
-  }
-});
-
-ipcMain.handle('network:stopServer', async () => {
-  return await stopServer();
-});
-
-ipcMain.handle('network:getServerStatus', () => {
-  return {
-    running: httpServer !== null,
-    port: serverPort,
-    addresses: getLocalIPAddresses(),
-  };
-});
-
-ipcMain.handle('network:pingServer', async (event, serverIP, port) => {
-  return await pingServer(serverIP, port);
-});
-
-ipcMain.handle('network:readServerConfigFile', () => {
-  return readServerConfigFile();
-});
-
-ipcMain.handle('network:writeServerConfigFile', (event, ip, port) => {
-  return writeServerConfigFile(ip, port);
-});
-
-ipcMain.handle('network:deleteServerConfigFile', () => {
-  return deleteServerConfigFile();
-});
-
-ipcMain.handle('network:getServerConfigFilePath', () => {
-  return SERVER_CONFIG_FILE_PATH;
-});
-
-ipcMain.handle('network:getLocalDataPath', () => {
-  return dbPath;
 });
 
 ipcMain.handle('network:getInstallPath', () => {
@@ -1159,7 +815,6 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    stopServer();
     if (db) {
       db.close();
     }
