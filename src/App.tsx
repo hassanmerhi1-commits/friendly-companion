@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
+import { useEmployeeStore } from "@/stores/employee-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -102,6 +103,13 @@ function AppContent() {
         const provinceOk = isProvinceSelected();
         setDeviceActivated(activated);
         setProvinceSelected(provinceOk);
+        
+        // Load data from database if activated
+        if (activated) {
+          const { loadUsers } = useAuthStore.getState();
+          const { loadEmployees } = useEmployeeStore.getState();
+          await Promise.all([loadUsers(), loadEmployees()]);
+        }
       } catch (error) {
         console.error('Error during initial checks:', error);
         setInitError(error instanceof Error ? error.message : 'Unknown error');

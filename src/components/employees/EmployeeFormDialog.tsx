@@ -98,17 +98,17 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
     setActiveTab('personal');
   }, [employee, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (employee) {
-      const result = updateEmployee(employee.id, formData);
+      const result = await updateEmployee(employee.id, formData);
       if (!result.success) {
         toast.error(result.error);
         return;
       }
     } else {
-      const result = addEmployee(formData);
+      const result = await addEmployee(formData);
       if (!result.success) {
         toast.error(result.error);
         return;

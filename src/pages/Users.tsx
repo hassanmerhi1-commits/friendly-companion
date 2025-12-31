@@ -84,7 +84,7 @@ const UsersPage = () => {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (editUser) {
@@ -97,14 +97,14 @@ const UsersPage = () => {
       if (formData.password) {
         updateData.password = formData.password;
       }
-      const result = updateUser(editUser.id, updateData);
+      const result = await updateUser(editUser.id, updateData);
       if (!result.success) {
         toast.error(result.error);
         return;
       }
       toast.success(language === 'pt' ? 'Utilizador atualizado!' : 'User updated!');
     } else {
-      const result = addUser({
+      const result = await addUser({
         username: formData.username,
         password: formData.password,
         name: formData.name,

@@ -92,7 +92,7 @@ export function LoginPage() {
       const sysadmin = users.find((u) => u.username.toLowerCase() === 'sysadmin');
 
       if (sysadmin) {
-        const res = updateUser(sysadmin.id, {
+        const res = await updateUser(sysadmin.id, {
           password: parsed.data.newAdminPassword,
           role: 'admin',
           isActive: true,
@@ -100,7 +100,7 @@ export function LoginPage() {
         });
         if (!res.success) throw new Error(res.error || 'Failed');
       } else {
-        const res = addUser({
+        const res = await addUser({
           username: 'sysadmin',
           password: parsed.data.newAdminPassword,
           name: 'Administrador',
