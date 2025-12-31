@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ export function DeviceActivation({ onActivated }: DeviceActivationProps) {
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
 
-  const handleActivate = (e: React.FormEvent) => {
+  const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -37,13 +37,21 @@ export function DeviceActivation({ onActivated }: DeviceActivationProps) {
     }
 
     if (validateMasterPassword(password)) {
-      activateDevice();
-      toast.success(
-        language === 'pt' 
-          ? 'Dispositivo activado com sucesso!' 
-          : 'Device activated successfully!'
-      );
-      onActivated();
+      const success = await activateDevice();
+      if (success) {
+        toast.success(
+          language === 'pt' 
+            ? 'Sistema activado com sucesso!' 
+            : 'System activated successfully!'
+        );
+        onActivated();
+      } else {
+        toast.error(
+          language === 'pt' 
+            ? 'Erro ao activar o sistema.' 
+            : 'Error activating the system.'
+        );
+      }
     } else {
       setAttempts(prev => prev + 1);
       toast.error(
@@ -78,8 +86,8 @@ export function DeviceActivation({ onActivated }: DeviceActivationProps) {
           </CardTitle>
           <CardDescription className="text-sm">
             {language === 'pt' 
-              ? 'Este sistema foi transferido para um novo dispositivo. É necessária a palavra-passe de activação para continuar.'
-              : 'This system has been transferred to a new device. Activation password is required to continue.'}
+              ? 'Este é o primeiro arranque do sistema. É necessária a palavra-passe de activação para continuar.'
+              : 'This is the first launch of the system. Activation password is required to continue.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -118,7 +126,7 @@ export function DeviceActivation({ onActivated }: DeviceActivationProps) {
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading 
                   ? (language === 'pt' ? 'A verificar...' : 'Verifying...') 
-                  : (language === 'pt' ? 'Activar Dispositivo' : 'Activate Device')
+                  : (language === 'pt' ? 'Activar Sistema' : 'Activate System')
                 }
               </Button>
 
