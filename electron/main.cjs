@@ -8,6 +8,7 @@ const os = require('os');
 // Install location is always C:\PayrollAO
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
+const SERVER_CONFIG_FILE_PATH = path.join(INSTALL_DIR, 'server-config.txt');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
 
 // Ensure install directory exists
@@ -59,17 +60,17 @@ function parseIPFile() {
     const clientMatch = content.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):([A-Za-z]):\\(.+)$/);
     
     if (clientMatch) {
-      // Client mode - convert to UNC path: \\IP\DRIVE\path (without $)
+      // Client mode - convert to UNC path using Windows admin share (C$)
       const ip = clientMatch[1];
       const drive = clientMatch[2].toUpperCase();
       const restOfPath = clientMatch[3];
-      
-      // Convert to UNC: \\10.0.0.10\C\PayrollAO\payroll.db
-      const uncPath = `\\\\${ip}\\${drive}\\${restOfPath}`;
-      
+
+      // Convert to UNC: \\10.0.0.10\C$\PayrollAO\payroll.db
+      const uncPath = `\\\\${ip}\\${drive}$\\${restOfPath}`;
+
       console.log('CLIENT MODE: IP file contains:', content);
       console.log('CLIENT MODE: Converted to UNC path:', uncPath);
-      
+
       return { valid: true, path: uncPath, isClient: true, serverIP: ip };
     }
 
@@ -688,6 +689,93 @@ function writeIPFile(content) {
   }
 }
 
+// ==================== SERVER-CONFIG (LAN CLIENT MODE) ====================
+// Stored in: C:\PayrollAO\server-config.txt
+// Format: IP:PORT
+
+function readServerConfigFile() {
+  try {
+    if (!fs.existsSync(SERVER_CONFIG_FILE_PATH)) {
+      return { exists: false, path: SERVER_CONFIG_FILE_PATH };
+    }
+
+    const content = fs.readFileSync(SERVER_CONFIG_FILE_PATH, 'utf-8').trim();
+    const match = content.match(/^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/);
+
+    if (!match) {
+      return { exists: true, path: SERVER_CONFIG_FILE_PATH, content, error: 'Invalid format (expected IP:PORT)' };
+    }
+
+    return {
+      exists: true,
+      path: SERVER_CONFIG_FILE_PATH,
+      content,
+      serverIP: match[1],
+      serverPort: Number(match[2]),
+    };
+  } catch (error) {
+    console.error('Error reading server config file:', error);
+    return { exists: false, path: SERVER_CONFIG_FILE_PATH, error: error.message };
+  }
+}
+
+function writeServerConfigFile(ip, port) {
+  try {
+    const portNum = Number(port) || 3847;
+    const content = `${ip}:${portNum}`;
+    fs.writeFileSync(SERVER_CONFIG_FILE_PATH, content, 'utf-8');
+    return { success: true, path: SERVER_CONFIG_FILE_PATH, content };
+  } catch (error) {
+    console.error('Error writing server config file:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+function deleteServerConfigFile() {
+  try {
+    if (fs.existsSync(SERVER_CONFIG_FILE_PATH)) {
+      fs.unlinkSync(SERVER_CONFIG_FILE_PATH);
+    }
+    return { success: true, path: SERVER_CONFIG_FILE_PATH };
+  } catch (error) {
+    console.error('Error deleting server config file:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+function pingServer(serverIP, port) {
+  return new Promise((resolve) => {
+    try {
+      const targetPort = Number(port) || 3847;
+      const req = http.get(
+        {
+          host: serverIP,
+          port: targetPort,
+          path: '/api/ping',
+          timeout: 2000,
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (c) => (body += c));
+          res.on('end', () => {
+            resolve({ success: res.statusCode === 200, status: res.statusCode, body });
+          });
+        }
+      );
+
+      req.on('timeout', () => {
+        req.destroy(new Error('timeout'));
+      });
+
+      req.on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    } catch (error) {
+      resolve({ success: false, error: error.message });
+    }
+  });
+}
+
 // Create the main application window
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -1009,11 +1097,35 @@ ipcMain.handle('network:stopServer', async () => {
 });
 
 ipcMain.handle('network:getServerStatus', () => {
-  return { 
-    running: httpServer !== null, 
+  return {
+    running: httpServer !== null,
     port: serverPort,
-    addresses: getLocalIPAddresses()
+    addresses: getLocalIPAddresses(),
   };
+});
+
+ipcMain.handle('network:pingServer', async (event, serverIP, port) => {
+  return await pingServer(serverIP, port);
+});
+
+ipcMain.handle('network:readServerConfigFile', () => {
+  return readServerConfigFile();
+});
+
+ipcMain.handle('network:writeServerConfigFile', (event, ip, port) => {
+  return writeServerConfigFile(ip, port);
+});
+
+ipcMain.handle('network:deleteServerConfigFile', () => {
+  return deleteServerConfigFile();
+});
+
+ipcMain.handle('network:getServerConfigFilePath', () => {
+  return SERVER_CONFIG_FILE_PATH;
+});
+
+ipcMain.handle('network:getLocalDataPath', () => {
+  return dbPath;
 });
 
 ipcMain.handle('network:getInstallPath', () => {
@@ -1027,6 +1139,15 @@ ipcMain.handle('network:getIPFilePath', () => {
 // ============= APP LIFECYCLE =============
 
 app.whenReady().then(async () => {
+  try {
+    const result = initDatabase();
+    if (!result?.success) {
+      console.log('Database init skipped:', result?.error || 'unknown');
+    }
+  } catch (e) {
+    console.log('Database init error:', e?.message || String(e));
+  }
+
   createWindow();
 
   app.on('activate', () => {

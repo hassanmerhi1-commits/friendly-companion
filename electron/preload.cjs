@@ -43,6 +43,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startServer: (port) => ipcRenderer.invoke('network:startServer', port),
     stopServer: () => ipcRenderer.invoke('network:stopServer'),
     getServerStatus: () => ipcRenderer.invoke('network:getServerStatus'),
+
+    // Server-config (LAN client mode)
+    pingServer: (serverIP, port) => ipcRenderer.invoke('network:pingServer', serverIP, port),
+    readServerConfigFile: () => ipcRenderer.invoke('network:readServerConfigFile'),
+    writeServerConfigFile: (ip, port) => ipcRenderer.invoke('network:writeServerConfigFile', ip, port),
+    deleteServerConfigFile: () => ipcRenderer.invoke('network:deleteServerConfigFile'),
+    getServerConfigFilePath: () => ipcRenderer.invoke('network:getServerConfigFilePath'),
+
+    // DB path info
+    getLocalDataPath: () => ipcRenderer.invoke('network:getLocalDataPath'),
+
+    // Paths
     getInstallPath: () => ipcRenderer.invoke('network:getInstallPath'),
     getIPFilePath: () => ipcRenderer.invoke('network:getIPFilePath'),
   },

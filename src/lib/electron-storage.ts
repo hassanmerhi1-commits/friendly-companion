@@ -45,9 +45,10 @@ declare global {
         pushToServer: (serverIP: string, port: number, data: any) => Promise<any>;
         pingServer: (serverIP: string, port: number) => Promise<any>;
         readServerConfigFile: () => Promise<any>;
-        writeServerConfigFile: (ip: string, port: number) => Promise<any>;
+        writeServerConfigFile: (ip: string, port: number | string) => Promise<any>;
         deleteServerConfigFile: () => Promise<any>;
         getServerConfigFilePath: () => Promise<string>;
+        getLocalDataPath: () => Promise<string | null>;
       };
       platform: string;
       isElectron: boolean;
