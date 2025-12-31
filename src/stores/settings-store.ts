@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { createElectronStorage } from '@/lib/electron-sqlite-storage';
+import { persist } from 'zustand/middleware';
 
 export interface CompanySettings {
   companyName: string;
@@ -52,7 +51,6 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'payroll-settings',
-      storage: createJSONStorage(() => createElectronStorage('settings')),
     }
   )
 );

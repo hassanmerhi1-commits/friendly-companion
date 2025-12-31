@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods to the renderer process
+// Dolly-style: IP file determines everything
 contextBridge.exposeInMainWorld('electronAPI', {
   // Activation operations (one-time on first install)
   activation: {
@@ -9,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // IP file operations (Dolly-style config)
+  // Format: "C:\path\db.db" (server) or "10.0.0.10:C:\path\db.db" (client)
   ipfile: {
     read: () => ipcRenderer.invoke('ipfile:read'),
     write: (content) => ipcRenderer.invoke('ipfile:write', content),
@@ -30,35 +32,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     import: (data) => ipcRenderer.invoke('db:import', data),
   },
   
-  // Legacy storage operations (backward compatibility)
-  storage: {
-    read: () => ipcRenderer.invoke('storage:read'),
-    write: (data) => ipcRenderer.invoke('storage:write', data),
-    getPath: () => ipcRenderer.invoke('storage:getPath'),
-  },
-  
-  // Network operations
+  // Network operations (HTTP server for LAN sharing)
   network: {
     getLocalIPs: () => ipcRenderer.invoke('network:getLocalIPs'),
     startServer: (port) => ipcRenderer.invoke('network:startServer', port),
     stopServer: () => ipcRenderer.invoke('network:stopServer'),
     getServerStatus: () => ipcRenderer.invoke('network:getServerStatus'),
-
-    // Server-config (LAN client mode)
     pingServer: (serverIP, port) => ipcRenderer.invoke('network:pingServer', serverIP, port),
-    readServerConfigFile: () => ipcRenderer.invoke('network:readServerConfigFile'),
-    writeServerConfigFile: (ip, port) => ipcRenderer.invoke('network:writeServerConfigFile', ip, port),
-    deleteServerConfigFile: () => ipcRenderer.invoke('network:deleteServerConfigFile'),
-    getServerConfigFilePath: () => ipcRenderer.invoke('network:getServerConfigFilePath'),
-
-    // DB path info
-    getLocalDataPath: () => ipcRenderer.invoke('network:getLocalDataPath'),
-
-    // Paths
     getInstallPath: () => ipcRenderer.invoke('network:getInstallPath'),
     getIPFilePath: () => ipcRenderer.invoke('network:getIPFilePath'),
   },
 
+  // App controls
   app: {
     relaunch: () => ipcRenderer.invoke('app:relaunch'),
   },
