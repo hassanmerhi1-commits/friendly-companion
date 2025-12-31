@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
-import { isDeviceActivated } from "@/lib/device-security";
+import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
 import { ProvinceSelector } from "@/components/ProvinceSelector";
@@ -38,14 +38,12 @@ const isDevelopmentPreview = () => {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, login } = useAuthStore();
   
-  // Auto-login as admin in development preview mode
   useEffect(() => {
     if (isDevelopmentPreview() && !isAuthenticated) {
       login('admin', 'admin');
     }
   }, [isAuthenticated, login]);
   
-  // In dev preview, allow access while auto-login happens
   if (isDevelopmentPreview()) {
     return <>{children}</>;
   }
@@ -81,40 +79,40 @@ const AppRoutes = () => {
   );
 };
 
-
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Bypass checks in development preview mode
-    if (isDevelopmentPreview()) {
-      setDeviceActivated(true);
-      setProvinceSelected(true);
-      // Set a default province for preview
-      if (!isProvinceSelected()) {
-        localStorage.setItem('payroll_selected_province', 'Luanda');
+    const initApp = async () => {
+      // Bypass checks in development preview mode
+      if (isDevelopmentPreview()) {
+        setDeviceActivated(true);
+        setProvinceSelected(true);
+        if (!isProvinceSelected()) {
+          localStorage.setItem('payroll_selected_province', 'Luanda');
+        }
+        return;
       }
-      return;
-    }
-    
-    // Check device activation on mount with error handling
-    try {
-      const activated = isDeviceActivated();
-      const provinceOk = isProvinceSelected();
-      setDeviceActivated(activated);
-      setProvinceSelected(provinceOk);
-    } catch (error) {
-      console.error('Error during initial checks:', error);
-      setInitError(error instanceof Error ? error.message : 'Unknown error');
-      // On error, show activation screen
-      setDeviceActivated(false);
-      setProvinceSelected(false);
-    }
+      
+      try {
+        // Check activation status (async)
+        const activated = await initActivationStatus();
+        const provinceOk = isProvinceSelected();
+        setDeviceActivated(activated);
+        setProvinceSelected(provinceOk);
+      } catch (error) {
+        console.error('Error during initial checks:', error);
+        setInitError(error instanceof Error ? error.message : 'Unknown error');
+        setDeviceActivated(false);
+        setProvinceSelected(false);
+      }
+    };
+
+    initApp();
   }, []);
 
-  // Show error state with option to force activation
   if (initError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -122,24 +120,16 @@ function AppContent() {
           <h2 className="text-lg font-semibold text-destructive">Erro de Inicialização</h2>
           <p className="text-sm text-muted-foreground">{initError}</p>
           <button 
-            onClick={() => {
-              try {
-                localStorage.removeItem("payroll_device_id");
-                localStorage.removeItem("payroll_activation_date");
-                localStorage.removeItem("payroll_selected_province");
-              } catch {}
-              window.location.reload();
-            }}
+            onClick={() => window.location.reload()}
             className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90"
           >
-            Reiniciar Activação
+            Reiniciar
           </button>
         </div>
       </div>
     );
   }
 
-  // Show loading while checking
   if (deviceActivated === null || provinceSelected === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -148,7 +138,6 @@ function AppContent() {
     );
   }
 
-  // Show activation screen if device is not activated
   if (!deviceActivated) {
     return (
       <DeviceActivation 
@@ -157,13 +146,11 @@ function AppContent() {
     );
   }
 
-  // Show province selector if no province is selected
   if (!provinceSelected) {
     return (
       <ProvinceSelector 
         onProvinceSelected={() => {
           setProvinceSelected(true);
-          // Reload the page to reinitialize storage with the new province
           window.location.reload();
         }} 
       />

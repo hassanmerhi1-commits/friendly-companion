@@ -1,30 +1,13 @@
-// Device Security - Locks the app when transferred to a new computer
+// Device Security - One-time activation on first install
 // Developer: Hassan Merhi
 
 // Master activation password - only the developer knows this
 const MASTER_ACTIVATION_PASSWORD = 'HM@PayrollSec2024!';
 
-// Generate a unique device fingerprint based on browser/system characteristics
-export function generateDeviceFingerprint(): string {
-  try {
-    const components = [
-      navigator?.userAgent || 'unknown',
-      navigator?.language || 'unknown',
-      navigator?.hardwareConcurrency?.toString() || 'unknown',
-      screen?.width?.toString() || 'unknown',
-      screen?.height?.toString() || 'unknown',
-      screen?.colorDepth?.toString() || 'unknown',
-      new Date().getTimezoneOffset().toString(),
-      navigator?.platform || 'unknown',
-    ];
-    
-    // Create a hash from the components
-    const fingerprint = components.join('|');
-    return btoa(fingerprint).substring(0, 32);
-  } catch (error) {
-    console.error('Error generating device fingerprint:', error);
-    return 'fallback-device-id';
-  }
+// Check if we're in Electron environment
+function isElectron(): boolean {
+  return typeof window !== 'undefined' && 
+    (window as any).electronAPI?.isElectron === true;
 }
 
 // Validate the master password
@@ -32,59 +15,101 @@ export function validateMasterPassword(password: string): boolean {
   return password === MASTER_ACTIVATION_PASSWORD;
 }
 
-// Get stored device ID
-export function getStoredDeviceId(): string | null {
+// Check if the app is activated (one-time, permanent)
+export async function isDeviceActivated(): Promise<boolean> {
   try {
-    return localStorage.getItem('payroll_device_id');
-  } catch {
-    return null;
-  }
-}
-
-// Store the activated device ID
-export function storeDeviceId(deviceId: string): void {
-  try {
-    localStorage.setItem('payroll_device_id', deviceId);
-    localStorage.setItem('payroll_activation_date', new Date().toISOString());
-  } catch {
-    console.error('Failed to store device ID');
-  }
-}
-
-// Check if the current device is activated
-export function isDeviceActivated(): boolean {
-  try {
-    const storedId = getStoredDeviceId();
-    const currentId = generateDeviceFingerprint();
-    
-    // If no stored ID, device is not activated
-    if (!storedId) {
-      return false;
+    if (isElectron()) {
+      // Use Electron's file-based activation
+      const result = await (window as any).electronAPI.activation.check();
+      return result?.isActivated === true;
     }
     
-    // Compare stored ID with current device fingerprint
-    return storedId === currentId;
+    // Fallback for non-Electron (development preview)
+    const activated = localStorage.getItem('payroll_activated');
+    return activated === 'true';
   } catch (error) {
     console.error('Error checking device activation:', error);
     return false;
   }
 }
 
-// Activate the current device
-export function activateDevice(): void {
-  const currentId = generateDeviceFingerprint();
-  storeDeviceId(currentId);
+// Synchronous version for initial check (uses cached value)
+let cachedActivationStatus: boolean | null = null;
+
+export function isDeviceActivatedSync(): boolean {
+  if (cachedActivationStatus !== null) {
+    return cachedActivationStatus;
+  }
+  
+  // For initial sync check, use localStorage as cache
+  try {
+    const cached = localStorage.getItem('payroll_activation_cached');
+    return cached === 'true';
+  } catch {
+    return false;
+  }
 }
 
-// Get activation info
+// Activate the device (one-time, permanent)
+export async function activateDevice(): Promise<boolean> {
+  try {
+    if (isElectron()) {
+      // Use Electron's file-based activation
+      const result = await (window as any).electronAPI.activation.activate();
+      if (result?.success) {
+        cachedActivationStatus = true;
+        localStorage.setItem('payroll_activation_cached', 'true');
+        return true;
+      }
+      return false;
+    }
+    
+    // Fallback for non-Electron
+    localStorage.setItem('payroll_activated', 'true');
+    localStorage.setItem('payroll_activation_cached', 'true');
+    cachedActivationStatus = true;
+    return true;
+  } catch (error) {
+    console.error('Error activating device:', error);
+    return false;
+  }
+}
+
+// Initialize activation status (call on app startup)
+export async function initActivationStatus(): Promise<boolean> {
+  try {
+    const activated = await isDeviceActivated();
+    cachedActivationStatus = activated;
+    if (activated) {
+      localStorage.setItem('payroll_activation_cached', 'true');
+    }
+    return activated;
+  } catch (error) {
+    console.error('Error initializing activation status:', error);
+    return false;
+  }
+}
+
+// Get activation info (for debugging)
 export function getActivationInfo(): { 
   isActivated: boolean; 
-  activationDate: string | null;
-  deviceId: string;
+  isElectron: boolean;
 } {
   return {
-    isActivated: isDeviceActivated(),
-    activationDate: localStorage.getItem('payroll_activation_date'),
-    deviceId: generateDeviceFingerprint(),
+    isActivated: cachedActivationStatus ?? false,
+    isElectron: isElectron(),
   };
+}
+
+// Legacy functions for backward compatibility
+export function generateDeviceFingerprint(): string {
+  return 'legacy-not-used';
+}
+
+export function getStoredDeviceId(): string | null {
+  return null;
+}
+
+export function storeDeviceId(deviceId: string): void {
+  // No longer used
 }
