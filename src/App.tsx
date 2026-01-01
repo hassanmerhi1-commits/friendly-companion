@@ -101,12 +101,6 @@ function AppContent() {
           if (!isProvinceSelected()) {
             localStorage.setItem('payroll_selected_province', 'Luanda');
           }
-
-          // Load local data for preview mode
-          const { loadUsers } = useAuthStore.getState();
-          const { loadEmployees } = useEmployeeStore.getState();
-          const { loadBranches } = useBranchStore.getState();
-          await Promise.all([loadUsers(), loadEmployees(), loadBranches()]);
           return;
         }
 
@@ -117,15 +111,33 @@ function AppContent() {
           setDeviceActivated(activated);
           setProvinceSelected(provinceOk);
 
-          // Load data from database if activated
+          // Load ALL data from database if activated
           if (activated) {
             // Force DB init from renderer too (fixes win-unpacked showing 'Connected: No')
             await dbInit();
 
+            // Load ALL stores from payroll.db
             const { loadUsers } = useAuthStore.getState();
             const { loadEmployees } = useEmployeeStore.getState();
             const { loadBranches } = useBranchStore.getState();
-            await Promise.all([loadUsers(), loadEmployees(), loadBranches()]);
+            const { loadPayroll } = usePayrollStore.getState();
+            const { loadDeductions } = useDeductionStore.getState();
+            const { loadAbsences } = useAbsenceStore.getState();
+            const { loadHolidays } = useHolidayStore.getState();
+            const { loadSettings } = useSettingsStore.getState();
+
+            await Promise.all([
+              loadUsers(),
+              loadEmployees(),
+              loadBranches(),
+              loadPayroll(),
+              loadDeductions(),
+              loadAbsences(),
+              loadHolidays(),
+              loadSettings(),
+            ]);
+
+            console.log('[App] All stores loaded from payroll.db');
           }
         } catch (error) {
           console.error('Error during initial checks:', error);

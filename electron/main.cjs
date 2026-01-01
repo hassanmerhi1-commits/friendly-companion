@@ -137,7 +137,9 @@ function createNewDatabase() {
     newDb.pragma('busy_timeout = 30000');
     newDb.pragma('synchronous = NORMAL');
     
+    // Create ALL tables - EMPTY database schema
     newDb.exec(`
+      -- EMPLOYEES TABLE
       CREATE TABLE IF NOT EXISTS employees (
         id TEXT PRIMARY KEY,
         employee_number TEXT,
@@ -156,6 +158,7 @@ function createNewDatabase() {
         iban TEXT,
         nif TEXT,
         social_security TEXT,
+        bi TEXT,
         address TEXT,
         phone TEXT,
         email TEXT,
@@ -170,10 +173,15 @@ function createNewDatabase() {
         family_allowance REAL DEFAULT 0,
         monthly_bonus REAL DEFAULT 0,
         holiday_subsidy REAL DEFAULT 0,
+        meal_allowance REAL DEFAULT 0,
+        transport_allowance REAL DEFAULT 0,
+        other_allowances REAL DEFAULT 0,
+        is_retired INTEGER DEFAULT 0,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- BRANCHES TABLE
       CREATE TABLE IF NOT EXISTS branches (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -190,6 +198,7 @@ function createNewDatabase() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- DEDUCTIONS TABLE
       CREATE TABLE IF NOT EXISTS deductions (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -206,6 +215,7 @@ function createNewDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
+      -- PAYROLL PERIODS TABLE
       CREATE TABLE IF NOT EXISTS payroll_periods (
         id TEXT PRIMARY KEY,
         year INTEGER NOT NULL,
@@ -226,6 +236,7 @@ function createNewDatabase() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- PAYROLL ENTRIES TABLE
       CREATE TABLE IF NOT EXISTS payroll_entries (
         id TEXT PRIMARY KEY,
         period_id TEXT NOT NULL,
@@ -259,6 +270,7 @@ function createNewDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
+      -- HOLIDAYS TABLE
       CREATE TABLE IF NOT EXISTS holidays (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -274,6 +286,7 @@ function createNewDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
+      -- USERS TABLE
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
@@ -286,6 +299,7 @@ function createNewDatabase() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- ABSENCES TABLE
       CREATE TABLE IF NOT EXISTS absences (
         id TEXT PRIMARY KEY,
         employee_id TEXT NOT NULL,
@@ -307,12 +321,14 @@ function createNewDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
       
+      -- SETTINGS TABLE
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- DOCUMENTS TABLE
       CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,
         employee_id TEXT,
@@ -323,12 +339,13 @@ function createNewDatabase() {
         FOREIGN KEY (employee_id) REFERENCES employees(id)
       );
 
-      INSERT OR IGNORE INTO users (id, username, password, name, role, is_active) 
+      -- DEFAULT ADMIN USER ONLY
+      INSERT INTO users (id, username, password, name, role, is_active) 
       VALUES ('admin-001', 'admin', 'admin', 'Administrador', 'admin', 1);
     `);
 
     newDb.close();
-    console.log('New database created at:', targetPath);
+    console.log('New EMPTY database created at:', targetPath);
     
     return { success: true, path: targetPath };
   } catch (error) {
