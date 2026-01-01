@@ -13,7 +13,7 @@ import { useDeductionStore } from "@/stores/deduction-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
-import { liveInit } from "@/lib/db-live";
+import { liveInit, liveGetStatus, connectToSyncServer } from "@/lib/db-live";
 import { initEmployeeStoreSync } from "@/stores/employee-store";
 import { initBranchStoreSync } from "@/stores/branch-store";
 import { initActivationStatus } from "@/lib/device-security";
@@ -121,9 +121,22 @@ function AppContent() {
             // Initialize store sync for real-time updates
             initEmployeeStoreSync();
             initBranchStoreSync();
+            
             if (!dbOk) {
               setInitError('Base de dados não ligada. Configure em Definições > Base de Dados (ficheiro IP) e reinicie.');
               return;
+            }
+
+            // Get database status to connect to WebSocket for real-time sync
+            const dbStatus = await liveGetStatus();
+            if (dbStatus.serverName) {
+              // Client mode - connect to server's WebSocket
+              console.log('[App] Connecting to WebSocket sync server:', dbStatus.serverName);
+              connectToSyncServer(dbStatus.serverName, 9001);
+            } else if (dbStatus.wsServerRunning) {
+              // Server mode - connect to local WebSocket (for local notifications)
+              console.log('[App] Connecting to local WebSocket sync server');
+              connectToSyncServer('localhost', 9001);
             }
 
             // Load ALL stores from payroll.db

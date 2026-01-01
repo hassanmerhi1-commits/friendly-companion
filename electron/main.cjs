@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
+const http = require('http');
+const crypto = require('crypto');
 
 // ============= PATHS AND CONFIGURATION =============
 const INSTALL_DIR = 'C:\\PayrollAO';
@@ -35,6 +37,9 @@ let dbPath = null;
 let isClientMode = false;
 let serverName = null;
 let pipeServer = null;
+let wsServer = null;
+let wsClients = new Set();
+const WS_PORT = 9001;
 
 // ============= IP FILE PARSING =============
 // Format: 
@@ -437,6 +442,178 @@ function startNamedPipeServer() {
   return { success: true, pipePath };
 }
 
+// ============= WEBSOCKET BROADCAST SERVER (runs on SERVER PC) =============
+// Broadcasts data changes to all connected clients in real-time
+
+function startWebSocketServer() {
+  if (wsServer) {
+    console.log('WebSocket server already running');
+    return { success: true, port: WS_PORT };
+  }
+
+  try {
+    const httpServer = http.createServer((req, res) => {
+      res.writeHead(200);
+      res.end('PayrollAO WebSocket Server');
+    });
+
+    wsServer = httpServer;
+
+    httpServer.on('upgrade', (req, socket, head) => {
+      // Verify WebSocket upgrade request
+      if (req.headers['upgrade']?.toLowerCase() !== 'websocket') {
+        socket.destroy();
+        return;
+      }
+
+      const key = req.headers['sec-websocket-key'];
+      if (!key) {
+        socket.destroy();
+        return;
+      }
+
+      // Generate accept key per WebSocket protocol
+      const acceptKey = crypto
+        .createHash('sha1')
+        .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+        .digest('base64');
+
+      // Send upgrade response
+      socket.write(
+        'HTTP/1.1 101 Switching Protocols\r\n' +
+        'Upgrade: websocket\r\n' +
+        'Connection: Upgrade\r\n' +
+        `Sec-WebSocket-Accept: ${acceptKey}\r\n` +
+        '\r\n'
+      );
+
+      console.log('[WS] Client connected');
+      wsClients.add(socket);
+
+      socket.on('data', (buffer) => {
+        try {
+          const message = decodeWebSocketFrame(buffer);
+          if (message) {
+            console.log('[WS] Received:', message);
+            // Handle ping/pong or other messages if needed
+          }
+        } catch (e) {
+          // Ignore decode errors
+        }
+      });
+
+      socket.on('close', () => {
+        console.log('[WS] Client disconnected');
+        wsClients.delete(socket);
+      });
+
+      socket.on('error', (err) => {
+        console.log('[WS] Socket error:', err.message);
+        wsClients.delete(socket);
+      });
+    });
+
+    httpServer.listen(WS_PORT, '0.0.0.0', () => {
+      console.log(`[WS] WebSocket broadcast server listening on port ${WS_PORT}`);
+    });
+
+    httpServer.on('error', (err) => {
+      console.error('[WS] Server error:', err);
+      wsServer = null;
+    });
+
+    return { success: true, port: WS_PORT };
+  } catch (error) {
+    console.error('[WS] Error starting server:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+function decodeWebSocketFrame(buffer) {
+  if (buffer.length < 2) return null;
+  
+  const secondByte = buffer[1];
+  const isMasked = (secondByte & 0x80) !== 0;
+  let payloadLength = secondByte & 0x7F;
+  let offset = 2;
+
+  if (payloadLength === 126) {
+    payloadLength = buffer.readUInt16BE(2);
+    offset = 4;
+  } else if (payloadLength === 127) {
+    payloadLength = Number(buffer.readBigUInt64BE(2));
+    offset = 10;
+  }
+
+  let mask = null;
+  if (isMasked) {
+    mask = buffer.slice(offset, offset + 4);
+    offset += 4;
+  }
+
+  const payload = buffer.slice(offset, offset + payloadLength);
+  
+  if (mask) {
+    for (let i = 0; i < payload.length; i++) {
+      payload[i] ^= mask[i % 4];
+    }
+  }
+
+  return payload.toString('utf8');
+}
+
+function encodeWebSocketFrame(data) {
+  const payload = Buffer.from(JSON.stringify(data), 'utf8');
+  const length = payload.length;
+
+  let frame;
+  if (length <= 125) {
+    frame = Buffer.alloc(2 + length);
+    frame[0] = 0x81; // Text frame, FIN bit set
+    frame[1] = length;
+    payload.copy(frame, 2);
+  } else if (length <= 65535) {
+    frame = Buffer.alloc(4 + length);
+    frame[0] = 0x81;
+    frame[1] = 126;
+    frame.writeUInt16BE(length, 2);
+    payload.copy(frame, 4);
+  } else {
+    frame = Buffer.alloc(10 + length);
+    frame[0] = 0x81;
+    frame[1] = 127;
+    frame.writeBigUInt64BE(BigInt(length), 2);
+    payload.copy(frame, 10);
+  }
+
+  return frame;
+}
+
+function broadcastDataChange(table, action, id) {
+  if (wsClients.size === 0) return;
+
+  const message = {
+    type: 'sync',
+    table,
+    action,
+    id,
+    timestamp: Date.now(),
+  };
+
+  const frame = encodeWebSocketFrame(message);
+  
+  console.log(`[WS] Broadcasting: ${table} ${action} ${id || ''} to ${wsClients.size} clients`);
+
+  for (const client of wsClients) {
+    try {
+      client.write(frame);
+    } catch (e) {
+      console.error('[WS] Error sending to client:', e.message);
+      wsClients.delete(client);
+    }
+  }
+}
+
 function handleDBRequest(request) {
   const { action, table, id, data, sql, params } = request;
   
@@ -610,7 +787,11 @@ function initDatabase() {
     // Start named pipe server for client connections
     startNamedPipeServer();
     
+    // Start WebSocket broadcast server for real-time sync
+    startWebSocketServer();
+    
     console.log('SERVER MODE: Connected to existing database at:', dbPath);
+    return { success: true, mode: 'server', path: dbPath, wsPort: WS_PORT };
     return { success: true, mode: 'server', path: dbPath };
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -947,6 +1128,10 @@ function dbInsert(table, data) {
     db.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Inserted into ${table}, changes: ${result.changes}`);
+    
+    // Broadcast change to all connected WebSocket clients
+    broadcastDataChange(table, 'insert', data.id);
+    
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error inserting into ${table}:`, error);
@@ -967,6 +1152,10 @@ function dbUpdate(table, id, data) {
     db.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Updated ${table} id=${id}, changes: ${result.changes}`);
+    
+    // Broadcast change to all connected WebSocket clients
+    broadcastDataChange(table, 'update', id);
+    
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error updating ${table}:`, error);
@@ -984,6 +1173,10 @@ function dbDelete(table, id) {
     db.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Deleted from ${table} id=${id}, changes: ${result.changes}`);
+    
+    // Broadcast change to all connected WebSocket clients
+    broadcastDataChange(table, 'delete', id);
+    
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error deleting from ${table}:`, error);
@@ -1180,6 +1373,9 @@ ipcMain.handle('db:getStatus', async () => {
     connected: isClientMode ? clientConnected : (db !== null),
     pipeServerRunning: pipeServer !== null,
     pipeName: PIPE_NAME,
+    wsServerRunning: wsServer !== null,
+    wsPort: WS_PORT,
+    wsClients: wsClients.size,
     error: ipConfig.error || clientError,
   };
 });
@@ -1364,6 +1560,14 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // Close WebSocket server
+  if (wsServer) {
+    try { 
+      wsClients.forEach(client => client.destroy());
+      wsClients.clear();
+      wsServer.close(); 
+    } catch (e) {}
+  }
   if (pipeServer) {
     try { pipeServer.close(); } catch (e) {}
   }
