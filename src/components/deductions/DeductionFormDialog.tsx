@@ -19,8 +19,9 @@ interface DeductionFormDialogProps {
 export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogProps) {
   const { t, language } = useLanguage();
   const { addDeduction } = useDeductionStore();
-  const { employees, getActiveEmployees } = useEmployeeStore();
-  const activeEmployees = getActiveEmployees();
+  const { employees } = useEmployeeStore();
+  // Derive active employees from subscribed state - ensures re-render on changes
+  const activeEmployees = employees.filter(emp => emp.status === 'active');
 
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',

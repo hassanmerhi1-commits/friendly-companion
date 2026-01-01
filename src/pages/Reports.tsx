@@ -24,8 +24,9 @@ const Reports = () => {
   const { t, language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
-  const { getActiveBranches } = useBranchStore();
-  const branches = getActiveBranches();
+  const { branches: allBranches } = useBranchStore();
+  // Derive active branches from subscribed state - ensures re-render on changes
+  const branches = allBranches.filter(b => b.isActive);
   const { records: holidayRecords, saveRecords } = useHolidayStore();
   const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);

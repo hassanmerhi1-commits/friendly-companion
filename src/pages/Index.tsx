@@ -11,13 +11,14 @@ import { formatAOA } from "@/lib/angola-labor-law";
 
 const Index = () => {
   const { t, language } = useLanguage();
-  const { employees, getActiveEmployees } = useEmployeeStore();
-  const { getCurrentPeriod, getEntriesForPeriod } = usePayrollStore();
+  const { employees } = useEmployeeStore();
+  const { periods, entries } = usePayrollStore();
 
-  const activeEmployees = getActiveEmployees();
-  const currentPeriod = getCurrentPeriod();
+  // Derive from subscribed state - ensures re-render on changes
+  const activeEmployees = employees.filter(emp => emp.status === 'active');
+  const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
   const employeeIdSet = new Set(employees.map(e => e.id));
-  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id).filter(e => employeeIdSet.has(e.employeeId)) : [];
+  const currentEntries = currentPeriod ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId)) : [];
   const totalPayroll = currentEntries.reduce((sum, e) => sum + e.netSalary, 0);
   const paidEmployees = currentEntries.filter(e => e.status === 'paid').length;
   const pendingCount = currentEntries.filter(e => e.status !== 'paid').length;

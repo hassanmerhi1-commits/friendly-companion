@@ -35,8 +35,10 @@ type ResetType = "province" | "branch";
 export function DataResetSettings() {
   const { t } = useLanguage();
   const { currentUser, hasPermission } = useAuthStore();
-  const { branches, getActiveBranches } = useBranchStore();
+  const { branches } = useBranchStore();
   const employees = useEmployeeStore((state) => state.employees);
+  // Derive active branches from subscribed state - ensures re-render on changes
+  const activeBranches = branches.filter(b => b.isActive);
   
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetType, setResetType] = useState<ResetType>("province");
@@ -47,7 +49,6 @@ export function DataResetSettings() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const currentProvince = getSelectedProvince();
-  const activeBranches = getActiveBranches();
   const isAdmin = currentUser?.role === "admin";
 
   // Get the expected confirmation text based on reset type
