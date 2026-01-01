@@ -1,18 +1,31 @@
 import { create } from 'zustand';
 import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
-import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
+import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
 
+/**
+ * Employee Store - Database-Centric Architecture
+ * 
+ * This store uses LIVE database reads - the local `employees` array is 
+ * automatically refreshed when any data change is detected (local or remote).
+ * This ensures all clients on the network see the same data instantly.
+ */
 
 interface EmployeeState {
   employees: Employee[];
   isLoaded: boolean;
+  
+  // Load/refresh from database
   loadEmployees: () => Promise<void>;
+  
+  // Database operations
+  getEmployee: (id: string) => Employee | undefined;
+  getActiveEmployees: () => Employee[];
   addEmployee: (data: EmployeeFormData) => Promise<{ success: boolean; employee?: Employee; error?: string }>;
   updateEmployee: (id: string, data: Partial<EmployeeFormData>) => Promise<{ success: boolean; error?: string }>;
   deleteEmployee: (id: string) => Promise<void>;
-  getEmployee: (id: string) => Employee | undefined;
-  getActiveEmployees: () => Employee[];
+  
+  // Validation helpers
   isEmployeeNumberTaken: (employeeNumber: string, excludeId?: string) => boolean;
   isEmployeeNameTaken: (firstName: string, lastName: string, excludeId?: string) => boolean;
 }
@@ -113,9 +126,10 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   employees: [],
   isLoaded: false,
   
+  // LIVE LOAD: Fetches fresh data from database
   loadEmployees: async () => {
     try {
-      const rows = await dbGetAll<any>('employees');
+      const rows = await liveGetAll<any>('employees');
       const employees = rows.map(mapDbRowToEmployee);
       set({ employees, isLoaded: true });
       console.log('[Employees] Loaded', employees.length, 'employees from database');
@@ -123,6 +137,14 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       console.error('[Employees] Error loading:', error);
       set({ isLoaded: true });
     }
+  },
+  
+  getEmployee: (id: string) => {
+    return get().employees.find((emp) => emp.id === id);
+  },
+  
+  getActiveEmployees: () => {
+    return get().employees.filter((emp) => emp.status === 'active');
   },
   
   addEmployee: async (data: EmployeeFormData) => {
@@ -187,14 +209,13 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     };
     
     const dbRow = mapEmployeeToDbRow(newEmployee);
-    const success = await dbInsert('employees', dbRow);
+    const success = await liveInsert('employees', dbRow);
     if (!success) {
       return { success: false, error: 'Erro ao guardar no banco de dados' };
     }
     
-    set((state) => ({
-      employees: [...state.employees, newEmployee],
-    }));
+    // Refresh from database to ensure consistency
+    await get().loadEmployees();
     
     return { success: true, employee: newEmployee };
   },
@@ -240,16 +261,13 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     const dbRow = mapEmployeeToDbRow(updatedEmployee);
     // Remove id from update data (it's used in WHERE clause)
     const { id: _, ...updateData } = dbRow;
-    const success = await dbUpdate('employees', id, updateData);
+    const success = await liveUpdate('employees', id, updateData);
     if (!success) {
       return { success: false, error: 'Erro ao actualizar no banco de dados' };
     }
     
-    set((state) => ({
-      employees: state.employees.map((emp) =>
-        emp.id === id ? updatedEmployee : emp
-      ),
-    }));
+    // Refresh from database to ensure consistency
+    await get().loadEmployees();
     
     return { success: true };
   },
@@ -270,20 +288,32 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   deleteEmployee: async (id: string) => {
     // Clean up payroll entries for this employee
     const payrollStore = usePayrollStore.getState();
-    payrollStore.removeEntriesForEmployee(id);
+    await payrollStore.removeEntriesForEmployee(id);
     
-    await dbDelete('employees', id);
+    await liveDelete('employees', id);
     
-    set((state) => ({
-      employees: state.employees.filter((emp) => emp.id !== id),
-    }));
-  },
-  
-  getEmployee: (id: string) => {
-    return get().employees.find((emp) => emp.id === id);
-  },
-  
-  getActiveEmployees: () => {
-    return get().employees.filter((emp) => emp.status === 'active');
+    // Refresh from database to ensure consistency
+    await get().loadEmployees();
   },
 }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initEmployeeStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'employees') {
+      console.log('[Employees] Data change detected, refreshing from database...');
+      useEmployeeStore.getState().loadEmployees();
+    }
+  });
+}
+
+export function cleanupEmployeeStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+}

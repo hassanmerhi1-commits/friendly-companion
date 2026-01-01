@@ -13,7 +13,9 @@ import { useDeductionStore } from "@/stores/deduction-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
-import { dbInit } from "@/lib/db-sync";
+import { liveInit } from "@/lib/db-live";
+import { initEmployeeStoreSync } from "@/stores/employee-store";
+import { initBranchStoreSync } from "@/stores/branch-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -114,7 +116,11 @@ function AppContent() {
           // Load ALL data from database if activated
           if (activated) {
             // Force DB init from renderer too
-            const dbOk = await dbInit();
+            const dbOk = await liveInit();
+            
+            // Initialize store sync for real-time updates
+            initEmployeeStoreSync();
+            initBranchStoreSync();
             if (!dbOk) {
               setInitError('Base de dados não ligada. Configure em Definições > Base de Dados (ficheiro IP) e reinicie.');
               return;
