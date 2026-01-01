@@ -160,7 +160,7 @@ export function DataResetSettings() {
     // Clear branches
     const branchStore = useBranchStore.getState();
     for (const branch of provinceBranches) {
-      branchStore.deleteBranch(branch.id);
+      await branchStore.deleteBranch(branch.id);
     }
 
     // Clear payroll entries for affected employees
@@ -203,7 +203,7 @@ export function DataResetSettings() {
 
     // Deactivate the branch (soft delete)
     const branchStore = useBranchStore.getState();
-    branchStore.deleteBranch(branchId);
+    await branchStore.deleteBranch(branchId);
 
     // Note: Payroll entries will be orphaned but can be cleaned up
     // The employee deletion is the primary data cleanup

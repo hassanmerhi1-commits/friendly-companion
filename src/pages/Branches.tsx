@@ -28,8 +28,8 @@ export default function Branches() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    deleteBranch(id);
+  const handleDelete = async (id: string) => {
+    await deleteBranch(id);
     toast.success(language === 'pt' ? 'Filial desactivada' : 'Branch deactivated');
   };
 
