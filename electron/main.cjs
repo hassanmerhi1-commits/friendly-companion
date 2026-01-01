@@ -104,25 +104,25 @@ function activateApp() {
   }
 }
 
-// ============= DATABASE CREATION (SERVER ONLY) =============
+// ============= DATABASE CREATION (SERVER ONLY - MANUAL ACTION) =============
+// Database is NEVER auto-created. Must be explicitly created via db:create command.
 
-function createNewDatabase(customPath = null) {
+function createNewDatabase() {
   try {
-    let targetPath = customPath;
+    const ipConfig = parseIPFile();
     
-    if (!targetPath) {
-      const ipConfig = parseIPFile();
-      if (!ipConfig.valid || !ipConfig.path) {
-        return { success: false, error: 'Configure IP file with valid path first.' };
-      }
-      if (ipConfig.isClient) {
-        return { success: false, error: 'Cannot create database from client. Create on server first.' };
-      }
-      targetPath = ipConfig.path;
+    if (!ipConfig.valid || !ipConfig.path) {
+      return { success: false, error: 'Configure o ficheiro IP com o caminho da base de dados primeiro.' };
     }
+    
+    if (ipConfig.isClient) {
+      return { success: false, error: 'Clientes não podem criar base de dados. Crie no servidor primeiro.' };
+    }
+    
+    const targetPath = ipConfig.path;
 
     if (fs.existsSync(targetPath)) {
-      return { success: false, error: 'Database already exists.' };
+      return { success: false, error: 'A base de dados já existe neste caminho.' };
     }
 
     const parentDir = path.dirname(targetPath);
@@ -556,21 +556,28 @@ function initDatabase() {
   }
 
   if (ipConfig.isClient) {
-    // Client mode - don't open local DB, connect via named pipe
+    // Client mode - don't open local DB, connect via named pipe to server
     isClientMode = true;
     serverName = ipConfig.serverName;
+    dbPath = null;
     console.log('CLIENT MODE: Will connect to server', serverName, 'via named pipe');
+    // Don't auto-connect, just set the mode
     return { success: true, mode: 'client', serverName };
   }
 
-  // Server mode - open local database and start named pipe server
+  // Server mode - open EXISTING local database and start named pipe server
+  // Database must already exist - we never auto-create it
   dbPath = ipConfig.path;
   isClientMode = false;
   serverName = null;
 
   if (!checkDatabaseExists(dbPath)) {
     console.log('Database not found at:', dbPath);
-    return { success: false, error: `Database not found at: ${dbPath}`, needsDatabase: true };
+    return { 
+      success: false, 
+      error: `Base de dados não encontrada: ${dbPath}. Use "Criar Base de Dados" primeiro.`, 
+      needsDatabase: true 
+    };
   }
 
   try {
@@ -579,13 +586,14 @@ function initDatabase() {
       db = null;
     }
 
+    // Open existing database - never create new one here
     db = openDatabase(dbPath);
     runMigrations();
     
     // Start named pipe server for client connections
     startNamedPipeServer();
     
-    console.log('SERVER MODE: Database initialized at:', dbPath);
+    console.log('SERVER MODE: Connected to existing database at:', dbPath);
     return { success: true, mode: 'server', path: dbPath };
   } catch (error) {
     console.error('Error initializing database:', error);
