@@ -1084,6 +1084,16 @@ ipcMain.handle('network:getComputerName', () => {
 app.whenReady().then(() => {
   createWindow();
   
+  // Auto-initialize database on startup if configured
+  const initResult = initDatabase();
+  if (initResult.success) {
+    console.log('Database auto-initialized:', initResult.mode, initResult.path || initResult.serverName);
+  } else if (initResult.needsConfig || initResult.needsDatabase) {
+    console.log('Database needs configuration:', initResult.error);
+  } else {
+    console.log('Database init skipped:', initResult.error);
+  }
+  
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
