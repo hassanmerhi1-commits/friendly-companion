@@ -631,6 +631,11 @@ function runMigrations() {
     addColumnIfMissing('employees', 'family_allowance', "ALTER TABLE employees ADD COLUMN family_allowance REAL DEFAULT 0");
     addColumnIfMissing('employees', 'monthly_bonus', "ALTER TABLE employees ADD COLUMN monthly_bonus REAL DEFAULT 0");
     addColumnIfMissing('employees', 'holiday_subsidy', "ALTER TABLE employees ADD COLUMN holiday_subsidy REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'bi', "ALTER TABLE employees ADD COLUMN bi TEXT");
+    addColumnIfMissing('employees', 'meal_allowance', "ALTER TABLE employees ADD COLUMN meal_allowance REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'transport_allowance', "ALTER TABLE employees ADD COLUMN transport_allowance REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'other_allowances', "ALTER TABLE employees ADD COLUMN other_allowances REAL DEFAULT 0");
+    addColumnIfMissing('employees', 'is_retired', "ALTER TABLE employees ADD COLUMN is_retired INTEGER DEFAULT 0");
     
     // Branch migrations
     addColumnIfMissing('branches', 'code', "ALTER TABLE branches ADD COLUMN code TEXT");
