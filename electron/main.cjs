@@ -2,12 +2,13 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const net = require('net');
 
 // ============= PATHS AND CONFIGURATION =============
-// Install location is always C:\PayrollAO
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
+const DB_SERVER_PORT = 5433;
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
@@ -32,11 +33,14 @@ let mainWindow;
 let db = null;
 let dbPath = null;
 let isClientMode = false;
+let serverIP = null;
+let tcpServer = null;
+let tcpClient = null;
 
-// ============= IP FILE PARSING (DOLLY STYLE) =============
+// ============= IP FILE PARSING =============
 // Format: 
-//   Server: C:\PayrollAO\payroll.db (local path)
-//   Client: 10.0.0.10:C:\PayrollAO\payroll.db (converts to \\10.0.0.10\C$\PayrollAO\payroll.db)
+//   Server: C:\PayrollAO\payroll.db (local path - runs DB service)
+//   Client: 10.0.0.10:C:\PayrollAO\payroll.db (connects to server via TCP)
 
 function parseIPFile() {
   try {
@@ -47,29 +51,23 @@ function parseIPFile() {
     const content = fs.readFileSync(IP_FILE_PATH, 'utf-8').trim();
     
     if (!content) {
-      return { valid: false, error: 'IP file is empty. Please configure the database path.', path: null, isClient: false };
+      return { valid: false, error: 'IP file is empty. Configure database path.', path: null, isClient: false };
     }
 
     // Check if it's IP:PATH format (client mode)
-    // Pattern: IP_ADDRESS:DRIVE_LETTER:\path
     const clientMatch = content.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):([A-Za-z]):\\(.+)$/);
     
     if (clientMatch) {
-      // Client mode - convert to UNC path using Windows admin share (C$)
       const ip = clientMatch[1];
       const drive = clientMatch[2].toUpperCase();
       const restOfPath = clientMatch[3];
+      const localPath = `${drive}:\\${restOfPath}`;
 
-      // Convert to UNC: \\10.0.0.10\C$\PayrollAO\payroll.db
-      const uncPath = `\\\\${ip}\\${drive}$\\${restOfPath}`;
-
-      console.log('CLIENT MODE: IP file contains:', content);
-      console.log('CLIENT MODE: Converted to UNC path:', uncPath);
-
-      return { valid: true, path: uncPath, isClient: true, serverIP: ip };
+      console.log('CLIENT MODE: Will connect to server at', ip);
+      return { valid: true, path: localPath, isClient: true, serverIP: ip };
     }
 
-    // Server mode - local path (e.g., C:\PayrollAO\payroll.db)
+    // Server mode - local path
     const serverMatch = content.match(/^[A-Za-z]:\\.+$/);
     
     if (serverMatch) {
@@ -77,19 +75,17 @@ function parseIPFile() {
       return { valid: true, path: content, isClient: false };
     }
 
-    return { valid: false, error: 'Invalid IP file format. Expected: "C:\\path\\payroll.db" or "IP:C:\\path\\payroll.db"', path: null, isClient: false };
+    return { valid: false, error: 'Invalid format. Use "C:\\path\\db.db" or "IP:C:\\path\\db.db"', path: null, isClient: false };
   } catch (error) {
     console.error('Error reading IP file:', error);
     return { valid: false, error: error.message, path: null, isClient: false };
   }
 }
 
-// Check if database file exists at the given path
 function checkDatabaseExists(dbFilePath) {
   try {
     return fs.existsSync(dbFilePath);
   } catch (error) {
-    console.error('Error checking database existence:', error);
     return false;
   }
 }
@@ -98,13 +94,9 @@ function checkDatabaseExists(dbFilePath) {
 
 function isAppActivated() {
   try {
-    if (!fs.existsSync(ACTIVATED_FILE_PATH)) {
-      return false;
-    }
-    const content = fs.readFileSync(ACTIVATED_FILE_PATH, 'utf-8').trim();
-    return content === 'ACTIVATED';
+    if (!fs.existsSync(ACTIVATED_FILE_PATH)) return false;
+    return fs.readFileSync(ACTIVATED_FILE_PATH, 'utf-8').trim() === 'ACTIVATED';
   } catch (error) {
-    console.error('Error checking activation:', error);
     return false;
   }
 }
@@ -112,15 +104,13 @@ function isAppActivated() {
 function activateApp() {
   try {
     fs.writeFileSync(ACTIVATED_FILE_PATH, 'ACTIVATED', 'utf-8');
-    console.log('App activated successfully');
     return { success: true };
   } catch (error) {
-    console.error('Error activating app:', error);
     return { success: false, error: error.message };
   }
 }
 
-// ============= DATABASE CREATION =============
+// ============= DATABASE CREATION (SERVER ONLY) =============
 
 function createNewDatabase(customPath = null) {
   try {
@@ -129,16 +119,16 @@ function createNewDatabase(customPath = null) {
     if (!targetPath) {
       const ipConfig = parseIPFile();
       if (!ipConfig.valid || !ipConfig.path) {
-        return { success: false, error: 'Please configure the IP file with a valid path first.' };
+        return { success: false, error: 'Configure IP file with valid path first.' };
       }
       if (ipConfig.isClient) {
-        return { success: false, error: 'Cannot create database from client. Create it on the server.' };
+        return { success: false, error: 'Cannot create database from client. Create on server.' };
       }
       targetPath = ipConfig.path;
     }
 
     if (fs.existsSync(targetPath)) {
-      return { success: false, error: 'Database already exists at this location.' };
+      return { success: false, error: 'Database already exists.' };
     }
 
     const parentDir = path.dirname(targetPath);
@@ -351,7 +341,6 @@ function createNewDatabase(customPath = null) {
   }
 }
 
-// Get the correct path for production vs development
 function getDistPath() {
   if (app.isPackaged) {
     const possiblePaths = [
@@ -361,20 +350,173 @@ function getDistPath() {
     ];
     
     for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        console.log('Found index.html at:', p);
-        return p;
-      }
+      if (fs.existsSync(p)) return p;
     }
     
-    console.log('Using fallback path');
     return path.join(app.getAppPath(), 'dist', 'index.html');
   }
   
   return path.join(__dirname, '..', 'dist', 'index.html');
 }
 
-// ============= SQLite DATABASE =============
+// ============= TCP DATABASE SERVER (runs on server PC) =============
+
+function startTCPServer() {
+  if (tcpServer) {
+    console.log('TCP server already running');
+    return { success: true, port: DB_SERVER_PORT };
+  }
+
+  tcpServer = net.createServer((socket) => {
+    console.log('Client connected:', socket.remoteAddress);
+    
+    let buffer = '';
+    
+    socket.on('data', (data) => {
+      buffer += data.toString();
+      
+      // Process complete messages (delimited by \n)
+      const messages = buffer.split('\n');
+      buffer = messages.pop(); // Keep incomplete message in buffer
+      
+      for (const msg of messages) {
+        if (!msg.trim()) continue;
+        
+        try {
+          const request = JSON.parse(msg);
+          const response = handleDBRequest(request);
+          socket.write(JSON.stringify(response) + '\n');
+        } catch (err) {
+          socket.write(JSON.stringify({ success: false, error: err.message }) + '\n');
+        }
+      }
+    });
+    
+    socket.on('error', (err) => {
+      console.log('Socket error:', err.message);
+    });
+    
+    socket.on('close', () => {
+      console.log('Client disconnected');
+    });
+  });
+
+  tcpServer.listen(DB_SERVER_PORT, '0.0.0.0', () => {
+    console.log(`TCP Database Server listening on port ${DB_SERVER_PORT}`);
+  });
+
+  tcpServer.on('error', (err) => {
+    console.error('TCP Server error:', err);
+    tcpServer = null;
+  });
+
+  return { success: true, port: DB_SERVER_PORT };
+}
+
+function handleDBRequest(request) {
+  const { action, table, id, data, sql, params } = request;
+  
+  switch (action) {
+    case 'ping':
+      return { success: true, message: 'pong' };
+      
+    case 'getAll':
+      return { success: true, data: dbGetAll(table) };
+      
+    case 'getById':
+      return { success: true, data: dbGetById(table, id) };
+      
+    case 'insert':
+      return dbInsert(table, data);
+      
+    case 'update':
+      return dbUpdate(table, id, data);
+      
+    case 'delete':
+      return dbDelete(table, id);
+      
+    case 'query':
+      const result = dbQuery(sql, params || []);
+      if (Array.isArray(result)) {
+        return { success: true, data: result };
+      }
+      return result;
+      
+    case 'export':
+      return { success: true, data: dbExportAll() };
+      
+    case 'import':
+      return dbImportAll(data);
+      
+    default:
+      return { success: false, error: `Unknown action: ${action}` };
+  }
+}
+
+// ============= TCP CLIENT (runs on client PCs) =============
+
+function sendToServer(request) {
+  return new Promise((resolve, reject) => {
+    if (!serverIP) {
+      reject(new Error('Server IP not configured'));
+      return;
+    }
+
+    const client = new net.Socket();
+    let buffer = '';
+    let resolved = false;
+    
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        client.destroy();
+        reject(new Error('Connection timeout'));
+      }
+    }, 10000);
+
+    client.connect(DB_SERVER_PORT, serverIP, () => {
+      client.write(JSON.stringify(request) + '\n');
+    });
+
+    client.on('data', (data) => {
+      buffer += data.toString();
+      
+      const messages = buffer.split('\n');
+      buffer = messages.pop();
+      
+      for (const msg of messages) {
+        if (msg.trim() && !resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          client.destroy();
+          try {
+            resolve(JSON.parse(msg));
+          } catch (err) {
+            reject(new Error('Invalid response from server'));
+          }
+        }
+      }
+    });
+
+    client.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        reject(err);
+      }
+    });
+
+    client.on('close', () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        reject(new Error('Connection closed'));
+      }
+    });
+  });
+}
+
+// ============= SQLite DATABASE (SERVER ONLY) =============
 
 function initDatabase() {
   const ipConfig = parseIPFile();
@@ -386,7 +528,15 @@ function initDatabase() {
 
   dbPath = ipConfig.path;
   isClientMode = ipConfig.isClient;
+  serverIP = ipConfig.serverIP || null;
 
+  if (isClientMode) {
+    // Client mode - don't open local DB, will connect to server
+    console.log('CLIENT MODE: Will connect to server at', serverIP);
+    return { success: true, mode: 'client', serverIP };
+  }
+
+  // Server mode - open local database and start TCP server
   if (!checkDatabaseExists(dbPath)) {
     console.log('Database not found at:', dbPath);
     return { success: false, error: `Database not found at: ${dbPath}`, needsDatabase: true };
@@ -395,15 +545,15 @@ function initDatabase() {
   try {
     const Database = require('better-sqlite3');
     db = new Database(dbPath);
-    
-    // Enable WAL mode for better concurrent access
     db.pragma('journal_mode = WAL');
     
     runMigrations();
     
-    console.log('SQLite database initialized at:', dbPath);
-    console.log('Mode:', isClientMode ? 'CLIENT (UNC path)' : 'SERVER (local path)');
-    return { success: true };
+    // Start TCP server for client connections
+    startTCPServer();
+    
+    console.log('SERVER MODE: Database initialized at:', dbPath);
+    return { success: true, mode: 'server' };
   } catch (error) {
     console.error('Error initializing database:', error);
     return { success: false, error: error.message };
@@ -418,14 +568,14 @@ function runMigrations() {
         const columns = info.map(col => col.name);
         if (!columns.includes(column)) {
           db.exec(sql);
-          console.log(`Migration: Added column ${column} to ${table}`);
+          console.log(`Migration: Added ${column} to ${table}`);
         }
       } catch (err) {
-        console.error(`Migration error for ${table}.${column}:`, err.message);
+        console.error(`Migration error:`, err.message);
       }
     };
     
-    // Employees migrations
+    // Employee migrations
     addColumnIfMissing('employees', 'employee_number', "ALTER TABLE employees ADD COLUMN employee_number TEXT");
     addColumnIfMissing('employees', 'contract_type', "ALTER TABLE employees ADD COLUMN contract_type TEXT DEFAULT 'permanent'");
     addColumnIfMissing('employees', 'contract_end_date', "ALTER TABLE employees ADD COLUMN contract_end_date TEXT");
@@ -439,7 +589,7 @@ function runMigrations() {
     addColumnIfMissing('employees', 'monthly_bonus', "ALTER TABLE employees ADD COLUMN monthly_bonus REAL DEFAULT 0");
     addColumnIfMissing('employees', 'holiday_subsidy', "ALTER TABLE employees ADD COLUMN holiday_subsidy REAL DEFAULT 0");
     
-    // Branches migrations
+    // Branch migrations
     addColumnIfMissing('branches', 'code', "ALTER TABLE branches ADD COLUMN code TEXT");
     addColumnIfMissing('branches', 'province', "ALTER TABLE branches ADD COLUMN province TEXT");
     addColumnIfMissing('branches', 'city', "ALTER TABLE branches ADD COLUMN city TEXT");
@@ -448,7 +598,7 @@ function runMigrations() {
     addColumnIfMissing('branches', 'is_headquarters', "ALTER TABLE branches ADD COLUMN is_headquarters INTEGER DEFAULT 0");
     addColumnIfMissing('branches', 'is_active', "ALTER TABLE branches ADD COLUMN is_active INTEGER DEFAULT 1");
     
-    // Deductions migrations
+    // Deduction migrations
     addColumnIfMissing('deductions', 'employee_id', "ALTER TABLE deductions ADD COLUMN employee_id TEXT");
     addColumnIfMissing('deductions', 'amount', "ALTER TABLE deductions ADD COLUMN amount REAL DEFAULT 0");
     addColumnIfMissing('deductions', 'date', "ALTER TABLE deductions ADD COLUMN date TEXT");
@@ -457,11 +607,11 @@ function runMigrations() {
     addColumnIfMissing('deductions', 'installments', "ALTER TABLE deductions ADD COLUMN installments INTEGER");
     addColumnIfMissing('deductions', 'current_installment', "ALTER TABLE deductions ADD COLUMN current_installment INTEGER");
     
-    // Users migrations
+    // User migrations
     addColumnIfMissing('users', 'is_active', "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
     addColumnIfMissing('users', 'custom_permissions', "ALTER TABLE users ADD COLUMN custom_permissions TEXT");
     
-    // Absences migrations
+    // Absence migrations
     addColumnIfMissing('absences', 'document_path', "ALTER TABLE absences ADD COLUMN document_path TEXT");
     addColumnIfMissing('absences', 'justified_at', "ALTER TABLE absences ADD COLUMN justified_at TEXT");
     addColumnIfMissing('absences', 'justification_document', "ALTER TABLE absences ADD COLUMN justification_document TEXT");
@@ -470,7 +620,7 @@ function runMigrations() {
     addColumnIfMissing('absences', 'approved_at', "ALTER TABLE absences ADD COLUMN approved_at TEXT");
     addColumnIfMissing('absences', 'rejection_reason', "ALTER TABLE absences ADD COLUMN rejection_reason TEXT");
     
-    // Holidays migrations
+    // Holiday migrations
     addColumnIfMissing('holidays', 'employee_id', "ALTER TABLE holidays ADD COLUMN employee_id TEXT");
     addColumnIfMissing('holidays', 'year', "ALTER TABLE holidays ADD COLUMN year INTEGER");
     addColumnIfMissing('holidays', 'days_used', "ALTER TABLE holidays ADD COLUMN days_used INTEGER DEFAULT 0");
@@ -480,13 +630,23 @@ function runMigrations() {
     addColumnIfMissing('holidays', 'subsidy_paid_month', "ALTER TABLE holidays ADD COLUMN subsidy_paid_month INTEGER");
     addColumnIfMissing('holidays', 'subsidy_paid_year', "ALTER TABLE holidays ADD COLUMN subsidy_paid_year INTEGER");
     
+    // Payroll entry migrations
+    addColumnIfMissing('payroll_entries', 'subsidy_alimentacao', "ALTER TABLE payroll_entries ADD COLUMN subsidy_alimentacao REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'subsidy_transporte', "ALTER TABLE payroll_entries ADD COLUMN subsidy_transporte REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'subsidy_ferias', "ALTER TABLE payroll_entries ADD COLUMN subsidy_ferias REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'subsidy_natal', "ALTER TABLE payroll_entries ADD COLUMN subsidy_natal REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_hours', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_amount', "ALTER TABLE payroll_entries ADD COLUMN overtime_amount REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'absence_days', "ALTER TABLE payroll_entries ADD COLUMN absence_days INTEGER DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'absence_deduction', "ALTER TABLE payroll_entries ADD COLUMN absence_deduction REAL DEFAULT 0");
+    
     console.log('Database migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
   }
 }
 
-// Generic database operations
+// Generic database operations (SERVER ONLY - direct SQLite access)
 function dbGetAll(table) {
   try {
     if (!db) return [];
@@ -617,7 +777,6 @@ function dbImportAll(data) {
   }
 }
 
-// Get local IP addresses (for display only)
 function getLocalIPAddresses() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -633,7 +792,6 @@ function getLocalIPAddresses() {
   return addresses;
 }
 
-// Read IP file content
 function readIPFile() {
   try {
     if (!fs.existsSync(IP_FILE_PATH)) {
@@ -642,24 +800,19 @@ function readIPFile() {
     const content = fs.readFileSync(IP_FILE_PATH, 'utf-8').trim();
     return { exists: true, content, path: IP_FILE_PATH };
   } catch (error) {
-    console.error('Error reading IP file:', error);
     return { exists: false, content: '', error: error.message, path: IP_FILE_PATH };
   }
 }
 
-// Write IP file content
 function writeIPFile(content) {
   try {
     fs.writeFileSync(IP_FILE_PATH, content, 'utf-8');
-    console.log('IP file updated:', content);
     return { success: true, path: IP_FILE_PATH };
   } catch (error) {
-    console.error('Error writing IP file:', error);
     return { success: false, error: error.message };
   }
 }
 
-// Create the main application window
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -681,7 +834,6 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     const indexPath = getDistPath();
-    console.log('Loading from:', indexPath);
     mainWindow.loadFile(indexPath);
   }
 
@@ -692,7 +844,6 @@ function createWindow() {
 
 // ============= IPC HANDLERS =============
 
-// App controls
 ipcMain.handle('app:relaunch', () => {
   try {
     app.relaunch();
@@ -703,7 +854,6 @@ ipcMain.handle('app:relaunch', () => {
   }
 });
 
-// Activation handlers
 ipcMain.handle('activation:check', () => {
   return { isActivated: isAppActivated() };
 });
@@ -712,7 +862,6 @@ ipcMain.handle('activation:activate', () => {
   return activateApp();
 });
 
-// IP file handlers
 ipcMain.handle('ipfile:read', () => {
   return readIPFile();
 });
@@ -725,7 +874,6 @@ ipcMain.handle('ipfile:parse', () => {
   return parseIPFile();
 });
 
-// Database handlers
 ipcMain.handle('db:getStatus', () => {
   const ipConfig = parseIPFile();
   return {
@@ -733,8 +881,10 @@ ipcMain.handle('db:getStatus', () => {
     path: ipConfig.path,
     isClient: ipConfig.isClient,
     serverIP: ipConfig.serverIP || null,
-    exists: ipConfig.valid ? checkDatabaseExists(ipConfig.path) : false,
-    connected: db !== null,
+    exists: ipConfig.valid && !ipConfig.isClient ? checkDatabaseExists(ipConfig.path) : null,
+    connected: isClientMode ? (serverIP !== null) : (db !== null),
+    tcpServerRunning: tcpServer !== null,
+    port: DB_SERVER_PORT,
     error: ipConfig.error,
   };
 });
@@ -747,39 +897,120 @@ ipcMain.handle('db:init', () => {
   return initDatabase();
 });
 
-ipcMain.handle('db:getAll', (event, table) => {
+// Database operations - route to server if client mode
+ipcMain.handle('db:getAll', async (event, table) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToServer({ action: 'getAll', table });
+      return response.data || [];
+    } catch (err) {
+      console.error('Client getAll error:', err);
+      return [];
+    }
+  }
   return dbGetAll(table);
 });
 
-ipcMain.handle('db:getById', (event, table, id) => {
+ipcMain.handle('db:getById', async (event, table, id) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToServer({ action: 'getById', table, id });
+      return response.data || null;
+    } catch (err) {
+      console.error('Client getById error:', err);
+      return null;
+    }
+  }
   return dbGetById(table, id);
 });
 
-ipcMain.handle('db:insert', (event, table, data) => {
+ipcMain.handle('db:insert', async (event, table, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToServer({ action: 'insert', table, data });
+    } catch (err) {
+      console.error('Client insert error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbInsert(table, data);
 });
 
-ipcMain.handle('db:update', (event, table, id, data) => {
+ipcMain.handle('db:update', async (event, table, id, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToServer({ action: 'update', table, id, data });
+    } catch (err) {
+      console.error('Client update error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbUpdate(table, id, data);
 });
 
-ipcMain.handle('db:delete', (event, table, id) => {
+ipcMain.handle('db:delete', async (event, table, id) => {
+  if (isClientMode) {
+    try {
+      return await sendToServer({ action: 'delete', table, id });
+    } catch (err) {
+      console.error('Client delete error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbDelete(table, id);
 });
 
-ipcMain.handle('db:query', (event, sql, params) => {
+ipcMain.handle('db:query', async (event, sql, params) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToServer({ action: 'query', sql, params });
+      return response.data || [];
+    } catch (err) {
+      console.error('Client query error:', err);
+      return [];
+    }
+  }
   return dbQuery(sql, params);
 });
 
-ipcMain.handle('db:export', () => {
+ipcMain.handle('db:export', async () => {
+  if (isClientMode) {
+    try {
+      const response = await sendToServer({ action: 'export' });
+      return response.data || null;
+    } catch (err) {
+      console.error('Client export error:', err);
+      return null;
+    }
+  }
   return dbExportAll();
 });
 
-ipcMain.handle('db:import', (event, data) => {
+ipcMain.handle('db:import', async (event, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToServer({ action: 'import', data });
+    } catch (err) {
+      console.error('Client import error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbImportAll(data);
 });
 
-// Network info (display only - no HTTP server)
+// Test connection to server (client mode only)
+ipcMain.handle('db:testConnection', async () => {
+  if (!isClientMode || !serverIP) {
+    return { success: false, error: 'Not in client mode' };
+  }
+  try {
+    const response = await sendToServer({ action: 'ping' });
+    return { success: response.success, message: response.message };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('network:getLocalIPs', () => {
   return getLocalIPAddresses();
 });
@@ -798,7 +1029,7 @@ app.whenReady().then(async () => {
   try {
     const result = initDatabase();
     if (!result?.success) {
-      console.log('Database init skipped:', result?.error || 'unknown');
+      console.log('Database init:', result?.error || 'pending config');
     }
   } catch (e) {
     console.log('Database init error:', e?.message || String(e));
@@ -815,6 +1046,9 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    if (tcpServer) {
+      tcpServer.close();
+    }
     if (db) {
       db.close();
     }
