@@ -2,8 +2,13 @@ import { create } from 'zustand';
 import type { Branch, BranchFormData } from '@/types/branch';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
-import { dbGetAll, dbInsert, dbUpdate } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, liveUpdate, onDataChange } from '@/lib/db-live';
 
+/**
+ * Branch Store - Database-Centric Architecture
+ * 
+ * Uses LIVE database access - auto-refreshes when data changes are detected.
+ */
 
 interface BranchState {
   branches: Branch[];
@@ -68,7 +73,7 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
 
   loadBranches: async () => {
     try {
-      const rows = await dbGetAll<any>('branches');
+      const rows = await liveGetAll<any>('branches');
       const branches = rows.map(mapDbRowToBranch);
       set({ branches, isLoaded: true });
       console.log('[Branches] Loaded', branches.length, 'branches from database');
@@ -92,12 +97,13 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
     };
 
     const dbRow = mapBranchToDbRow(newBranch);
-    const success = await dbInsert('branches', dbRow);
+    const success = await liveInsert('branches', dbRow);
     if (!success) {
       return { success: false, error: 'Error saving branch to database' };
     }
 
-    set((state) => ({ branches: [...state.branches, newBranch] }));
+    // Refresh from database
+    await get().loadBranches();
     return { success: true, branch: newBranch };
   },
 
@@ -113,15 +119,13 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
 
     const dbRow = mapBranchToDbRow(updated);
     const { id: _, ...updateData } = dbRow;
-    const success = await dbUpdate('branches', id, updateData);
+    const success = await liveUpdate('branches', id, updateData);
     if (!success) {
       return { success: false, error: 'Error updating branch in database' };
     }
 
-    set((state) => ({
-      branches: state.branches.map((b) => (b.id === id ? updated : b)),
-    }));
-
+    // Refresh from database
+    await get().loadBranches();
     return { success: true };
   },
 
@@ -131,21 +135,20 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
     const payrollStore = usePayrollStore.getState();
 
     const branchEmployees = employeeStore.employees.filter((emp) => emp.branchId === id);
-    branchEmployees.forEach((emp) => payrollStore.removeEntriesForEmployee(emp.id));
+    for (const emp of branchEmployees) {
+      await payrollStore.removeEntriesForEmployee(emp.id);
+    }
 
     const current = get().branches.find((b) => b.id === id);
     if (!current) return;
 
-    const updated: Branch = { ...current, isActive: false, updatedAt: new Date().toISOString() };
-
-    const success = await dbUpdate('branches', id, { is_active: 0, updated_at: updated.updatedAt });
+    const success = await liveUpdate('branches', id, { is_active: 0, updated_at: new Date().toISOString() });
     if (!success) {
       console.error('[Branches] Failed to deactivate branch in database');
     }
 
-    set((state) => ({
-      branches: state.branches.map((b) => (b.id === id ? updated : b)),
-    }));
+    // Refresh from database
+    await get().loadBranches();
   },
 
   getBranch: (id: string) => get().branches.find((branch) => branch.id === id),
@@ -157,3 +160,24 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
   getBranchesByProvince: (province: string) =>
     get().branches.filter((branch) => branch.province === province && branch.isActive),
 }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initBranchStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'branches') {
+      console.log('[Branches] Data change detected, refreshing from database...');
+      useBranchStore.getState().loadBranches();
+    }
+  });
+}
+
+export function cleanupBranchStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+}
