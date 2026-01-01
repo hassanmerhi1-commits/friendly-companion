@@ -1153,18 +1153,34 @@ ipcMain.handle('ipfile:parse', () => {
   return parseIPFile();
 });
 
-ipcMain.handle('db:getStatus', () => {
+ipcMain.handle('db:getStatus', async () => {
   const ipConfig = parseIPFile();
+  
+  // For client mode, actually test the connection
+  let clientConnected = false;
+  let clientError = null;
+  
+  if (isClientMode && serverName) {
+    try {
+      const response = await sendToPipeServer({ action: 'ping' });
+      clientConnected = response.success === true;
+    } catch (err) {
+      clientConnected = false;
+      clientError = err.message;
+      console.error('[Client] Connection test failed:', err.message);
+    }
+  }
+  
   return {
     configured: ipConfig.valid,
     path: ipConfig.path,
     isClient: ipConfig.isClient,
     serverName: ipConfig.serverName || serverName || null,
     exists: ipConfig.valid && !ipConfig.isClient ? checkDatabaseExists(ipConfig.path) : null,
-    connected: isClientMode ? (serverName !== null) : (db !== null),
+    connected: isClientMode ? clientConnected : (db !== null),
     pipeServerRunning: pipeServer !== null,
     pipeName: PIPE_NAME,
-    error: ipConfig.error,
+    error: ipConfig.error || clientError,
   };
 });
 
@@ -1180,10 +1196,13 @@ ipcMain.handle('db:init', () => {
 ipcMain.handle('db:getAll', async (event, table) => {
   if (isClientMode) {
     try {
+      console.log(`[Client] getAll(${table}) -> sending to server ${serverName}`);
       const response = await sendToPipeServer({ action: 'getAll', table });
-      return response.data || [];
+      const data = response.data || [];
+      console.log(`[Client] getAll(${table}) <- received ${data.length} rows`);
+      return data;
     } catch (err) {
-      console.error('Client getAll error:', err);
+      console.error(`[Client] getAll(${table}) FAILED:`, err.message);
       return [];
     }
   }
@@ -1193,10 +1212,12 @@ ipcMain.handle('db:getAll', async (event, table) => {
 ipcMain.handle('db:getById', async (event, table, id) => {
   if (isClientMode) {
     try {
+      console.log(`[Client] getById(${table}, ${id}) -> sending to server`);
       const response = await sendToPipeServer({ action: 'getById', table, id });
+      console.log(`[Client] getById(${table}, ${id}) <- received:`, response.data ? 'found' : 'null');
       return response.data || null;
     } catch (err) {
-      console.error('Client getById error:', err);
+      console.error(`[Client] getById(${table}, ${id}) FAILED:`, err.message);
       return null;
     }
   }
@@ -1206,9 +1227,12 @@ ipcMain.handle('db:getById', async (event, table, id) => {
 ipcMain.handle('db:insert', async (event, table, data) => {
   if (isClientMode) {
     try {
-      return await sendToPipeServer({ action: 'insert', table, data });
+      console.log(`[Client] insert(${table}) -> sending to server`);
+      const result = await sendToPipeServer({ action: 'insert', table, data });
+      console.log(`[Client] insert(${table}) <- result:`, result.success ? 'OK' : result.error);
+      return result;
     } catch (err) {
-      console.error('Client insert error:', err);
+      console.error(`[Client] insert(${table}) FAILED:`, err.message);
       return { success: false, error: err.message };
     }
   }
@@ -1218,9 +1242,12 @@ ipcMain.handle('db:insert', async (event, table, data) => {
 ipcMain.handle('db:update', async (event, table, id, data) => {
   if (isClientMode) {
     try {
-      return await sendToPipeServer({ action: 'update', table, id, data });
+      console.log(`[Client] update(${table}, ${id}) -> sending to server`);
+      const result = await sendToPipeServer({ action: 'update', table, id, data });
+      console.log(`[Client] update(${table}, ${id}) <- result:`, result.success ? 'OK' : result.error);
+      return result;
     } catch (err) {
-      console.error('Client update error:', err);
+      console.error(`[Client] update(${table}, ${id}) FAILED:`, err.message);
       return { success: false, error: err.message };
     }
   }
