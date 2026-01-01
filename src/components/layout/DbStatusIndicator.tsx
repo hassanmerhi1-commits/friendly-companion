@@ -17,19 +17,23 @@ interface DbStatus {
 
 export function DbStatusIndicator() {
   const [status, setStatus] = useState<DbStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchStatus = async () => {
       if (!isElectron()) return;
+      setIsLoading(true);
       try {
         const s = await (window as any).electronAPI.db.getStatus();
         setStatus(s);
       } catch (err) {
         console.error('Error fetching DB status:', err);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000); // refresh every 10s
+    const interval = setInterval(fetchStatus, 5000); // refresh every 5s
     return () => clearInterval(interval);
   }, []);
 
@@ -44,6 +48,10 @@ export function DbStatusIndicator() {
     ? status.serverName || '—' 
     : status.path || '—';
 
+  const statusText = isConnected 
+    ? (status.isClient ? 'Ligado ao servidor' : 'Base de dados activa')
+    : (status.error || 'Desconectado');
+
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono ${
       isConnected 
@@ -51,11 +59,17 @@ export function DbStatusIndicator() {
         : 'bg-red-500/10 text-red-600 border border-red-500/20'
     }`}>
       <Database className="h-3.5 w-3.5" />
-      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${isLoading ? 'animate-pulse bg-yellow-500' : isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
       <ModeIcon className="h-3.5 w-3.5" />
       <span className="font-semibold">{mode}</span>
       <span className="text-muted-foreground">|</span>
-      <span className="truncate max-w-[200px]" title={displayPath}>{displayPath}</span>
+      <span className="truncate max-w-[150px]" title={displayPath}>{displayPath}</span>
+      {!isConnected && status.error && (
+        <>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-red-500 truncate max-w-[150px]" title={status.error}>{status.error}</span>
+        </>
+      )}
     </div>
   );
 }
