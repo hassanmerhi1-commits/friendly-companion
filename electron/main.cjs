@@ -2,13 +2,11 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const net = require('net');
 
 // ============= PATHS AND CONFIGURATION =============
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
-const DB_SERVER_PORT = 5433;
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
@@ -34,13 +32,11 @@ let db = null;
 let dbPath = null;
 let isClientMode = false;
 let serverIP = null;
-let tcpServer = null;
-let tcpClient = null;
 
 // ============= IP FILE PARSING =============
 // Format: 
-//   Server: C:\PayrollAO\payroll.db (local path - runs DB service)
-//   Client: 10.0.0.10:C:\PayrollAO\payroll.db (connects to server via TCP)
+//   Server: C:\PayrollAO\payroll.db (local path)
+//   Client: \\10.0.0.10\PayrollAO\payroll.db (UNC path to shared folder)
 
 function parseIPFile() {
   try {
@@ -54,20 +50,18 @@ function parseIPFile() {
       return { valid: false, error: 'IP file is empty. Configure database path.', path: null, isClient: false };
     }
 
-    // Check if it's IP:PATH format (client mode)
-    const clientMatch = content.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):([A-Za-z]):\\(.+)$/);
-    
-    if (clientMatch) {
-      const ip = clientMatch[1];
-      const drive = clientMatch[2].toUpperCase();
-      const restOfPath = clientMatch[3];
-      const localPath = `${drive}:\\${restOfPath}`;
-
-      console.log('CLIENT MODE: Will connect to server at', ip);
-      return { valid: true, path: localPath, isClient: true, serverIP: ip };
+    // Check if it's UNC path (client mode) - format: \\SERVER\share\path\db.db
+    if (content.startsWith('\\\\')) {
+      const match = content.match(/^\\\\([^\\]+)\\(.+)$/);
+      if (match) {
+        const serverName = match[1];
+        console.log('CLIENT MODE: UNC path to server', serverName);
+        return { valid: true, path: content, isClient: true, serverIP: serverName };
+      }
+      return { valid: false, error: 'Invalid UNC path format', path: null, isClient: false };
     }
 
-    // Server mode - local path
+    // Server mode - local path like C:\PayrollAO\payroll.db
     const serverMatch = content.match(/^[A-Za-z]:\\.+$/);
     
     if (serverMatch) {
@@ -75,7 +69,7 @@ function parseIPFile() {
       return { valid: true, path: content, isClient: false };
     }
 
-    return { valid: false, error: 'Invalid format. Use "C:\\path\\db.db" or "IP:C:\\path\\db.db"', path: null, isClient: false };
+    return { valid: false, error: 'Invalid format. Use "C:\\path\\db.db" (server) or "\\\\server\\share\\db.db" (client)', path: null, isClient: false };
   } catch (error) {
     console.error('Error reading IP file:', error);
     return { valid: false, error: error.message, path: null, isClient: false };
@@ -122,7 +116,7 @@ function createNewDatabase(customPath = null) {
         return { success: false, error: 'Configure IP file with valid path first.' };
       }
       if (ipConfig.isClient) {
-        return { success: false, error: 'Cannot create database from client. Create on server.' };
+        return { success: false, error: 'Cannot create database from client. Create on server first.' };
       }
       targetPath = ipConfig.path;
     }
@@ -139,7 +133,10 @@ function createNewDatabase(customPath = null) {
     const Database = require('better-sqlite3');
     const newDb = new Database(targetPath);
     
+    // Enable WAL mode for concurrent access
     newDb.pragma('journal_mode = WAL');
+    newDb.pragma('busy_timeout = 30000');
+    newDb.pragma('synchronous = NORMAL');
     
     newDb.exec(`
       CREATE TABLE IF NOT EXISTS employees (
@@ -359,164 +356,29 @@ function getDistPath() {
   return path.join(__dirname, '..', 'dist', 'index.html');
 }
 
-// ============= TCP DATABASE SERVER (runs on server PC) =============
+// ============= SQLite DATABASE (Direct File Access with WAL) =============
 
-function startTCPServer() {
-  if (tcpServer) {
-    console.log('TCP server already running');
-    return { success: true, port: DB_SERVER_PORT };
-  }
-
-  tcpServer = net.createServer((socket) => {
-    console.log('Client connected:', socket.remoteAddress);
+function openDatabase(filePath) {
+  try {
+    const Database = require('better-sqlite3');
     
-    let buffer = '';
-    
-    socket.on('data', (data) => {
-      buffer += data.toString();
-      
-      // Process complete messages (delimited by \n)
-      const messages = buffer.split('\n');
-      buffer = messages.pop(); // Keep incomplete message in buffer
-      
-      for (const msg of messages) {
-        if (!msg.trim()) continue;
-        
-        try {
-          const request = JSON.parse(msg);
-          const response = handleDBRequest(request);
-          socket.write(JSON.stringify(response) + '\n');
-        } catch (err) {
-          socket.write(JSON.stringify({ success: false, error: err.message }) + '\n');
-        }
-      }
+    // Open database with busy timeout for concurrent access
+    const database = new Database(filePath, {
+      timeout: 30000, // 30 second timeout for busy database
     });
     
-    socket.on('error', (err) => {
-      console.log('Socket error:', err.message);
-    });
+    // Enable WAL mode for better concurrent access over network shares
+    database.pragma('journal_mode = WAL');
+    database.pragma('busy_timeout = 30000');
+    database.pragma('synchronous = NORMAL');
+    database.pragma('cache_size = -64000'); // 64MB cache
     
-    socket.on('close', () => {
-      console.log('Client disconnected');
-    });
-  });
-
-  tcpServer.listen(DB_SERVER_PORT, '0.0.0.0', () => {
-    console.log(`TCP Database Server listening on port ${DB_SERVER_PORT}`);
-  });
-
-  tcpServer.on('error', (err) => {
-    console.error('TCP Server error:', err);
-    tcpServer = null;
-  });
-
-  return { success: true, port: DB_SERVER_PORT };
-}
-
-function handleDBRequest(request) {
-  const { action, table, id, data, sql, params } = request;
-  
-  switch (action) {
-    case 'ping':
-      return { success: true, message: 'pong' };
-      
-    case 'getAll':
-      return { success: true, data: dbGetAll(table) };
-      
-    case 'getById':
-      return { success: true, data: dbGetById(table, id) };
-      
-    case 'insert':
-      return dbInsert(table, data);
-      
-    case 'update':
-      return dbUpdate(table, id, data);
-      
-    case 'delete':
-      return dbDelete(table, id);
-      
-    case 'query':
-      const result = dbQuery(sql, params || []);
-      if (Array.isArray(result)) {
-        return { success: true, data: result };
-      }
-      return result;
-      
-    case 'export':
-      return { success: true, data: dbExportAll() };
-      
-    case 'import':
-      return dbImportAll(data);
-      
-    default:
-      return { success: false, error: `Unknown action: ${action}` };
+    return database;
+  } catch (error) {
+    console.error('[DB] Error opening database:', error);
+    throw error;
   }
 }
-
-// ============= TCP CLIENT (runs on client PCs) =============
-
-function sendToServer(request) {
-  return new Promise((resolve, reject) => {
-    if (!serverIP) {
-      reject(new Error('Server IP not configured'));
-      return;
-    }
-
-    const client = new net.Socket();
-    let buffer = '';
-    let resolved = false;
-    
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        client.destroy();
-        reject(new Error('Connection timeout'));
-      }
-    }, 10000);
-
-    client.connect(DB_SERVER_PORT, serverIP, () => {
-      client.write(JSON.stringify(request) + '\n');
-    });
-
-    client.on('data', (data) => {
-      buffer += data.toString();
-      
-      const messages = buffer.split('\n');
-      buffer = messages.pop();
-      
-      for (const msg of messages) {
-        if (msg.trim() && !resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          client.destroy();
-          try {
-            resolve(JSON.parse(msg));
-          } catch (err) {
-            reject(new Error('Invalid response from server'));
-          }
-        }
-      }
-    });
-
-    client.on('error', (err) => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        reject(err);
-      }
-    });
-
-    client.on('close', () => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        reject(new Error('Connection closed'));
-      }
-    });
-  });
-}
-
-// ============= SQLite DATABASE (SERVER ONLY) =============
 
 function initDatabase() {
   const ipConfig = parseIPFile();
@@ -530,30 +392,26 @@ function initDatabase() {
   isClientMode = ipConfig.isClient;
   serverIP = ipConfig.serverIP || null;
 
-  if (isClientMode) {
-    // Client mode - don't open local DB, will connect to server
-    console.log('CLIENT MODE: Will connect to server at', serverIP);
-    return { success: true, mode: 'client', serverIP };
-  }
-
-  // Server mode - open local database and start TCP server
+  // Check if database file exists (works for both local and UNC paths)
   if (!checkDatabaseExists(dbPath)) {
     console.log('Database not found at:', dbPath);
     return { success: false, error: `Database not found at: ${dbPath}`, needsDatabase: true };
   }
 
   try {
-    const Database = require('better-sqlite3');
-    db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    // Close existing connection if any
+    if (db) {
+      try { db.close(); } catch (e) {}
+      db = null;
+    }
+
+    // Open database - SQLite handles WAL locking over network shares
+    db = openDatabase(dbPath);
     
     runMigrations();
     
-    // Start TCP server for client connections
-    startTCPServer();
-    
-    console.log('SERVER MODE: Database initialized at:', dbPath);
-    return { success: true, mode: 'server' };
+    console.log(`Database initialized: ${dbPath} (${isClientMode ? 'CLIENT via UNC' : 'SERVER local'})`);
+    return { success: true, mode: isClientMode ? 'client' : 'server', path: dbPath };
   } catch (error) {
     console.error('Error initializing database:', error);
     return { success: false, error: error.message };
@@ -561,6 +419,8 @@ function initDatabase() {
 }
 
 function runMigrations() {
+  if (!db) return;
+  
   try {
     const addColumnIfMissing = (table, column, sql) => {
       try {
@@ -646,7 +506,8 @@ function runMigrations() {
   }
 }
 
-// Generic database operations (SERVER ONLY - direct SQLite access)
+// ============= DATABASE OPERATIONS (Direct SQLite) =============
+
 function dbGetAll(table) {
   try {
     if (!db) return [];
@@ -771,7 +632,7 @@ function dbImportAll(data) {
     db.exec('COMMIT');
     return { success: true };
   } catch (error) {
-    db.exec('ROLLBACK');
+    try { db.exec('ROLLBACK'); } catch (e) {}
     console.error('Error importing data:', error);
     return { success: false, error: error.message };
   }
@@ -881,10 +742,8 @@ ipcMain.handle('db:getStatus', () => {
     path: ipConfig.path,
     isClient: ipConfig.isClient,
     serverIP: ipConfig.serverIP || null,
-    exists: ipConfig.valid && !ipConfig.isClient ? checkDatabaseExists(ipConfig.path) : null,
-    connected: isClientMode ? (serverIP !== null) : (db !== null),
-    tcpServerRunning: tcpServer !== null,
-    port: DB_SERVER_PORT,
+    exists: ipConfig.valid ? checkDatabaseExists(ipConfig.path) : false,
+    connected: db !== null,
     error: ipConfig.error,
   };
 });
@@ -897,117 +756,51 @@ ipcMain.handle('db:init', () => {
   return initDatabase();
 });
 
-// Database operations - route to server if client mode
-ipcMain.handle('db:getAll', async (event, table) => {
-  if (isClientMode) {
-    try {
-      const response = await sendToServer({ action: 'getAll', table });
-      return response.data || [];
-    } catch (err) {
-      console.error('Client getAll error:', err);
-      return [];
-    }
-  }
+ipcMain.handle('db:getAll', (event, table) => {
   return dbGetAll(table);
 });
 
-ipcMain.handle('db:getById', async (event, table, id) => {
-  if (isClientMode) {
-    try {
-      const response = await sendToServer({ action: 'getById', table, id });
-      return response.data || null;
-    } catch (err) {
-      console.error('Client getById error:', err);
-      return null;
-    }
-  }
+ipcMain.handle('db:getById', (event, table, id) => {
   return dbGetById(table, id);
 });
 
-ipcMain.handle('db:insert', async (event, table, data) => {
-  if (isClientMode) {
-    try {
-      return await sendToServer({ action: 'insert', table, data });
-    } catch (err) {
-      console.error('Client insert error:', err);
-      return { success: false, error: err.message };
-    }
-  }
+ipcMain.handle('db:insert', (event, table, data) => {
   return dbInsert(table, data);
 });
 
-ipcMain.handle('db:update', async (event, table, id, data) => {
-  if (isClientMode) {
-    try {
-      return await sendToServer({ action: 'update', table, id, data });
-    } catch (err) {
-      console.error('Client update error:', err);
-      return { success: false, error: err.message };
-    }
-  }
+ipcMain.handle('db:update', (event, table, id, data) => {
   return dbUpdate(table, id, data);
 });
 
-ipcMain.handle('db:delete', async (event, table, id) => {
-  if (isClientMode) {
-    try {
-      return await sendToServer({ action: 'delete', table, id });
-    } catch (err) {
-      console.error('Client delete error:', err);
-      return { success: false, error: err.message };
-    }
-  }
+ipcMain.handle('db:delete', (event, table, id) => {
   return dbDelete(table, id);
 });
 
-ipcMain.handle('db:query', async (event, sql, params) => {
-  if (isClientMode) {
-    try {
-      const response = await sendToServer({ action: 'query', sql, params });
-      return response.data || [];
-    } catch (err) {
-      console.error('Client query error:', err);
-      return [];
-    }
-  }
+ipcMain.handle('db:query', (event, sql, params) => {
   return dbQuery(sql, params);
 });
 
-ipcMain.handle('db:export', async () => {
-  if (isClientMode) {
-    try {
-      const response = await sendToServer({ action: 'export' });
-      return response.data || null;
-    } catch (err) {
-      console.error('Client export error:', err);
-      return null;
-    }
+ipcMain.handle('db:export', () => {
+  const data = dbExportAll();
+  if (data) {
+    return { success: true, data };
   }
-  return dbExportAll();
+  return { success: false, error: 'Failed to export data' };
 });
 
-ipcMain.handle('db:import', async (event, data) => {
-  if (isClientMode) {
-    try {
-      return await sendToServer({ action: 'import', data });
-    } catch (err) {
-      console.error('Client import error:', err);
-      return { success: false, error: err.message };
-    }
-  }
+ipcMain.handle('db:import', (event, data) => {
   return dbImportAll(data);
 });
 
-// Test connection to server (client mode only)
-ipcMain.handle('db:testConnection', async () => {
-  if (!isClientMode || !serverIP) {
-    return { success: false, error: 'Not in client mode' };
-  }
+ipcMain.handle('db:testConnection', () => {
   try {
-    const response = await sendToServer({ action: 'ping' });
-    return { success: response.success, message: response.message };
-  } catch (err) {
-    return { success: false, error: err.message };
+    if (!db) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    const result = db.prepare('SELECT 1 as test').get();
+    return { success: result?.test === 1 };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 });
 
@@ -1025,18 +818,9 @@ ipcMain.handle('network:getIPFilePath', () => {
 
 // ============= APP LIFECYCLE =============
 
-app.whenReady().then(async () => {
-  try {
-    const result = initDatabase();
-    if (!result?.success) {
-      console.log('Database init:', result?.error || 'pending config');
-    }
-  } catch (e) {
-    console.log('Database init error:', e?.message || String(e));
-  }
-
+app.whenReady().then(() => {
   createWindow();
-
+  
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -1045,17 +829,10 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (db) {
+    try { db.close(); } catch (e) {}
+  }
   if (process.platform !== 'darwin') {
-    if (tcpServer) {
-      tcpServer.close();
-    }
-    if (db) {
-      db.close();
-    }
     app.quit();
   }
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
 });

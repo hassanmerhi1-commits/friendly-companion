@@ -1,7 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods to the renderer process
-// Architecture: Server PC runs TCP DB service, clients connect via socket
+// Architecture: Pure file-based LAN access via UNC paths (like Minerva ERP)
+// Server: C:\PayrollAO\payroll.db (local path)
+// Client: \\10.0.0.10\PayrollAO\payroll.db (UNC path to shared folder)
 contextBridge.exposeInMainWorld('electronAPI', {
   // Activation operations
   activation: {
@@ -10,15 +12,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // IP file operations
-  // Server format: "C:\path\db.db" (runs TCP server)
-  // Client format: "10.0.0.10:C:\path\db.db" (connects to server)
   ipfile: {
     read: () => ipcRenderer.invoke('ipfile:read'),
     write: (content) => ipcRenderer.invoke('ipfile:write', content),
     parse: () => ipcRenderer.invoke('ipfile:parse'),
   },
   
-  // Database operations (routed to server if client mode)
+  // Database operations (direct SQLite access via local or UNC path)
   db: {
     getStatus: () => ipcRenderer.invoke('db:getStatus'),
     create: () => ipcRenderer.invoke('db:create'),
@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     testConnection: () => ipcRenderer.invoke('db:testConnection'),
   },
   
-  // Network info
+  // Network info (display only)
   network: {
     getLocalIPs: () => ipcRenderer.invoke('network:getLocalIPs'),
     getInstallPath: () => ipcRenderer.invoke('network:getInstallPath'),

@@ -15,10 +15,8 @@ interface DBStatus {
   path: string | null;
   isClient: boolean;
   serverIP: string | null;
-  exists: boolean | null;
+  exists: boolean;
   connected: boolean;
-  tcpServerRunning?: boolean;
-  port?: number;
   error?: string;
 }
 
@@ -68,7 +66,7 @@ export function NetworkSettings() {
       const result = await api.db.testConnection();
       
       if (result.success) {
-        toast.success('Conexão com o servidor OK!');
+        toast.success('Conexão com a base de dados OK!');
       } else {
         toast.error(`Erro: ${result.error || 'Falha na conexão'}`);
       }
@@ -113,7 +111,7 @@ export function NetworkSettings() {
           <div>
             <CardTitle>Rede LAN / LAN Network</CardTitle>
             <CardDescription>
-              Arquitectura Cliente-Servidor TCP
+              Acesso partilhado via pasta de rede (UNC)
             </CardDescription>
           </div>
           <Badge 
@@ -160,12 +158,10 @@ export function NetworkSettings() {
               <span className="text-muted-foreground">Configurado:</span>
               <span>{dbStatus?.configured ? 'Sim' : 'Não'}</span>
             </div>
-            {!isClient && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ficheiro existe:</span>
-                <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
-              </div>
-            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Ficheiro existe:</span>
+              <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Ligado:</span>
               <span>{dbStatus?.connected ? 'Sim' : 'Não'}</span>
@@ -173,13 +169,7 @@ export function NetworkSettings() {
             {isClient && dbStatus?.serverIP && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Servidor:</span>
-                <span>{dbStatus.serverIP}:{dbStatus.port || 5433}</span>
-              </div>
-            )}
-            {!isClient && dbStatus?.tcpServerRunning && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Servidor TCP:</span>
-                <span className="text-green-600">Activo na porta {dbStatus.port || 5433}</span>
+                <span>{dbStatus.serverIP}</span>
               </div>
             )}
           </div>
@@ -189,18 +179,16 @@ export function NetworkSettings() {
           )}
         </div>
 
-        {/* Test Connection Button (Client only) */}
-        {isClient && (
-          <Button 
-            onClick={testConnection} 
-            disabled={isTesting}
-            className="w-full"
-            variant="outline"
-          >
-            <Plug className={`h-4 w-4 mr-2 ${isTesting ? 'animate-pulse' : ''}`} />
-            {isTesting ? 'Testando...' : 'Testar Conexão com Servidor'}
-          </Button>
-        )}
+        {/* Test Connection Button */}
+        <Button 
+          onClick={testConnection} 
+          disabled={isTesting || !dbStatus?.configured}
+          className="w-full"
+          variant="outline"
+        >
+          <Plug className={`h-4 w-4 mr-2 ${isTesting ? 'animate-pulse' : ''}`} />
+          {isTesting ? 'Testando...' : 'Testar Conexão'}
+        </Button>
 
         {/* Mode explanation */}
         <div className={`p-4 rounded-lg border ${isClient ? 'bg-blue-500/10 border-blue-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
@@ -209,12 +197,11 @@ export function NetworkSettings() {
               <div className="flex items-center gap-2 mb-2">
                 <Plug className="h-4 w-4 text-blue-600" />
                 <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                  Modo Cliente
+                  Modo Cliente (UNC)
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Este computador conecta-se ao servidor {dbStatus?.serverIP} via TCP (porta {dbStatus?.port || 5433}).
-                Todas as operações de base de dados são enviadas ao servidor que gere o acesso ao ficheiro.
+                Acede à base de dados via caminho de rede UNC: {dbStatus?.path}
               </p>
             </>
           ) : (
@@ -226,8 +213,7 @@ export function NetworkSettings() {
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Este computador gere a base de dados localmente e executa um serviço TCP na porta {dbStatus?.port || 5433}.
-                Outros computadores na rede podem conectar-se como clientes.
+                Base de dados local. Partilhe a pasta para permitir acesso de clientes via rede.
               </p>
             </>
           )}
@@ -251,12 +237,6 @@ export function NetworkSettings() {
                 {localIPs.join(', ') || 'N/A'}
               </code>
             </div>
-            <div>
-              <span className="text-muted-foreground">Porta TCP:</span>
-              <code className="ml-2 bg-background px-1 rounded font-mono text-xs">
-                {dbStatus?.port || 5433}
-              </code>
-            </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
                 <strong>Formato do ficheiro IP:</strong>
@@ -265,17 +245,13 @@ export function NetworkSettings() {
                 Servidor: <code className="bg-background px-1 rounded">C:\PayrollAO\payroll.db</code>
               </p>
               <p className="mt-1">
-                Cliente: <code className="bg-background px-1 rounded">10.0.0.10:C:\PayrollAO\payroll.db</code>
+                Cliente: <code className="bg-background px-1 rounded">\\10.0.0.10\PayrollAO\payroll.db</code>
               </p>
             </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
-                <strong>Arquitectura:</strong>
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                O servidor abre a base de dados SQLite e executa um serviço TCP.
-                Os clientes enviam comandos via TCP socket e o servidor executa-os,
-                garantindo acesso concorrente seguro.
+                <strong>Arquitectura:</strong> Acesso directo via pasta partilhada (SMB/UNC).
+                SQLite com WAL mode para concorrência. Sem portas TCP adicionais.
               </p>
             </div>
           </div>
