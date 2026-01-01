@@ -122,11 +122,6 @@ interface AuthState {
   isUsernameTaken: (username: string, excludeId?: string) => boolean;
 }
 
-// Check if running in Electron
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && 
-    (window as any).electronAPI?.isElectron === true;
-}
 
 // Default admin user
 const defaultAdmin: AppUser = {
@@ -175,22 +170,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isLoaded: false,
   
   loadUsers: async () => {
-    if (!isElectron()) {
-      // In development, load from localStorage
-      const stored = localStorage.getItem('payrollao-auth');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ users: data.users || [defaultAdmin], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-    
     try {
       const rows = await dbGetAll<any>('users');
       if (rows.length > 0) {
@@ -262,18 +241,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       createdAt: new Date().toISOString(),
     };
     
-    if (isElectron()) {
-      const dbRow = mapUserToDbRow(newUser);
-      const success = await dbInsert('users', dbRow);
-      if (!success) {
-        return { success: false, error: 'Erro ao guardar no banco de dados' };
-      }
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-auth');
-      const storageData = stored ? JSON.parse(stored) : { users: [defaultAdmin] };
-      storageData.users.push(newUser);
-      localStorage.setItem('payrollao-auth', JSON.stringify(storageData));
+    const dbRow = mapUserToDbRow(newUser);
+    const success = await dbInsert('users', dbRow);
+    if (!success) {
+      return { success: false, error: 'Erro ao guardar no banco de dados' };
     }
     
     set((state) => ({
@@ -305,21 +276,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       ...data,
     };
     
-    if (isElectron()) {
-      const dbRow = mapUserToDbRow(updatedUser);
-      const { id: _, ...updateData } = dbRow;
-      const success = await dbUpdate('users', id, updateData);
-      if (!success) {
-        return { success: false, error: 'Erro ao actualizar no banco de dados' };
-      }
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-auth');
-      const storageData = stored ? JSON.parse(stored) : { users: [defaultAdmin] };
-      storageData.users = storageData.users.map((user: AppUser) =>
-        user.id === id ? updatedUser : user
-      );
-      localStorage.setItem('payrollao-auth', JSON.stringify(storageData));
+    const dbRow = mapUserToDbRow(updatedUser);
+    const { id: _, ...updateData } = dbRow;
+    const success = await dbUpdate('users', id, updateData);
+    if (!success) {
+      return { success: false, error: 'Erro ao actualizar no banco de dados' };
     }
     
     set((state) => ({
@@ -346,15 +307,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return;
     }
     
-    if (isElectron()) {
-      await dbDelete('users', id);
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-auth');
-      const storageData = stored ? JSON.parse(stored) : { users: [defaultAdmin] };
-      storageData.users = storageData.users.filter((user: AppUser) => user.id !== id);
-      localStorage.setItem('payrollao-auth', JSON.stringify(storageData));
-    }
+    await dbDelete('users', id);
     
     set((state) => ({
       users: state.users.filter((user) => user.id !== id),

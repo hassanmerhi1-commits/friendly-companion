@@ -4,10 +4,6 @@ import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { dbGetAll, dbInsert, dbUpdate } from '@/lib/db-sync';
 
-// Check if running in Electron
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
-}
 
 interface BranchState {
   branches: Branch[];
@@ -71,21 +67,6 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
   isLoaded: false,
 
   loadBranches: async () => {
-    if (!isElectron()) {
-      const stored = localStorage.getItem('payrollao-branches');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ branches: data.state?.branches || [], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-
     try {
       const rows = await dbGetAll<any>('branches');
       const branches = rows.map(mapDbRowToBranch);
@@ -110,17 +91,10 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
       updatedAt: now,
     };
 
-    if (isElectron()) {
-      const dbRow = mapBranchToDbRow(newBranch);
-      const success = await dbInsert('branches', dbRow);
-      if (!success) {
-        return { success: false, error: 'Error saving branch to database' };
-      }
-    } else {
-      const stored = localStorage.getItem('payrollao-branches');
-      const storageData = stored ? JSON.parse(stored) : { state: { branches: [] } };
-      storageData.state.branches.push(newBranch);
-      localStorage.setItem('payrollao-branches', JSON.stringify(storageData));
+    const dbRow = mapBranchToDbRow(newBranch);
+    const success = await dbInsert('branches', dbRow);
+    if (!success) {
+      return { success: false, error: 'Error saving branch to database' };
     }
 
     set((state) => ({ branches: [...state.branches, newBranch] }));
@@ -137,18 +111,11 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    if (isElectron()) {
-      const dbRow = mapBranchToDbRow(updated);
-      const { id: _, ...updateData } = dbRow;
-      const success = await dbUpdate('branches', id, updateData);
-      if (!success) {
-        return { success: false, error: 'Error updating branch in database' };
-      }
-    } else {
-      const stored = localStorage.getItem('payrollao-branches');
-      const storageData = stored ? JSON.parse(stored) : { state: { branches: [] } };
-      storageData.state.branches = storageData.state.branches.map((b: Branch) => (b.id === id ? updated : b));
-      localStorage.setItem('payrollao-branches', JSON.stringify(storageData));
+    const dbRow = mapBranchToDbRow(updated);
+    const { id: _, ...updateData } = dbRow;
+    const success = await dbUpdate('branches', id, updateData);
+    if (!success) {
+      return { success: false, error: 'Error updating branch in database' };
     }
 
     set((state) => ({
@@ -171,16 +138,9 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
 
     const updated: Branch = { ...current, isActive: false, updatedAt: new Date().toISOString() };
 
-    if (isElectron()) {
-      const success = await dbUpdate('branches', id, { is_active: 0, updated_at: updated.updatedAt });
-      if (!success) {
-        console.error('[Branches] Failed to deactivate branch in database');
-      }
-    } else {
-      const stored = localStorage.getItem('payrollao-branches');
-      const storageData = stored ? JSON.parse(stored) : { state: { branches: [] } };
-      storageData.state.branches = storageData.state.branches.map((b: Branch) => (b.id === id ? updated : b));
-      localStorage.setItem('payrollao-branches', JSON.stringify(storageData));
+    const success = await dbUpdate('branches', id, { is_active: 0, updated_at: updated.updatedAt });
+    if (!success) {
+      console.error('[Branches] Failed to deactivate branch in database');
     }
 
     set((state) => ({
