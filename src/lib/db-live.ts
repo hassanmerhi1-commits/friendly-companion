@@ -146,6 +146,11 @@ export async function liveGetStatus(): Promise<{
   connected: boolean;
   exists: boolean;
   path: string | null;
+  isClient?: boolean;
+  serverName?: string | null;
+  wsServerRunning?: boolean;
+  wsPort?: number;
+  wsClients?: number;
   error?: string;
 }> {
   if (!isElectron()) {
