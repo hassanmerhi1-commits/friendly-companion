@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
 
 export type Permission = 
   | 'employees.view'
@@ -163,158 +163,154 @@ function mapUserToDbRow(user: AppUser): Record<string, any> {
   };
 }
 
-export const useAuthStore = create<AuthState>()((set, get) => ({
-  users: [defaultAdmin],
-  currentUser: null,
-  isAuthenticated: false,
-  isLoaded: false,
-  
-  loadUsers: async () => {
-    try {
-      const rows = await dbGetAll<any>('users');
-      if (rows.length > 0) {
-        const users = rows.map(mapDbRowToUser);
-        set({ users, isLoaded: true });
-        console.log('[Auth] Loaded', users.length, 'users from database');
-      } else {
-        // No users in database - create default admin
-        const dbRow = mapUserToDbRow(defaultAdmin);
-        await dbInsert('users', dbRow);
-        set({ users: [defaultAdmin], isLoaded: true });
-        console.log('[Auth] Created default admin user');
+export const useAuthStore = create<AuthState>()((set, get) => {
+  // Subscribe to data changes for auto-refresh
+  onDataChange((table) => {
+    if (table === 'users') {
+      console.log('[Auth] Data changed, refreshing users...');
+      get().loadUsers();
+    }
+  });
+
+  return {
+    users: [defaultAdmin],
+    currentUser: null,
+    isAuthenticated: false,
+    isLoaded: false,
+    
+    loadUsers: async () => {
+      try {
+        const rows = await liveGetAll<any>('users');
+        if (rows.length > 0) {
+          const users = rows.map(mapDbRowToUser);
+          set({ users, isLoaded: true });
+          console.log('[Auth] Loaded', users.length, 'users from database');
+        } else {
+          // No users in database - create default admin
+          const dbRow = mapUserToDbRow(defaultAdmin);
+          await liveInsert('users', dbRow);
+          set({ users: [defaultAdmin], isLoaded: true });
+          console.log('[Auth] Created default admin user');
+        }
+      } catch (error) {
+        console.error('[Auth] Error loading users:', error);
+        set({ isLoaded: true });
       }
-    } catch (error) {
-      console.error('[Auth] Error loading users:', error);
-      set({ isLoaded: true });
-    }
-  },
-  
-  login: (username: string, password: string) => {
-    const user = get().users.find(
-      u => u.username.toLowerCase() === username.toLowerCase() && 
-           u.password === password && 
-           u.isActive
-    );
+    },
     
-    if (user) {
-      set({ currentUser: user, isAuthenticated: true });
-      return { success: true };
-    }
+    login: (username: string, password: string) => {
+      const user = get().users.find(
+        u => u.username.toLowerCase() === username.toLowerCase() && 
+             u.password === password && 
+             u.isActive
+      );
+      
+      if (user) {
+        set({ currentUser: user, isAuthenticated: true });
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Credenciais inválidas / Invalid credentials' };
+    },
     
-    return { success: false, error: 'Credenciais inválidas / Invalid credentials' };
-  },
-  
-  logout: () => {
-    set({ currentUser: null, isAuthenticated: false });
-  },
-  
-  hasPermission: (permission: Permission) => {
-    const user = get().currentUser;
-    if (!user) return false;
+    logout: () => {
+      set({ currentUser: null, isAuthenticated: false });
+    },
     
-    const permissions = user.customPermissions || rolePermissions[user.role] || [];
-    return permissions.includes(permission);
-  },
-  
-  getUserPermissions: (userId?: string) => {
-    const user = userId 
-      ? get().users.find(u => u.id === userId)
-      : get().currentUser;
+    hasPermission: (permission: Permission) => {
+      const user = get().currentUser;
+      if (!user) return false;
+      
+      const permissions = user.customPermissions || rolePermissions[user.role] || [];
+      return permissions.includes(permission);
+    },
     
-    if (!user) return [];
-    return user.customPermissions || rolePermissions[user.role] || [];
-  },
-  
-  addUser: async (data) => {
-    // Check for duplicate username
-    const existingUser = get().users.find(
-      u => u.username.toLowerCase() === data.username.toLowerCase()
-    );
+    getUserPermissions: (userId?: string) => {
+      const user = userId 
+        ? get().users.find(u => u.id === userId)
+        : get().currentUser;
+      
+      if (!user) return [];
+      return user.customPermissions || rolePermissions[user.role] || [];
+    },
     
-    if (existingUser) {
-      return { success: false, error: 'Nome de utilizador já existe / Username already exists' };
-    }
-    
-    const newUser: AppUser = {
-      ...data,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    };
-    
-    const dbRow = mapUserToDbRow(newUser);
-    const success = await dbInsert('users', dbRow);
-    if (!success) {
-      return { success: false, error: 'Erro ao guardar no banco de dados' };
-    }
-    
-    set((state) => ({
-      users: [...state.users, newUser],
-    }));
-    
-    return { success: true, user: newUser };
-  },
-  
-  updateUser: async (id: string, data: Partial<AppUser>) => {
-    // Check for duplicate username if username is being updated
-    if (data.username) {
+    addUser: async (data) => {
+      // Check for duplicate username
       const existingUser = get().users.find(
-        u => u.username.toLowerCase() === data.username!.toLowerCase() && u.id !== id
+        u => u.username.toLowerCase() === data.username.toLowerCase()
       );
       
       if (existingUser) {
         return { success: false, error: 'Nome de utilizador já existe / Username already exists' };
       }
-    }
+      
+      const newUser: AppUser = {
+        ...data,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+      };
+      
+      const dbRow = mapUserToDbRow(newUser);
+      const success = await liveInsert('users', dbRow);
+      if (!success) {
+        return { success: false, error: 'Erro ao guardar no banco de dados' };
+      }
+      
+      return { success: true, user: newUser };
+    },
     
-    const currentUser = get().users.find(u => u.id === id);
-    if (!currentUser) {
-      return { success: false, error: 'Utilizador não encontrado' };
-    }
+    updateUser: async (id: string, data: Partial<AppUser>) => {
+      // Check for duplicate username if username is being updated
+      if (data.username) {
+        const existingUser = get().users.find(
+          u => u.username.toLowerCase() === data.username!.toLowerCase() && u.id !== id
+        );
+        
+        if (existingUser) {
+          return { success: false, error: 'Nome de utilizador já existe / Username already exists' };
+        }
+      }
+      
+      const currentUser = get().users.find(u => u.id === id);
+      if (!currentUser) {
+        return { success: false, error: 'Utilizador não encontrado' };
+      }
+      
+      const updatedUser: AppUser = {
+        ...currentUser,
+        ...data,
+      };
+      
+      const dbRow = mapUserToDbRow(updatedUser);
+      const { id: _, ...updateData } = dbRow;
+      const success = await liveUpdate('users', id, updateData);
+      if (!success) {
+        return { success: false, error: 'Erro ao actualizar no banco de dados' };
+      }
+      
+      return { success: true };
+    },
     
-    const updatedUser: AppUser = {
-      ...currentUser,
-      ...data,
-    };
+    isUsernameTaken: (username: string, excludeId?: string) => {
+      return get().users.some(
+        u => u.username.toLowerCase() === username.toLowerCase() && u.id !== excludeId
+      );
+    },
     
-    const dbRow = mapUserToDbRow(updatedUser);
-    const { id: _, ...updateData } = dbRow;
-    const success = await dbUpdate('users', id, updateData);
-    if (!success) {
-      return { success: false, error: 'Erro ao actualizar no banco de dados' };
-    }
+    deleteUser: async (id: string) => {
+      // Don't delete the last admin
+      const admins = get().users.filter(u => u.role === 'admin' && u.isActive);
+      const userToDelete = get().users.find(u => u.id === id);
+      
+      if (userToDelete?.role === 'admin' && admins.length <= 1) {
+        return;
+      }
+      
+      await liveDelete('users', id);
+    },
     
-    set((state) => ({
-      users: state.users.map((user) =>
-        user.id === id ? updatedUser : user
-      ),
-    }));
-    
-    return { success: true };
-  },
-  
-  isUsernameTaken: (username: string, excludeId?: string) => {
-    return get().users.some(
-      u => u.username.toLowerCase() === username.toLowerCase() && u.id !== excludeId
-    );
-  },
-  
-  deleteUser: async (id: string) => {
-    // Don't delete the last admin
-    const admins = get().users.filter(u => u.role === 'admin' && u.isActive);
-    const userToDelete = get().users.find(u => u.id === id);
-    
-    if (userToDelete?.role === 'admin' && admins.length <= 1) {
-      return;
-    }
-    
-    await dbDelete('users', id);
-    
-    set((state) => ({
-      users: state.users.filter((user) => user.id !== id),
-    }));
-  },
-  
-  getUsers: () => {
-    return get().users;
-  },
-}));
+    getUsers: () => {
+      return get().users;
+    },
+  };
+});

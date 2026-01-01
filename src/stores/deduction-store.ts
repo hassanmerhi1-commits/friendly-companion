@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
-import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
 
 
 interface DeductionState {
@@ -51,94 +51,87 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
   };
 }
 
-export const useDeductionStore = create<DeductionState>()((set, get) => ({
-  deductions: [],
-  isLoaded: false,
-
-  loadDeductions: async () => {
-    try {
-      const rows = await dbGetAll<any>('deductions');
-      const deductions = rows.map(mapDbRowToDeduction);
-      set({ deductions, isLoaded: true });
-      console.log('[Deductions] Loaded', deductions.length, 'deductions from DB');
-    } catch (error) {
-      console.error('[Deductions] Error loading:', error);
-      set({ isLoaded: true });
+export const useDeductionStore = create<DeductionState>()((set, get) => {
+  // Subscribe to data changes for auto-refresh
+  onDataChange((table) => {
+    if (table === 'deductions') {
+      console.log('[Deductions] Data changed, refreshing...');
+      get().loadDeductions();
     }
-  },
+  });
 
-  addDeduction: async (data: DeductionFormData) => {
-    const now = new Date().toISOString();
+  return {
+    deductions: [],
+    isLoaded: false,
 
-    const newDeduction: Deduction = {
-      ...data,
-      id: crypto.randomUUID(),
-      isApplied: false,
-      currentInstallment: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
+    loadDeductions: async () => {
+      try {
+        const rows = await liveGetAll<any>('deductions');
+        const deductions = rows.map(mapDbRowToDeduction);
+        set({ deductions, isLoaded: true });
+        console.log('[Deductions] Loaded', deductions.length, 'deductions from DB');
+      } catch (error) {
+        console.error('[Deductions] Error loading:', error);
+        set({ isLoaded: true });
+      }
+    },
 
-    await dbInsert('deductions', mapDeductionToDbRow(newDeduction));
+    addDeduction: async (data: DeductionFormData) => {
+      const now = new Date().toISOString();
 
-    set((state) => ({
-      deductions: [...state.deductions, newDeduction],
-    }));
+      const newDeduction: Deduction = {
+        ...data,
+        id: crypto.randomUUID(),
+        isApplied: false,
+        currentInstallment: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    return newDeduction;
-  },
+      await liveInsert('deductions', mapDeductionToDbRow(newDeduction));
+      await get().loadDeductions();
+      return newDeduction;
+    },
 
-  updateDeduction: async (id: string, data: Partial<Deduction>) => {
-    const now = new Date().toISOString();
-    const current = get().deductions.find((d) => d.id === id);
-    if (!current) return;
+    updateDeduction: async (id: string, data: Partial<Deduction>) => {
+      const now = new Date().toISOString();
+      const current = get().deductions.find((d) => d.id === id);
+      if (!current) return;
 
-    const updated: Deduction = { ...current, ...data, updatedAt: now };
+      const updated: Deduction = { ...current, ...data, updatedAt: now };
+      const { id: _, ...row } = mapDeductionToDbRow(updated);
+      await liveUpdate('deductions', id, row);
+    },
 
-    const { id: _, ...row } = mapDeductionToDbRow(updated);
-    await dbUpdate('deductions', id, row);
+    deleteDeduction: async (id: string) => {
+      await liveDelete('deductions', id);
+    },
 
-    set((state) => ({
-      deductions: state.deductions.map((ded) => (ded.id === id ? updated : ded)),
-    }));
-  },
+    getDeductionsByEmployee: (employeeId: string) => {
+      return get().deductions.filter((ded) => ded.employeeId === employeeId);
+    },
 
-  deleteDeduction: async (id: string) => {
-    await dbDelete('deductions', id);
-    set((state) => ({
-      deductions: state.deductions.filter((ded) => ded.id !== id),
-    }));
-  },
+    getPendingDeductions: (employeeId: string) => {
+      return get().deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied);
+    },
 
-  getDeductionsByEmployee: (employeeId: string) => {
-    return get().deductions.filter((ded) => ded.employeeId === employeeId);
-  },
+    applyDeductionToPayroll: async (id: string, payrollPeriodId: string) => {
+      const now = new Date().toISOString();
+      await liveUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
+    },
 
-  getPendingDeductions: (employeeId: string) => {
-    return get().deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied);
-  },
-
-  applyDeductionToPayroll: async (id: string, payrollPeriodId: string) => {
-    const now = new Date().toISOString();
-    await dbUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
-    set((state) => ({
-      deductions: state.deductions.map((ded) =>
-        ded.id === id ? { ...ded, isApplied: true, payrollPeriodId, updatedAt: now } : ded
-      ),
-    }));
-  },
-
-  getTotalPendingByEmployee: (employeeId: string) => {
-    return get()
-      .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied)
-      .reduce((sum, ded) => {
-        if (ded.installments && ded.installments > 1) {
-          return sum + ded.amount / ded.installments;
-        }
-        return sum + ded.amount;
-      }, 0);
-  },
-}));
+    getTotalPendingByEmployee: (employeeId: string) => {
+      return get()
+        .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied)
+        .reduce((sum, ded) => {
+          if (ded.installments && ded.installments > 1) {
+            return sum + ded.amount / ded.installments;
+          }
+          return sum + ded.amount;
+        }, 0);
+    },
+  };
+});
 
 export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = 'pt'): string {
   const labels: Record<DeductionType, { pt: string; en: string }> = {
