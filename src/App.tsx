@@ -7,6 +7,8 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
+import { useBranchStore } from "@/stores/branch-store";
+import { dbInit } from "@/lib/db-sync";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -86,37 +88,47 @@ function AppContent() {
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initApp = async () => {
-      // Bypass checks in development preview mode
-      if (isDevelopmentPreview()) {
-        setDeviceActivated(true);
-        setProvinceSelected(true);
-        if (!isProvinceSelected()) {
-          localStorage.setItem('payroll_selected_province', 'Luanda');
-        }
-        return;
-      }
-      
-      try {
-        // Check activation status (async)
-        const activated = await initActivationStatus();
-        const provinceOk = isProvinceSelected();
-        setDeviceActivated(activated);
-        setProvinceSelected(provinceOk);
-        
-        // Load data from database if activated
-        if (activated) {
+      const initApp = async () => {
+        // Bypass checks in development preview mode
+        if (isDevelopmentPreview()) {
+          setDeviceActivated(true);
+          setProvinceSelected(true);
+          if (!isProvinceSelected()) {
+            localStorage.setItem('payroll_selected_province', 'Luanda');
+          }
+
+          // Load local data for preview mode
           const { loadUsers } = useAuthStore.getState();
           const { loadEmployees } = useEmployeeStore.getState();
-          await Promise.all([loadUsers(), loadEmployees()]);
+          const { loadBranches } = useBranchStore.getState();
+          await Promise.all([loadUsers(), loadEmployees(), loadBranches()]);
+          return;
         }
-      } catch (error) {
-        console.error('Error during initial checks:', error);
-        setInitError(error instanceof Error ? error.message : 'Unknown error');
-        setDeviceActivated(false);
-        setProvinceSelected(false);
-      }
-    };
+
+        try {
+          // Check activation status (async)
+          const activated = await initActivationStatus();
+          const provinceOk = isProvinceSelected();
+          setDeviceActivated(activated);
+          setProvinceSelected(provinceOk);
+
+          // Load data from database if activated
+          if (activated) {
+            // Force DB init from renderer too (fixes win-unpacked showing 'Connected: No')
+            await dbInit();
+
+            const { loadUsers } = useAuthStore.getState();
+            const { loadEmployees } = useEmployeeStore.getState();
+            const { loadBranches } = useBranchStore.getState();
+            await Promise.all([loadUsers(), loadEmployees(), loadBranches()]);
+          }
+        } catch (error) {
+          console.error('Error during initial checks:', error);
+          setInitError(error instanceof Error ? error.message : 'Unknown error');
+          setDeviceActivated(false);
+          setProvinceSelected(false);
+        }
+      };
 
     initApp();
   }, []);

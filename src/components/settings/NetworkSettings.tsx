@@ -43,7 +43,14 @@ export function NetworkSettings() {
     try {
       const api = (window as any).electronAPI;
 
-      const status = await api.db.getStatus();
+      let status = await api.db.getStatus();
+
+      // If configured but not connected, try to init automatically
+      if (status?.configured && !status?.connected) {
+        await api.db.init();
+        status = await api.db.getStatus();
+      }
+
       setDbStatus(status);
 
       const ipFile = await api.ipfile.read();

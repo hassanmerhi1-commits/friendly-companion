@@ -42,8 +42,17 @@ export function DatabaseSettings() {
     if (!isElectron()) return;
     setLoading(true);
     try {
-      await (window as any).electronAPI.ipfile.write(ipContent);
-      toast.success(language === 'pt' ? 'Ficheiro IP guardado!' : 'IP file saved!');
+      const api = (window as any).electronAPI;
+      await api.ipfile.write(ipContent);
+
+      // Immediately (re)initialize DB so status becomes Connected without requiring restart
+      const initRes = await api.db.init();
+      if (initRes?.success !== true) {
+        toast.error((initRes?.error as string) || (language === 'pt' ? 'Falha ao ligar à base de dados' : 'Failed to connect to database'));
+      } else {
+        toast.success(language === 'pt' ? 'Ficheiro IP guardado e ligação OK!' : 'IP file saved and connection OK!');
+      }
+
       await loadStatus();
     } catch (error) {
       toast.error(language === 'pt' ? 'Erro ao guardar' : 'Error saving');

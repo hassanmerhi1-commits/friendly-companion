@@ -49,15 +49,23 @@ export function BranchFormDialog({ open, onOpenChange, branch }: BranchFormDialo
     }
   }, [branch, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (branch) {
-      updateBranch(branch.id, formData);
+      const res = await updateBranch(branch.id, formData);
+      if (!res.success) {
+        toast.error(res.error || t.common.error);
+        return;
+      }
     } else {
-      addBranch(formData);
+      const res = await addBranch(formData);
+      if (!res.success) {
+        toast.error(res.error || t.common.error);
+        return;
+      }
     }
-    
+
     toast.success(t.common.save);
     onOpenChange(false);
   };
