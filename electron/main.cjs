@@ -715,9 +715,14 @@ function runMigrations() {
 
 function dbGetAll(table) {
   try {
-    if (!db) return [];
+    if (!db) {
+      console.log(`[DB] dbGetAll(${table}): Database not connected`);
+      return [];
+    }
     const stmt = db.prepare(`SELECT * FROM ${table}`);
-    return stmt.all();
+    const rows = stmt.all();
+    console.log(`[DB] dbGetAll(${table}): Found ${rows.length} rows`);
+    return rows;
   } catch (error) {
     console.error(`Error getting all from ${table}:`, error);
     return [];
@@ -744,6 +749,11 @@ function dbInsert(table, data) {
     
     const stmt = db.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`);
     const result = stmt.run(...values);
+    
+    // Force checkpoint to update file modification time
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    
+    console.log(`[DB] Inserted into ${table}, changes: ${result.changes}`);
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error inserting into ${table}:`, error);
@@ -759,6 +769,11 @@ function dbUpdate(table, id, data) {
     
     const stmt = db.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
     const result = stmt.run(...values);
+    
+    // Force checkpoint to update file modification time
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    
+    console.log(`[DB] Updated ${table} id=${id}, changes: ${result.changes}`);
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error updating ${table}:`, error);
@@ -771,6 +786,11 @@ function dbDelete(table, id) {
     if (!db) return { success: false, error: 'Database not connected' };
     const stmt = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
     const result = stmt.run(id);
+    
+    // Force checkpoint to update file modification time
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    
+    console.log(`[DB] Deleted from ${table} id=${id}, changes: ${result.changes}`);
     return { success: true, changes: result.changes };
   } catch (error) {
     console.error(`Error deleting from ${table}:`, error);
