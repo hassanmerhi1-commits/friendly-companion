@@ -10,12 +10,14 @@ import { formatAOA } from "@/lib/angola-labor-law";
 export function EmployeeTable() {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { employees, getActiveEmployees } = useEmployeeStore();
-  const { getCurrentPeriod, getEntriesForPeriod } = usePayrollStore();
+  const { employees } = useEmployeeStore();
+  const { periods, entries } = usePayrollStore();
   
-  const activeEmployees = getActiveEmployees();
-  const currentPeriod = getCurrentPeriod();
-  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id) : [];
+  // Derive active employees from subscribed state - ensures re-render on changes
+  const activeEmployees = employees.filter(emp => emp.status === 'active');
+  // Derive current period and entries from subscribed state
+  const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
+  const currentEntries = currentPeriod ? entries.filter(e => e.payrollPeriodId === currentPeriod.id) : [];
   
   // Get status for each employee from payroll
   const getEmployeeStatus = (employeeId: string) => {

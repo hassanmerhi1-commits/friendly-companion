@@ -28,11 +28,13 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, getCurrentPeriod, getEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth } = usePayrollStore();
-  const { employees, getActiveEmployees } = useEmployeeStore();
+  const { periods, entries, generateEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth } = usePayrollStore();
+  const { employees } = useEmployeeStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
-  const { getActiveBranches } = useBranchStore();
-  const branches = getActiveBranches();
+  const { branches: allBranches } = useBranchStore();
+  // Derive active branches and employees from subscribed state - ensures re-render on changes
+  const branches = allBranches.filter(b => b.isActive);
+  const activeEmployees = employees.filter(emp => emp.status === 'active');
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = useAbsenceStore();
@@ -52,9 +54,14 @@ const Payroll = () => {
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
-  // Get or create current period
+  // Derive current period and entries from subscribed state
+  const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
+  const employeeIdSet = new Set(employees.map(emp => emp.id));
+  const currentEntries = currentPeriod ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId)) : [];
+  
+  // Helper to get or create current period
   const getOrCreateCurrentPeriod = async () => {
-    let period = getCurrentPeriod();
+    let period = currentPeriod;
     if (!period) {
       const now = new Date();
       period = await createPeriod(now.getFullYear(), now.getMonth() + 1);
@@ -62,9 +69,6 @@ const Payroll = () => {
     return period;
   };
 
-  const currentPeriod = getCurrentPeriod();
-  const employeeIdSet = new Set(employees.map(emp => emp.id));
-  const currentEntries = currentPeriod ? getEntriesForPeriod(currentPeriod.id).filter(e => employeeIdSet.has(e.employeeId)) : [];
   // Filter entries by branch for payroll sheet
   const payrollSheetEntries = selectedBranchId 
     ? currentEntries
@@ -115,8 +119,6 @@ const Payroll = () => {
   };
 
   const handleCalculate = async () => {
-    const activeEmployees = getActiveEmployees();
-    
     if (activeEmployees.length === 0) {
       toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
       return;
@@ -130,7 +132,8 @@ const Payroll = () => {
     await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
     
     // Mark subsidy as paid for employees who received it
-    const updatedEntries = getEntriesForPeriod(period.id);
+    // Re-derive entries after generation to get fresh data
+    const updatedEntries = entries.filter(e => e.payrollPeriodId === period.id);
     for (const entry of updatedEntries) {
       // If holiday subsidy was added, mark it as paid
       if (entry.holidaySubsidy > 0) {

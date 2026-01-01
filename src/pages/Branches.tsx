@@ -12,11 +12,12 @@ import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
-  const { deleteBranch, getActiveBranches } = useBranchStore();
+  const { branches, deleteBranch } = useBranchStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
-  const activeBranches = getActiveBranches();
+  // Derive active branches from subscribed state - this ensures re-render on changes
+  const activeBranches = branches.filter(b => b.isActive);
 
   const handleAddNew = () => {
     setEditingBranch(null);
