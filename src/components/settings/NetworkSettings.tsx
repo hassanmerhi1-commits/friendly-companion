@@ -14,15 +14,18 @@ interface DBStatus {
   configured: boolean;
   path: string | null;
   isClient: boolean;
-  serverIP: string | null;
-  exists: boolean;
+  serverName: string | null;
+  exists: boolean | null;
   connected: boolean;
+  pipeServerRunning?: boolean;
+  pipeName?: string;
   error?: string;
 }
 
 export function NetworkSettings() {
   const [dbStatus, setDbStatus] = useState<DBStatus | null>(null);
   const [localIPs, setLocalIPs] = useState<string[]>([]);
+  const [computerName, setComputerName] = useState<string>('');
   const [ipFilePath, setIpFilePath] = useState<string>('');
   const [ipFileContent, setIpFileContent] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -51,6 +54,9 @@ export function NetworkSettings() {
 
       const path = await api.network.getIPFilePath();
       setIpFilePath(path);
+
+      const name = await api.network.getComputerName();
+      setComputerName(name);
     } catch (error) {
       console.error('Error loading status:', error);
     }
@@ -66,7 +72,7 @@ export function NetworkSettings() {
       const result = await api.db.testConnection();
       
       if (result.success) {
-        toast.success('Conexão com a base de dados OK!');
+        toast.success('Conexão OK!');
       } else {
         toast.error(`Erro: ${result.error || 'Falha na conexão'}`);
       }
@@ -111,7 +117,7 @@ export function NetworkSettings() {
           <div>
             <CardTitle>Rede LAN / LAN Network</CardTitle>
             <CardDescription>
-              Acesso partilhado via pasta de rede (UNC)
+              Named Pipe via SMB (sem portas adicionais)
             </CardDescription>
           </div>
           <Badge 
@@ -127,6 +133,19 @@ export function NetworkSettings() {
       </CardHeader>
       <CardContent className="space-y-6">
         
+        {/* Computer Name */}
+        {computerName && (
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Monitor className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Nome deste computador:</span>
+              <code className="bg-background px-2 py-0.5 rounded text-sm font-mono font-bold">
+                {computerName}
+              </code>
+            </div>
+          </div>
+        )}
+
         {/* IP File Config */}
         <div className="p-4 bg-muted/30 border border-border rounded-lg">
           <div className="flex items-center gap-2 mb-2">
@@ -158,18 +177,26 @@ export function NetworkSettings() {
               <span className="text-muted-foreground">Configurado:</span>
               <span>{dbStatus?.configured ? 'Sim' : 'Não'}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ficheiro existe:</span>
-              <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
-            </div>
+            {!isClient && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ficheiro existe:</span>
+                <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Ligado:</span>
               <span>{dbStatus?.connected ? 'Sim' : 'Não'}</span>
             </div>
-            {isClient && dbStatus?.serverIP && (
+            {isClient && dbStatus?.serverName && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Servidor:</span>
-                <span>{dbStatus.serverIP}</span>
+                <span className="font-mono">{dbStatus.serverName}</span>
+              </div>
+            )}
+            {!isClient && dbStatus?.pipeServerRunning && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Named Pipe:</span>
+                <span className="text-green-600">Activo</span>
               </div>
             )}
           </div>
@@ -197,11 +224,12 @@ export function NetworkSettings() {
               <div className="flex items-center gap-2 mb-2">
                 <Plug className="h-4 w-4 text-blue-600" />
                 <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                  Modo Cliente (UNC)
+                  Modo Cliente
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Acede à base de dados via caminho de rede UNC: {dbStatus?.path}
+                Conecta ao servidor <strong>{dbStatus?.serverName}</strong> via Named Pipe.
+                Usa a porta SMB existente (445), sem firewall adicional.
               </p>
             </>
           ) : (
@@ -213,7 +241,8 @@ export function NetworkSettings() {
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Base de dados local. Partilhe a pasta para permitir acesso de clientes via rede.
+                Base de dados local com serviço Named Pipe activo.
+                Os clientes conectam-se usando o nome do computador: <strong>{computerName}</strong>
               </p>
             </>
           )}
@@ -228,13 +257,25 @@ export function NetworkSettings() {
             <div>
               <span className="text-muted-foreground">Caminho da base de dados:</span>
               <code className="block mt-1 bg-background p-1 rounded break-all font-mono text-xs">
-                {dbStatus?.path || 'Não configurado'}
+                {dbStatus?.path || 'Não configurado (modo cliente)'}
               </code>
             </div>
             <div>
-              <span className="text-muted-foreground">IPs locais deste computador:</span>
+              <span className="text-muted-foreground">Nome do computador:</span>
+              <code className="ml-2 bg-background px-1 rounded font-mono text-xs">
+                {computerName}
+              </code>
+            </div>
+            <div>
+              <span className="text-muted-foreground">IPs locais:</span>
               <code className="block mt-1 bg-background p-1 rounded font-mono text-xs">
                 {localIPs.join(', ') || 'N/A'}
+              </code>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Named Pipe:</span>
+              <code className="ml-2 bg-background px-1 rounded font-mono text-xs">
+                \\.\pipe\{dbStatus?.pipeName || 'PayrollAO-DB'}
               </code>
             </div>
             <div className="pt-2 border-t border-border">
@@ -245,13 +286,13 @@ export function NetworkSettings() {
                 Servidor: <code className="bg-background px-1 rounded">C:\PayrollAO\payroll.db</code>
               </p>
               <p className="mt-1">
-                Cliente: <code className="bg-background px-1 rounded">\\10.0.0.10\PayrollAO\payroll.db</code>
+                Cliente: <code className="bg-background px-1 rounded">NOME_DO_SERVIDOR</code> ou <code className="bg-background px-1 rounded">10.0.0.10</code>
               </p>
             </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
-                <strong>Arquitectura:</strong> Acesso directo via pasta partilhada (SMB/UNC).
-                SQLite com WAL mode para concorrência. Sem portas TCP adicionais.
+                <strong>Arquitectura:</strong> Named Pipes sobre SMB.
+                Usa a porta 445 (partilha de ficheiros Windows) - sem firewall adicional.
               </p>
             </div>
           </div>
