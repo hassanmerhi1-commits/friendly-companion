@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Network, RefreshCw, Monitor, HardDrive, CheckCircle2, XCircle } from "lucide-react";
+import { Network, RefreshCw, Monitor, HardDrive, CheckCircle2, XCircle, Server, Plug } from "lucide-react";
+import { toast } from "sonner";
 
 // Check if running in Electron
 const isElectron = () => {
@@ -14,8 +15,10 @@ interface DBStatus {
   path: string | null;
   isClient: boolean;
   serverIP: string | null;
-  exists: boolean;
+  exists: boolean | null;
   connected: boolean;
+  tcpServerRunning?: boolean;
+  port?: number;
   error?: string;
 }
 
@@ -25,6 +28,7 @@ export function NetworkSettings() {
   const [ipFilePath, setIpFilePath] = useState<string>('');
   const [ipFileContent, setIpFileContent] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     if (!isElectron()) return;
@@ -38,25 +42,40 @@ export function NetworkSettings() {
     try {
       const api = (window as any).electronAPI;
 
-      // Get database status
       const status = await api.db.getStatus();
       setDbStatus(status);
 
-      // Get IP file content
       const ipFile = await api.ipfile.read();
       setIpFileContent(ipFile?.content || '');
 
-      // Get local IPs (for display)
       const ips = await api.network.getLocalIPs();
       setLocalIPs(ips);
 
-      // Get IP file path
       const path = await api.network.getIPFilePath();
       setIpFilePath(path);
     } catch (error) {
       console.error('Error loading status:', error);
     }
     setIsRefreshing(false);
+  };
+
+  const testConnection = async () => {
+    if (!isElectron()) return;
+
+    setIsTesting(true);
+    try {
+      const api = (window as any).electronAPI;
+      const result = await api.db.testConnection();
+      
+      if (result.success) {
+        toast.success('Conexão com o servidor OK!');
+      } else {
+        toast.error(`Erro: ${result.error || 'Falha na conexão'}`);
+      }
+    } catch (error: any) {
+      toast.error(`Erro: ${error.message || 'Falha na conexão'}`);
+    }
+    setIsTesting(false);
   };
 
   if (!isElectron()) {
@@ -94,7 +113,7 @@ export function NetworkSettings() {
           <div>
             <CardTitle>Rede LAN / LAN Network</CardTitle>
             <CardDescription>
-              Acesso directo a ficheiro na rede (estilo Dolly)
+              Arquitectura Cliente-Servidor TCP
             </CardDescription>
           </div>
           <Badge 
@@ -141,10 +160,12 @@ export function NetworkSettings() {
               <span className="text-muted-foreground">Configurado:</span>
               <span>{dbStatus?.configured ? 'Sim' : 'Não'}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ficheiro existe:</span>
-              <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
-            </div>
+            {!isClient && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Ficheiro existe:</span>
+                <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Ligado:</span>
               <span>{dbStatus?.connected ? 'Sim' : 'Não'}</span>
@@ -152,7 +173,13 @@ export function NetworkSettings() {
             {isClient && dbStatus?.serverIP && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Servidor:</span>
-                <span>{dbStatus.serverIP}</span>
+                <span>{dbStatus.serverIP}:{dbStatus.port || 5433}</span>
+              </div>
+            )}
+            {!isClient && dbStatus?.tcpServerRunning && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Servidor TCP:</span>
+                <span className="text-green-600">Activo na porta {dbStatus.port || 5433}</span>
               </div>
             )}
           </div>
@@ -162,24 +189,45 @@ export function NetworkSettings() {
           )}
         </div>
 
+        {/* Test Connection Button (Client only) */}
+        {isClient && (
+          <Button 
+            onClick={testConnection} 
+            disabled={isTesting}
+            className="w-full"
+            variant="outline"
+          >
+            <Plug className={`h-4 w-4 mr-2 ${isTesting ? 'animate-pulse' : ''}`} />
+            {isTesting ? 'Testando...' : 'Testar Conexão com Servidor'}
+          </Button>
+        )}
+
         {/* Mode explanation */}
         <div className={`p-4 rounded-lg border ${isClient ? 'bg-blue-500/10 border-blue-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
           {isClient ? (
             <>
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                Modo Cliente
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Este computador acede à base de dados no servidor {dbStatus?.serverIP} via partilha de ficheiros Windows (UNC path).
+              <div className="flex items-center gap-2 mb-2">
+                <Plug className="h-4 w-4 text-blue-600" />
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  Modo Cliente
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este computador conecta-se ao servidor {dbStatus?.serverIP} via TCP (porta {dbStatus?.port || 5433}).
+                Todas as operações de base de dados são enviadas ao servidor que gere o acesso ao ficheiro.
               </p>
             </>
           ) : (
             <>
-              <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                Modo Servidor
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Este computador tem a base de dados local. Outros computadores podem aceder via partilha de ficheiros Windows.
+              <div className="flex items-center gap-2 mb-2">
+                <Server className="h-4 w-4 text-green-600" />
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Modo Servidor
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Este computador gere a base de dados localmente e executa um serviço TCP na porta {dbStatus?.port || 5433}.
+                Outros computadores na rede podem conectar-se como clientes.
               </p>
             </>
           )}
@@ -203,6 +251,12 @@ export function NetworkSettings() {
                 {localIPs.join(', ') || 'N/A'}
               </code>
             </div>
+            <div>
+              <span className="text-muted-foreground">Porta TCP:</span>
+              <code className="ml-2 bg-background px-1 rounded font-mono text-xs">
+                {dbStatus?.port || 5433}
+              </code>
+            </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
                 <strong>Formato do ficheiro IP:</strong>
@@ -212,6 +266,16 @@ export function NetworkSettings() {
               </p>
               <p className="mt-1">
                 Cliente: <code className="bg-background px-1 rounded">10.0.0.10:C:\PayrollAO\payroll.db</code>
+              </p>
+            </div>
+            <div className="pt-2 border-t border-border">
+              <p className="text-muted-foreground">
+                <strong>Arquitectura:</strong>
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                O servidor abre a base de dados SQLite e executa um serviço TCP.
+                Os clientes enviam comandos via TCP socket e o servidor executa-os,
+                garantindo acesso concorrente seguro.
               </p>
             </div>
           </div>
