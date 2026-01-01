@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { dbGetAll, dbInsert } from '@/lib/db-sync';
 
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
-}
-
 export interface CompanySettings {
   companyName: string;
   nif: string;
@@ -51,33 +47,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   isLoaded: false,
 
   loadSettings: async () => {
-    if (!isElectron()) {
-      const stored = localStorage.getItem('payroll-settings');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ settings: data.state?.settings || defaultSettings, isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-
     try {
       const rows = await dbGetAll<any>('settings');
-      if (rows.length === 0) {
-        set({ isLoaded: true });
-        return;
-      }
-
+      if (rows.length === 0) { set({ isLoaded: true }); return; }
       const settingsMap: Record<string, string> = {};
-      for (const row of rows) {
-        settingsMap[row.key] = row.value;
-      }
-
+      for (const row of rows) { settingsMap[row.key] = row.value; }
       const loaded: CompanySettings = {
         companyName: settingsMap.companyName || defaultSettings.companyName,
         nif: settingsMap.nif || defaultSettings.nif,
@@ -94,7 +68,6 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         holidayAlerts: settingsMap.holidayAlerts === 'true',
         newEmployees: settingsMap.newEmployees === 'true',
       };
-
       set({ settings: loaded, isLoaded: true });
       console.log('[Settings] Loaded from DB');
     } catch (error) {
@@ -106,12 +79,9 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   updateSettings: async (newSettings) => {
     const merged = { ...get().settings, ...newSettings };
     set({ settings: merged });
-
-    if (isElectron()) {
-      const now = new Date().toISOString();
-      for (const [key, val] of Object.entries(merged)) {
-        await dbInsert('settings', { key, value: String(val), updated_at: now });
-      }
+    const now = new Date().toISOString();
+    for (const [key, val] of Object.entries(merged)) {
+      await dbInsert('settings', { key, value: String(val), updated_at: now });
     }
   },
 }));

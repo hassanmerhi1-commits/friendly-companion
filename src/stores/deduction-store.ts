@@ -2,9 +2,6 @@ import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
 import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
 
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
-}
 
 interface DeductionState {
   deductions: Deduction[];
@@ -59,21 +56,6 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
   isLoaded: false,
 
   loadDeductions: async () => {
-    if (!isElectron()) {
-      const stored = localStorage.getItem('payrollao-deductions');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ deductions: data.state?.deductions || [], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-
     try {
       const rows = await dbGetAll<any>('deductions');
       const deductions = rows.map(mapDbRowToDeduction);
@@ -97,9 +79,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       updatedAt: now,
     };
 
-    if (isElectron()) {
-      await dbInsert('deductions', mapDeductionToDbRow(newDeduction));
-    }
+    await dbInsert('deductions', mapDeductionToDbRow(newDeduction));
 
     set((state) => ({
       deductions: [...state.deductions, newDeduction],
@@ -115,10 +95,8 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
 
     const updated: Deduction = { ...current, ...data, updatedAt: now };
 
-    if (isElectron()) {
-      const { id: _, ...row } = mapDeductionToDbRow(updated);
-      await dbUpdate('deductions', id, row);
-    }
+    const { id: _, ...row } = mapDeductionToDbRow(updated);
+    await dbUpdate('deductions', id, row);
 
     set((state) => ({
       deductions: state.deductions.map((ded) => (ded.id === id ? updated : ded)),
@@ -126,9 +104,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
   },
 
   deleteDeduction: async (id: string) => {
-    if (isElectron()) {
-      await dbDelete('deductions', id);
-    }
+    await dbDelete('deductions', id);
     set((state) => ({
       deductions: state.deductions.filter((ded) => ded.id !== id),
     }));
@@ -144,9 +120,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
 
   applyDeductionToPayroll: async (id: string, payrollPeriodId: string) => {
     const now = new Date().toISOString();
-    if (isElectron()) {
-      await dbUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
-    }
+    await dbUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
     set((state) => ({
       deductions: state.deductions.map((ded) =>
         ded.id === id ? { ...ded, isApplied: true, payrollPeriodId, updatedAt: now } : ded

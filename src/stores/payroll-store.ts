@@ -4,9 +4,6 @@ import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
 import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
 
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
-}
 
 interface PayrollState {
   periods: PayrollPeriod[];
@@ -166,22 +163,6 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
   isLoaded: false,
 
   loadPayroll: async () => {
-    if (!isElectron()) {
-      // Dev fallback: localStorage
-      const stored = localStorage.getItem('payrollao-payroll');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ periods: data.state?.periods || [], entries: data.state?.entries || [], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-
     try {
       const periodRows = await dbGetAll<any>('payroll_periods');
       const entryRows = await dbGetAll<any>('payroll_entries');
@@ -214,9 +195,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       createdAt: now,
     };
 
-    if (isElectron()) {
-      await dbInsert('payroll_periods', mapPeriodToDbRow(newPeriod));
-    }
+    await dbInsert('payroll_periods', mapPeriodToDbRow(newPeriod));
 
     set((state) => ({
       periods: [...state.periods.filter((p) => p.id !== newPeriod.id), newPeriod],
@@ -234,9 +213,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
   updatePeriodStatus: async (id: string, status: PayrollPeriod['status']) => {
     const now = new Date().toISOString();
-    if (isElectron()) {
-      await dbUpdate('payroll_periods', id, { status, updated_at: now });
-    }
+    await dbUpdate('payroll_periods', id, { status, updated_at: now });
     set((state) => ({
       periods: state.periods.map((p) => (p.id === id ? { ...p, status } : p)),
     }));
@@ -301,14 +278,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       });
 
     // Remove old entries for this period and insert new ones
-    if (isElectron()) {
-      const existingEntries = get().entries.filter((e) => e.payrollPeriodId === periodId);
-      for (const e of existingEntries) {
-        await dbDelete('payroll_entries', e.id);
-      }
-      for (const e of newEntries) {
-        await dbInsert('payroll_entries', mapEntryToDbRow(e));
-      }
+    const existingEntries = get().entries.filter((e) => e.payrollPeriodId === periodId);
+    for (const e of existingEntries) {
+      await dbDelete('payroll_entries', e.id);
+    }
+    for (const e of newEntries) {
+      await dbInsert('payroll_entries', mapEntryToDbRow(e));
     }
 
     set((state) => ({
@@ -337,10 +312,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    if (isElectron()) {
-      const { id: _, ...data } = mapEntryToDbRow(updated);
-      await dbUpdate('payroll_entries', entryId, data);
-    }
+    const { id: _, ...data } = mapEntryToDbRow(updated);
+    await dbUpdate('payroll_entries', entryId, data);
 
     set((state) => ({
       entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
@@ -357,12 +330,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       entries: state.entries.map((e) => (e.id === id ? { ...e, ...data, updatedAt: now } : e)),
     }));
 
-    if (isElectron()) {
-      const updated = get().entries.find((e) => e.id === id);
-      if (updated) {
-        const { id: _, ...row } = mapEntryToDbRow(updated);
-        await dbUpdate('payroll_entries', id, row);
-      }
+    const updated = get().entries.find((e) => e.id === id);
+    if (updated) {
+      const { id: _, ...row } = mapEntryToDbRow(updated);
+      await dbUpdate('payroll_entries', id, row);
     }
   },
 
@@ -383,14 +354,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    if (isElectron()) {
-      const { id: _, ...row } = mapEntryToDbRow(updated);
-      await dbUpdate('payroll_entries', entryId, row);
-    }
-
-    set((state) => ({
-      entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
-    }));
+    const { id: _, ...row } = mapEntryToDbRow(updated);
+    await dbUpdate('payroll_entries', entryId, row);
 
     if (entry.payrollPeriodId) {
       await get().calculatePeriod(entry.payrollPeriodId);
@@ -425,10 +390,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    if (isElectron()) {
-      const { id: _, ...row } = mapEntryToDbRow(updated);
-      await dbUpdate('payroll_entries', entryId, row);
-    }
+    const { id: _, ...row } = mapEntryToDbRow(updated);
+    await dbUpdate('payroll_entries', entryId, row);
 
     set((state) => ({
       entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
@@ -443,10 +406,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
   removeEntriesForEmployee: async (employeeId) => {
     const toRemove = get().entries.filter((e) => e.employeeId === employeeId);
-    if (isElectron()) {
-      for (const e of toRemove) {
-        await dbDelete('payroll_entries', e.id);
-      }
+    for (const e of toRemove) {
+      await dbDelete('payroll_entries', e.id);
     }
     set((state) => ({
       entries: state.entries.filter((e) => e.employeeId !== employeeId),
@@ -480,10 +441,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    if (isElectron()) {
-      const { id: _, ...row } = mapEntryToDbRow(updated);
-      await dbUpdate('payroll_entries', id, row);
-    }
+    const { id: _, ...row } = mapEntryToDbRow(updated);
+    await dbUpdate('payroll_entries', id, row);
 
     set((state) => ({
       entries: state.entries.map((e) => (e.id === id ? updated : e)),
@@ -561,7 +520,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
     const now = new Date().toISOString();
     const updatedPeriod = get().periods.find((p) => p.id === periodId);
-    if (updatedPeriod && isElectron()) {
+    if (updatedPeriod) {
       await dbUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
@@ -585,9 +544,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
   approvePeriod: async (periodId) => {
     const now = new Date().toISOString();
-    if (isElectron()) {
-      await dbUpdate('payroll_periods', periodId, { status: 'approved', approved_at: now, updated_at: now });
-    }
+    await dbUpdate('payroll_periods', periodId, { status: 'approved', approved_at: now, updated_at: now });
     set((state) => ({
       periods: state.periods.map((p) => (p.id === periodId ? { ...p, status: 'approved' as const, approvedAt: now } : p)),
       entries: state.entries.map((e) => (e.payrollPeriodId === periodId ? { ...e, status: 'approved' as const } : e)),
@@ -596,9 +553,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
   markAsPaid: async (periodId) => {
     const now = new Date().toISOString();
-    if (isElectron()) {
-      await dbUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
-    }
+    await dbUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
     set((state) => ({
       periods: state.periods.map((p) => (p.id === periodId ? { ...p, status: 'paid' as const, paidAt: now } : p)),
       entries: state.entries.map((e) => (e.payrollPeriodId === periodId ? { ...e, status: 'paid' as const } : e)),

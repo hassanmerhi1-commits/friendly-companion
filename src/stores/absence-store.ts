@@ -3,10 +3,6 @@ import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
 import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
 
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
-}
-
 function generateId(): string {
   return `abs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -89,38 +85,20 @@ function mapAbsenceToDbRow(a: Absence): Record<string, any> {
 interface AbsenceStore {
   absences: Absence[];
   isLoaded: boolean;
-
   loadAbsences: () => Promise<void>;
-
   addAbsence: (absence: Omit<Absence, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateAbsence: (id: string, updates: Partial<Absence>) => Promise<void>;
   deleteAbsence: (id: string) => Promise<void>;
-
   justifyAbsence: (id: string, document: string, notes?: string) => Promise<void>;
   rejectJustification: (id: string, reason: string) => Promise<void>;
   approveAbsence: (id: string, approvedBy: string) => Promise<void>;
   markAsUnjustified: (id: string) => Promise<void>;
-
   getAbsencesByEmployee: (employeeId: string) => Absence[];
   getAbsencesByPeriod: (startDate: string, endDate: string) => Absence[];
   getPendingAbsences: () => Absence[];
   getUnjustifiedAbsences: (employeeId: string, month: number, year: number) => Absence[];
-
   calculateDeductionForEmployee: (employeeId: string, baseSalary: number, month: number, year: number) => number;
-  getAbsenceDaysForEmployee: (
-    employeeId: string,
-    month: number,
-    year: number
-  ) => {
-    total: number;
-    justified: number;
-    unjustified: number;
-    pending: number;
-    maternity: number;
-    paternity: number;
-    sick: number;
-    other: number;
-  };
+  getAbsenceDaysForEmployee: (employeeId: string, month: number, year: number) => { total: number; justified: number; unjustified: number; pending: number; maternity: number; paternity: number; sick: number; other: number };
 }
 
 export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
@@ -128,21 +106,6 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
   isLoaded: false,
 
   loadAbsences: async () => {
-    if (!isElectron()) {
-      const stored = localStorage.getItem('payroll-absences');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ absences: data.state?.absences || [], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-
     try {
       const rows = await dbGetAll<any>('absences');
       const absences = rows.map(mapDbRowToAbsence);
@@ -157,247 +120,68 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
   addAbsence: async (absence) => {
     const now = new Date().toISOString();
     const days = calculateWorkingDays(absence.startDate, absence.endDate);
-
-    const newAbsence: Absence = {
-      ...absence,
-      id: generateId(),
-      days,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    if (isElectron()) {
-      await dbInsert('absences', mapAbsenceToDbRow(newAbsence));
-    }
-
-    set((state) => ({
-      absences: [...state.absences, newAbsence],
-    }));
+    const newAbsence: Absence = { ...absence, id: generateId(), days, createdAt: now, updatedAt: now };
+    await dbInsert('absences', mapAbsenceToDbRow(newAbsence));
+    set((state) => ({ absences: [...state.absences, newAbsence] }));
   },
 
   updateAbsence: async (id, updates) => {
     const now = new Date().toISOString();
     const current = get().absences.find((a) => a.id === id);
     if (!current) return;
-
-    const days =
-      updates.startDate || updates.endDate
-        ? calculateWorkingDays(updates.startDate || current.startDate, updates.endDate || current.endDate)
-        : current.days;
-
+    const days = updates.startDate || updates.endDate ? calculateWorkingDays(updates.startDate || current.startDate, updates.endDate || current.endDate) : current.days;
     const updated: Absence = { ...current, ...updates, days, updatedAt: now };
-
-    if (isElectron()) {
-      const { id: _, ...row } = mapAbsenceToDbRow(updated);
-      await dbUpdate('absences', id, row);
-    }
-
-    set((state) => ({
-      absences: state.absences.map((a) => (a.id === id ? updated : a)),
-    }));
+    const { id: _, ...row } = mapAbsenceToDbRow(updated);
+    await dbUpdate('absences', id, row);
+    set((state) => ({ absences: state.absences.map((a) => (a.id === id ? updated : a)) }));
   },
 
   deleteAbsence: async (id) => {
-    if (isElectron()) {
-      await dbDelete('absences', id);
-    }
-    set((state) => ({
-      absences: state.absences.filter((a) => a.id !== id),
-    }));
+    await dbDelete('absences', id);
+    set((state) => ({ absences: state.absences.filter((a) => a.id !== id) }));
   },
 
   justifyAbsence: async (id, document, notes) => {
     const now = new Date().toISOString();
     const current = get().absences.find((a) => a.id === id);
     if (!current) return;
-
-    const updated: Absence = {
-      ...current,
-      status: 'justified',
-      justificationDocument: document,
-      justificationDate: now,
-      notes: notes || current.notes,
-      deductFromSalary: false,
-      updatedAt: now,
-    };
-
-    if (isElectron()) {
-      const { id: _, ...row } = mapAbsenceToDbRow(updated);
-      await dbUpdate('absences', id, row);
-    }
-
-    set((state) => ({
-      absences: state.absences.map((a) => (a.id === id ? updated : a)),
-    }));
+    const updated: Absence = { ...current, status: 'justified', justificationDocument: document, justificationDate: now, notes: notes || current.notes, deductFromSalary: false, updatedAt: now };
+    const { id: _, ...row } = mapAbsenceToDbRow(updated);
+    await dbUpdate('absences', id, row);
+    set((state) => ({ absences: state.absences.map((a) => (a.id === id ? updated : a)) }));
   },
 
   rejectJustification: async (id, reason) => {
     const now = new Date().toISOString();
     const current = get().absences.find((a) => a.id === id);
     if (!current) return;
-
-    const updated: Absence = {
-      ...current,
-      status: 'rejected',
-      notes: reason,
-      deductFromSalary: true,
-      updatedAt: now,
-    };
-
-    if (isElectron()) {
-      await dbUpdate('absences', id, { status: 'rejected', justification_notes: reason, updated_at: now });
-    }
-
-    set((state) => ({
-      absences: state.absences.map((a) => (a.id === id ? updated : a)),
-    }));
+    const updated: Absence = { ...current, status: 'rejected', notes: reason, deductFromSalary: true, updatedAt: now };
+    await dbUpdate('absences', id, { status: 'rejected', justification_notes: reason, updated_at: now });
+    set((state) => ({ absences: state.absences.map((a) => (a.id === id ? updated : a)) }));
   },
 
   approveAbsence: async (id, approvedBy) => {
     const now = new Date().toISOString();
     const current = get().absences.find((a) => a.id === id);
     if (!current) return;
-
-    const updated: Absence = {
-      ...current,
-      status: 'approved',
-      approvedBy,
-      approvedDate: now,
-      deductFromSalary: false,
-      updatedAt: now,
-    };
-
-    if (isElectron()) {
-      await dbUpdate('absences', id, { status: 'approved', approved_by: approvedBy, approved_at: now, updated_at: now });
-    }
-
-    set((state) => ({
-      absences: state.absences.map((a) => (a.id === id ? updated : a)),
-    }));
+    const updated: Absence = { ...current, status: 'approved', approvedBy, approvedDate: now, deductFromSalary: false, updatedAt: now };
+    await dbUpdate('absences', id, { status: 'approved', approved_by: approvedBy, approved_at: now, updated_at: now });
+    set((state) => ({ absences: state.absences.map((a) => (a.id === id ? updated : a)) }));
   },
 
   markAsUnjustified: async (id) => {
     const now = new Date().toISOString();
     const current = get().absences.find((a) => a.id === id);
     if (!current) return;
-
-    const updated: Absence = {
-      ...current,
-      status: 'unjustified',
-      deductFromSalary: true,
-      updatedAt: now,
-    };
-
-    if (isElectron()) {
-      await dbUpdate('absences', id, { status: 'unjustified', updated_at: now });
-    }
-
-    set((state) => ({
-      absences: state.absences.map((a) => (a.id === id ? updated : a)),
-    }));
+    const updated: Absence = { ...current, status: 'unjustified', deductFromSalary: true, updatedAt: now };
+    await dbUpdate('absences', id, { status: 'unjustified', updated_at: now });
+    set((state) => ({ absences: state.absences.map((a) => (a.id === id ? updated : a)) }));
   },
 
   getAbsencesByEmployee: (employeeId) => get().absences.filter((a) => a.employeeId === employeeId),
-
-  getAbsencesByPeriod: (startDate, endDate) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    return get().absences.filter((a) => {
-      const absStart = new Date(a.startDate);
-      const absEnd = new Date(a.endDate);
-      return absStart <= end && absEnd >= start;
-    });
-  },
-
+  getAbsencesByPeriod: (startDate, endDate) => { const start = new Date(startDate); const end = new Date(endDate); return get().absences.filter((a) => { const absStart = new Date(a.startDate); const absEnd = new Date(a.endDate); return absStart <= end && absEnd >= start; }); },
   getPendingAbsences: () => get().absences.filter((a) => a.status === 'pending'),
-
-  getUnjustifiedAbsences: (employeeId, month, year) => {
-    return get().absences.filter((a) => {
-      if (a.employeeId !== employeeId) return false;
-      if (a.status !== 'unjustified' && a.status !== 'rejected') return false;
-
-      const startDate = new Date(a.startDate);
-      const endDate = new Date(a.endDate);
-      const monthStart = new Date(year, month, 1);
-      const monthEnd = new Date(year, month + 1, 0);
-
-      return startDate <= monthEnd && endDate >= monthStart;
-    });
-  },
-
-  calculateDeductionForEmployee: (employeeId, baseSalary, month, year) => {
-    const unjustifiedAbsences = get().getUnjustifiedAbsences(employeeId, month, year);
-
-    let totalDays = 0;
-    for (const absence of unjustifiedAbsences) {
-      totalDays += getAbsenceDaysInMonth(absence, month, year);
-    }
-
-    if (totalDays === 0) return 0;
-
-    return calculateAbsenceDeduction(baseSalary, totalDays);
-  },
-
-  getAbsenceDaysForEmployee: (employeeId, month, year) => {
-    const absences = get().absences.filter((a) => {
-      if (a.employeeId !== employeeId) return false;
-
-      const startDate = new Date(a.startDate);
-      const endDate = new Date(a.endDate);
-      const monthStart = new Date(year, month, 1);
-      const monthEnd = new Date(year, month + 1, 0);
-
-      return startDate <= monthEnd && endDate >= monthStart;
-    });
-
-    const result = {
-      total: 0,
-      justified: 0,
-      unjustified: 0,
-      pending: 0,
-      maternity: 0,
-      paternity: 0,
-      sick: 0,
-      other: 0,
-    };
-
-    for (const absence of absences) {
-      const days = getAbsenceDaysInMonth(absence, month, year);
-      result.total += days;
-
-      switch (absence.status) {
-        case 'justified':
-        case 'approved':
-          result.justified += days;
-          break;
-        case 'unjustified':
-        case 'rejected':
-          result.unjustified += days;
-          break;
-        case 'pending':
-          result.pending += days;
-          break;
-      }
-
-      switch (absence.type) {
-        case 'maternity':
-          result.maternity += days;
-          break;
-        case 'paternity':
-          result.paternity += days;
-          break;
-        case 'sick_leave':
-          result.sick += days;
-          break;
-        default:
-          if (absence.type !== 'unjustified') {
-            result.other += days;
-          }
-          break;
-      }
-    }
-
-    return result;
-  },
+  getUnjustifiedAbsences: (employeeId, month, year) => get().absences.filter((a) => { if (a.employeeId !== employeeId) return false; if (a.status !== 'unjustified' && a.status !== 'rejected') return false; const startDate = new Date(a.startDate); const endDate = new Date(a.endDate); const monthStart = new Date(year, month, 1); const monthEnd = new Date(year, month + 1, 0); return startDate <= monthEnd && endDate >= monthStart; }),
+  calculateDeductionForEmployee: (employeeId, baseSalary, month, year) => { const unjustifiedAbsences = get().getUnjustifiedAbsences(employeeId, month, year); let totalDays = 0; for (const absence of unjustifiedAbsences) { totalDays += getAbsenceDaysInMonth(absence, month, year); } if (totalDays === 0) return 0; return calculateAbsenceDeduction(baseSalary, totalDays); },
+  getAbsenceDaysForEmployee: (employeeId, month, year) => { const absences = get().absences.filter((a) => { if (a.employeeId !== employeeId) return false; const startDate = new Date(a.startDate); const endDate = new Date(a.endDate); const monthStart = new Date(year, month, 1); const monthEnd = new Date(year, month + 1, 0); return startDate <= monthEnd && endDate >= monthStart; }); const result = { total: 0, justified: 0, unjustified: 0, pending: 0, maternity: 0, paternity: 0, sick: 0, other: 0 }; for (const absence of absences) { const days = getAbsenceDaysInMonth(absence, month, year); result.total += days; if (absence.status === 'justified' || absence.status === 'approved') result.justified += days; else if (absence.status === 'unjustified' || absence.status === 'rejected') result.unjustified += days; else if (absence.status === 'pending') result.pending += days; if (absence.type === 'maternity') result.maternity += days; else if (absence.type === 'paternity') result.paternity += days; else if (absence.type === 'sick_leave') result.sick += days; else if (absence.type !== 'unjustified') result.other += days; } return result; },
 }));

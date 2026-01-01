@@ -3,11 +3,6 @@ import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
 
-// Check if running in Electron
-function isElectron(): boolean {
-  return typeof window !== 'undefined' && 
-    (window as any).electronAPI?.isElectron === true;
-}
 
 interface EmployeeState {
   employees: Employee[];
@@ -119,22 +114,6 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   isLoaded: false,
   
   loadEmployees: async () => {
-    if (!isElectron()) {
-      // In development, load from localStorage
-      const stored = localStorage.getItem('payrollao-employees');
-      if (stored) {
-        try {
-          const data = JSON.parse(stored);
-          set({ employees: data.state?.employees || [], isLoaded: true });
-        } catch {
-          set({ isLoaded: true });
-        }
-      } else {
-        set({ isLoaded: true });
-      }
-      return;
-    }
-    
     try {
       const rows = await dbGetAll<any>('employees');
       const employees = rows.map(mapDbRowToEmployee);
@@ -207,18 +186,10 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       updatedAt: now,
     };
     
-    if (isElectron()) {
-      const dbRow = mapEmployeeToDbRow(newEmployee);
-      const success = await dbInsert('employees', dbRow);
-      if (!success) {
-        return { success: false, error: 'Erro ao guardar no banco de dados' };
-      }
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-employees');
-      const storageData = stored ? JSON.parse(stored) : { state: { employees: [] } };
-      storageData.state.employees.push(newEmployee);
-      localStorage.setItem('payrollao-employees', JSON.stringify(storageData));
+    const dbRow = mapEmployeeToDbRow(newEmployee);
+    const success = await dbInsert('employees', dbRow);
+    if (!success) {
+      return { success: false, error: 'Erro ao guardar no banco de dados' };
     }
     
     set((state) => ({
@@ -266,22 +237,12 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
     
-    if (isElectron()) {
-      const dbRow = mapEmployeeToDbRow(updatedEmployee);
-      // Remove id from update data (it's used in WHERE clause)
-      const { id: _, ...updateData } = dbRow;
-      const success = await dbUpdate('employees', id, updateData);
-      if (!success) {
-        return { success: false, error: 'Erro ao actualizar no banco de dados' };
-      }
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-employees');
-      const storageData = stored ? JSON.parse(stored) : { state: { employees: [] } };
-      storageData.state.employees = storageData.state.employees.map((emp: Employee) =>
-        emp.id === id ? updatedEmployee : emp
-      );
-      localStorage.setItem('payrollao-employees', JSON.stringify(storageData));
+    const dbRow = mapEmployeeToDbRow(updatedEmployee);
+    // Remove id from update data (it's used in WHERE clause)
+    const { id: _, ...updateData } = dbRow;
+    const success = await dbUpdate('employees', id, updateData);
+    if (!success) {
+      return { success: false, error: 'Erro ao actualizar no banco de dados' };
     }
     
     set((state) => ({
@@ -311,15 +272,7 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     const payrollStore = usePayrollStore.getState();
     payrollStore.removeEntriesForEmployee(id);
     
-    if (isElectron()) {
-      await dbDelete('employees', id);
-    } else {
-      // Development: save to localStorage
-      const stored = localStorage.getItem('payrollao-employees');
-      const data = stored ? JSON.parse(stored) : { state: { employees: [] } };
-      data.state.employees = data.state.employees.filter((emp: Employee) => emp.id !== id);
-      localStorage.setItem('payrollao-employees', JSON.stringify(data));
-    }
+    await dbDelete('employees', id);
     
     set((state) => ({
       employees: state.employees.filter((emp) => emp.id !== id),
