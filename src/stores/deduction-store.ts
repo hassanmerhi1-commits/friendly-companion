@@ -1,102 +1,171 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
+import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
+
+function isElectron(): boolean {
+  return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
+}
 
 interface DeductionState {
   deductions: Deduction[];
-  addDeduction: (data: DeductionFormData) => Deduction;
-  updateDeduction: (id: string, data: Partial<Deduction>) => void;
-  deleteDeduction: (id: string) => void;
+  isLoaded: boolean;
+
+  loadDeductions: () => Promise<void>;
+  addDeduction: (data: DeductionFormData) => Promise<Deduction>;
+  updateDeduction: (id: string, data: Partial<Deduction>) => Promise<void>;
+  deleteDeduction: (id: string) => Promise<void>;
   getDeductionsByEmployee: (employeeId: string) => Deduction[];
   getPendingDeductions: (employeeId: string) => Deduction[];
-  applyDeductionToPayroll: (id: string, payrollPeriodId: string) => void;
+  applyDeductionToPayroll: (id: string, payrollPeriodId: string) => Promise<void>;
   getTotalPendingByEmployee: (employeeId: string) => number;
 }
 
-export const useDeductionStore = create<DeductionState>()(
-  persist(
-    (set, get) => ({
-      deductions: [],
+function mapDbRowToDeduction(row: any): Deduction {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    type: row.type as DeductionType,
+    description: row.description || '',
+    amount: row.amount || 0,
+    date: row.date || '',
+    payrollPeriodId: row.payroll_period_id || undefined,
+    isApplied: row.is_applied === 1,
+    installments: row.installments || undefined,
+    currentInstallment: row.current_installment || undefined,
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
 
-      addDeduction: (data: DeductionFormData) => {
-        const now = new Date().toISOString();
-        
-        const newDeduction: Deduction = {
-          ...data,
-          id: crypto.randomUUID(),
-          isApplied: false,
-          currentInstallment: 1,
-          createdAt: now,
-          updatedAt: now,
-        };
+function mapDeductionToDbRow(d: Deduction): Record<string, any> {
+  return {
+    id: d.id,
+    employee_id: d.employeeId,
+    type: d.type,
+    description: d.description,
+    amount: d.amount,
+    date: d.date,
+    payroll_period_id: d.payrollPeriodId || null,
+    is_applied: d.isApplied ? 1 : 0,
+    installments: d.installments || null,
+    current_installment: d.currentInstallment || null,
+    created_at: d.createdAt,
+    updated_at: d.updatedAt,
+  };
+}
 
-        set((state) => ({
-          deductions: [...state.deductions, newDeduction],
-        }));
+export const useDeductionStore = create<DeductionState>()((set, get) => ({
+  deductions: [],
+  isLoaded: false,
 
-        return newDeduction;
-      },
-
-      updateDeduction: (id: string, data: Partial<Deduction>) => {
-        set((state) => ({
-          deductions: state.deductions.map((ded) =>
-            ded.id === id
-              ? { ...ded, ...data, updatedAt: new Date().toISOString() }
-              : ded
-          ),
-        }));
-      },
-
-      deleteDeduction: (id: string) => {
-        set((state) => ({
-          deductions: state.deductions.filter((ded) => ded.id !== id),
-        }));
-      },
-
-      getDeductionsByEmployee: (employeeId: string) => {
-        return get().deductions.filter((ded) => ded.employeeId === employeeId);
-      },
-
-      getPendingDeductions: (employeeId: string) => {
-        return get().deductions.filter(
-          (ded) => ded.employeeId === employeeId && !ded.isApplied
-        );
-      },
-
-      applyDeductionToPayroll: (id: string, payrollPeriodId: string) => {
-        set((state) => ({
-          deductions: state.deductions.map((ded) =>
-            ded.id === id
-              ? {
-                  ...ded,
-                  isApplied: true,
-                  payrollPeriodId,
-                  updatedAt: new Date().toISOString(),
-                }
-              : ded
-          ),
-        }));
-      },
-
-      getTotalPendingByEmployee: (employeeId: string) => {
-        return get()
-          .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied)
-          .reduce((sum, ded) => {
-            // If installments, only count current installment amount
-            if (ded.installments && ded.installments > 1) {
-              return sum + ded.amount / ded.installments;
-            }
-            return sum + ded.amount;
-          }, 0);
-      },
-    }),
-    {
-      name: 'payrollao-deductions',
+  loadDeductions: async () => {
+    if (!isElectron()) {
+      const stored = localStorage.getItem('payrollao-deductions');
+      if (stored) {
+        try {
+          const data = JSON.parse(stored);
+          set({ deductions: data.state?.deductions || [], isLoaded: true });
+        } catch {
+          set({ isLoaded: true });
+        }
+      } else {
+        set({ isLoaded: true });
+      }
+      return;
     }
-  )
-);
 
-// Helper to get deduction type label
+    try {
+      const rows = await dbGetAll<any>('deductions');
+      const deductions = rows.map(mapDbRowToDeduction);
+      set({ deductions, isLoaded: true });
+      console.log('[Deductions] Loaded', deductions.length, 'deductions from DB');
+    } catch (error) {
+      console.error('[Deductions] Error loading:', error);
+      set({ isLoaded: true });
+    }
+  },
+
+  addDeduction: async (data: DeductionFormData) => {
+    const now = new Date().toISOString();
+
+    const newDeduction: Deduction = {
+      ...data,
+      id: crypto.randomUUID(),
+      isApplied: false,
+      currentInstallment: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    if (isElectron()) {
+      await dbInsert('deductions', mapDeductionToDbRow(newDeduction));
+    }
+
+    set((state) => ({
+      deductions: [...state.deductions, newDeduction],
+    }));
+
+    return newDeduction;
+  },
+
+  updateDeduction: async (id: string, data: Partial<Deduction>) => {
+    const now = new Date().toISOString();
+    const current = get().deductions.find((d) => d.id === id);
+    if (!current) return;
+
+    const updated: Deduction = { ...current, ...data, updatedAt: now };
+
+    if (isElectron()) {
+      const { id: _, ...row } = mapDeductionToDbRow(updated);
+      await dbUpdate('deductions', id, row);
+    }
+
+    set((state) => ({
+      deductions: state.deductions.map((ded) => (ded.id === id ? updated : ded)),
+    }));
+  },
+
+  deleteDeduction: async (id: string) => {
+    if (isElectron()) {
+      await dbDelete('deductions', id);
+    }
+    set((state) => ({
+      deductions: state.deductions.filter((ded) => ded.id !== id),
+    }));
+  },
+
+  getDeductionsByEmployee: (employeeId: string) => {
+    return get().deductions.filter((ded) => ded.employeeId === employeeId);
+  },
+
+  getPendingDeductions: (employeeId: string) => {
+    return get().deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied);
+  },
+
+  applyDeductionToPayroll: async (id: string, payrollPeriodId: string) => {
+    const now = new Date().toISOString();
+    if (isElectron()) {
+      await dbUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
+    }
+    set((state) => ({
+      deductions: state.deductions.map((ded) =>
+        ded.id === id ? { ...ded, isApplied: true, payrollPeriodId, updatedAt: now } : ded
+      ),
+    }));
+  },
+
+  getTotalPendingByEmployee: (employeeId: string) => {
+    return get()
+      .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied)
+      .reduce((sum, ded) => {
+        if (ded.installments && ded.installments > 1) {
+          return sum + ded.amount / ded.installments;
+        }
+        return sum + ded.amount;
+      }, 0);
+  },
+}));
+
 export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = 'pt'): string {
   const labels: Record<DeductionType, { pt: string; en: string }> = {
     salary_advance: { pt: 'Adiantamento Salarial', en: 'Salary Advance' },

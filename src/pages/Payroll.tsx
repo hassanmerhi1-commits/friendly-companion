@@ -53,11 +53,11 @@ const Payroll = () => {
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
   // Get or create current period
-  const getOrCreateCurrentPeriod = () => {
+  const getOrCreateCurrentPeriod = async () => {
     let period = getCurrentPeriod();
     if (!period) {
       const now = new Date();
-      period = createPeriod(now.getFullYear(), now.getMonth() + 1);
+      period = await createPeriod(now.getFullYear(), now.getMonth() + 1);
     }
     return period;
   };
@@ -114,7 +114,7 @@ const Payroll = () => {
     return Math.min(Math.max(months, 0), 12); // Cap at 12 months
   };
 
-  const handleCalculate = () => {
+  const handleCalculate = async () => {
     const activeEmployees = getActiveEmployees();
     
     if (activeEmployees.length === 0) {
@@ -123,34 +123,36 @@ const Payroll = () => {
     }
     
     // Get or create period for current month
-    const period = getOrCreateCurrentPeriod();
+    const period = await getOrCreateCurrentPeriod();
     
     // Pass holiday records to check who should receive holiday subsidy this month
     // (employees going on holiday NEXT month get their subsidy THIS month)
-    generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
+    await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
     
     // Mark subsidy as paid for employees who received it
     const updatedEntries = getEntriesForPeriod(period.id);
-    updatedEntries.forEach(entry => {
+    for (const entry of updatedEntries) {
       // If holiday subsidy was added, mark it as paid
       if (entry.holidaySubsidy > 0) {
         const nextMonth = period.month === 12 ? 1 : period.month + 1;
         const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
-        markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
+        await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
       }
       
       // Apply pending deductions
       const pendingAmount = getTotalPendingByEmployee(entry.employeeId);
       if (pendingAmount > 0) {
-        updateEntry(entry.id, { 
+        await updateEntry(entry.id, { 
           otherDeductions: pendingAmount,
           netSalary: entry.netSalary - pendingAmount,
           totalDeductions: entry.totalDeductions + pendingAmount,
         });
         const deductions = getPendingDeductions(entry.employeeId);
-        deductions.forEach(d => applyDeductionToPayroll(d.id, period.id));
+        for (const d of deductions) {
+          await applyDeductionToPayroll(d.id, period.id);
+        }
       }
-    });
+    }
     
     // Show info about holiday subsidies
     const subsidyCount = updatedEntries.filter(e => e.holidaySubsidy > 0).length;
