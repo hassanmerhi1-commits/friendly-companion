@@ -55,13 +55,13 @@ export function BranchFormDialog({ open, onOpenChange, branch }: BranchFormDialo
     if (branch) {
       const res = await updateBranch(branch.id, formData);
       if (!res.success) {
-        toast.error(res.error || t.common.error);
+        toast.error(res.error || 'Erro ao guardar / Error saving');
         return;
       }
     } else {
       const res = await addBranch(formData);
       if (!res.success) {
-        toast.error(res.error || t.common.error);
+        toast.error(res.error || 'Erro ao guardar / Error saving');
         return;
       }
     }
