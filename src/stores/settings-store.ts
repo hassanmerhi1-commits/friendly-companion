@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { dbGetAll, dbInsert } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, onDataChange } from '@/lib/db-live';
 
 export interface CompanySettings {
   companyName: string;
@@ -42,46 +42,56 @@ const defaultSettings: CompanySettings = {
   newEmployees: true,
 };
 
-export const useSettingsStore = create<SettingsStore>()((set, get) => ({
-  settings: defaultSettings,
-  isLoaded: false,
-
-  loadSettings: async () => {
-    try {
-      const rows = await dbGetAll<any>('settings');
-      if (rows.length === 0) { set({ isLoaded: true }); return; }
-      const settingsMap: Record<string, string> = {};
-      for (const row of rows) { settingsMap[row.key] = row.value; }
-      const loaded: CompanySettings = {
-        companyName: settingsMap.companyName || defaultSettings.companyName,
-        nif: settingsMap.nif || defaultSettings.nif,
-        address: settingsMap.address || defaultSettings.address,
-        city: settingsMap.city || defaultSettings.city,
-        province: settingsMap.province || defaultSettings.province,
-        municipality: settingsMap.municipality || defaultSettings.municipality,
-        bank: settingsMap.bank || defaultSettings.bank,
-        iban: settingsMap.iban || defaultSettings.iban,
-        payday: parseInt(settingsMap.payday, 10) || defaultSettings.payday,
-        currency: settingsMap.currency || defaultSettings.currency,
-        emailPaymentProcessed: settingsMap.emailPaymentProcessed === 'true',
-        monthEndReminder: settingsMap.monthEndReminder === 'true',
-        holidayAlerts: settingsMap.holidayAlerts === 'true',
-        newEmployees: settingsMap.newEmployees === 'true',
-      };
-      set({ settings: loaded, isLoaded: true });
-      console.log('[Settings] Loaded from DB');
-    } catch (error) {
-      console.error('[Settings] Error loading:', error);
-      set({ isLoaded: true });
+export const useSettingsStore = create<SettingsStore>()((set, get) => {
+  // Subscribe to data changes for auto-refresh
+  onDataChange((table) => {
+    if (table === 'settings') {
+      console.log('[Settings] Data changed, refreshing...');
+      get().loadSettings();
     }
-  },
+  });
 
-  updateSettings: async (newSettings) => {
-    const merged = { ...get().settings, ...newSettings };
-    set({ settings: merged });
-    const now = new Date().toISOString();
-    for (const [key, val] of Object.entries(merged)) {
-      await dbInsert('settings', { key, value: String(val), updated_at: now });
-    }
-  },
-}));
+  return {
+    settings: defaultSettings,
+    isLoaded: false,
+
+    loadSettings: async () => {
+      try {
+        const rows = await liveGetAll<any>('settings');
+        if (rows.length === 0) { set({ isLoaded: true }); return; }
+        const settingsMap: Record<string, string> = {};
+        for (const row of rows) { settingsMap[row.key] = row.value; }
+        const loaded: CompanySettings = {
+          companyName: settingsMap.companyName || defaultSettings.companyName,
+          nif: settingsMap.nif || defaultSettings.nif,
+          address: settingsMap.address || defaultSettings.address,
+          city: settingsMap.city || defaultSettings.city,
+          province: settingsMap.province || defaultSettings.province,
+          municipality: settingsMap.municipality || defaultSettings.municipality,
+          bank: settingsMap.bank || defaultSettings.bank,
+          iban: settingsMap.iban || defaultSettings.iban,
+          payday: parseInt(settingsMap.payday, 10) || defaultSettings.payday,
+          currency: settingsMap.currency || defaultSettings.currency,
+          emailPaymentProcessed: settingsMap.emailPaymentProcessed === 'true',
+          monthEndReminder: settingsMap.monthEndReminder === 'true',
+          holidayAlerts: settingsMap.holidayAlerts === 'true',
+          newEmployees: settingsMap.newEmployees === 'true',
+        };
+        set({ settings: loaded, isLoaded: true });
+        console.log('[Settings] Loaded from DB');
+      } catch (error) {
+        console.error('[Settings] Error loading:', error);
+        set({ isLoaded: true });
+      }
+    },
+
+    updateSettings: async (newSettings) => {
+      const merged = { ...get().settings, ...newSettings };
+      set({ settings: merged });
+      const now = new Date().toISOString();
+      for (const [key, val] of Object.entries(merged)) {
+        await liveInsert('settings', { key, value: String(val), updated_at: now });
+      }
+    },
+  };
+});

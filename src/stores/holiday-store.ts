@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { dbGetAll, dbInsert, dbUpdate } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, liveUpdate, onDataChange } from '@/lib/db-live';
 
 export interface HolidayRecord {
   employeeId: string;
@@ -56,69 +56,70 @@ function mapHolidayToDbRow(h: HolidayRecord): Record<string, any> {
   };
 }
 
-export const useHolidayStore = create<HolidayState>()((set, get) => ({
-  records: [],
-  isLoaded: false,
-
-  loadHolidays: async () => {
-    try {
-      const rows = await dbGetAll<any>('holidays');
-      const records = rows.map(mapDbRowToHoliday);
-      set({ records, isLoaded: true });
-      console.log('[Holidays] Loaded', records.length, 'holiday records from DB');
-    } catch (error) {
-      console.error('[Holidays] Error loading:', error);
-      set({ isLoaded: true });
+export const useHolidayStore = create<HolidayState>()((set, get) => {
+  // Subscribe to data changes for auto-refresh
+  onDataChange((table) => {
+    if (table === 'holidays') {
+      console.log('[Holidays] Data changed, refreshing...');
+      get().loadHolidays();
     }
-  },
+  });
 
-  addOrUpdateRecord: async (record) => {
-    let holidayMonth = record.holidayMonth;
-    if (record.startDate && !holidayMonth) { holidayMonth = new Date(record.startDate).getMonth() + 1; }
-    const updatedRecord = { ...record, holidayMonth };
-    await dbInsert('holidays', mapHolidayToDbRow(updatedRecord));
-    set((state) => {
-      const existingIndex = state.records.findIndex((r) => r.employeeId === record.employeeId && r.year === record.year);
-      if (existingIndex >= 0) { const updated = [...state.records]; updated[existingIndex] = updatedRecord; return { records: updated }; }
-      return { records: [...state.records, updatedRecord] };
-    });
-  },
+  return {
+    records: [],
+    isLoaded: false,
 
-  getRecordsForYear: (year) => get().records.filter((r) => r.year === year),
-  getRecordForEmployee: (employeeId, year) => get().records.find((r) => r.employeeId === employeeId && r.year === year),
+    loadHolidays: async () => {
+      try {
+        const rows = await liveGetAll<any>('holidays');
+        const records = rows.map(mapDbRowToHoliday);
+        set({ records, isLoaded: true });
+        console.log('[Holidays] Loaded', records.length, 'holiday records from DB');
+      } catch (error) {
+        console.error('[Holidays] Error loading:', error);
+        set({ isLoaded: true });
+      }
+    },
 
-  saveRecords: async (records) => {
-    for (const newRecord of records) {
-      let holidayMonth = newRecord.holidayMonth;
-      if (newRecord.startDate && !holidayMonth) { holidayMonth = new Date(newRecord.startDate).getMonth() + 1; }
-      const recordWithMonth = { ...newRecord, holidayMonth };
-      await dbInsert('holidays', mapHolidayToDbRow(recordWithMonth));
-    }
-    set((state) => {
-      const merged = [...state.records];
-      records.forEach((newRecord) => {
+    addOrUpdateRecord: async (record) => {
+      let holidayMonth = record.holidayMonth;
+      if (record.startDate && !holidayMonth) {
+        holidayMonth = new Date(record.startDate).getMonth() + 1;
+      }
+      const updatedRecord = { ...record, holidayMonth };
+      await liveInsert('holidays', mapHolidayToDbRow(updatedRecord));
+    },
+
+    getRecordsForYear: (year) => get().records.filter((r) => r.year === year),
+
+    getRecordForEmployee: (employeeId, year) => get().records.find((r) => r.employeeId === employeeId && r.year === year),
+
+    saveRecords: async (records) => {
+      for (const newRecord of records) {
         let holidayMonth = newRecord.holidayMonth;
-        if (newRecord.startDate && !holidayMonth) { holidayMonth = new Date(newRecord.startDate).getMonth() + 1; }
+        if (newRecord.startDate && !holidayMonth) {
+          holidayMonth = new Date(newRecord.startDate).getMonth() + 1;
+        }
         const recordWithMonth = { ...newRecord, holidayMonth };
-        const existingIndex = merged.findIndex((r) => r.employeeId === newRecord.employeeId && r.year === newRecord.year);
-        if (existingIndex >= 0) { merged[existingIndex] = recordWithMonth; } else { merged.push(recordWithMonth); }
-      });
-      return { records: merged };
-    });
-  },
+        await liveInsert('holidays', mapHolidayToDbRow(recordWithMonth));
+      }
+    },
 
-  getEmployeesForSubsidyPayment: (year, month) => {
-    const records = get().records;
-    const nextMonth = month === 12 ? 1 : month + 1;
-    const nextMonthYear = month === 12 ? year + 1 : year;
-    return records.filter((r) => r.holidayMonth === nextMonth && r.year === nextMonthYear && !r.subsidyPaidInMonth).map((r) => r.employeeId);
-  },
+    getEmployeesForSubsidyPayment: (year, month) => {
+      const records = get().records;
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextMonthYear = month === 12 ? year + 1 : year;
+      return records.filter((r) => r.holidayMonth === nextMonth && r.year === nextMonthYear && !r.subsidyPaidInMonth).map((r) => r.employeeId);
+    },
 
-  markSubsidyPaid: async (employeeId, year, paidInMonth, paidInYear) => {
-    const recordId = `${employeeId}-${year}`;
-    await dbUpdate('holidays', recordId, { subsidy_paid: 1, subsidy_paid_month: paidInMonth, subsidy_paid_year: paidInYear, updated_at: new Date().toISOString() });
-    set((state) => ({ records: state.records.map((r) => r.employeeId === employeeId && r.year === year ? { ...r, subsidyPaidInMonth: paidInMonth, subsidyPaidInYear: paidInYear } : r) }));
-  },
+    markSubsidyPaid: async (employeeId, year, paidInMonth, paidInYear) => {
+      const recordId = `${employeeId}-${year}`;
+      await liveUpdate('holidays', recordId, { subsidy_paid: 1, subsidy_paid_month: paidInMonth, subsidy_paid_year: paidInYear, updated_at: new Date().toISOString() });
+    },
 
-  isSubsidyPaid: (employeeId, year) => { const record = get().records.find((r) => r.employeeId === employeeId && r.year === year); return !!record?.subsidyPaidInMonth; },
-}));
+    isSubsidyPaid: (employeeId, year) => {
+      const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
+      return !!record?.subsidyPaidInMonth;
+    },
+  };
+});

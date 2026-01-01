@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
-import { dbGetAll, dbInsert, dbUpdate, dbDelete } from '@/lib/db-sync';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
 
 
 interface PayrollState {
@@ -157,371 +157,346 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
   };
 }
 
-export const usePayrollStore = create<PayrollState>()((set, get) => ({
-  periods: [],
-  entries: [],
-  isLoaded: false,
-
-  loadPayroll: async () => {
-    try {
-      const periodRows = await dbGetAll<any>('payroll_periods');
-      const entryRows = await dbGetAll<any>('payroll_entries');
-      const periods = periodRows.map(mapDbRowToPeriod);
-      const entries = entryRows.map(mapDbRowToEntry);
-      set({ periods, entries, isLoaded: true });
-      console.log('[Payroll] Loaded', periods.length, 'periods and', entries.length, 'entries from DB');
-    } catch (error) {
-      console.error('[Payroll] Error loading:', error);
-      set({ isLoaded: true });
+export const usePayrollStore = create<PayrollState>()((set, get) => {
+  // Subscribe to data changes for auto-refresh
+  onDataChange((table) => {
+    if (table === 'payroll_periods' || table === 'payroll_entries') {
+      console.log('[Payroll] Data changed, refreshing...');
+      get().loadPayroll();
     }
-  },
+  });
 
-  createPeriod: async (year: number, month: number) => {
-    const { startDate, endDate } = getPeriodDates(year, month);
-    const now = new Date().toISOString();
-    const newPeriod: PayrollPeriod = {
-      id: `period-${year}-${month}`,
-      year,
-      month,
-      startDate,
-      endDate,
-      status: 'draft',
-      periodType: 'monthly',
-      totalGross: 0,
-      totalNet: 0,
-      totalDeductions: 0,
-      totalEmployerCosts: 0,
-      employeeCount: 0,
-      createdAt: now,
-    };
+  return {
+    periods: [],
+    entries: [],
+    isLoaded: false,
 
-    await dbInsert('payroll_periods', mapPeriodToDbRow(newPeriod));
+    loadPayroll: async () => {
+      try {
+        const periodRows = await liveGetAll<any>('payroll_periods');
+        const entryRows = await liveGetAll<any>('payroll_entries');
+        const periods = periodRows.map(mapDbRowToPeriod);
+        const entries = entryRows.map(mapDbRowToEntry);
+        set({ periods, entries, isLoaded: true });
+        console.log('[Payroll] Loaded', periods.length, 'periods and', entries.length, 'entries from DB');
+      } catch (error) {
+        console.error('[Payroll] Error loading:', error);
+        set({ isLoaded: true });
+      }
+    },
 
-    set((state) => ({
-      periods: [...state.periods.filter((p) => p.id !== newPeriod.id), newPeriod],
-    }));
+    createPeriod: async (year: number, month: number) => {
+      const { startDate, endDate } = getPeriodDates(year, month);
+      const now = new Date().toISOString();
+      const newPeriod: PayrollPeriod = {
+        id: `period-${year}-${month}`,
+        year,
+        month,
+        startDate,
+        endDate,
+        status: 'draft',
+        periodType: 'monthly',
+        totalGross: 0,
+        totalNet: 0,
+        totalDeductions: 0,
+        totalEmployerCosts: 0,
+        employeeCount: 0,
+        createdAt: now,
+      };
 
-    return newPeriod;
-  },
+      await liveInsert('payroll_periods', mapPeriodToDbRow(newPeriod));
+      await get().loadPayroll();
+      return newPeriod;
+    },
 
-  getPeriod: (id: string) => get().periods.find((p) => p.id === id),
+    getPeriod: (id: string) => get().periods.find((p) => p.id === id),
 
-  getCurrentPeriod: () => {
-    const now = new Date();
-    return get().periods.find((p) => p.year === now.getFullYear() && p.month === now.getMonth() + 1);
-  },
+    getCurrentPeriod: () => {
+      const now = new Date();
+      return get().periods.find((p) => p.year === now.getFullYear() && p.month === now.getMonth() + 1);
+    },
 
-  updatePeriodStatus: async (id: string, status: PayrollPeriod['status']) => {
-    const now = new Date().toISOString();
-    await dbUpdate('payroll_periods', id, { status, updated_at: now });
-    set((state) => ({
-      periods: state.periods.map((p) => (p.id === id ? { ...p, status } : p)),
-    }));
-  },
+    updatePeriodStatus: async (id: string, status: PayrollPeriod['status']) => {
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', id, { status, updated_at: now });
+    },
 
-  generateEntriesForPeriod: async (periodId, employees, holidayRecords) => {
-    const period = get().getPeriod(periodId);
-    if (!period) return;
+    generateEntriesForPeriod: async (periodId, employees, holidayRecords) => {
+      const period = get().getPeriod(periodId);
+      if (!period) return;
 
-    const nextMonth = period.month === 12 ? 1 : period.month + 1;
-    const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
+      const nextMonth = period.month === 12 ? 1 : period.month + 1;
+      const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
 
-    const employeesForSubsidy = new Set<string>();
-    if (holidayRecords) {
-      holidayRecords.forEach((r) => {
-        if (r.holidayMonth === nextMonth && r.year === nextMonthYear && !r.subsidyPaidInMonth) {
-          employeesForSubsidy.add(r.employeeId);
-        }
-      });
-    }
+      const employeesForSubsidy = new Set<string>();
+      if (holidayRecords) {
+        holidayRecords.forEach((r) => {
+          if (r.holidayMonth === nextMonth && r.year === nextMonthYear && !r.subsidyPaidInMonth) {
+            employeesForSubsidy.add(r.employeeId);
+          }
+        });
+      }
 
-    const newEntries: PayrollEntry[] = employees
-      .filter((emp) => emp.status === 'active')
-      .map((emp) => {
-        const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
-        const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
+      const newEntries: PayrollEntry[] = employees
+        .filter((emp) => emp.status === 'active')
+        .map((emp) => {
+          const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
+          const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
 
-        const payrollResult = calculatePayroll({
-          baseSalary: emp.baseSalary,
-          mealAllowance: emp.mealAllowance,
-          transportAllowance: emp.transportAllowance,
-          otherAllowances: emp.otherAllowances,
-          familyAllowanceValue: emp.familyAllowance || 0,
-          isRetired: emp.isRetired,
-          include13thMonth: false,
-          includeHolidaySubsidy: false,
+          const payrollResult = calculatePayroll({
+            baseSalary: emp.baseSalary,
+            mealAllowance: emp.mealAllowance,
+            transportAllowance: emp.transportAllowance,
+            otherAllowances: emp.otherAllowances,
+            familyAllowanceValue: emp.familyAllowance || 0,
+            isRetired: emp.isRetired,
+            include13thMonth: false,
+            includeHolidaySubsidy: false,
+          });
+
+          const now = new Date().toISOString();
+
+          return {
+            id: `entry-${periodId}-${emp.id}`,
+            payrollPeriodId: periodId,
+            employeeId: emp.id,
+            employee: emp,
+            ...payrollResult,
+            holidaySubsidy: holidaySubsidyAmount,
+            grossSalary: payrollResult.grossSalary + holidaySubsidyAmount,
+            netSalary: payrollResult.netSalary + holidaySubsidyAmount,
+            totalEmployerCost: payrollResult.totalEmployerCost + holidaySubsidyAmount,
+            monthlyBonus: emp.monthlyBonus || 0,
+            absenceDeduction: 0,
+            daysAbsent: 0,
+            otherDeductions: 0,
+            overtimeHoursNormal: 0,
+            overtimeHoursNight: 0,
+            overtimeHoursHoliday: 0,
+            status: 'draft' as const,
+            createdAt: now,
+            updatedAt: now,
+          };
         });
 
-        const now = new Date().toISOString();
-
-        return {
-          id: `entry-${periodId}-${emp.id}`,
-          payrollPeriodId: periodId,
-          employeeId: emp.id,
-          employee: emp,
-          ...payrollResult,
-          holidaySubsidy: holidaySubsidyAmount,
-          grossSalary: payrollResult.grossSalary + holidaySubsidyAmount,
-          netSalary: payrollResult.netSalary + holidaySubsidyAmount,
-          totalEmployerCost: payrollResult.totalEmployerCost + holidaySubsidyAmount,
-          monthlyBonus: emp.monthlyBonus || 0,
-          absenceDeduction: 0,
-          daysAbsent: 0,
-          otherDeductions: 0,
-          overtimeHoursNormal: 0,
-          overtimeHoursNight: 0,
-          overtimeHoursHoliday: 0,
-          status: 'draft' as const,
-          createdAt: now,
-          updatedAt: now,
-        };
-      });
-
-    // Remove old entries for this period and insert new ones
-    const existingEntries = get().entries.filter((e) => e.payrollPeriodId === periodId);
-    for (const e of existingEntries) {
-      await dbDelete('payroll_entries', e.id);
-    }
-    for (const e of newEntries) {
-      await dbInsert('payroll_entries', mapEntryToDbRow(e));
-    }
-
-    set((state) => ({
-      entries: [...state.entries.filter((e) => e.payrollPeriodId !== periodId), ...newEntries],
-    }));
-
-    await get().calculatePeriod(periodId);
-  },
-
-  toggle13thMonth: async (entryId, monthsWorked) => {
-    const entry = get().entries.find((e) => e.id === entryId);
-    if (!entry) return;
-
-    const hasSubsidy = entry.thirteenthMonth > 0;
-    const baseSalary = entry.baseSalary;
-
-    const subsidyValue = hasSubsidy ? 0 : (baseSalary * 0.5 * monthsWorked) / 12;
-    const difference = hasSubsidy ? -entry.thirteenthMonth : subsidyValue;
-
-    const updated: PayrollEntry = {
-      ...entry,
-      thirteenthMonth: subsidyValue,
-      grossSalary: entry.grossSalary + difference,
-      netSalary: entry.netSalary + difference,
-      totalEmployerCost: entry.totalEmployerCost + difference,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const { id: _, ...data } = mapEntryToDbRow(updated);
-    await dbUpdate('payroll_entries', entryId, data);
-
-    set((state) => ({
-      entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
-    }));
-
-    if (entry.payrollPeriodId) {
-      await get().calculatePeriod(entry.payrollPeriodId);
-    }
-  },
-
-  updateEntry: async (id, data) => {
-    const now = new Date().toISOString();
-    set((state) => ({
-      entries: state.entries.map((e) => (e.id === id ? { ...e, ...data, updatedAt: now } : e)),
-    }));
-
-    const updated = get().entries.find((e) => e.id === id);
-    if (updated) {
-      const { id: _, ...row } = mapEntryToDbRow(updated);
-      await dbUpdate('payroll_entries', id, row);
-    }
-  },
-
-  updateAbsences: async (entryId, daysAbsent) => {
-    const entry = get().entries.find((e) => e.id === entryId);
-    if (!entry) return;
-
-    const absenceDeduction = calculateAbsenceDeduction(entry.baseSalary, daysAbsent);
-    const oldAbsenceDeduction = entry.absenceDeduction || 0;
-    const difference = absenceDeduction - oldAbsenceDeduction;
-
-    const updated: PayrollEntry = {
-      ...entry,
-      daysAbsent,
-      absenceDeduction,
-      totalDeductions: entry.totalDeductions + difference,
-      netSalary: entry.netSalary - difference,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const { id: _, ...row } = mapEntryToDbRow(updated);
-    await dbUpdate('payroll_entries', entryId, row);
-
-    if (entry.payrollPeriodId) {
-      await get().calculatePeriod(entry.payrollPeriodId);
-    }
-  },
-
-  updateOvertime: async (entryId, hoursNormal, hoursNight, hoursHoliday) => {
-    const entry = get().entries.find((e) => e.id === entryId);
-    if (!entry) return;
-
-    const hourlyRate = calculateHourlyRate(entry.baseSalary);
-
-    const overtimeNormal = calculateOvertime(hourlyRate, hoursNormal, 'normal', 0);
-    const overtimeNight = calculateOvertime(hourlyRate, hoursNight, 'night', 0);
-    const overtimeHoliday = calculateOvertime(hourlyRate, hoursHoliday, 'holiday', 0);
-
-    const oldOvertimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
-    const newOvertimeTotal = overtimeNormal + overtimeNight + overtimeHoliday;
-    const difference = newOvertimeTotal - oldOvertimeTotal;
-
-    const updated: PayrollEntry = {
-      ...entry,
-      overtimeHoursNormal: hoursNormal,
-      overtimeHoursNight: hoursNight,
-      overtimeHoursHoliday: hoursHoliday,
-      overtimeNormal,
-      overtimeNight,
-      overtimeHoliday,
-      grossSalary: entry.grossSalary + difference,
-      netSalary: entry.netSalary + difference,
-      totalEmployerCost: entry.totalEmployerCost + difference,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const { id: _, ...row } = mapEntryToDbRow(updated);
-    await dbUpdate('payroll_entries', entryId, row);
-
-    set((state) => ({
-      entries: state.entries.map((e) => (e.id === entryId ? updated : e)),
-    }));
-
-    if (entry.payrollPeriodId) {
-      await get().calculatePeriod(entry.payrollPeriodId);
-    }
-  },
-
-  getEntriesForPeriod: (periodId) => get().entries.filter((e) => e.payrollPeriodId === periodId),
-
-  removeEntriesForEmployee: async (employeeId) => {
-    const toRemove = get().entries.filter((e) => e.employeeId === employeeId);
-    for (const e of toRemove) {
-      await dbDelete('payroll_entries', e.id);
-    }
-    set((state) => ({
-      entries: state.entries.filter((e) => e.employeeId !== employeeId),
-    }));
-  },
-
-  recalculateEntry: async (id) => {
-    const entry = get().entries.find((e) => e.id === id);
-    if (!entry) return;
-
-    const period = get().getPeriod(entry.payrollPeriodId);
-    const include13thMonth = period?.month === 12;
-
-    const payrollResult = calculatePayroll({
-      baseSalary: entry.baseSalary,
-      mealAllowance: entry.mealAllowance,
-      transportAllowance: entry.transportAllowance,
-      otherAllowances: entry.otherAllowances,
-      overtimeHoursNormal: entry.overtimeHoursNormal,
-      overtimeHoursNight: entry.overtimeHoursNight,
-      overtimeHoursHoliday: entry.overtimeHoursHoliday,
-      isRetired: entry.employee?.isRetired ?? false,
-      include13thMonth,
-    });
-
-    const updated: PayrollEntry = {
-      ...entry,
-      ...payrollResult,
-      totalDeductions: payrollResult.totalDeductions + (entry.otherDeductions || 0),
-      netSalary: payrollResult.netSalary - (entry.otherDeductions || 0),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const { id: _, ...row } = mapEntryToDbRow(updated);
-    await dbUpdate('payroll_entries', id, row);
-
-    set((state) => ({
-      entries: state.entries.map((e) => (e.id === id ? updated : e)),
-    }));
-  },
-
-  getPayrollSummary: (periodId) => {
-    const period = get().getPeriod(periodId);
-    if (!period) return null;
-
-    const entries = get().getEntriesForPeriod(periodId);
-
-    const totals = entries.reduce(
-      (acc, entry) => ({
-        baseSalary: acc.baseSalary + entry.baseSalary,
-        allowances: acc.allowances + entry.mealAllowance + entry.transportAllowance + entry.otherAllowances,
-        overtime: acc.overtime + entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday,
-        subsidies: acc.subsidies + entry.thirteenthMonth + entry.holidaySubsidy,
-        grossSalary: acc.grossSalary + entry.grossSalary,
-        irt: acc.irt + entry.irt,
-        inssEmployee: acc.inssEmployee + entry.inssEmployee,
-        totalDeductions: acc.totalDeductions + entry.totalDeductions,
-        netSalary: acc.netSalary + entry.netSalary,
-        inssEmployer: acc.inssEmployer + entry.inssEmployer,
-        totalEmployerCost: acc.totalEmployerCost + entry.totalEmployerCost,
-      }),
-      {
-        baseSalary: 0,
-        allowances: 0,
-        overtime: 0,
-        subsidies: 0,
-        grossSalary: 0,
-        irt: 0,
-        inssEmployee: 0,
-        totalDeductions: 0,
-        netSalary: 0,
-        inssEmployer: 0,
-        totalEmployerCost: 0,
+      // Remove old entries for this period and insert new ones
+      const existingEntries = get().entries.filter((e) => e.payrollPeriodId === periodId);
+      for (const e of existingEntries) {
+        await liveDelete('payroll_entries', e.id);
       }
-    );
+      for (const e of newEntries) {
+        await liveInsert('payroll_entries', mapEntryToDbRow(e));
+      }
 
-    const departmentMap = new Map<string, { count: number; gross: number; net: number }>();
-    entries.forEach((entry) => {
-      const dept = entry.employee?.department || 'Sem Departamento';
-      const current = departmentMap.get(dept) || { count: 0, gross: 0, net: 0 };
-      departmentMap.set(dept, {
-        count: current.count + 1,
-        gross: current.gross + entry.grossSalary,
-        net: current.net + entry.netSalary,
+      await get().loadPayroll();
+      await get().calculatePeriod(periodId);
+    },
+
+    toggle13thMonth: async (entryId, monthsWorked) => {
+      const entry = get().entries.find((e) => e.id === entryId);
+      if (!entry) return;
+
+      const hasSubsidy = entry.thirteenthMonth > 0;
+      const baseSalary = entry.baseSalary;
+
+      const subsidyValue = hasSubsidy ? 0 : (baseSalary * 0.5 * monthsWorked) / 12;
+      const difference = hasSubsidy ? -entry.thirteenthMonth : subsidyValue;
+
+      const updated: PayrollEntry = {
+        ...entry,
+        thirteenthMonth: subsidyValue,
+        grossSalary: entry.grossSalary + difference,
+        netSalary: entry.netSalary + difference,
+        totalEmployerCost: entry.totalEmployerCost + difference,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { id: _, ...data } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', entryId, data);
+
+      if (entry.payrollPeriodId) {
+        await get().calculatePeriod(entry.payrollPeriodId);
+      }
+    },
+
+    updateEntry: async (id, data) => {
+      const now = new Date().toISOString();
+      const entry = get().entries.find((e) => e.id === id);
+      if (!entry) return;
+
+      const updated = { ...entry, ...data, updatedAt: now };
+      const { id: _, ...row } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', id, row);
+    },
+
+    updateAbsences: async (entryId, daysAbsent) => {
+      const entry = get().entries.find((e) => e.id === entryId);
+      if (!entry) return;
+
+      const absenceDeduction = calculateAbsenceDeduction(entry.baseSalary, daysAbsent);
+      const oldAbsenceDeduction = entry.absenceDeduction || 0;
+      const difference = absenceDeduction - oldAbsenceDeduction;
+
+      const updated: PayrollEntry = {
+        ...entry,
+        daysAbsent,
+        absenceDeduction,
+        totalDeductions: entry.totalDeductions + difference,
+        netSalary: entry.netSalary - difference,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { id: _, ...row } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', entryId, row);
+
+      if (entry.payrollPeriodId) {
+        await get().calculatePeriod(entry.payrollPeriodId);
+      }
+    },
+
+    updateOvertime: async (entryId, hoursNormal, hoursNight, hoursHoliday) => {
+      const entry = get().entries.find((e) => e.id === entryId);
+      if (!entry) return;
+
+      const hourlyRate = calculateHourlyRate(entry.baseSalary);
+
+      const overtimeNormal = calculateOvertime(hourlyRate, hoursNormal, 'normal', 0);
+      const overtimeNight = calculateOvertime(hourlyRate, hoursNight, 'night', 0);
+      const overtimeHoliday = calculateOvertime(hourlyRate, hoursHoliday, 'holiday', 0);
+
+      const oldOvertimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
+      const newOvertimeTotal = overtimeNormal + overtimeNight + overtimeHoliday;
+      const difference = newOvertimeTotal - oldOvertimeTotal;
+
+      const updated: PayrollEntry = {
+        ...entry,
+        overtimeHoursNormal: hoursNormal,
+        overtimeHoursNight: hoursNight,
+        overtimeHoursHoliday: hoursHoliday,
+        overtimeNormal,
+        overtimeNight,
+        overtimeHoliday,
+        grossSalary: entry.grossSalary + difference,
+        netSalary: entry.netSalary + difference,
+        totalEmployerCost: entry.totalEmployerCost + difference,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { id: _, ...row } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', entryId, row);
+    },
+
+    getEntriesForPeriod: (periodId) => get().entries.filter((e) => e.payrollPeriodId === periodId),
+
+    removeEntriesForEmployee: async (employeeId) => {
+      const toRemove = get().entries.filter((e) => e.employeeId === employeeId);
+      for (const e of toRemove) {
+        await liveDelete('payroll_entries', e.id);
+      }
+    },
+
+    recalculateEntry: async (id) => {
+      const entry = get().entries.find((e) => e.id === id);
+      if (!entry) return;
+
+      const period = get().getPeriod(entry.payrollPeriodId);
+      const include13thMonth = period?.month === 12;
+
+      const payrollResult = calculatePayroll({
+        baseSalary: entry.baseSalary,
+        mealAllowance: entry.mealAllowance,
+        transportAllowance: entry.transportAllowance,
+        otherAllowances: entry.otherAllowances,
+        overtimeHoursNormal: entry.overtimeHoursNormal,
+        overtimeHoursNight: entry.overtimeHoursNight,
+        overtimeHoursHoliday: entry.overtimeHoursHoliday,
+        isRetired: entry.employee?.isRetired ?? false,
+        include13thMonth,
       });
-    });
 
-    const byDepartment = Array.from(departmentMap.entries()).map(([dept, data]) => ({
-      department: dept,
-      employeeCount: data.count,
-      totalGross: data.gross,
-      totalNet: data.net,
-    }));
+      const updated: PayrollEntry = {
+        ...entry,
+        ...payrollResult,
+        totalDeductions: payrollResult.totalDeductions + (entry.otherDeductions || 0),
+        netSalary: payrollResult.netSalary - (entry.otherDeductions || 0),
+        updatedAt: new Date().toISOString(),
+      };
 
-    return { period, entries, totals, byDepartment };
-  },
+      const { id: _, ...row } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', id, row);
+    },
 
-  calculatePeriod: async (periodId) => {
-    const entries = get().getEntriesForPeriod(periodId);
+    getPayrollSummary: (periodId) => {
+      const period = get().getPeriod(periodId);
+      if (!period) return null;
 
-    const totals = entries.reduce(
-      (acc, entry) => ({
-        totalGross: acc.totalGross + entry.grossSalary,
-        totalNet: acc.totalNet + entry.netSalary,
-        totalDeductions: acc.totalDeductions + entry.totalDeductions,
-        totalEmployerCosts: acc.totalEmployerCosts + entry.totalEmployerCost,
-      }),
-      { totalGross: 0, totalNet: 0, totalDeductions: 0, totalEmployerCosts: 0 }
-    );
+      const entries = get().getEntriesForPeriod(periodId);
 
-    const now = new Date().toISOString();
-    const updatedPeriod = get().periods.find((p) => p.id === periodId);
-    if (updatedPeriod) {
-      await dbUpdate('payroll_periods', periodId, {
+      const totals = entries.reduce(
+        (acc, entry) => ({
+          baseSalary: acc.baseSalary + entry.baseSalary,
+          allowances: acc.allowances + entry.mealAllowance + entry.transportAllowance + entry.otherAllowances,
+          overtime: acc.overtime + entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday,
+          subsidies: acc.subsidies + entry.thirteenthMonth + entry.holidaySubsidy,
+          grossSalary: acc.grossSalary + entry.grossSalary,
+          irt: acc.irt + entry.irt,
+          inssEmployee: acc.inssEmployee + entry.inssEmployee,
+          totalDeductions: acc.totalDeductions + entry.totalDeductions,
+          netSalary: acc.netSalary + entry.netSalary,
+          inssEmployer: acc.inssEmployer + entry.inssEmployer,
+          totalEmployerCost: acc.totalEmployerCost + entry.totalEmployerCost,
+        }),
+        {
+          baseSalary: 0,
+          allowances: 0,
+          overtime: 0,
+          subsidies: 0,
+          grossSalary: 0,
+          irt: 0,
+          inssEmployee: 0,
+          totalDeductions: 0,
+          netSalary: 0,
+          inssEmployer: 0,
+          totalEmployerCost: 0,
+        }
+      );
+
+      const departmentMap = new Map<string, { count: number; gross: number; net: number }>();
+      entries.forEach((entry) => {
+        const dept = entry.employee?.department || 'Sem Departamento';
+        const current = departmentMap.get(dept) || { count: 0, gross: 0, net: 0 };
+        departmentMap.set(dept, {
+          count: current.count + 1,
+          gross: current.gross + entry.grossSalary,
+          net: current.net + entry.netSalary,
+        });
+      });
+
+      const byDepartment = Array.from(departmentMap.entries()).map(([dept, data]) => ({
+        department: dept,
+        employeeCount: data.count,
+        totalGross: data.gross,
+        totalNet: data.net,
+      }));
+
+      return { period, entries, totals, byDepartment };
+    },
+
+    calculatePeriod: async (periodId) => {
+      const entries = get().getEntriesForPeriod(periodId);
+
+      const totals = entries.reduce(
+        (acc, entry) => ({
+          totalGross: acc.totalGross + entry.grossSalary,
+          totalNet: acc.totalNet + entry.netSalary,
+          totalDeductions: acc.totalDeductions + entry.totalDeductions,
+          totalEmployerCosts: acc.totalEmployerCosts + entry.totalEmployerCost,
+        }),
+        { totalGross: 0, totalNet: 0, totalDeductions: 0, totalEmployerCosts: 0 }
+      );
+
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
         total_deductions: totals.totalDeductions,
@@ -530,33 +505,16 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         processed_at: now,
         updated_at: now,
       });
-    }
+    },
 
-    set((state) => ({
-      periods: state.periods.map((p) =>
-        p.id === periodId
-          ? { ...p, ...totals, employeeCount: entries.length, status: 'calculated' as const, processedAt: now }
-          : p
-      ),
-      entries: state.entries.map((e) => (e.payrollPeriodId === periodId ? { ...e, status: 'calculated' as const } : e)),
-    }));
-  },
+    approvePeriod: async (periodId) => {
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, { status: 'approved', approved_at: now, updated_at: now });
+    },
 
-  approvePeriod: async (periodId) => {
-    const now = new Date().toISOString();
-    await dbUpdate('payroll_periods', periodId, { status: 'approved', approved_at: now, updated_at: now });
-    set((state) => ({
-      periods: state.periods.map((p) => (p.id === periodId ? { ...p, status: 'approved' as const, approvedAt: now } : p)),
-      entries: state.entries.map((e) => (e.payrollPeriodId === periodId ? { ...e, status: 'approved' as const } : e)),
-    }));
-  },
-
-  markAsPaid: async (periodId) => {
-    const now = new Date().toISOString();
-    await dbUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
-    set((state) => ({
-      periods: state.periods.map((p) => (p.id === periodId ? { ...p, status: 'paid' as const, paidAt: now } : p)),
-      entries: state.entries.map((e) => (e.payrollPeriodId === periodId ? { ...e, status: 'paid' as const } : e)),
-    }));
-  },
-}));
+    markAsPaid: async (periodId) => {
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
+    },
+  };
+});
