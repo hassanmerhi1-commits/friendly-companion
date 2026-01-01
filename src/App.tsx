@@ -113,8 +113,12 @@ function AppContent() {
 
           // Load ALL data from database if activated
           if (activated) {
-            // Force DB init from renderer too (fixes win-unpacked showing 'Connected: No')
-            await dbInit();
+            // Force DB init from renderer too
+            const dbOk = await dbInit();
+            if (!dbOk) {
+              setInitError('Base de dados não ligada. Configure em Definições > Base de Dados (ficheiro IP) e reinicie.');
+              return;
+            }
 
             // Load ALL stores from payroll.db
             const { loadUsers } = useAuthStore.getState();

@@ -119,15 +119,15 @@ export function DatabaseSettings() {
           <Input
             value={ipContent}
             onChange={(e) => setIpContent(e.target.value)}
-            placeholder={language === 'pt' 
-              ? 'Ex: C:\\PayrollAO\\payroll.db ou 10.0.0.10:C:\\PayrollAO\\payroll.db' 
-              : 'Ex: C:\\PayrollAO\\payroll.db or 10.0.0.10:C:\\PayrollAO\\payroll.db'}
+            placeholder={language === 'pt'
+              ? 'Servidor: C:\\PayrollAO\\payroll.db | Cliente: NOME-DO-SERVIDOR'
+              : 'Server: C:\\PayrollAO\\payroll.db | Client: SERVER-NAME'}
             className="font-mono text-sm"
           />
           <p className="text-xs text-muted-foreground">
-            {language === 'pt' 
-              ? 'Servidor: caminho local. Cliente: IP:caminho' 
-              : 'Server: local path. Client: IP:path'}
+            {language === 'pt'
+              ? 'Servidor: caminho local. Cliente: nome do servidor (LAN).'
+              : 'Server: local path. Client: server name (LAN).'}
           </p>
           <Button onClick={handleSaveIPFile} disabled={loading} size="sm">
             {language === 'pt' ? 'Guardar' : 'Save'}
@@ -139,6 +139,10 @@ export function DatabaseSettings() {
           <Label>{language === 'pt' ? 'Estado da Base de Dados' : 'Database Status'}</Label>
           <div className="text-sm space-y-1">
             <div className="flex items-center gap-2">
+              {dbStatus?.connected ? <CheckCircle className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
+              <span>{language === 'pt' ? 'Ligado' : 'Connected'}: {dbStatus?.connected ? 'Sim' : 'Não'}</span>
+            </div>
+            <div className="flex items-center gap-2">
               {dbStatus?.configured ? <CheckCircle className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
               <span>{language === 'pt' ? 'Configurado' : 'Configured'}: {dbStatus?.configured ? 'Sim' : 'Não'}</span>
             </div>
@@ -146,6 +150,12 @@ export function DatabaseSettings() {
               {dbStatus?.exists ? <CheckCircle className="h-4 w-4 text-green-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
               <span>{language === 'pt' ? 'Base de dados existe' : 'Database exists'}: {dbStatus?.exists ? 'Sim' : 'Não'}</span>
             </div>
+            {dbStatus?.configured && (
+              <div className="text-xs text-muted-foreground">
+                {language === 'pt' ? 'Modo' : 'Mode'}: {dbStatus?.isClient ? (language === 'pt' ? 'Cliente' : 'Client') : (language === 'pt' ? 'Servidor' : 'Server')}
+                {dbStatus?.isClient && dbStatus?.serverName ? ` (${dbStatus.serverName})` : ''}
+              </div>
+            )}
             {dbStatus?.path && (
               <div className="text-xs text-muted-foreground font-mono">{dbStatus.path}</div>
             )}
