@@ -622,6 +622,200 @@ function runMigrations() {
   if (!db) return;
   
   try {
+    // Ensure core tables exist (supports upgrading older payroll.db files)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        employee_number TEXT,
+        name TEXT NOT NULL,
+        position TEXT,
+        department TEXT,
+        branch_id TEXT,
+        hire_date TEXT,
+        birth_date TEXT,
+        contract_type TEXT DEFAULT 'permanent',
+        contract_end_date TEXT,
+        base_salary REAL DEFAULT 0,
+        payment_method TEXT DEFAULT 'bank_transfer',
+        bank_name TEXT,
+        bank_account TEXT,
+        iban TEXT,
+        nif TEXT,
+        social_security TEXT,
+        bi TEXT,
+        address TEXT,
+        phone TEXT,
+        email TEXT,
+        emergency_contact TEXT,
+        emergency_phone TEXT,
+        nationality TEXT,
+        gender TEXT,
+        marital_status TEXT,
+        photo TEXT,
+        status TEXT DEFAULT 'active',
+        notes TEXT,
+        family_allowance REAL DEFAULT 0,
+        monthly_bonus REAL DEFAULT 0,
+        holiday_subsidy REAL DEFAULT 0,
+        meal_allowance REAL DEFAULT 0,
+        transport_allowance REAL DEFAULT 0,
+        other_allowances REAL DEFAULT 0,
+        is_retired INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS branches (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT,
+        province TEXT,
+        city TEXT,
+        address TEXT,
+        phone TEXT,
+        email TEXT,
+        manager_id TEXT,
+        is_headquarters INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS deductions (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        description TEXT,
+        amount REAL DEFAULT 0,
+        date TEXT,
+        payroll_period_id TEXT,
+        is_applied INTEGER DEFAULT 0,
+        installments INTEGER,
+        current_installment INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS payroll_periods (
+        id TEXT PRIMARY KEY,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        type TEXT DEFAULT 'monthly',
+        start_date TEXT,
+        end_date TEXT,
+        status TEXT DEFAULT 'draft',
+        total_gross REAL DEFAULT 0,
+        total_net REAL DEFAULT 0,
+        total_deductions REAL DEFAULT 0,
+        total_employer_costs REAL DEFAULT 0,
+        processed_at TEXT,
+        approved_at TEXT,
+        paid_at TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS payroll_entries (
+        id TEXT PRIMARY KEY,
+        period_id TEXT NOT NULL,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        employee_position TEXT,
+        employee_department TEXT,
+        branch_id TEXT,
+        base_salary REAL DEFAULT 0,
+        gross_salary REAL DEFAULT 0,
+        net_salary REAL DEFAULT 0,
+        irt REAL DEFAULT 0,
+        inss_employee REAL DEFAULT 0,
+        inss_employer REAL DEFAULT 0,
+        total_deductions REAL DEFAULT 0,
+        total_bonuses REAL DEFAULT 0,
+        subsidy_alimentacao REAL DEFAULT 0,
+        subsidy_transporte REAL DEFAULT 0,
+        subsidy_ferias REAL DEFAULT 0,
+        subsidy_natal REAL DEFAULT 0,
+        overtime_hours REAL DEFAULT 0,
+        overtime_amount REAL DEFAULT 0,
+        absence_days INTEGER DEFAULT 0,
+        absence_deduction REAL DEFAULT 0,
+        other_deductions TEXT,
+        other_bonuses TEXT,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS holidays (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        days_used INTEGER DEFAULT 0,
+        start_date TEXT,
+        end_date TEXT,
+        subsidy_paid INTEGER DEFAULT 0,
+        subsidy_paid_month INTEGER,
+        subsidy_paid_year INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        name TEXT,
+        role TEXT DEFAULT 'viewer',
+        custom_permissions TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS absences (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        days INTEGER DEFAULT 1,
+        reason TEXT,
+        document_path TEXT,
+        justified_at TEXT,
+        justification_document TEXT,
+        justification_notes TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        rejection_reason TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT,
+        name TEXT NOT NULL,
+        type TEXT,
+        file_path TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Ensure default admin user exists (safe if already present)
+    try {
+      db.exec("INSERT OR IGNORE INTO users (id, username, password, name, role, is_active) VALUES ('admin-001', 'admin', 'admin', 'Administrador', 'admin', 1)");
+    } catch (e) {
+      // ignore
+    }
+
     const addColumnIfMissing = (table, column, sql) => {
       try {
         const info = db.prepare(`PRAGMA table_info(${table})`).all();
@@ -634,7 +828,6 @@ function runMigrations() {
         console.error(`Migration error:`, err.message);
       }
     };
-    
     // Employee migrations
     addColumnIfMissing('employees', 'employee_number', "ALTER TABLE employees ADD COLUMN employee_number TEXT");
     addColumnIfMissing('employees', 'contract_type', "ALTER TABLE employees ADD COLUMN contract_type TEXT DEFAULT 'permanent'");
