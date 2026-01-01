@@ -2,11 +2,13 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const net = require('net');
 
 // ============= PATHS AND CONFIGURATION =============
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
+const PIPE_NAME = 'PayrollAO-DB';
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
@@ -31,12 +33,14 @@ let mainWindow;
 let db = null;
 let dbPath = null;
 let isClientMode = false;
-let serverIP = null;
+let serverName = null;
+let pipeServer = null;
 
 // ============= IP FILE PARSING =============
 // Format: 
-//   Server: C:\PayrollAO\payroll.db (local path)
-//   Client: \\10.0.0.10\PayrollAO\payroll.db (UNC path to shared folder)
+//   Server: C:\PayrollAO\payroll.db (local path - runs named pipe service)
+//   Client: \\SERVERNAME\pipe\PayrollAO-DB (or just SERVERNAME to use default pipe name)
+//   Simple: SERVERNAME (connects to \\SERVERNAME\pipe\PayrollAO-DB)
 
 function parseIPFile() {
   try {
@@ -50,26 +54,22 @@ function parseIPFile() {
       return { valid: false, error: 'IP file is empty. Configure database path.', path: null, isClient: false };
     }
 
-    // Check if it's UNC path (client mode) - format: \\SERVER\share\path\db.db
-    if (content.startsWith('\\\\')) {
-      const match = content.match(/^\\\\([^\\]+)\\(.+)$/);
-      if (match) {
-        const serverName = match[1];
-        console.log('CLIENT MODE: UNC path to server', serverName);
-        return { valid: true, path: content, isClient: true, serverIP: serverName };
-      }
-      return { valid: false, error: 'Invalid UNC path format', path: null, isClient: false };
-    }
-
     // Server mode - local path like C:\PayrollAO\payroll.db
-    const serverMatch = content.match(/^[A-Za-z]:\\.+$/);
-    
-    if (serverMatch) {
+    if (/^[A-Za-z]:\\.+$/.test(content)) {
       console.log('SERVER MODE: Local database path:', content);
       return { valid: true, path: content, isClient: false };
     }
 
-    return { valid: false, error: 'Invalid format. Use "C:\\path\\db.db" (server) or "\\\\server\\share\\db.db" (client)', path: null, isClient: false };
+    // Client mode - just server name or IP (e.g., "SERVIDOR" or "10.0.0.10")
+    // Will connect to \\SERVERNAME\pipe\PayrollAO-DB
+    const serverMatch = content.match(/^([A-Za-z0-9_\-\.]+)$/);
+    if (serverMatch) {
+      const server = serverMatch[1];
+      console.log('CLIENT MODE: Will connect to server', server);
+      return { valid: true, path: null, isClient: true, serverName: server };
+    }
+
+    return { valid: false, error: 'Invalid format. Server: "C:\\path\\db.db", Client: "SERVERNAME"', path: null, isClient: false };
   } catch (error) {
     console.error('Error reading IP file:', error);
     return { valid: false, error: error.message, path: null, isClient: false };
@@ -133,7 +133,6 @@ function createNewDatabase(customPath = null) {
     const Database = require('better-sqlite3');
     const newDb = new Database(targetPath);
     
-    // Enable WAL mode for concurrent access
     newDb.pragma('journal_mode = WAL');
     newDb.pragma('busy_timeout = 30000');
     newDb.pragma('synchronous = NORMAL');
@@ -356,22 +355,190 @@ function getDistPath() {
   return path.join(__dirname, '..', 'dist', 'index.html');
 }
 
-// ============= SQLite DATABASE (Direct File Access with WAL) =============
+// ============= NAMED PIPE SERVER (runs on SERVER PC) =============
+
+function getLocalPipePath() {
+  return `\\\\.\\pipe\\${PIPE_NAME}`;
+}
+
+function getRemotePipePath(server) {
+  return `\\\\${server}\\pipe\\${PIPE_NAME}`;
+}
+
+function startNamedPipeServer() {
+  if (pipeServer) {
+    console.log('Named pipe server already running');
+    return { success: true };
+  }
+
+  const pipePath = getLocalPipePath();
+  
+  pipeServer = net.createServer((socket) => {
+    console.log('Client connected via named pipe');
+    
+    let buffer = '';
+    
+    socket.on('data', (data) => {
+      buffer += data.toString();
+      
+      // Process complete messages (newline delimited JSON)
+      const messages = buffer.split('\n');
+      buffer = messages.pop() || '';
+      
+      for (const msg of messages) {
+        if (!msg.trim()) continue;
+        
+        try {
+          const request = JSON.parse(msg);
+          const response = handleDBRequest(request);
+          socket.write(JSON.stringify(response) + '\n');
+        } catch (err) {
+          console.error('Error processing request:', err);
+          socket.write(JSON.stringify({ success: false, error: err.message }) + '\n');
+        }
+      }
+    });
+    
+    socket.on('error', (err) => {
+      console.log('Client socket error:', err.message);
+    });
+    
+    socket.on('close', () => {
+      console.log('Client disconnected');
+    });
+  });
+
+  pipeServer.on('error', (err) => {
+    console.error('Named pipe server error:', err);
+    pipeServer = null;
+  });
+
+  pipeServer.listen(pipePath, () => {
+    console.log(`Named pipe server listening on: ${pipePath}`);
+  });
+
+  return { success: true, pipePath };
+}
+
+function handleDBRequest(request) {
+  const { action, table, id, data, sql, params } = request;
+  
+  try {
+    switch (action) {
+      case 'ping':
+        return { success: true, message: 'pong' };
+        
+      case 'getAll':
+        return { success: true, data: dbGetAll(table) };
+        
+      case 'getById':
+        return { success: true, data: dbGetById(table, id) };
+        
+      case 'insert':
+        return dbInsert(table, data);
+        
+      case 'update':
+        return dbUpdate(table, id, data);
+        
+      case 'delete':
+        return dbDelete(table, id);
+        
+      case 'query':
+        const result = dbQuery(sql, params || []);
+        if (Array.isArray(result)) {
+          return { success: true, data: result };
+        }
+        return result;
+        
+      case 'export':
+        return { success: true, data: dbExportAll() };
+        
+      case 'import':
+        return dbImportAll(data);
+        
+      default:
+        return { success: false, error: `Unknown action: ${action}` };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// ============= NAMED PIPE CLIENT (runs on CLIENT PCs) =============
+
+function sendToPipeServer(request) {
+  return new Promise((resolve, reject) => {
+    if (!serverName) {
+      reject(new Error('Server not configured'));
+      return;
+    }
+
+    const pipePath = getRemotePipePath(serverName);
+    const client = net.createConnection(pipePath, () => {
+      client.write(JSON.stringify(request) + '\n');
+    });
+
+    let buffer = '';
+    let resolved = false;
+    
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        client.destroy();
+        reject(new Error('Connection timeout'));
+      }
+    }, 30000);
+
+    client.on('data', (data) => {
+      buffer += data.toString();
+      
+      const messages = buffer.split('\n');
+      buffer = messages.pop() || '';
+      
+      for (const msg of messages) {
+        if (msg.trim() && !resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          client.destroy();
+          try {
+            resolve(JSON.parse(msg));
+          } catch (err) {
+            reject(new Error('Invalid response from server'));
+          }
+        }
+      }
+    });
+
+    client.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        reject(err);
+      }
+    });
+
+    client.on('close', () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        reject(new Error('Connection closed'));
+      }
+    });
+  });
+}
+
+// ============= SQLite DATABASE (SERVER ONLY) =============
 
 function openDatabase(filePath) {
   try {
     const Database = require('better-sqlite3');
-    
-    // Open database with busy timeout for concurrent access
     const database = new Database(filePath, {
-      timeout: 30000, // 30 second timeout for busy database
+      timeout: 30000,
     });
     
-    // Enable WAL mode for better concurrent access over network shares
     database.pragma('journal_mode = WAL');
     database.pragma('busy_timeout = 30000');
     database.pragma('synchronous = NORMAL');
-    database.pragma('cache_size = -64000'); // 64MB cache
     
     return database;
   } catch (error) {
@@ -388,30 +555,38 @@ function initDatabase() {
     return { success: false, error: ipConfig.error, needsConfig: true };
   }
 
-  dbPath = ipConfig.path;
-  isClientMode = ipConfig.isClient;
-  serverIP = ipConfig.serverIP || null;
+  if (ipConfig.isClient) {
+    // Client mode - don't open local DB, connect via named pipe
+    isClientMode = true;
+    serverName = ipConfig.serverName;
+    console.log('CLIENT MODE: Will connect to server', serverName, 'via named pipe');
+    return { success: true, mode: 'client', serverName };
+  }
 
-  // Check if database file exists (works for both local and UNC paths)
+  // Server mode - open local database and start named pipe server
+  dbPath = ipConfig.path;
+  isClientMode = false;
+  serverName = null;
+
   if (!checkDatabaseExists(dbPath)) {
     console.log('Database not found at:', dbPath);
     return { success: false, error: `Database not found at: ${dbPath}`, needsDatabase: true };
   }
 
   try {
-    // Close existing connection if any
     if (db) {
       try { db.close(); } catch (e) {}
       db = null;
     }
 
-    // Open database - SQLite handles WAL locking over network shares
     db = openDatabase(dbPath);
-    
     runMigrations();
     
-    console.log(`Database initialized: ${dbPath} (${isClientMode ? 'CLIENT via UNC' : 'SERVER local'})`);
-    return { success: true, mode: isClientMode ? 'client' : 'server', path: dbPath };
+    // Start named pipe server for client connections
+    startNamedPipeServer();
+    
+    console.log('SERVER MODE: Database initialized at:', dbPath);
+    return { success: true, mode: 'server', path: dbPath };
   } catch (error) {
     console.error('Error initializing database:', error);
     return { success: false, error: error.message };
@@ -506,7 +681,7 @@ function runMigrations() {
   }
 }
 
-// ============= DATABASE OPERATIONS (Direct SQLite) =============
+// ============= DATABASE OPERATIONS =============
 
 function dbGetAll(table) {
   try {
@@ -741,9 +916,11 @@ ipcMain.handle('db:getStatus', () => {
     configured: ipConfig.valid,
     path: ipConfig.path,
     isClient: ipConfig.isClient,
-    serverIP: ipConfig.serverIP || null,
-    exists: ipConfig.valid ? checkDatabaseExists(ipConfig.path) : false,
-    connected: db !== null,
+    serverName: ipConfig.serverName || serverName || null,
+    exists: ipConfig.valid && !ipConfig.isClient ? checkDatabaseExists(ipConfig.path) : null,
+    connected: isClientMode ? (serverName !== null) : (db !== null),
+    pipeServerRunning: pipeServer !== null,
+    pipeName: PIPE_NAME,
     error: ipConfig.error,
   };
 });
@@ -756,31 +933,92 @@ ipcMain.handle('db:init', () => {
   return initDatabase();
 });
 
-ipcMain.handle('db:getAll', (event, table) => {
+// Database operations - route to server via named pipe if client mode
+ipcMain.handle('db:getAll', async (event, table) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToPipeServer({ action: 'getAll', table });
+      return response.data || [];
+    } catch (err) {
+      console.error('Client getAll error:', err);
+      return [];
+    }
+  }
   return dbGetAll(table);
 });
 
-ipcMain.handle('db:getById', (event, table, id) => {
+ipcMain.handle('db:getById', async (event, table, id) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToPipeServer({ action: 'getById', table, id });
+      return response.data || null;
+    } catch (err) {
+      console.error('Client getById error:', err);
+      return null;
+    }
+  }
   return dbGetById(table, id);
 });
 
-ipcMain.handle('db:insert', (event, table, data) => {
+ipcMain.handle('db:insert', async (event, table, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToPipeServer({ action: 'insert', table, data });
+    } catch (err) {
+      console.error('Client insert error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbInsert(table, data);
 });
 
-ipcMain.handle('db:update', (event, table, id, data) => {
+ipcMain.handle('db:update', async (event, table, id, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToPipeServer({ action: 'update', table, id, data });
+    } catch (err) {
+      console.error('Client update error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbUpdate(table, id, data);
 });
 
-ipcMain.handle('db:delete', (event, table, id) => {
+ipcMain.handle('db:delete', async (event, table, id) => {
+  if (isClientMode) {
+    try {
+      return await sendToPipeServer({ action: 'delete', table, id });
+    } catch (err) {
+      console.error('Client delete error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbDelete(table, id);
 });
 
-ipcMain.handle('db:query', (event, sql, params) => {
+ipcMain.handle('db:query', async (event, sql, params) => {
+  if (isClientMode) {
+    try {
+      const response = await sendToPipeServer({ action: 'query', sql, params });
+      return response.data || [];
+    } catch (err) {
+      console.error('Client query error:', err);
+      return [];
+    }
+  }
   return dbQuery(sql, params);
 });
 
-ipcMain.handle('db:export', () => {
+ipcMain.handle('db:export', async () => {
+  if (isClientMode) {
+    try {
+      const response = await sendToPipeServer({ action: 'export' });
+      return { success: true, data: response.data };
+    } catch (err) {
+      console.error('Client export error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   const data = dbExportAll();
   if (data) {
     return { success: true, data };
@@ -788,12 +1026,25 @@ ipcMain.handle('db:export', () => {
   return { success: false, error: 'Failed to export data' };
 });
 
-ipcMain.handle('db:import', (event, data) => {
+ipcMain.handle('db:import', async (event, data) => {
+  if (isClientMode) {
+    try {
+      return await sendToPipeServer({ action: 'import', data });
+    } catch (err) {
+      console.error('Client import error:', err);
+      return { success: false, error: err.message };
+    }
+  }
   return dbImportAll(data);
 });
 
-ipcMain.handle('db:testConnection', () => {
+ipcMain.handle('db:testConnection', async () => {
   try {
+    if (isClientMode) {
+      const response = await sendToPipeServer({ action: 'ping' });
+      return { success: response.success, message: response.message };
+    }
+    
     if (!db) {
       return { success: false, error: 'Database not initialized' };
     }
@@ -816,6 +1067,10 @@ ipcMain.handle('network:getIPFilePath', () => {
   return IP_FILE_PATH;
 });
 
+ipcMain.handle('network:getComputerName', () => {
+  return os.hostname();
+});
+
 // ============= APP LIFECYCLE =============
 
 app.whenReady().then(() => {
@@ -829,6 +1084,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (pipeServer) {
+    try { pipeServer.close(); } catch (e) {}
+  }
   if (db) {
     try { db.close(); } catch (e) {}
   }
