@@ -30,13 +30,25 @@ if (!fs.existsSync(INSTALL_DIR)) {
   }
 }
 
-// Create empty IP file if it doesn't exist
+// Create default IP file if it doesn't exist or is empty
+const DEFAULT_DB_PATH = path.join(INSTALL_DIR, 'payroll.db');
 if (!fs.existsSync(IP_FILE_PATH)) {
   try {
-    fs.writeFileSync(IP_FILE_PATH, '', 'utf-8');
-    console.log('Created empty IP file at:', IP_FILE_PATH);
+    fs.writeFileSync(IP_FILE_PATH, DEFAULT_DB_PATH, 'utf-8');
+    console.log('Created IP file with default path:', DEFAULT_DB_PATH);
   } catch (err) {
     console.error('Failed to create IP file:', err);
+  }
+} else {
+  // Check if IP file is empty and set default
+  try {
+    const content = fs.readFileSync(IP_FILE_PATH, 'utf-8').trim();
+    if (!content) {
+      fs.writeFileSync(IP_FILE_PATH, DEFAULT_DB_PATH, 'utf-8');
+      console.log('IP file was empty, set default path:', DEFAULT_DB_PATH);
+    }
+  } catch (err) {
+    console.error('Failed to check/update IP file:', err);
   }
 }
 
@@ -513,13 +525,18 @@ function initDatabase() {
   isServerMode = true;
   serverAddress = null;
 
+  // Auto-create database if it doesn't exist (first run)
   if (!checkDatabaseExists(dbPath)) {
-    console.log('Database not found at:', dbPath);
-    return { 
-      success: false, 
-      error: `Base de dados não encontrada: ${dbPath}. Use "Criar Base de Dados" primeiro.`, 
-      needsDatabase: true 
-    };
+    console.log('Database not found at:', dbPath, '- Creating automatically...');
+    const createResult = createNewDatabaseInternal(dbPath);
+    if (!createResult.success) {
+      return { 
+        success: false, 
+        error: `Erro ao criar base de dados: ${createResult.error}`, 
+        needsDatabase: true 
+      };
+    }
+    console.log('Database created successfully at:', dbPath);
   }
 
   try {
@@ -540,24 +557,9 @@ function initDatabase() {
   }
 }
 
-function createNewDatabase() {
+// Internal function to create database at a specific path (used for auto-creation)
+function createNewDatabaseInternal(targetPath) {
   try {
-    const ipConfig = parseIPFile();
-    
-    if (!ipConfig.valid || !ipConfig.path) {
-      return { success: false, error: 'Configure o ficheiro IP com o caminho da base de dados primeiro.' };
-    }
-    
-    if (!ipConfig.isServer) {
-      return { success: false, error: 'Clientes não podem criar base de dados. Crie no servidor primeiro.' };
-    }
-    
-    const targetPath = ipConfig.path;
-
-    if (fs.existsSync(targetPath)) {
-      return { success: false, error: 'A base de dados já existe neste caminho.' };
-    }
-
     const parentDir = path.dirname(targetPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -764,6 +766,32 @@ function createNewDatabase() {
     console.log('New database created at:', targetPath);
     
     return { success: true, path: targetPath };
+  } catch (error) {
+    console.error('Error creating database:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Public function to create database (validates IP file first)
+function createNewDatabase() {
+  try {
+    const ipConfig = parseIPFile();
+    
+    if (!ipConfig.valid || !ipConfig.path) {
+      return { success: false, error: 'Configure o ficheiro IP com o caminho da base de dados primeiro.' };
+    }
+    
+    if (!ipConfig.isServer) {
+      return { success: false, error: 'Clientes não podem criar base de dados. Crie no servidor primeiro.' };
+    }
+    
+    const targetPath = ipConfig.path;
+
+    if (fs.existsSync(targetPath)) {
+      return { success: false, error: 'A base de dados já existe neste caminho.' };
+    }
+
+    return createNewDatabaseInternal(targetPath);
   } catch (error) {
     console.error('Error creating database:', error);
     return { success: false, error: error.message };
