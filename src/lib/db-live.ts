@@ -48,10 +48,33 @@ export function initSyncListener() {
   if (api?.onDatabaseUpdate) {
     api.onDatabaseUpdate((data: { table: string; action: string; id?: string }) => {
       console.log('[DB-Live] ← Received update:', data.table, data.action, data.id || '');
+
+      // Special event: refresh everything (e.g. when a client connects or after import)
+      if (data.table === 'all') {
+        const tables = [
+          'employees',
+          'branches',
+          'deductions',
+          'payroll_periods',
+          'payroll_entries',
+          'holidays',
+          'absences',
+          'users',
+          'settings',
+          'documents',
+        ];
+
+        for (const t of tables) {
+          notifyDataChange(t, 'update', data.id);
+        }
+        return;
+      }
+
       notifyDataChange(data.table, data.action as any, data.id);
     });
     console.log('[DB-Live] Sync listener initialized');
   }
+
 }
 
 // ============= LIVE READ OPERATIONS =============

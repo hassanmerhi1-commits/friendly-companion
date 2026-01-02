@@ -200,6 +200,13 @@ function connectToServer() {
         clearTimeout(wsReconnectTimer);
         wsReconnectTimer = null;
       }
+
+      // Tell renderer to refresh all tables now that we're connected (prevents "restart to see data")
+      try {
+        mainWindow?.webContents.send('payroll:updated', { table: 'all', action: 'connected' });
+      } catch (e) {
+        console.error('[WS] Failed to notify renderer about connection:', e);
+      }
     });
 
     wsClient.on('message', (raw) => {
