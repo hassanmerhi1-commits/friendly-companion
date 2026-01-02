@@ -129,14 +129,18 @@ function AppContent() {
 
             // Get database status to connect to WebSocket for real-time sync
             const dbStatus = await liveGetStatus();
-            if (dbStatus.serverName) {
-              // Client mode - connect to server's WebSocket
-              console.log('[App] Connecting to WebSocket sync server:', dbStatus.serverName);
+            console.log('[App] DB Status:', JSON.stringify(dbStatus, null, 2));
+            
+            if (dbStatus.isClient && dbStatus.serverName) {
+              // Client mode - connect to server's WebSocket for real-time sync
+              console.log('[App] CLIENT MODE: Connecting to WebSocket sync server:', dbStatus.serverName);
               connectToSyncServer(dbStatus.serverName, 9001);
             } else if (dbStatus.wsServerRunning) {
               // Server mode - connect to local WebSocket (for local notifications)
-              console.log('[App] Connecting to local WebSocket sync server');
+              console.log('[App] SERVER MODE: Connecting to local WebSocket, clients:', dbStatus.wsClients);
               connectToSyncServer('localhost', 9001);
+            } else {
+              console.log('[App] No WebSocket connection - wsServerRunning:', dbStatus.wsServerRunning);
             }
 
             // Load ALL stores from payroll.db
