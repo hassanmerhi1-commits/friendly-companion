@@ -122,7 +122,7 @@ function AppContent() {
             
             if (isElectron) {
               try {
-                const ipContent = await (window as any).electronAPI.readIPFile();
+                const ipContent = await (window as any).electronAPI.ipfile.read();
                 if (!ipContent || !ipContent.trim()) {
                   // IP file is empty - show first run setup
                   setNeedsFirstRunSetup(true);
