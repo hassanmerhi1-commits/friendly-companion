@@ -30,25 +30,14 @@ if (!fs.existsSync(INSTALL_DIR)) {
   }
 }
 
-// Create default IP file if it doesn't exist or is empty
+// Create empty IP file if it doesn't exist (user will configure via setup screen)
 const DEFAULT_DB_PATH = path.join(INSTALL_DIR, 'payroll.db');
 if (!fs.existsSync(IP_FILE_PATH)) {
   try {
-    fs.writeFileSync(IP_FILE_PATH, DEFAULT_DB_PATH, 'utf-8');
-    console.log('Created IP file with default path:', DEFAULT_DB_PATH);
+    fs.writeFileSync(IP_FILE_PATH, '', 'utf-8');
+    console.log('Created empty IP file at:', IP_FILE_PATH);
   } catch (err) {
     console.error('Failed to create IP file:', err);
-  }
-} else {
-  // Check if IP file is empty and set default
-  try {
-    const content = fs.readFileSync(IP_FILE_PATH, 'utf-8').trim();
-    if (!content) {
-      fs.writeFileSync(IP_FILE_PATH, DEFAULT_DB_PATH, 'utf-8');
-      console.log('IP file was empty, set default path:', DEFAULT_DB_PATH);
-    }
-  } catch (err) {
-    console.error('Failed to check/update IP file:', err);
   }
 }
 

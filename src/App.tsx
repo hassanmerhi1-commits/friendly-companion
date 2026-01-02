@@ -21,6 +21,7 @@ import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
 import { ProvinceSelector } from "@/components/ProvinceSelector";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { FirstRunSetup } from "@/components/FirstRunSetup";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
 import Employees from "./pages/Employees";
@@ -93,6 +94,7 @@ function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  const [needsFirstRunSetup, setNeedsFirstRunSetup] = useState(false);
 
   useEffect(() => {
       const initApp = async () => {
@@ -114,11 +116,35 @@ function AppContent() {
           setProvinceSelected(provinceOk);
 
           if (activated) {
+            // Check if IP file is configured before initializing database
+            const isElectron = typeof window !== 'undefined' && 
+              (window as any).electronAPI?.isElectron === true;
+            
+            if (isElectron) {
+              try {
+                const ipContent = await (window as any).electronAPI.readIPFile();
+                if (!ipContent || !ipContent.trim()) {
+                  // IP file is empty - show first run setup
+                  setNeedsFirstRunSetup(true);
+                  return;
+                }
+              } catch (e) {
+                console.error('[App] Error reading IP file:', e);
+              }
+            }
+
             // Initialize database
             const dbOk = await liveInit();
             
             if (!dbOk) {
-              setInitError('Base de dados não ligada. Configure em Definições > Base de Dados.');
+              // Check if it's a configuration issue
+              const isElectronEnv = typeof window !== 'undefined' && 
+                (window as any).electronAPI?.isElectron === true;
+              if (isElectronEnv) {
+                setNeedsFirstRunSetup(true);
+              } else {
+                setInitError('Base de dados não ligada. Configure em Definições > Base de Dados.');
+              }
               return;
             }
 
@@ -172,6 +198,18 @@ function AppContent() {
 
     initApp();
   }, []);
+
+  // Show first run setup if IP file is not configured
+  if (needsFirstRunSetup) {
+    return (
+      <FirstRunSetup 
+        onComplete={() => {
+          setNeedsFirstRunSetup(false);
+          window.location.reload();
+        }} 
+      />
+    );
+  }
 
   if (initError) {
     return (
