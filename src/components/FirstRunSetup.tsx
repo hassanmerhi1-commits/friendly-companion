@@ -38,7 +38,7 @@ export function FirstRunSetup({ onComplete }: FirstRunSetupProps) {
           setLoading(false);
           return;
         }
-        await api.writeIPFile(dbPath.trim());
+        await api.ipfile.write(dbPath.trim());
       } else {
         // Client mode: save server address
         if (!serverAddress.trim()) {
@@ -46,11 +46,11 @@ export function FirstRunSetup({ onComplete }: FirstRunSetupProps) {
           setLoading(false);
           return;
         }
-        await api.writeIPFile(serverAddress.trim());
+        await api.ipfile.write(serverAddress.trim());
       }
 
       // Restart the app to apply changes
-      await api.relaunch();
+      await api.app.relaunch();
     } catch (err) {
       console.error('Error saving configuration:', err);
       setError(err instanceof Error ? err.message : 'Erro ao guardar configuração');
