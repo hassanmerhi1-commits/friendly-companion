@@ -13,7 +13,7 @@ import { useDeductionStore } from "@/stores/deduction-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
-import { liveInit, liveGetStatus, connectToSyncServer } from "@/lib/db-live";
+import { liveInit, liveGetStatus, initSyncListener } from "@/lib/db-live";
 import { initEmployeeStoreSync } from "@/stores/employee-store";
 import { initBranchStoreSync } from "@/stores/branch-store";
 import { initActivationStatus } from "@/lib/device-security";
@@ -107,43 +107,39 @@ function AppContent() {
         }
 
         try {
-          // Check activation status (async)
+          // Check activation status
           const activated = await initActivationStatus();
           const provinceOk = isProvinceSelected();
           setDeviceActivated(activated);
           setProvinceSelected(provinceOk);
 
-          // Load ALL data from database if activated
           if (activated) {
-            // Force DB init from renderer too
+            // Initialize database
             const dbOk = await liveInit();
+            
+            if (!dbOk) {
+              setInitError('Base de dados não ligada. Configure em Definições > Base de Dados.');
+              return;
+            }
+
+            // Initialize real-time sync listener
+            initSyncListener();
             
             // Initialize store sync for real-time updates
             initEmployeeStoreSync();
             initBranchStoreSync();
-            
-            if (!dbOk) {
-              setInitError('Base de dados não ligada. Configure em Definições > Base de Dados (ficheiro IP) e reinicie.');
-              return;
-            }
 
-            // Get database status to connect to WebSocket for real-time sync
+            // Get database status for logging
             const dbStatus = await liveGetStatus();
             console.log('[App] DB Status:', JSON.stringify(dbStatus, null, 2));
             
-            if (dbStatus.isClient && dbStatus.serverName) {
-              // Client mode - connect to server's WebSocket for real-time sync
-              console.log('[App] CLIENT MODE: Connecting to WebSocket sync server:', dbStatus.serverName);
-              connectToSyncServer(dbStatus.serverName, 9001);
-            } else if (dbStatus.wsServerRunning) {
-              // Server mode - connect to local WebSocket (for local notifications)
-              console.log('[App] SERVER MODE: Connecting to local WebSocket, clients:', dbStatus.wsClients);
-              connectToSyncServer('localhost', 9001);
-            } else {
-              console.log('[App] No WebSocket connection - wsServerRunning:', dbStatus.wsServerRunning);
+            if (dbStatus.isServer) {
+              console.log('[App] SERVER MODE - WS clients:', dbStatus.wsClients);
+            } else if (dbStatus.isClient) {
+              console.log('[App] CLIENT MODE - Connected:', dbStatus.wsClientConnected);
             }
 
-            // Load ALL stores from payroll.db
+            // Load ALL stores from database
             const { loadUsers } = useAuthStore.getState();
             const { loadEmployees } = useEmployeeStore.getState();
             const { loadBranches } = useBranchStore.getState();
@@ -164,7 +160,7 @@ function AppContent() {
               loadSettings(),
             ]);
 
-            console.log('[App] All stores loaded from payroll.db');
+            console.log('[App] All stores loaded from database');
           }
         } catch (error) {
           console.error('Error during initial checks:', error);

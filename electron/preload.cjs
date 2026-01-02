@@ -1,9 +1,13 @@
+/**
+ * PayrollAO - Simplified Preload Script
+ * 
+ * Exposes IPC methods to renderer process via contextBridge.
+ * All database operations are routed through main process which handles
+ * server/client mode transparently.
+ */
+
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Expose protected methods to the renderer process
-// Architecture: Named Pipe service over SMB (uses existing port 445, no new firewall rules)
-// Server: C:\PayrollAO\payroll.db (local path - runs named pipe service)
-// Client: SERVERNAME (connects to \\SERVERNAME\pipe\PayrollAO-DB)
 contextBridge.exposeInMainWorld('electronAPI', {
   // Activation operations
   activation: {
@@ -18,7 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     parse: () => ipcRenderer.invoke('ipfile:parse'),
   },
   
-  // Database operations (routed via named pipe if client)
+  // Database operations (transparently routed to server if client mode)
   db: {
     getStatus: () => ipcRenderer.invoke('db:getStatus'),
     create: () => ipcRenderer.invoke('db:create'),
@@ -34,7 +38,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     testConnection: () => ipcRenderer.invoke('db:testConnection'),
   },
   
-  // Network info (display only)
+  // Real-time update listener (server broadcasts to all clients)
+  onDatabaseUpdate: (callback) => {
+    ipcRenderer.removeAllListeners('payroll:updated');
+    ipcRenderer.on('payroll:updated', (_, data) => callback(data));
+  },
+  
+  // Network info
   network: {
     getLocalIPs: () => ipcRenderer.invoke('network:getLocalIPs'),
     getInstallPath: () => ipcRenderer.invoke('network:getInstallPath'),
