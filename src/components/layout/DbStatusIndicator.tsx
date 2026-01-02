@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Database, Server, Monitor, Wifi, WifiOff } from 'lucide-react';
-import { getSyncStatus } from '@/lib/db-live';
 
 function isElectron() {
   return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
@@ -15,12 +14,12 @@ interface DbStatus {
   serverName: string | null;
   wsServerRunning?: boolean;
   wsClients?: number;
+  wsConnected?: boolean;
   error?: string;
 }
 
 export function DbStatusIndicator() {
   const [status, setStatus] = useState<DbStatus | null>(null);
-  const [syncStatus, setSyncStatus] = useState({ connected: false, url: null as string | null, connectedOnce: false });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -30,7 +29,6 @@ export function DbStatusIndicator() {
       try {
         const s = await (window as any).electronAPI.db.getStatus();
         setStatus(s);
-        setSyncStatus(getSyncStatus());
       } catch (err) {
         console.error('Error fetching DB status:', err);
       } finally {
@@ -38,7 +36,7 @@ export function DbStatusIndicator() {
       }
     };
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000); // refresh every 3s
+    const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -54,7 +52,7 @@ export function DbStatusIndicator() {
     : status.path || '—';
 
   // WebSocket sync status
-  const wsConnected = syncStatus.connected;
+  const wsConnected = status.isClient ? status.wsConnected : status.wsServerRunning;
   const WsIcon = wsConnected ? Wifi : WifiOff;
 
   return (
