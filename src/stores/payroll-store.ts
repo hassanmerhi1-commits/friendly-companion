@@ -157,16 +157,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
   };
 }
 
-export const usePayrollStore = create<PayrollState>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'payroll_periods' || table === 'payroll_entries') {
-      console.log('[Payroll] Data changed, refreshing...');
-      get().loadPayroll();
-    }
-  });
-
-  return {
+export const usePayrollStore = create<PayrollState>()((set, get) => ({
     periods: [],
     entries: [],
     isLoaded: false,
@@ -516,5 +507,25 @@ export const usePayrollStore = create<PayrollState>()((set, get) => {
       const now = new Date().toISOString();
       await liveUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
     },
-  };
-});
+  }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initPayrollStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'payroll_periods' || table === 'payroll_entries') {
+      console.log('[Payroll] Data change detected, refreshing from database...');
+      usePayrollStore.getState().loadPayroll();
+    }
+  });
+}
+
+export function cleanupPayrollStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+}

@@ -42,16 +42,7 @@ const defaultSettings: CompanySettings = {
   newEmployees: true,
 };
 
-export const useSettingsStore = create<SettingsStore>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'settings') {
-      console.log('[Settings] Data changed, refreshing...');
-      get().loadSettings();
-    }
-  });
-
-  return {
+export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     settings: defaultSettings,
     isLoaded: false,
 
@@ -93,5 +84,18 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => {
         await liveInsert('settings', { key, value: String(val), updated_at: now });
       }
     },
-  };
-});
+  }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initSettingsStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'settings') {
+      console.log('[Settings] Data change detected, refreshing from database...');
+      useSettingsStore.getState().loadSettings();
+    }
+  });
+}
