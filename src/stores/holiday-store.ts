@@ -56,16 +56,7 @@ function mapHolidayToDbRow(h: HolidayRecord): Record<string, any> {
   };
 }
 
-export const useHolidayStore = create<HolidayState>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'holidays') {
-      console.log('[Holidays] Data changed, refreshing...');
-      get().loadHolidays();
-    }
-  });
-
-  return {
+export const useHolidayStore = create<HolidayState>()((set, get) => ({
     records: [],
     isLoaded: false,
 
@@ -121,5 +112,18 @@ export const useHolidayStore = create<HolidayState>()((set, get) => {
       const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
       return !!record?.subsidyPaidInMonth;
     },
-  };
-});
+  }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initHolidayStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'holidays') {
+      console.log('[Holidays] Data change detected, refreshing from database...');
+      useHolidayStore.getState().loadHolidays();
+    }
+  });
+}

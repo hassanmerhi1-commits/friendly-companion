@@ -101,16 +101,7 @@ interface AbsenceStore {
   getAbsenceDaysForEmployee: (employeeId: string, month: number, year: number) => { total: number; justified: number; unjustified: number; pending: number; maternity: number; paternity: number; sick: number; other: number };
 }
 
-export const useAbsenceStore = create<AbsenceStore>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'absences') {
-      console.log('[Absences] Data changed, refreshing...');
-      get().loadAbsences();
-    }
-  });
-
-  return {
+export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
     absences: [],
     isLoaded: false,
 
@@ -231,5 +222,18 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => {
       }
       return result;
     },
-  };
-});
+  }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initAbsenceStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'absences') {
+      console.log('[Absences] Data change detected, refreshing from database...');
+      useAbsenceStore.getState().loadAbsences();
+    }
+  });
+}

@@ -16,6 +16,11 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { liveInit, liveGetStatus, initSyncListener } from "@/lib/db-live";
 import { initEmployeeStoreSync } from "@/stores/employee-store";
 import { initBranchStoreSync } from "@/stores/branch-store";
+import { initPayrollStoreSync } from "@/stores/payroll-store";
+import { initDeductionStoreSync } from "@/stores/deduction-store";
+import { initAbsenceStoreSync } from "@/stores/absence-store";
+import { initHolidayStoreSync } from "@/stores/holiday-store";
+import { initSettingsStoreSync } from "@/stores/settings-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -148,12 +153,17 @@ function AppContent() {
               return;
             }
 
-            // Initialize real-time sync listener
+            // Initialize real-time sync listener FIRST
             initSyncListener();
             
-            // Initialize store sync for real-time updates
+            // Initialize ALL store sync subscriptions
             initEmployeeStoreSync();
             initBranchStoreSync();
+            initPayrollStoreSync();
+            initDeductionStoreSync();
+            initAbsenceStoreSync();
+            initHolidayStoreSync();
+            initSettingsStoreSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();

@@ -51,16 +51,7 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
   };
 }
 
-export const useDeductionStore = create<DeductionState>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'deductions') {
-      console.log('[Deductions] Data changed, refreshing...');
-      get().loadDeductions();
-    }
-  });
-
-  return {
+export const useDeductionStore = create<DeductionState>()((set, get) => ({
     deductions: [],
     isLoaded: false,
 
@@ -130,8 +121,21 @@ export const useDeductionStore = create<DeductionState>()((set, get) => {
           return sum + ded.amount;
         }, 0);
     },
-  };
-});
+  }));
+
+// Subscribe to data changes for auto-refresh
+let unsubscribe: (() => void) | null = null;
+
+export function initDeductionStoreSync() {
+  if (unsubscribe) return;
+  
+  unsubscribe = onDataChange((table) => {
+    if (table === 'deductions') {
+      console.log('[Deductions] Data change detected, refreshing from database...');
+      useDeductionStore.getState().loadDeductions();
+    }
+  });
+}
 
 export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = 'pt'): string {
   const labels: Record<DeductionType, { pt: string; en: string }> = {
