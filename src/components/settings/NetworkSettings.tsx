@@ -4,31 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Network, RefreshCw, Monitor, HardDrive, CheckCircle2, XCircle, Server, Plug, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { getSyncStatus } from "@/lib/db-live";
+import { liveGetStatus, DBStatus } from "@/lib/db-live";
 
 // Check if running in Electron
 const isElectron = () => {
   return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
 };
 
-interface DBStatus {
-  configured: boolean;
-  path: string | null;
-  isClient: boolean;
-  serverName: string | null;
-  exists: boolean | null;
-  connected: boolean;
-  pipeServerRunning?: boolean;
-  pipeName?: string;
-  wsServerRunning?: boolean;
-  wsPort?: number;
-  wsClients?: number;
-  error?: string;
-}
-
 export function NetworkSettings() {
   const [dbStatus, setDbStatus] = useState<DBStatus | null>(null);
-  const [syncStatus, setSyncStatus] = useState({ connected: false, url: null as string | null, connectedOnce: false });
   const [localIPs, setLocalIPs] = useState<string[]>([]);
   const [computerName, setComputerName] = useState<string>('');
   const [ipFilePath, setIpFilePath] = useState<string>('');
@@ -56,11 +40,10 @@ export function NetworkSettings() {
         status = await api.db.getStatus();
       }
 
-        setDbStatus(status);
-        setSyncStatus(getSyncStatus());
+      setDbStatus(status);
 
-        const ipFile = await api.ipfile.read();
-        setIpFileContent(ipFile?.content || '');
+      const ipFile = await api.ipfile.read();
+      setIpFileContent(ipFile?.content || '');
 
       const ips = await api.network.getLocalIPs();
       setLocalIPs(ips);
@@ -118,6 +101,7 @@ export function NetworkSettings() {
     );
   }
 
+  const isServer = dbStatus?.isServer || false;
   const isClient = dbStatus?.isClient || false;
 
   return (
@@ -130,14 +114,14 @@ export function NetworkSettings() {
           <div>
             <CardTitle>Rede LAN / LAN Network</CardTitle>
             <CardDescription>
-              Named Pipe via SMB (sem portas adicionais)
+              WebSocket na porta 4545
             </CardDescription>
           </div>
           <Badge 
-            variant={isClient ? 'secondary' : 'default'} 
+            variant={isServer ? 'default' : 'secondary'} 
             className="ml-auto"
           >
-            {isClient ? 'CLIENTE' : 'SERVIDOR'}
+            {isServer ? 'SERVIDOR' : isClient ? 'CLIENTE' : 'NÃO CONFIGURADO'}
           </Badge>
           <Button size="sm" variant="ghost" onClick={loadStatus} disabled={isRefreshing}>
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -190,7 +174,7 @@ export function NetworkSettings() {
               <span className="text-muted-foreground">Configurado:</span>
               <span>{dbStatus?.configured ? 'Sim' : 'Não'}</span>
             </div>
-            {!isClient && (
+            {isServer && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Ficheiro existe:</span>
                 <span>{dbStatus?.exists ? 'Sim' : 'Não'}</span>
@@ -200,30 +184,10 @@ export function NetworkSettings() {
               <span className="text-muted-foreground">Ligado:</span>
               <span>{dbStatus?.connected ? 'Sim' : 'Não'}</span>
             </div>
-            {isClient && dbStatus?.serverName && (
+            {isClient && dbStatus?.serverAddress && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Servidor:</span>
-                <span className="font-mono">{dbStatus.serverName}</span>
-              </div>
-            )}
-            {!isClient && dbStatus?.pipeServerRunning && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Named Pipe:</span>
-                <span className="text-green-600">Activo</span>
-              </div>
-            )}
-            {!isClient && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">WebSocket (Sync):</span>
-                <span className={dbStatus?.wsServerRunning ? 'text-green-600' : 'text-red-500'}>
-                  {dbStatus?.wsServerRunning ? `Porta ${dbStatus?.wsPort || 9001}` : 'Inactivo'}
-                </span>
-              </div>
-            )}
-            {!isClient && dbStatus?.wsServerRunning && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Clientes conectados:</span>
-                <span className="text-blue-600">{dbStatus?.wsClients || 0}</span>
+                <span className="font-mono">{dbStatus.serverAddress}</span>
               </div>
             )}
           </div>
@@ -233,12 +197,19 @@ export function NetworkSettings() {
           )}
         </div>
 
-        {/* Real-time Sync Status */}
-        <div className={`p-4 rounded-lg border ${syncStatus.connected ? 'bg-green-500/10 border-green-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
+        {/* WebSocket Status */}
+        <div className={`p-4 rounded-lg border ${
+          isServer 
+            ? (dbStatus?.wsServerRunning ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20')
+            : (dbStatus?.wsClientConnected ? 'bg-green-500/10 border-green-500/20' : 'bg-orange-500/10 border-orange-500/20')
+        }`}>
           <div className="flex items-center gap-2 mb-3">
-            {syncStatus.connected ? <Wifi className="h-5 w-5 text-green-600" /> : <WifiOff className="h-5 w-5 text-orange-500" />}
+            {(isServer ? dbStatus?.wsServerRunning : dbStatus?.wsClientConnected) 
+              ? <Wifi className="h-5 w-5 text-green-600" /> 
+              : <WifiOff className="h-5 w-5 text-orange-500" />
+            }
             <span className="font-medium">Sincronização em Tempo Real</span>
-            {syncStatus.connected ? (
+            {(isServer ? dbStatus?.wsServerRunning : dbStatus?.wsClientConnected) ? (
               <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />
             ) : (
               <AlertTriangle className="h-5 w-5 text-orange-500 ml-auto" />
@@ -246,26 +217,36 @@ export function NetworkSettings() {
           </div>
           
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">WebSocket:</span>
-              <span className={syncStatus.connected ? 'text-green-600' : 'text-orange-500'}>
-                {syncStatus.connected ? 'Conectado' : 'Desconectado'}
-              </span>
-            </div>
-            {syncStatus.url && (
+            {isServer && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">WebSocket Server:</span>
+                  <span className={dbStatus?.wsServerRunning ? 'text-green-600' : 'text-red-500'}>
+                    {dbStatus?.wsServerRunning ? `Porta ${dbStatus?.wsPort || 4545}` : 'Inactivo'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Clientes conectados:</span>
+                  <span className="text-blue-600 font-medium">{dbStatus?.wsClients || 0}</span>
+                </div>
+              </>
+            )}
+            {isClient && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Servidor:</span>
-                <code className="font-mono text-xs">{syncStatus.url}</code>
+                <span className="text-muted-foreground">WebSocket:</span>
+                <span className={dbStatus?.wsClientConnected ? 'text-green-600' : 'text-orange-500'}>
+                  {dbStatus?.wsClientConnected ? 'Conectado' : 'Desconectado'}
+                </span>
               </div>
             )}
           </div>
           
-          {!syncStatus.connected && (
+          {isClient && !dbStatus?.wsClientConnected && (
             <div className="mt-3 p-2 bg-orange-500/10 rounded text-xs text-orange-600 dark:text-orange-400">
               <p className="font-medium mb-1">⚠️ Sincronização offline</p>
-              <p>Os dados serão atualizados manualmente. Verifique:</p>
+              <p>Verifique:</p>
               <ul className="list-disc list-inside mt-1 space-y-0.5">
-                <li>Firewall do Windows na porta <strong>9001</strong></li>
+                <li>Firewall do Windows na porta <strong>4545</strong></li>
                 <li>Ambos PCs na mesma rede</li>
                 <li>Servidor está a correr</li>
               </ul>
@@ -285,21 +266,8 @@ export function NetworkSettings() {
         </Button>
 
         {/* Mode explanation */}
-        <div className={`p-4 rounded-lg border ${isClient ? 'bg-blue-500/10 border-blue-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
-          {isClient ? (
-            <>
-              <div className="flex items-center gap-2 mb-2">
-                <Plug className="h-4 w-4 text-blue-600" />
-                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-                  Modo Cliente
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Conecta ao servidor <strong>{dbStatus?.serverName}</strong> via Named Pipe.
-                Usa a porta SMB existente (445), sem firewall adicional.
-              </p>
-            </>
-          ) : (
+        <div className={`p-4 rounded-lg border ${isServer ? 'bg-green-500/10 border-green-500/20' : isClient ? 'bg-blue-500/10 border-blue-500/20' : 'bg-muted/30 border-border'}`}>
+          {isServer ? (
             <>
               <div className="flex items-center gap-2 mb-2">
                 <Server className="h-4 w-4 text-green-600" />
@@ -308,8 +276,33 @@ export function NetworkSettings() {
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Base de dados local com serviço Named Pipe activo.
-                Os clientes conectam-se usando o nome do computador: <strong>{computerName}</strong>
+                Base de dados local com servidor WebSocket activo na porta 4545.
+                Os clientes conectam-se usando: <strong>{computerName}</strong> ou IPs: <strong>{localIPs.join(', ')}</strong>
+              </p>
+            </>
+          ) : isClient ? (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Plug className="h-4 w-4 text-blue-600" />
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                  Modo Cliente
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Conecta ao servidor <strong>{dbStatus?.serverAddress}</strong> via WebSocket.
+                Requer porta 4545 aberta no firewall do servidor.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  Não Configurado
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Configure o ficheiro IP em C:\PayrollAO\IP
               </p>
             </>
           )}
@@ -339,12 +332,6 @@ export function NetworkSettings() {
                 {localIPs.join(', ') || 'N/A'}
               </code>
             </div>
-            <div>
-              <span className="text-muted-foreground">Named Pipe:</span>
-              <code className="ml-2 bg-background px-1 rounded font-mono text-xs">
-                \\.\pipe\{dbStatus?.pipeName || 'PayrollAO-DB'}
-              </code>
-            </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
                 <strong>Formato do ficheiro IP:</strong>
@@ -358,8 +345,8 @@ export function NetworkSettings() {
             </div>
             <div className="pt-2 border-t border-border">
               <p className="text-muted-foreground">
-                <strong>Arquitectura:</strong> Named Pipes sobre SMB.
-                Usa a porta 445 (partilha de ficheiros Windows) - sem firewall adicional.
+                <strong>Arquitectura:</strong> WebSocket (porta 4545).
+                Requer regra de firewall no servidor.
               </p>
             </div>
           </div>
