@@ -50,6 +50,7 @@ let serverAddress = null;
 let wss = null;
 let wsClient = null;
 let wsReconnectTimer = null;
+let wsConnectingPromise = null;
 const WS_RECONNECT_DELAY = 3000;
 
 // ============= IP FILE PARSING =============
@@ -182,8 +183,8 @@ function broadcastUpdate(table, action, id) {
 
 // ============= WEBSOCKET CLIENT (CLIENT MODE) =============
 function connectToServer() {
-  if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-    console.log('[WS] Already connected to server');
+  if (wsClient && (wsClient.readyState === WebSocket.OPEN || wsClient.readyState === WebSocket.CONNECTING)) {
+    console.log('[WS] Already connected/connecting to server');
     return;
   }
 
@@ -204,7 +205,7 @@ function connectToServer() {
     wsClient.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
-        
+
         if (msg.type === 'db-updated') {
           console.log(`[WS] ← db-updated: ${msg.table} ${msg.action}`);
           mainWindow?.webContents.send('payroll:updated', msg);
@@ -231,8 +232,8 @@ function connectToServer() {
 
 function scheduleReconnect() {
   if (wsReconnectTimer) return;
-  
-  console.log(`[WS] Reconnecting in ${WS_RECONNECT_DELAY/1000}s...`);
+
+  console.log(`[WS] Reconnecting in ${WS_RECONNECT_DELAY / 1000}s...`);
   wsReconnectTimer = setTimeout(() => {
     wsReconnectTimer = null;
     if (!isServerMode && serverAddress) {
@@ -241,8 +242,84 @@ function scheduleReconnect() {
   }, WS_RECONNECT_DELAY);
 }
 
+function ensureClientConnected(timeoutMs = 10000) {
+  if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+    return Promise.resolve();
+  }
+
+  if (!serverAddress) {
+    return Promise.reject(new Error('Server address not configured'));
+  }
+
+  if (wsConnectingPromise) {
+    return wsConnectingPromise;
+  }
+
+  // If we already have a socket that is CONNECTING, wait for it; otherwise create a new one.
+  if (!wsClient || wsClient.readyState !== WebSocket.CONNECTING) {
+    connectToServer();
+  }
+
+  const socket = wsClient;
+
+  wsConnectingPromise = new Promise((resolve, reject) => {
+    if (!socket) {
+      wsConnectingPromise = null;
+      reject(new Error('WebSocket not initialized'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Connection timeout'));
+    }, timeoutMs);
+
+    const onOpen = () => {
+      console.log('[WS] ✅ ensureClientConnected: OPEN');
+      cleanup();
+      resolve();
+    };
+
+    const onClose = () => {
+      console.log('[WS] ❌ ensureClientConnected: CLOSED');
+      cleanup();
+      reject(new Error('Connection closed'));
+    };
+
+    const onError = (err) => {
+      console.log('[WS] ❌ ensureClientConnected: ERROR', err?.message);
+      cleanup();
+      reject(new Error(err?.message || 'Connection error'));
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      try {
+        socket.off('open', onOpen);
+        socket.off('close', onClose);
+        socket.off('error', onError);
+      } catch (e) {}
+      wsConnectingPromise = null;
+    };
+
+    if (socket.readyState === WebSocket.OPEN) {
+      cleanup();
+      resolve();
+      return;
+    }
+
+    socket.on('open', onOpen);
+    socket.on('close', onClose);
+    socket.on('error', onError);
+  });
+
+  return wsConnectingPromise;
+}
+
 // Send request to server and wait for response
-function sendToServer(request) {
+async function sendToServer(request) {
+  await ensureClientConnected();
+
   return new Promise((resolve, reject) => {
     if (!wsClient || wsClient.readyState !== WebSocket.OPEN) {
       reject(new Error('Not connected to server'));
