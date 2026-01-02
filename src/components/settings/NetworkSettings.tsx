@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Network, RefreshCw, Monitor, HardDrive, CheckCircle2, XCircle, Server, Plug } from "lucide-react";
+import { Network, RefreshCw, Monitor, HardDrive, CheckCircle2, XCircle, Server, Plug, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { getSyncStatus } from "@/lib/db-live";
 
 // Check if running in Electron
 const isElectron = () => {
@@ -19,11 +20,15 @@ interface DBStatus {
   connected: boolean;
   pipeServerRunning?: boolean;
   pipeName?: string;
+  wsServerRunning?: boolean;
+  wsPort?: number;
+  wsClients?: number;
   error?: string;
 }
 
 export function NetworkSettings() {
   const [dbStatus, setDbStatus] = useState<DBStatus | null>(null);
+  const [syncStatus, setSyncStatus] = useState({ connected: false, url: null as string | null, connectedOnce: false });
   const [localIPs, setLocalIPs] = useState<string[]>([]);
   const [computerName, setComputerName] = useState<string>('');
   const [ipFilePath, setIpFilePath] = useState<string>('');
@@ -51,10 +56,11 @@ export function NetworkSettings() {
         status = await api.db.getStatus();
       }
 
-      setDbStatus(status);
+        setDbStatus(status);
+        setSyncStatus(getSyncStatus());
 
-      const ipFile = await api.ipfile.read();
-      setIpFileContent(ipFile?.content || '');
+        const ipFile = await api.ipfile.read();
+        setIpFileContent(ipFile?.content || '');
 
       const ips = await api.network.getLocalIPs();
       setLocalIPs(ips);
@@ -206,10 +212,64 @@ export function NetworkSettings() {
                 <span className="text-green-600">Activo</span>
               </div>
             )}
+            {!isClient && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">WebSocket (Sync):</span>
+                <span className={dbStatus?.wsServerRunning ? 'text-green-600' : 'text-red-500'}>
+                  {dbStatus?.wsServerRunning ? `Porta ${dbStatus?.wsPort || 9001}` : 'Inactivo'}
+                </span>
+              </div>
+            )}
+            {!isClient && dbStatus?.wsServerRunning && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Clientes conectados:</span>
+                <span className="text-blue-600">{dbStatus?.wsClients || 0}</span>
+              </div>
+            )}
           </div>
 
           {dbStatus?.error && (
             <p className="text-xs text-red-500 mt-2">{dbStatus.error}</p>
+          )}
+        </div>
+
+        {/* Real-time Sync Status */}
+        <div className={`p-4 rounded-lg border ${syncStatus.connected ? 'bg-green-500/10 border-green-500/20' : 'bg-orange-500/10 border-orange-500/20'}`}>
+          <div className="flex items-center gap-2 mb-3">
+            {syncStatus.connected ? <Wifi className="h-5 w-5 text-green-600" /> : <WifiOff className="h-5 w-5 text-orange-500" />}
+            <span className="font-medium">Sincronização em Tempo Real</span>
+            {syncStatus.connected ? (
+              <CheckCircle2 className="h-5 w-5 text-green-500 ml-auto" />
+            ) : (
+              <AlertTriangle className="h-5 w-5 text-orange-500 ml-auto" />
+            )}
+          </div>
+          
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">WebSocket:</span>
+              <span className={syncStatus.connected ? 'text-green-600' : 'text-orange-500'}>
+                {syncStatus.connected ? 'Conectado' : 'Desconectado'}
+              </span>
+            </div>
+            {syncStatus.url && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Servidor:</span>
+                <code className="font-mono text-xs">{syncStatus.url}</code>
+              </div>
+            )}
+          </div>
+          
+          {!syncStatus.connected && (
+            <div className="mt-3 p-2 bg-orange-500/10 rounded text-xs text-orange-600 dark:text-orange-400">
+              <p className="font-medium mb-1">⚠️ Sincronização offline</p>
+              <p>Os dados serão atualizados manualmente. Verifique:</p>
+              <ul className="list-disc list-inside mt-1 space-y-0.5">
+                <li>Firewall do Windows na porta <strong>9001</strong></li>
+                <li>Ambos PCs na mesma rede</li>
+                <li>Servidor está a correr</li>
+              </ul>
+            </div>
           )}
         </div>
 
