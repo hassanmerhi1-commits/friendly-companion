@@ -150,18 +150,46 @@ const Payroll = () => {
         await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
       }
       
-      // Apply pending deductions
-      const pendingAmount = getTotalPendingByEmployee(entry.employeeId);
-      if (pendingAmount > 0) {
-        await updateEntry(entry.id, { 
-          otherDeductions: pendingAmount,
-          netSalary: entry.netSalary - pendingAmount,
-          totalDeductions: entry.totalDeductions + pendingAmount,
-        });
-        const deductions = getPendingDeductions(entry.employeeId);
-        for (const d of deductions) {
+      // Apply pending deductions with categorization
+      const pendingDeductions = getPendingDeductions(entry.employeeId);
+      if (pendingDeductions.length > 0) {
+        let loanTotal = 0;
+        let advanceTotal = 0;
+        let otherTotal = 0;
+        const deductionBreakdown: { type: string; description: string; amount: number }[] = [];
+        
+        for (const d of pendingDeductions) {
+          const amount = d.installments && d.installments > 1 
+            ? d.amount / d.installments 
+            : d.amount;
+          
+          if (d.type === 'loan') {
+            loanTotal += amount;
+          } else if (d.type === 'salary_advance') {
+            advanceTotal += amount;
+          } else {
+            otherTotal += amount;
+          }
+          
+          deductionBreakdown.push({
+            type: d.type,
+            description: d.description,
+            amount
+          });
+          
           await applyDeductionToPayroll(d.id, period.id);
         }
+        
+        const totalPending = loanTotal + advanceTotal + otherTotal;
+        
+        await updateEntry(entry.id, { 
+          loanDeduction: loanTotal,
+          advanceDeduction: advanceTotal,
+          otherDeductions: otherTotal,
+          deductionDetails: JSON.stringify(deductionBreakdown),
+          netSalary: entry.netSalary - totalPending,
+          totalDeductions: entry.totalDeductions + totalPending,
+        });
       }
     }
     

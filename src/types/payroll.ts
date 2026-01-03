@@ -50,7 +50,10 @@ export interface PayrollEntry {
   irt: number;
   inssEmployee: number;
   absenceDeduction: number; // Desconto por faltas - based on 22 working days
-  otherDeductions: number;
+  loanDeduction: number; // Empréstimos
+  advanceDeduction: number; // Adiantamentos
+  otherDeductions: number; // Other misc deductions
+  deductionDetails?: string; // JSON string with deduction breakdown
   totalDeductions: number;
   
   // Employer Costs
