@@ -1331,6 +1331,50 @@ ipcMain.handle('db:testConnection', async () => {
   return { success: db !== null };
 });
 
+// ============= PRINTING (ELECTRON) =============
+// Chromium print preview is often disabled in Electron; use webContents.print.
+ipcMain.handle('print:html', async (event, html, options = {}) => {
+  return await new Promise((resolve) => {
+    let printWin = null;
+
+    try {
+      printWin = new BrowserWindow({
+        show: false,
+        width: 1000,
+        height: 800,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+
+      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(String(html || ''));
+
+      printWin.webContents.once('did-finish-load', () => {
+        const printOptions = {
+          silent: !!options.silent,
+          printBackground: options.printBackground !== false,
+        };
+
+        printWin.webContents.print(printOptions, (success, failureReason) => {
+          try { printWin.close(); } catch (e) {}
+          resolve({ success: !!success, error: success ? null : (failureReason || 'Print failed') });
+        });
+      });
+
+      printWin.webContents.once('did-fail-load', (e, errorCode, errorDescription) => {
+        try { printWin.close(); } catch (err) {}
+        resolve({ success: false, error: `${errorCode}: ${errorDescription}` });
+      });
+
+      printWin.loadURL(dataUrl);
+    } catch (err) {
+      try { printWin?.close(); } catch (e) {}
+      resolve({ success: false, error: err.message || String(err) });
+    }
+  });
+});
+
 ipcMain.handle('network:getLocalIPs', () => getLocalIPAddresses());
 ipcMain.handle('network:getInstallPath', () => INSTALL_DIR);
 ipcMain.handle('network:getIPFilePath', () => IP_FILE_PATH);

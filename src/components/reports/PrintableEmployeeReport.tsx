@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
+import { printHtml } from '@/lib/print';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
@@ -76,18 +77,15 @@ export function PrintableEmployeeReport({
   const activeCount = employees.filter(e => e.status === 'active').length;
   const totalSalaries = employees.filter(e => e.status === 'active').reduce((sum, e) => sum + e.baseSalary, 0);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
-
-    const printWindow = window.open('', '', 'width=1200,height=800');
-    if (!printWindow) return;
 
     const clonedContent = content.cloneNode(true) as HTMLElement;
     const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
     if (logoImg && logoBase64) logoImg.src = logoBase64;
 
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -123,15 +121,11 @@ export function PrintableEmployeeReport({
         ${clonedContent.innerHTML}
       </body>
       </html>
-    `);
-    printWindow.document.close();
-    
-    // Wait for content to render before printing
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
+    `;
+
+    await printHtml(html, { width: 1200, height: 800 });
   };
+
 
   return (
     <div>

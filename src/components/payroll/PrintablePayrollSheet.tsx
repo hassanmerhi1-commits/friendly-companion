@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
+import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
@@ -99,12 +100,9 @@ export function PrintablePayrollSheet({
     inssEmployee: 0, otherDeductions: 0, totalDeductions: 0, netSalary: 0, inssEmployer: 0,
   });
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
-
-    const printWindow = window.open('', '', 'width=1200,height=800');
-    if (!printWindow) return;
 
     // Replace the logo src with base64 in the cloned content
     const clonedContent = content.cloneNode(true) as HTMLElement;
@@ -153,15 +151,9 @@ export function PrintablePayrollSheet({
       </html>
     `;
 
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-
-    // Wait for content to render before printing
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
+    await printHtml(htmlContent, { width: 1200, height: 800 });
   };
+
 
   return (
     <div>
