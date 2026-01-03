@@ -60,6 +60,9 @@ export function PrintablePayrollSheet({
     grossSalary: language === 'pt' ? 'Salário Bruto' : 'Gross Salary',
     irt: 'IRT',
     inssEmployee: language === 'pt' ? 'INSS Trab.' : 'INSS Emp.',
+    loanDeduction: language === 'pt' ? 'Empréstimos' : 'Loans',
+    advanceDeduction: language === 'pt' ? 'Adiantamentos' : 'Advances',
+    absenceDeduction: language === 'pt' ? 'Desc. Faltas' : 'Absence Ded.',
     otherDeductions: language === 'pt' ? 'Outros Desc.' : 'Other Ded.',
     totalDeductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
     netSalary: language === 'pt' ? 'Salário Líquido' : 'Net Salary',
@@ -77,6 +80,8 @@ export function PrintablePayrollSheet({
     preparedBy: language === 'pt' ? 'Elaborado por' : 'Prepared by',
     approvedBy: language === 'pt' ? 'Aprovado por' : 'Approved by',
     date: language === 'pt' ? 'Data' : 'Date',
+    overtime: language === 'pt' ? 'Horas Extra' : 'Overtime',
+    daysAbsent: language === 'pt' ? 'Dias Falta' : 'Days Absent',
   };
 
   // Calculate totals
@@ -87,17 +92,23 @@ export function PrintablePayrollSheet({
     familyAllowance: acc.familyAllowance + (e.familyAllowance || 0),
     holidaySubsidy: acc.holidaySubsidy + e.holidaySubsidy,
     thirteenthMonth: acc.thirteenthMonth + e.thirteenthMonth,
+    overtime: acc.overtime + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0),
     grossSalary: acc.grossSalary + e.grossSalary,
     irt: acc.irt + e.irt,
     inssEmployee: acc.inssEmployee + e.inssEmployee,
-    otherDeductions: acc.otherDeductions + e.otherDeductions,
+    loanDeduction: acc.loanDeduction + (e.loanDeduction || 0),
+    advanceDeduction: acc.advanceDeduction + (e.advanceDeduction || 0),
+    absenceDeduction: acc.absenceDeduction + (e.absenceDeduction || 0),
+    otherDeductions: acc.otherDeductions + (e.otherDeductions || 0),
     totalDeductions: acc.totalDeductions + e.totalDeductions,
     netSalary: acc.netSalary + e.netSalary,
     inssEmployer: acc.inssEmployer + e.inssEmployer,
+    daysAbsent: acc.daysAbsent + (e.daysAbsent || 0),
   }), {
     baseSalary: 0, mealAllowance: 0, transportAllowance: 0, familyAllowance: 0,
-    holidaySubsidy: 0, thirteenthMonth: 0, grossSalary: 0, irt: 0,
-    inssEmployee: 0, otherDeductions: 0, totalDeductions: 0, netSalary: 0, inssEmployer: 0,
+    holidaySubsidy: 0, thirteenthMonth: 0, overtime: 0, grossSalary: 0, irt: 0,
+    inssEmployee: 0, loanDeduction: 0, advanceDeduction: 0, absenceDeduction: 0,
+    otherDeductions: 0, totalDeductions: 0, netSalary: 0, inssEmployer: 0, daysAbsent: 0,
   });
 
   const handlePrint = async () => {
@@ -291,15 +302,19 @@ export function PrintablePayrollSheet({
           </table>
         </div>
 
-        {/* Net Salary and Other Deductions */}
+        {/* Net Salary and All Deductions Detailed */}
         <table style={{ marginTop: '15px' }}>
           <thead>
             <tr>
-              <th colSpan={6} style={{ background: '#2c3e50', color: 'white' }}>{language === 'pt' ? 'RESUMO / LÍQUIDO' : 'SUMMARY / NET'}</th>
+              <th colSpan={10} style={{ background: '#2c3e50', color: 'white' }}>{language === 'pt' ? 'DESCONTOS DETALHADOS / RESUMO' : 'DETAILED DEDUCTIONS / SUMMARY'}</th>
             </tr>
             <tr>
               <th style={{ width: '20px' }}>Nº</th>
               <th>{t.employee}</th>
+              <th>{t.daysAbsent}</th>
+              <th>{t.absenceDeduction}</th>
+              <th>{t.loanDeduction}</th>
+              <th>{t.advanceDeduction}</th>
               <th>{t.otherDeductions}</th>
               <th>{t.totalDeductions}</th>
               <th className="net-salary">{t.netSalary}</th>
@@ -311,14 +326,22 @@ export function PrintablePayrollSheet({
               <tr key={entry.id}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
                 <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                <td>{formatAOA(entry.otherDeductions)}</td>
-                <td>{formatAOA(entry.totalDeductions)}</td>
+                <td style={{ textAlign: 'center' }}>{entry.daysAbsent || 0}</td>
+                <td className={entry.absenceDeduction ? 'text-destructive' : ''}>{formatAOA(entry.absenceDeduction || 0)}</td>
+                <td className={entry.loanDeduction ? 'text-destructive' : ''}>{formatAOA(entry.loanDeduction || 0)}</td>
+                <td className={entry.advanceDeduction ? 'text-destructive' : ''}>{formatAOA(entry.advanceDeduction || 0)}</td>
+                <td>{formatAOA(entry.otherDeductions || 0)}</td>
+                <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.totalDeductions)}</td>
                 <td className="net-salary">{formatAOA(entry.netSalary)}</td>
                 <td style={{ width: '80px' }}></td>
               </tr>
             ))}
             <tr className="totals-row">
               <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
+              <td style={{ textAlign: 'center' }}>{totals.daysAbsent}</td>
+              <td>{formatAOA(totals.absenceDeduction)}</td>
+              <td>{formatAOA(totals.loanDeduction)}</td>
+              <td>{formatAOA(totals.advanceDeduction)}</td>
               <td>{formatAOA(totals.otherDeductions)}</td>
               <td>{formatAOA(totals.totalDeductions)}</td>
               <td className="net-salary">{formatAOA(totals.netSalary)}</td>
