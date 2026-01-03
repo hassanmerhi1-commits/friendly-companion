@@ -45,15 +45,18 @@ const Reports = () => {
     : employees.filter(e => e.branchId === selectedBranchId);
 
   // Always hide payroll entries for employees that no longer exist
+  // and attach employee data to each entry for printing
   const employeeIdSet = new Set(employees.map(e => e.id));
-  const entriesWithExistingEmployees = entries.filter(e => employeeIdSet.has(e.employeeId));
+  const entriesWithEmployeeData = entries
+    .filter(e => employeeIdSet.has(e.employeeId))
+    .map(e => ({
+      ...e,
+      employee: employees.find(emp => emp.id === e.employeeId)
+    }));
 
   const filteredEntries = selectedBranchId === 'all'
-    ? entriesWithExistingEmployees
-    : entriesWithExistingEmployees.filter(e => {
-        const emp = employees.find(emp => emp.id === e.employeeId);
-        return emp?.branchId === selectedBranchId;
-      });
+    ? entriesWithEmployeeData
+    : entriesWithEmployeeData.filter(e => e.employee?.branchId === selectedBranchId);
 
   const currentPeriod = periods.length > 0 ? periods[periods.length - 1] : null;
   const periodLabel = currentPeriod 
