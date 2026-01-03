@@ -200,7 +200,7 @@ export function PrintablePayrollSheet({
         <table>
           <thead>
             <tr>
-              <th colSpan={9} style={{ background: '#4a90d9', color: 'white' }}>{language === 'pt' ? 'ABONOS / RENDIMENTOS' : 'EARNINGS / INCOME'}</th>
+              <th colSpan={11} style={{ background: '#4a90d9', color: 'white' }}>{language === 'pt' ? 'ABONOS / RENDIMENTOS' : 'EARNINGS / INCOME'}</th>
             </tr>
             <tr>
               <th style={{ width: '20px' }}>Nº</th>
@@ -209,25 +209,30 @@ export function PrintablePayrollSheet({
               <th>{t.mealAllowance}</th>
               <th>{t.transportAllowance}</th>
               <th>{t.familyAllowance}</th>
+              <th>{t.overtime}</th>
               <th>{t.holidaySubsidy}</th>
               <th>{t.thirteenthMonth}</th>
               <th>{t.grossSalary}</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry, idx) => (
-              <tr key={entry.id}>
-                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                <td>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                <td>{formatAOA(entry.baseSalary)}</td>
-                <td>{formatAOA(entry.mealAllowance)}</td>
-                <td>{formatAOA(entry.transportAllowance)}</td>
-                <td>{formatAOA(entry.familyAllowance || 0)}</td>
-                <td>{formatAOA(entry.holidaySubsidy)}</td>
-                <td>{formatAOA(entry.thirteenthMonth)}</td>
-                <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.grossSalary)}</td>
-              </tr>
-            ))}
+            {entries.map((entry, idx) => {
+              const totalOvertime = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+              return (
+                <tr key={entry.id}>
+                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                  <td>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                  <td>{formatAOA(entry.baseSalary)}</td>
+                  <td>{formatAOA(entry.mealAllowance)}</td>
+                  <td>{formatAOA(entry.transportAllowance)}</td>
+                  <td>{formatAOA(entry.familyAllowance || 0)}</td>
+                  <td style={{ color: totalOvertime > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(totalOvertime)}</td>
+                  <td style={{ color: entry.holidaySubsidy > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(entry.holidaySubsidy)}</td>
+                  <td style={{ color: entry.thirteenthMonth > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(entry.thirteenthMonth)}</td>
+                  <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.grossSalary)}</td>
+                </tr>
+              );
+            })}
             {/* Totals Row */}
             <tr className="totals-row">
               <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
@@ -235,6 +240,7 @@ export function PrintablePayrollSheet({
               <td>{formatAOA(totals.mealAllowance)}</td>
               <td>{formatAOA(totals.transportAllowance)}</td>
               <td>{formatAOA(totals.familyAllowance)}</td>
+              <td>{formatAOA(totals.overtime)}</td>
               <td>{formatAOA(totals.holidaySubsidy)}</td>
               <td>{formatAOA(totals.thirteenthMonth)}</td>
               <td>{formatAOA(totals.grossSalary)}</td>
