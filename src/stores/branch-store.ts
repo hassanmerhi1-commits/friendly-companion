@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Branch, BranchFormData } from '@/types/branch';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
-import { liveGetAll, liveInsert, liveUpdate, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, onTableSync, onDataChange } from '@/lib/db-live';
 
 /**
  * Branch Store - Database-Centric Architecture
@@ -161,18 +161,31 @@ export const useBranchStore = create<BranchState>()((set, get) => ({
     get().branches.filter((branch) => branch.province === province && branch.isActive),
 }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initBranchStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('branches', (table, rows) => {
+    console.log('[Branches] ← PUSH received:', rows.length, 'branches');
+    const branches = rows.map(mapDbRowToBranch);
+    useBranchStore.setState({ branches, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'branches') {
-      console.log('[Branches] Data change detected, refreshing from database...');
+      console.log('[Branches] Legacy notification, refreshing...');
       useBranchStore.getState().loadBranches();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
 }
 
 export function cleanupBranchStoreSync() {

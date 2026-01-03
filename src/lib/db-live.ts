@@ -1,12 +1,10 @@
 /**
  * Database Live - Direct database access layer
  * 
- * This module provides LIVE database access via Electron IPC.
- * In server mode: Operations go directly to local SQLite
- * In client mode: Operations are transparently routed to server via WebSocket
- * 
- * Real-time sync: Server broadcasts changes to all clients via WebSocket.
- * Clients receive 'payroll:updated' events and refresh their stores.
+ * TRUE PUSH-BASED SYNC:
+ * - Server broadcasts FULL TABLE DATA after every write
+ * - Clients receive rows directly and update stores - NO refetch needed
+ * - Zero round-trips after initial connection
  */
 
 // Check if running in Electron
@@ -15,7 +13,38 @@ function isElectron(): boolean {
     (window as any).electronAPI?.isElectron === true;
 }
 
-// Event system for data change notifications
+// ============= PUSH-BASED SYNC SYSTEM =============
+// Stores subscribe to receive FULL TABLE DATA directly from server
+
+type SyncListener = (table: string, rows: any[]) => void;
+const syncListeners: Map<string, Set<SyncListener>> = new Map();
+
+// Subscribe to receive full table data when it changes
+export function onTableSync(table: string, listener: SyncListener): () => void {
+  if (!syncListeners.has(table)) {
+    syncListeners.set(table, new Set());
+  }
+  syncListeners.get(table)!.add(listener);
+  
+  return () => {
+    syncListeners.get(table)?.delete(listener);
+  };
+}
+
+function notifyTableSync(table: string, rows: any[]) {
+  const listeners = syncListeners.get(table);
+  if (listeners) {
+    listeners.forEach(listener => {
+      try {
+        listener(table, rows);
+      } catch (e) {
+        console.error(`[DB-Live] Error in sync listener for ${table}:`, e);
+      }
+    });
+  }
+}
+
+// Legacy: Event system for data change notifications (kept for compatibility)
 type DataChangeListener = (table: string, action: 'insert' | 'update' | 'delete', id?: string) => void;
 const dataChangeListeners: Set<DataChangeListener> = new Set();
 
@@ -34,9 +63,7 @@ function notifyDataChange(table: string, action: 'insert' | 'update' | 'delete',
   });
 }
 
-// ============= REAL-TIME SYNC SETUP =============
-// Listen for database updates from main process (server broadcasts to all clients)
-
+// ============= SYNC LISTENER INITIALIZATION =============
 let syncInitialized = false;
 
 export function initSyncListener() {
@@ -45,25 +72,27 @@ export function initSyncListener() {
   syncInitialized = true;
   
   const api = (window as any).electronAPI;
+  
+  // PRIMARY: Listen for full table data (TRUE PUSH)
+  if (api?.onDatabaseSync) {
+    api.onDatabaseSync((data: { table: string; rows: any[] }) => {
+      console.log(`[DB-Live] ← SYNC: ${data.table} (${data.rows?.length || 0} rows)`);
+      notifyTableSync(data.table, data.rows || []);
+    });
+    console.log('[DB-Live] Push sync listener initialized');
+  }
+  
+  // FALLBACK: Legacy notification listener (for old broadcasts)
   if (api?.onDatabaseUpdate) {
     api.onDatabaseUpdate((data: { table: string; action: string; id?: string }) => {
-      console.log('[DB-Live] ← Received update:', data.table, data.action, data.id || '');
+      console.log('[DB-Live] ← Legacy update:', data.table, data.action, data.id || '');
 
-      // Special event: refresh everything (e.g. when a client connects or after import)
+      // Handle 'all' table refresh (import/connect events)
       if (data.table === 'all') {
         const tables = [
-          'employees',
-          'branches',
-          'deductions',
-          'payroll_periods',
-          'payroll_entries',
-          'holidays',
-          'absences',
-          'users',
-          'settings',
-          'documents',
+          'employees', 'branches', 'deductions', 'payroll_periods',
+          'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents',
         ];
-
         for (const t of tables) {
           notifyDataChange(t, 'update', data.id);
         }
@@ -72,9 +101,8 @@ export function initSyncListener() {
 
       notifyDataChange(data.table, data.action as any, data.id);
     });
-    console.log('[DB-Live] Sync listener initialized');
+    console.log('[DB-Live] Legacy update listener initialized');
   }
-
 }
 
 // ============= LIVE READ OPERATIONS =============
@@ -123,6 +151,7 @@ export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]
 }
 
 // ============= LIVE WRITE OPERATIONS =============
+// Note: After write, server will broadcast full table data - no local notification needed
 
 export async function liveInsert(table: string, data: Record<string, any>): Promise<boolean> {
   if (!isElectron()) {
@@ -131,12 +160,8 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
   
   try {
     const result = await (window as any).electronAPI.db.insert(table, data);
-    if (result?.success === true) {
-      // Local notification for immediate UI update
-      notifyDataChange(table, 'insert', data.id);
-      return true;
-    }
-    return false;
+    // Server will broadcast full table data - no local action needed
+    return result?.success === true;
   } catch (error) {
     console.error(`[DB-Live] Error inserting into ${table}:`, error);
     return false;
@@ -150,11 +175,8 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
   
   try {
     const result = await (window as any).electronAPI.db.update(table, id, data);
-    if (result?.success === true) {
-      notifyDataChange(table, 'update', id);
-      return true;
-    }
-    return false;
+    // Server will broadcast full table data - no local action needed
+    return result?.success === true;
   } catch (error) {
     console.error(`[DB-Live] Error updating ${table}:`, error);
     return false;
@@ -168,11 +190,8 @@ export async function liveDelete(table: string, id: string): Promise<boolean> {
   
   try {
     const result = await (window as any).electronAPI.db.delete(table, id);
-    if (result?.success === true) {
-      notifyDataChange(table, 'delete', id);
-      return true;
-    }
-    return false;
+    // Server will broadcast full table data - no local action needed
+    return result?.success === true;
   } catch (error) {
     console.error(`[DB-Live] Error deleting from ${table}:`, error);
     return false;
@@ -228,26 +247,21 @@ export async function liveInit(): Promise<boolean> {
 }
 
 // ============= LEGACY EXPORTS (for compatibility) =============
-// These are no longer needed but kept for any code that might reference them
 
 export function connectToSyncServer(_serverAddress: string, _port: number = 4545) {
-  // No-op: Sync is now handled automatically via main process
   console.log('[DB-Live] connectToSyncServer is deprecated - sync is automatic');
   initSyncListener();
 }
 
 export function disconnectFromSyncServer() {
-  // No-op
   console.log('[DB-Live] disconnectFromSyncServer is deprecated');
 }
 
 export function isSyncConnected(): boolean {
-  // Always return true if in electron - sync is handled by main process
   return isElectron();
 }
 
 export function getSyncStatus(): { connected: boolean; url: string | null; connectedOnce: boolean } {
-  // Sync status is now determined by DB connection status
   return {
     connected: isElectron(),
     url: null,

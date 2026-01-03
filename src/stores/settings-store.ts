@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { liveGetAll, liveInsert, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, onTableSync, onDataChange } from '@/lib/db-live';
 
 export interface CompanySettings {
   companyName: string;
@@ -86,16 +86,55 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     },
   }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initSettingsStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('settings', (table, rows) => {
+    console.log('[Settings] ← PUSH received:', rows.length, 'settings');
+    // Settings uses key-value pairs, so we need to map them
+    if (rows.length === 0) return;
+    const settingsMap: Record<string, string> = {};
+    for (const row of rows) { settingsMap[row.key] = row.value; }
+    const loaded = {
+      companyName: settingsMap.companyName || 'DISTRI-GOOD, LDA',
+      nif: settingsMap.nif || '',
+      address: settingsMap.address || '',
+      city: settingsMap.city || '',
+      province: settingsMap.province || '',
+      municipality: settingsMap.municipality || '',
+      bank: settingsMap.bank || '',
+      iban: settingsMap.iban || '',
+      payday: parseInt(settingsMap.payday, 10) || 27,
+      currency: settingsMap.currency || 'AOA (Kwanza)',
+      emailPaymentProcessed: settingsMap.emailPaymentProcessed === 'true',
+      monthEndReminder: settingsMap.monthEndReminder === 'true',
+      holidayAlerts: settingsMap.holidayAlerts === 'true',
+      newEmployees: settingsMap.newEmployees === 'true',
+    };
+    useSettingsStore.setState({ settings: loaded, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'settings') {
-      console.log('[Settings] Data change detected, refreshing from database...');
+      console.log('[Settings] Legacy notification, refreshing...');
       useSettingsStore.getState().loadSettings();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
+}
+
+export function cleanupSettingsStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
 }

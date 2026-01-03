@@ -44,6 +44,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('payroll:updated', (_, data) => callback(data));
   },
   
+  // TRUE PUSH: Receive full table data from server (no refetch needed)
+  onDatabaseSync: (callback) => {
+    ipcRenderer.removeAllListeners('payroll:sync');
+    ipcRenderer.on('payroll:sync', (_, data) => callback(data));
+  },
+  
   // Network info
   network: {
     getLocalIPs: () => ipcRenderer.invoke('network:getLocalIPs'),

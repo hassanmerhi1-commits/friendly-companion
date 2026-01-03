@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { liveGetAll, liveInsert, liveUpdate, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, onTableSync, onDataChange } from '@/lib/db-live';
 
 export interface HolidayRecord {
   employeeId: string;
@@ -114,16 +114,36 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     },
   }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initHolidayStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('holidays', (table, rows) => {
+    console.log('[Holidays] ← PUSH received:', rows.length, 'holidays');
+    const records = rows.map(mapDbRowToHoliday);
+    useHolidayStore.setState({ records, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'holidays') {
-      console.log('[Holidays] Data change detected, refreshing from database...');
+      console.log('[Holidays] Legacy notification, refreshing...');
       useHolidayStore.getState().loadHolidays();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
+}
+
+export function cleanupHolidayStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
 }
