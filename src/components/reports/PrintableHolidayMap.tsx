@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Printer, Save } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
+import { printHtml } from '@/lib/print';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
@@ -194,18 +195,15 @@ export function PrintableHolidayMap({
     }
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
-
-    const printWindow = window.open('', '', 'width=1200,height=800');
-    if (!printWindow) return;
 
     const clonedContent = content.cloneNode(true) as HTMLElement;
     const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
     if (logoImg && logoBase64) logoImg.src = logoBase64;
 
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -245,14 +243,9 @@ export function PrintableHolidayMap({
         ${clonedContent.innerHTML}
       </body>
       </html>
-    `);
-    printWindow.document.close();
-    
-    // Wait for content to render before printing
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
+    `;
+
+    await printHtml(html, { width: 1200, height: 800 });
   };
 
   // Generate year options (current year and 5 years back)

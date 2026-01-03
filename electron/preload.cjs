@@ -58,6 +58,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getComputerName: () => ipcRenderer.invoke('network:getComputerName'),
   },
 
+  // Printing (Electron-only)
+  print: {
+    html: (html, options) => ipcRenderer.invoke('print:html', html, options),
+  },
+
   // App controls
   app: {
     relaunch: () => ipcRenderer.invoke('app:relaunch'),

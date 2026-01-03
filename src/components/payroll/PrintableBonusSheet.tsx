@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
+import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
@@ -68,18 +69,15 @@ export function PrintableBonusSheet({
   // Filter entries that have a bonus
   const bonusEntries = entries.filter(e => (e.monthlyBonus || 0) > 0);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
-
-    const printWindow = window.open('', '', 'width=1000,height=800');
-    if (!printWindow) return;
 
     const clonedContent = content.cloneNode(true) as HTMLElement;
     const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
     if (logoImg && logoBase64) logoImg.src = logoBase64;
 
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -115,15 +113,11 @@ export function PrintableBonusSheet({
         ${clonedContent.innerHTML}
       </body>
       </html>
-    `);
-    printWindow.document.close();
-    
-    // Wait for content to render before printing
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
+    `;
+
+    await printHtml(html, { width: 1000, height: 800 });
   };
+
 
   return (
     <div>
