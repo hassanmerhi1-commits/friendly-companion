@@ -125,7 +125,12 @@ export function PrintableEmployeeReport({
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
+    
+    // Wait for content to render before printing
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
   };
 
   return (

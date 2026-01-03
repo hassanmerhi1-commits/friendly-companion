@@ -247,7 +247,12 @@ export function PrintableHolidayMap({
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
+    
+    // Wait for content to render before printing
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
   };
 
   // Generate year options (current year and 5 years back)
