@@ -55,9 +55,17 @@ const Payroll = () => {
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
   // Derive current period and entries from subscribed state
+  // Attach employee data to each entry for display
   const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
   const employeeIdSet = new Set(employees.map(emp => emp.id));
-  const currentEntries = currentPeriod ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId)) : [];
+  const currentEntries = currentPeriod 
+    ? entries
+        .filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId))
+        .map(e => ({
+          ...e,
+          employee: employees.find(emp => emp.id === e.employeeId)
+        }))
+    : [];
   
   // Helper to get or create current period
   const getOrCreateCurrentPeriod = async () => {
