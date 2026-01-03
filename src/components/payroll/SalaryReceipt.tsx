@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
+import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
@@ -49,12 +50,9 @@ export function SalaryReceipt({
     img.src = companyLogo;
   }, []);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const printContent = printRef.current;
     if (!printContent) return;
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
     // Clone and replace logo with base64
     const clonedContent = printContent.cloneNode(true) as HTMLElement;
@@ -65,7 +63,7 @@ export function SalaryReceipt({
 
     const receiptHtml = clonedContent.innerHTML;
 
-    printWindow.document.write(`
+    const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -126,9 +124,9 @@ export function SalaryReceipt({
           </div>
         </body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    `;
+
+    await printHtml(htmlContent, { width: 1100, height: 800 });
   };
 
   const labels = {
