@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, initSyncListener } from '@/lib/db-live';
 
 export type Permission = 
   | 'employees.view'
@@ -164,11 +164,19 @@ function mapUserToDbRow(user: AppUser): Record<string, any> {
 }
 
 export const useAuthStore = create<AuthState>()((set, get) => {
-  // Subscribe to data changes for auto-refresh
-  onDataChange((table) => {
-    if (table === 'users') {
-      console.log('[Auth] Data changed, refreshing users...');
-      get().loadUsers();
+  // Initialize sync listener
+  initSyncListener();
+  
+  // Subscribe to PUSH-BASED sync for users table
+  // Server broadcasts full table data after every write - NO refetch needed
+  onTableSync('users', (table, rows) => {
+    console.log(`[Auth] ← SYNC: Received ${rows.length} users from server`);
+    if (rows.length > 0) {
+      const users = rows.map(mapDbRowToUser);
+      set({ users, isLoaded: true });
+    } else {
+      // If no users from server, keep default admin locally
+      set({ isLoaded: true });
     }
   });
 
@@ -188,9 +196,11 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         } else {
           // No users in database - create default admin
           const dbRow = mapUserToDbRow(defaultAdmin);
-          await liveInsert('users', dbRow);
+          const success = await liveInsert('users', dbRow);
+          if (success) {
+            console.log('[Auth] Created default admin user');
+          }
           set({ users: [defaultAdmin], isLoaded: true });
-          console.log('[Auth] Created default admin user');
         }
       } catch (error) {
         console.error('[Auth] Error loading users:', error);
