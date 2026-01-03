@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
+import { useBranchStore } from "@/stores/branch-store";
 import { useLanguage } from "@/lib/i18n";
 import { formatAOA } from "@/lib/angola-labor-law";
 
@@ -12,9 +13,16 @@ export function EmployeeTable() {
   const { language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
+  const { branches } = useBranchStore();
   
-  // Derive active employees from subscribed state - ensures re-render on changes
-  const activeEmployees = employees.filter(emp => emp.status === 'active');
+  // Get headquarters branch as default filter
+  const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
+  
+  // Derive active employees filtered by headquarters branch
+  const activeEmployees = employees.filter(emp => 
+    emp.status === 'active' && 
+    (!headquarters || emp.branchId === headquarters.id)
+  );
   // Derive current period and entries from subscribed state
   const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
   const currentEntries = currentPeriod ? entries.filter(e => e.payrollPeriodId === currentPeriod.id) : [];
