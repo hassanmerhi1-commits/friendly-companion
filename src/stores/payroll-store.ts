@@ -244,6 +244,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         });
       }
 
+      // Get existing entries directly from DB to avoid stale state issues
+      const existingDbEntries = await liveGetAll<any>('payroll_entries');
+      const entriesToDelete = existingDbEntries.filter((e: any) => e.period_id === periodId);
+      
+      console.log('[Payroll] Generating entries for period', periodId, 'employees:', employees.length, 'existing entries to delete:', entriesToDelete.length);
+
       const newEntries: PayrollEntry[] = employees
         .filter((emp) => emp.status === 'active')
         .map((emp) => {
@@ -289,15 +295,19 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           };
         });
 
-      // Remove old entries for this period and insert new ones
-      const existingEntries = get().entries.filter((e) => e.payrollPeriodId === periodId);
-      for (const e of existingEntries) {
+      console.log('[Payroll] New entries to create:', newEntries.length);
+
+      // Delete existing entries for this period using IDs from DB
+      for (const e of entriesToDelete) {
         await liveDelete('payroll_entries', e.id);
       }
+      
+      // Insert new entries
       for (const e of newEntries) {
         await liveInsert('payroll_entries', mapEntryToDbRow(e));
       }
 
+      // Reload data from DB to ensure fresh state
       await get().loadPayroll();
       await get().calculatePeriod(periodId);
     },
