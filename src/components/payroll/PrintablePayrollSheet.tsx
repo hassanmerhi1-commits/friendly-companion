@@ -156,30 +156,11 @@ export function PrintablePayrollSheet({
     printWindow.document.write(htmlContent);
     printWindow.document.close();
 
-    // Wait for images to load before printing
-    const images = printWindow.document.querySelectorAll('img');
-    if (images.length === 0) {
+    // Wait for content to render before printing
+    setTimeout(() => {
+      printWindow.focus();
       printWindow.print();
-    } else {
-      let loadedCount = 0;
-      const totalImages = images.length;
-      
-      const checkAllLoaded = () => {
-        loadedCount++;
-        if (loadedCount >= totalImages) {
-          printWindow.print();
-        }
-      };
-
-      images.forEach((img) => {
-        if (img.complete) {
-          checkAllLoaded();
-        } else {
-          img.onload = checkAllLoaded;
-          img.onerror = checkAllLoaded;
-        }
-      });
-    }
+    }, 300);
   };
 
   return (
