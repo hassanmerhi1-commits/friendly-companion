@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
-import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 
 /**
  * Employee Store - Database-Centric Architecture
@@ -297,18 +297,31 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   },
 }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initEmployeeStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('employees', (table, rows) => {
+    console.log('[Employees] ← PUSH received:', rows.length, 'employees');
+    const employees = rows.map(mapDbRowToEmployee);
+    useEmployeeStore.setState({ employees, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification (triggers refetch if push fails)
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'employees') {
-      console.log('[Employees] Data change detected, refreshing from database...');
+      console.log('[Employees] Legacy notification, refreshing...');
       useEmployeeStore.getState().loadEmployees();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
 }
 
 export function cleanupEmployeeStoreSync() {

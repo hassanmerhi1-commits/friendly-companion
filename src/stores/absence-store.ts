@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
-import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 
 function generateId(): string {
   return `abs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -224,16 +224,36 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
     },
   }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initAbsenceStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('absences', (table, rows) => {
+    console.log('[Absences] ← PUSH received:', rows.length, 'absences');
+    const absences = rows.map(mapDbRowToAbsence);
+    useAbsenceStore.setState({ absences, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'absences') {
-      console.log('[Absences] Data change detected, refreshing from database...');
+      console.log('[Absences] Legacy notification, refreshing...');
       useAbsenceStore.getState().loadAbsences();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
+}
+
+export function cleanupAbsenceStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
-import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 
 
 interface DeductionState {
@@ -123,18 +123,38 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
     },
   }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initDeductionStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubSync = onTableSync('deductions', (table, rows) => {
+    console.log('[Deductions] ← PUSH received:', rows.length, 'deductions');
+    const deductions = rows.map(mapDbRowToDeduction);
+    useDeductionStore.setState({ deductions, isLoaded: true });
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'deductions') {
-      console.log('[Deductions] Data change detected, refreshing from database...');
+      console.log('[Deductions] Legacy notification, refreshing...');
       useDeductionStore.getState().loadDeductions();
     }
   });
+  
+  unsubscribe = () => {
+    unsubSync();
+    unsubLegacy();
+  };
+}
+
+export function cleanupDeductionStoreSync() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
 }
 
 export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = 'pt'): string {

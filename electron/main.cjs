@@ -130,6 +130,18 @@ function startWebSocketServer() {
       const clientIP = req.socket.remoteAddress;
       console.log(`[WS] Client connected from ${clientIP}`);
 
+      // Send initial data to newly connected client (TRUE PUSH on connect)
+      const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents'];
+      for (const table of tables) {
+        try {
+          const rows = dbGetAll(table);
+          ws.send(JSON.stringify({ type: 'db-sync', table, rows }));
+          console.log(`[WS] → Sent initial ${table}: ${rows.length} rows to ${clientIP}`);
+        } catch (e) {
+          console.error(`[WS] Error sending initial ${table}:`, e);
+        }
+      }
+
       ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
@@ -164,21 +176,37 @@ function startWebSocketServer() {
   }
 }
 
-function broadcastUpdate(table, action, id) {
-  if (!wss) return;
+// Broadcast full table data to all clients (TRUE PUSH-BASED SYNC)
+function broadcastTableData(table) {
+  const rows = dbGetAll(table);
+  const message = JSON.stringify({ type: 'db-sync', table, rows });
   
-  const message = JSON.stringify({ type: 'db-updated', table, action, id });
+  console.log(`[WS] → Broadcasting ${table}: ${rows.length} rows to ${wss?.clients?.size || 0} clients + local`);
   
-  console.log(`[WS] → Broadcasting: ${table} ${action} ${id || ''} to ${wss.clients.size} clients`);
-  
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
+  // Send to all WebSocket clients
+  if (wss) {
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
 
-  // Also notify local renderer
-  mainWindow?.webContents.send('payroll:updated', { table, action, id });
+  // Also notify local renderer with full data
+  mainWindow?.webContents.send('payroll:sync', { table, rows });
+}
+
+// Legacy notification function (kept for 'all' table broadcast on import)
+function broadcastUpdate(table, action, id) {
+  if (table === 'all') {
+    // Full import - broadcast all tables
+    const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents'];
+    tables.forEach(t => broadcastTableData(t));
+    return;
+  }
+  
+  // Normal update - broadcast full table data
+  broadcastTableData(table);
 }
 
 // ============= WEBSOCKET CLIENT (CLIENT MODE) =============
@@ -213,8 +241,16 @@ function connectToServer() {
       try {
         const msg = JSON.parse(raw.toString());
 
+        // Handle full data sync from server (TRUE PUSH)
+        if (msg.type === 'db-sync') {
+          console.log(`[WS] ← db-sync: ${msg.table} (${msg.rows?.length || 0} rows)`);
+          mainWindow?.webContents.send('payroll:sync', { table: msg.table, rows: msg.rows });
+          return;
+        }
+
+        // Legacy: handle old notification format (for backwards compatibility)
         if (msg.type === 'db-updated') {
-          console.log(`[WS] ← db-updated: ${msg.table} ${msg.action}`);
+          console.log(`[WS] ← db-updated (legacy): ${msg.table} ${msg.action}`);
           mainWindow?.webContents.send('payroll:updated', msg);
         }
       } catch (err) {

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
-import { liveGetAll, liveInsert, liveUpdate, liveDelete, onDataChange } from '@/lib/db-live';
+import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 
 
 interface PayrollState {
@@ -509,18 +509,38 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     },
   }));
 
-// Subscribe to data changes for auto-refresh
+// Subscribe to PUSH data from server (TRUE SYNC - no refetch)
 let unsubscribe: (() => void) | null = null;
 
 export function initPayrollStoreSync() {
   if (unsubscribe) return;
   
-  unsubscribe = onDataChange((table) => {
+  // PRIMARY: Receive full table data directly from server
+  const unsubPeriods = onTableSync('payroll_periods', (table, rows) => {
+    console.log('[Payroll] ← PUSH periods:', rows.length);
+    const periods = rows.map(mapDbRowToPeriod);
+    usePayrollStore.setState((state) => ({ ...state, periods, isLoaded: true }));
+  });
+  
+  const unsubEntries = onTableSync('payroll_entries', (table, rows) => {
+    console.log('[Payroll] ← PUSH entries:', rows.length);
+    const entries = rows.map(mapDbRowToEntry);
+    usePayrollStore.setState((state) => ({ ...state, entries, isLoaded: true }));
+  });
+  
+  // FALLBACK: Legacy notification
+  const unsubLegacy = onDataChange((table) => {
     if (table === 'payroll_periods' || table === 'payroll_entries') {
-      console.log('[Payroll] Data change detected, refreshing from database...');
+      console.log('[Payroll] Legacy notification, refreshing...');
       usePayrollStore.getState().loadPayroll();
     }
   });
+  
+  unsubscribe = () => {
+    unsubPeriods();
+    unsubEntries();
+    unsubLegacy();
+  };
 }
 
 export function cleanupPayrollStoreSync() {
