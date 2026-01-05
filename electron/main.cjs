@@ -1043,22 +1043,47 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'employee_position', "ALTER TABLE payroll_entries ADD COLUMN employee_position TEXT");
     addColumnIfMissing('payroll_entries', 'employee_department', "ALTER TABLE payroll_entries ADD COLUMN employee_department TEXT");
     addColumnIfMissing('payroll_entries', 'branch_id', "ALTER TABLE payroll_entries ADD COLUMN branch_id TEXT");
+
     addColumnIfMissing('payroll_entries', 'base_salary', "ALTER TABLE payroll_entries ADD COLUMN base_salary REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'gross_salary', "ALTER TABLE payroll_entries ADD COLUMN gross_salary REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'net_salary', "ALTER TABLE payroll_entries ADD COLUMN net_salary REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'irt', "ALTER TABLE payroll_entries ADD COLUMN irt REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'inss_employee', "ALTER TABLE payroll_entries ADD COLUMN inss_employee REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'inss_employer', "ALTER TABLE payroll_entries ADD COLUMN inss_employer REAL DEFAULT 0");
+
     addColumnIfMissing('payroll_entries', 'total_deductions', "ALTER TABLE payroll_entries ADD COLUMN total_deductions REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'total_bonuses', "ALTER TABLE payroll_entries ADD COLUMN total_bonuses REAL DEFAULT 0");
+
     addColumnIfMissing('payroll_entries', 'subsidy_alimentacao', "ALTER TABLE payroll_entries ADD COLUMN subsidy_alimentacao REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_transporte', "ALTER TABLE payroll_entries ADD COLUMN subsidy_transporte REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_ferias', "ALTER TABLE payroll_entries ADD COLUMN subsidy_ferias REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_natal', "ALTER TABLE payroll_entries ADD COLUMN subsidy_natal REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'family_allowance', "ALTER TABLE payroll_entries ADD COLUMN family_allowance REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'monthly_bonus', "ALTER TABLE payroll_entries ADD COLUMN monthly_bonus REAL DEFAULT 0");
+
+    // Overtime (legacy totals + detailed breakdown used by the app)
     addColumnIfMissing('payroll_entries', 'overtime_hours', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'overtime_amount', "ALTER TABLE payroll_entries ADD COLUMN overtime_amount REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_hours_normal', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_normal REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_hours_night', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_night REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_hours_holiday', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_holiday REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_normal', "ALTER TABLE payroll_entries ADD COLUMN overtime_normal REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_night', "ALTER TABLE payroll_entries ADD COLUMN overtime_night REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'overtime_holiday', "ALTER TABLE payroll_entries ADD COLUMN overtime_holiday REAL DEFAULT 0");
+
     addColumnIfMissing('payroll_entries', 'absence_days', "ALTER TABLE payroll_entries ADD COLUMN absence_days INTEGER DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'absence_deduction', "ALTER TABLE payroll_entries ADD COLUMN absence_deduction REAL DEFAULT 0");
+
+    // Deductions breakdown used by the app
+    addColumnIfMissing('payroll_entries', 'loan_deduction', "ALTER TABLE payroll_entries ADD COLUMN loan_deduction REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'advance_deduction', "ALTER TABLE payroll_entries ADD COLUMN advance_deduction REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'other_deductions_amount', "ALTER TABLE payroll_entries ADD COLUMN other_deductions_amount REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'deduction_details', "ALTER TABLE payroll_entries ADD COLUMN deduction_details TEXT");
+
+    addColumnIfMissing('payroll_entries', 'total_employer_cost', "ALTER TABLE payroll_entries ADD COLUMN total_employer_cost REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'status', "ALTER TABLE payroll_entries ADD COLUMN status TEXT DEFAULT 'draft'");
+
+    // Legacy/free-form fields (kept for backwards compatibility)
     addColumnIfMissing('payroll_entries', 'other_deductions', "ALTER TABLE payroll_entries ADD COLUMN other_deductions TEXT");
     addColumnIfMissing('payroll_entries', 'other_bonuses', "ALTER TABLE payroll_entries ADD COLUMN other_bonuses TEXT");
     addColumnIfMissing('payroll_entries', 'notes', "ALTER TABLE payroll_entries ADD COLUMN notes TEXT");
