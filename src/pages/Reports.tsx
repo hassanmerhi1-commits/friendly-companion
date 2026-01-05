@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FileText, Calendar, TrendingUp, Users, DollarSign } from "lucide-react";
+import { FileText, Calendar, TrendingUp, Users, DollarSign, History } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -31,6 +31,7 @@ const Reports = () => {
   const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('latest');
 
   const handleSaveHolidayRecords = (records: typeof holidayRecords) => {
     saveRecords(records);
@@ -38,8 +39,24 @@ const Reports = () => {
   };
 
   const selectedBranch = selectedBranchId !== 'all' ? branches.find(b => b.id === selectedBranchId) : undefined;
+  
+  // Sort periods by date (newest first) for the dropdown
+  const sortedPeriods = useMemo(() => {
+    return [...periods].sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+  }, [periods]);
 
-  // Filter employees and entries by branch
+  // Get selected period - either specific or latest
+  const selectedPeriod = useMemo(() => {
+    if (selectedPeriodId === 'latest') {
+      return sortedPeriods[0] || null;
+    }
+    return periods.find(p => p.id === selectedPeriodId) || null;
+  }, [selectedPeriodId, sortedPeriods, periods]);
+
+  // Filter employees by branch
   const filteredEmployees = selectedBranchId === 'all'
     ? employees
     : employees.filter(e => e.branchId === selectedBranchId);
@@ -54,19 +71,31 @@ const Reports = () => {
       employee: employees.find(emp => emp.id === e.employeeId)
     }));
 
-  const filteredEntries = selectedBranchId === 'all'
-    ? entriesWithEmployeeData
-    : entriesWithEmployeeData.filter(e => e.employee?.branchId === selectedBranchId);
+  // Filter entries by BOTH period AND branch
+  const filteredEntries = useMemo(() => {
+    let result = entriesWithEmployeeData;
+    
+    // Filter by period
+    if (selectedPeriod) {
+      result = result.filter(e => e.payrollPeriodId === selectedPeriod.id);
+    }
+    
+    // Filter by branch
+    if (selectedBranchId !== 'all') {
+      result = result.filter(e => e.employee?.branchId === selectedBranchId);
+    }
+    
+    return result;
+  }, [entriesWithEmployeeData, selectedPeriod, selectedBranchId]);
 
-  const currentPeriod = periods.length > 0 ? periods[periods.length - 1] : null;
-  const periodLabel = currentPeriod 
-    ? getPayrollPeriodLabel(currentPeriod.year, currentPeriod.month)
+  const periodLabel = selectedPeriod 
+    ? getPayrollPeriodLabel(selectedPeriod.year, selectedPeriod.month)
     : new Date().toLocaleDateString('pt-AO', { month: 'long', year: 'numeric' });
 
   const handleOpenReport = (type: ReportType) => {
     if (type === 'salary' || type === 'cost') {
       if (filteredEntries.length === 0) {
-        toast.error(language === 'pt' ? 'Nenhum processamento salarial encontrado. Processe a folha primeiro.' : 'No payroll data found. Process payroll first.');
+        toast.error(language === 'pt' ? 'Nenhum processamento salarial encontrado para este período/filial.' : 'No payroll data found for this period/branch.');
         return;
       }
     }
@@ -134,9 +163,35 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Branch Selection */}
+      {/* Period and Branch Selection */}
       <div className="stat-card mb-6 animate-fade-in">
         <div className="flex flex-wrap gap-4 items-end">
+          {/* Period/Date Selection */}
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-sm font-medium mb-2 block flex items-center gap-2">
+              <History className="h-4 w-4" />
+              {language === 'pt' ? 'Período / Histórico' : 'Period / History'}
+            </Label>
+            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+              <SelectTrigger>
+                <SelectValue placeholder={language === 'pt' ? 'Seleccionar período' : 'Select period'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="latest">
+                  {language === 'pt' ? 'Período Mais Recente' : 'Latest Period'}
+                </SelectItem>
+                {sortedPeriods.map((period) => (
+                  <SelectItem key={period.id} value={period.id}>
+                    {getPayrollPeriodLabel(period.year, period.month)} 
+                    {period.status === 'approved' && ' ✓'}
+                    {period.status === 'paid' && ' 💰'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* Branch Selection */}
           <div className="flex-1 min-w-[200px]">
             <Label className="text-sm font-medium mb-2 block">
               {language === 'pt' ? 'Seleccionar Filial' : 'Select Branch'}
@@ -157,12 +212,19 @@ const Reports = () => {
               </SelectContent>
             </Select>
           </div>
-          {selectedBranch && (
-            <div className="text-sm text-muted-foreground">
-              <p><strong>{language === 'pt' ? 'Endereço' : 'Address'}:</strong> {selectedBranch.address}</p>
-              <p><strong>{language === 'pt' ? 'Cidade' : 'City'}:</strong> {selectedBranch.city}, {selectedBranch.province}</p>
-            </div>
-          )}
+          
+          {/* Info display */}
+          <div className="text-sm text-muted-foreground">
+            {selectedPeriod && (
+              <p><strong>{language === 'pt' ? 'Período' : 'Period'}:</strong> {periodLabel}</p>
+            )}
+            {selectedBranch && (
+              <p><strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {selectedBranch.name}, {selectedBranch.city}</p>
+            )}
+            <p className="text-xs mt-1">
+              {filteredEntries.length} {language === 'pt' ? 'registos encontrados' : 'records found'}
+            </p>
+          </div>
         </div>
       </div>
 

@@ -381,12 +381,24 @@ const Payroll = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <StatCard title={t.payroll.grossSalaries} value={formatAOA(totals.gross)} icon={DollarSign} variant="accent" delay={0} />
-        <StatCard title={t.payroll.totalDeductions} value={formatAOA(totals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={50} />
-        <StatCard title={t.payroll.netSalaries} value={formatAOA(totals.net)} icon={CheckCircle} delay={100} />
-        <StatCard title={t.employees.title} value={String(currentEntries.length)} icon={Clock} delay={150} />
-      </div>
+      {/* Stats based on filtered entries when branch is selected */}
+      {(() => {
+        const displayEntries = selectedBranchId ? payrollSheetEntries : currentEntries;
+        const displayTotals = displayEntries.reduce((acc, e) => ({
+          gross: acc.gross + e.grossSalary,
+          deductions: acc.deductions + e.totalDeductions,
+          net: acc.net + e.netSalary,
+        }), { gross: 0, deductions: 0, net: 0 });
+        
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
+            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={50} />
+            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={100} />
+            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={150} />
+          </div>
+        );
+      })()}
 
       {currentEntries.length > 0 && (
         <div className="stat-card p-0 overflow-hidden mb-6">
@@ -410,7 +422,8 @@ const Payroll = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {currentEntries.map(entry => {
+                {/* Show only entries for selected branch, or all if no branch selected */}
+                {(selectedBranchId ? payrollSheetEntries : currentEntries).map(entry => {
                   const totalOvertimeHours = (entry.overtimeHoursNormal || 0) + (entry.overtimeHoursNight || 0) + (entry.overtimeHoursHoliday || 0);
                   const totalOvertimeValue = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
                   return (
