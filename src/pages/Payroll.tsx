@@ -57,14 +57,19 @@ const Payroll = () => {
   // Derive current period and entries from subscribed state
   // Attach employee data to each entry for display
   const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
-  const employeeIdSet = new Set(employees.map(emp => emp.id));
+  
+  // Get all entries for the current period - don't filter by employee existence
+  // This ensures payroll data shows even if employee data sync is delayed
   const currentEntries = currentPeriod 
     ? entries
-        .filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId))
-        .map(e => ({
-          ...e,
-          employee: employees.find(emp => emp.id === e.employeeId)
-        }))
+        .filter(e => e.payrollPeriodId === currentPeriod.id)
+        .map(e => {
+          const employeeData = employees.find(emp => emp.id === e.employeeId);
+          return {
+            ...e,
+            employee: employeeData || e.employee // Use stored employee data as fallback
+          };
+        })
     : [];
   
   // Helper to get or create current period

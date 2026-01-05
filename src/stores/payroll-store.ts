@@ -87,13 +87,23 @@ function mapPeriodToDbRow(p: PayrollPeriod): Record<string, any> {
   };
 }
 
-// Map DB row -> PayrollEntry (minimal: we store summary; employee object not stored)
+// Map DB row -> PayrollEntry (includes minimal employee data from DB for filtering)
 function mapDbRowToEntry(row: any): PayrollEntry {
+  // Create a minimal employee object from stored data for filtering purposes
+  const storedEmployeeData = (row.employee_name || row.branch_id) ? {
+    id: row.employee_id,
+    firstName: row.employee_name?.split(' ')[0] || '',
+    lastName: row.employee_name?.split(' ').slice(1).join(' ') || '',
+    position: row.employee_position || '',
+    department: row.employee_department || '',
+    branchId: row.branch_id || '',
+  } as any : undefined;
+
   return {
     id: row.id,
     payrollPeriodId: row.period_id,
     employeeId: row.employee_id,
-    employee: undefined,
+    employee: storedEmployeeData,
     baseSalary: row.base_salary || 0,
     mealAllowance: row.subsidy_alimentacao || 0,
     transportAllowance: row.subsidy_transporte || 0,
