@@ -19,6 +19,7 @@ interface PayrollState {
 
   generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[]) => Promise<void>;
   toggle13thMonth: (entryId: string, monthsWorked: number) => Promise<void>;
+  toggleHolidaySubsidy: (entryId: string) => Promise<void>;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => Promise<void>;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
   recalculateEntry: (id: string) => Promise<void>;
@@ -363,6 +364,34 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const updated: PayrollEntry = {
         ...entry,
         thirteenthMonth: subsidyValue,
+        grossSalary: entry.grossSalary + difference,
+        netSalary: entry.netSalary + difference,
+        totalEmployerCost: entry.totalEmployerCost + difference,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const { id: _, ...data } = mapEntryToDbRow(updated);
+      await liveUpdate('payroll_entries', entryId, data);
+
+      if (entry.payrollPeriodId) {
+        await get().calculatePeriod(entry.payrollPeriodId);
+      }
+    },
+
+    toggleHolidaySubsidy: async (entryId) => {
+      const entry = get().entries.find((e) => e.id === entryId);
+      if (!entry) return;
+
+      const hasSubsidy = entry.holidaySubsidy > 0;
+      const baseSalary = entry.baseSalary;
+
+      // Holiday subsidy = 50% of base salary (like 13th month but simpler)
+      const subsidyValue = hasSubsidy ? 0 : baseSalary * 0.5;
+      const difference = hasSubsidy ? -entry.holidaySubsidy : subsidyValue;
+
+      const updated: PayrollEntry = {
+        ...entry,
+        holidaySubsidy: subsidyValue,
         grossSalary: entry.grossSalary + difference,
         netSalary: entry.netSalary + difference,
         totalEmployerCost: entry.totalEmployerCost + difference,
