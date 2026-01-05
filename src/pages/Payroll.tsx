@@ -144,10 +144,13 @@ const Payroll = () => {
     // (employees going on holiday NEXT month get their subsidy THIS month)
     await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
     
-    // Mark subsidy as paid for employees who received it
-    // Re-derive entries after generation to get fresh data
-    const updatedEntries = entries.filter(e => e.payrollPeriodId === period.id);
-    for (const entry of updatedEntries) {
+    // IMPORTANT: Get fresh entries from the store AFTER generation completes
+    // The store.entries is now updated via loadPayroll() inside generateEntriesForPeriod
+    const freshStore = usePayrollStore.getState();
+    const freshEntries = freshStore.entries.filter(e => e.payrollPeriodId === period.id);
+    
+    // Mark subsidy as paid and apply deductions
+    for (const entry of freshEntries) {
       // If holiday subsidy was added, mark it as paid
       if (entry.holidaySubsidy > 0) {
         const nextMonth = period.month === 12 ? 1 : period.month + 1;
@@ -199,7 +202,7 @@ const Payroll = () => {
     }
     
     // Show info about holiday subsidies
-    const subsidyCount = updatedEntries.filter(e => e.holidaySubsidy > 0).length;
+    const subsidyCount = freshEntries.filter(e => e.holidaySubsidy > 0).length;
     if (subsidyCount > 0) {
       toast.success(
         language === 'pt' 

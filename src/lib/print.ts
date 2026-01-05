@@ -41,9 +41,40 @@ export async function printHtml(html: string, options: PrintHtmlOptions = {}) {
     }
   }
 
-  // Web fallback
-  const printWindow = window.open('', '', `width=${width},height=${height}`);
-  if (!printWindow) return;
+  // Web fallback - open a new window for print preview
+  const printWindow = window.open('', '_blank', `width=${width},height=${height},menubar=yes,toolbar=yes,scrollbars=yes`);
+  if (!printWindow) {
+    // Popup might be blocked
+    console.warn('[print] Popup blocked - trying alternative method');
+    // Fallback: create an iframe for printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(html);
+      iframeDoc.close();
+      
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          // ignore
+        }
+        // Remove iframe after printing
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, delayMs);
+    }
+    return;
+  }
 
   printWindow.document.open();
   printWindow.document.write(html);
