@@ -1364,9 +1364,12 @@ ipcMain.handle('print:html', async (event, html, options = {}) => {
 
     try {
       printWin = new BrowserWindow({
-        show: false,
+        // If we're showing a system print dialog (silent=false), the window must be visible
+        // on some OS/drivers otherwise the dialog may not appear / list printers.
+        show: options?.silent ? false : true,
         width: 1000,
         height: 800,
+        parent: mainWindow || undefined,
         webPreferences: {
           contextIsolation: true,
           nodeIntegration: false,
@@ -1380,6 +1383,14 @@ ipcMain.handle('print:html', async (event, html, options = {}) => {
           silent: !!options.silent,
           printBackground: options.printBackground !== false,
         };
+
+        try {
+          if (!printOptions.silent) {
+            // Ensure print dialog appears on top
+            printWin.show();
+            printWin.focus();
+          }
+        } catch (e) {}
 
         printWin.webContents.print(printOptions, (success, failureReason) => {
           try { printWin.close(); } catch (e) {}
