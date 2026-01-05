@@ -256,9 +256,16 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
       // Get existing entries directly from DB to avoid stale state issues
       const existingDbEntries = await liveGetAll<any>('payroll_entries');
-      const entriesToDelete = existingDbEntries.filter((e: any) => e.period_id === periodId);
-      
-      console.log('[Payroll] Generating entries for period', periodId, 'employees:', employees.length, 'existing entries to delete:', entriesToDelete.length);
+      const existingForPeriod = existingDbEntries.filter((e: any) => e.period_id === periodId);
+
+      console.log(
+        '[Payroll] Generating entries for period',
+        periodId,
+        'employees:',
+        employees.length,
+        'existing entries for period:',
+        existingForPeriod.length
+      );
 
       const newEntries: PayrollEntry[] = employees
         .filter((emp) => emp.status === 'active')
@@ -307,19 +314,40 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
       console.log('[Payroll] New entries to create:', newEntries.length);
 
-      // Delete existing entries for this period using IDs from DB
-      for (const e of entriesToDelete) {
-        await liveDelete('payroll_entries', e.id);
-      }
-      
-      // Insert new entries
+      // SAFETY: Upsert first; only delete old entries if all writes succeed.
+      // This prevents data loss if the server DB schema is outdated.
+      const newIds = new Set(newEntries.map((e) => e.id));
+      let allWritesOk = true;
+
       for (const e of newEntries) {
-        await liveInsert('payroll_entries', mapEntryToDbRow(e));
+        const row = mapEntryToDbRow(e);
+
+        const inserted = await liveInsert('payroll_entries', row);
+        if (inserted) continue;
+
+        const { id: _id, ...updateRow } = row;
+        const updated = await liveUpdate('payroll_entries', e.id, updateRow);
+        if (!updated) {
+          allWritesOk = false;
+          console.error('[Payroll] Failed to save entry (insert/update):', e.id);
+        }
+      }
+
+      if (allWritesOk) {
+        for (const oldEntry of existingForPeriod) {
+          if (!newIds.has(oldEntry.id)) {
+            await liveDelete('payroll_entries', oldEntry.id);
+          }
+        }
+      } else {
+        console.error('[Payroll] Some entries failed to save; no deletions performed to avoid data loss.');
       }
 
       // Reload data from DB to ensure fresh state
       await get().loadPayroll();
-      await get().calculatePeriod(periodId);
+      if (allWritesOk) {
+        await get().calculatePeriod(periodId);
+      }
     },
 
     toggle13thMonth: async (entryId, monthsWorked) => {
