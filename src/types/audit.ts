@@ -14,6 +14,7 @@ export type AuditAction =
   | 'absence_recorded'
   | 'deduction_applied'
   | 'salary_changed'
+  | 'salary_adjusted'
   | 'employee_hired'
   | 'employee_terminated'
   | 'correction_applied';
