@@ -17,7 +17,7 @@ interface PayrollState {
   getCurrentPeriod: () => PayrollPeriod | undefined;
   updatePeriodStatus: (id: string, status: PayrollPeriod['status']) => Promise<void>;
 
-  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[]) => Promise<void>;
+  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[], absenceStore?: any, deductionStore?: any) => Promise<void>;
   toggle13thMonth: (entryId: string, monthsWorked: number) => Promise<void>;
   toggleHolidaySubsidy: (entryId: string) => Promise<void>;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => Promise<void>;
@@ -239,7 +239,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       await liveUpdate('payroll_periods', id, { status, updated_at: now });
     },
 
-    generateEntriesForPeriod: async (periodId, employees, holidayRecords) => {
+    generateEntriesForPeriod: async (periodId, employees, holidayRecords, absenceStore?, deductionStore?) => {
       const period = get().getPeriod(periodId);
       if (!period) return;
 
@@ -274,6 +274,45 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
 
+          // Calculate absence deduction if absence store is provided
+          let absenceDeduction = 0;
+          let absenceDays = 0;
+          if (absenceStore) {
+            // Month is 0-indexed for absence store
+            const absenceInfo = absenceStore.getAbsenceDaysForEmployee(emp.id, period.month - 1, period.year);
+            absenceDays = absenceInfo.unjustified;
+            absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
+          }
+
+          // Calculate pending deductions if deduction store is provided
+          let loanDeduction = 0;
+          let advanceDeduction = 0;
+          let otherDeductions = 0;
+          const deductionBreakdown: { type: string; description: string; amount: number }[] = [];
+          
+          if (deductionStore) {
+            const pendingDeductions = deductionStore.getPendingDeductions(emp.id);
+            for (const d of pendingDeductions) {
+              const amount = d.installments && d.installments > 1 
+                ? d.amount / d.installments 
+                : d.amount;
+              
+              if (d.type === 'loan') {
+                loanDeduction += amount;
+              } else if (d.type === 'salary_advance') {
+                advanceDeduction += amount;
+              } else {
+                otherDeductions += amount;
+              }
+              
+              deductionBreakdown.push({
+                type: d.type,
+                description: d.description,
+                amount
+              });
+            }
+          }
+
           const payrollResult = calculatePayroll({
             baseSalary: emp.baseSalary,
             mealAllowance: emp.mealAllowance,
@@ -285,6 +324,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             includeHolidaySubsidy: false,
           });
 
+          const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + absenceDeduction;
+
           const now = new Date().toISOString();
 
           return {
@@ -295,15 +336,16 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             ...payrollResult,
             holidaySubsidy: holidaySubsidyAmount,
             grossSalary: payrollResult.grossSalary + holidaySubsidyAmount,
-            netSalary: payrollResult.netSalary + holidaySubsidyAmount,
+            netSalary: payrollResult.netSalary + holidaySubsidyAmount - totalExtraDeductions,
+            totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
             totalEmployerCost: payrollResult.totalEmployerCost + holidaySubsidyAmount,
             monthlyBonus: emp.monthlyBonus || 0,
-            absenceDeduction: 0,
-            loanDeduction: 0,
-            advanceDeduction: 0,
-            daysAbsent: 0,
-            otherDeductions: 0,
-            deductionDetails: undefined,
+            absenceDeduction,
+            loanDeduction,
+            advanceDeduction,
+            daysAbsent: absenceDays,
+            otherDeductions,
+            deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
             overtimeHoursNormal: 0,
             overtimeHoursNight: 0,
             overtimeHoursHoliday: 0,

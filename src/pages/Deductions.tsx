@@ -13,15 +13,17 @@ import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-sto
 import { useEmployeeStore } from '@/stores/employee-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
-import type { DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle } from 'lucide-react';
+import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
-  const { deductions, addDeduction, deleteDeduction, getTotalPendingByEmployee } = useDeductionStore();
+  const { deductions, addDeduction, updateDeduction, deleteDeduction, getTotalPendingByEmployee } = useDeductionStore();
   const { employees } = useEmployeeStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
   const [formData, setFormData] = useState<Partial<DeductionFormData>>({
     employeeId: '',
@@ -39,13 +41,7 @@ export default function Deductions() {
   const pendingDeductions = deductions.filter(d => !d.isApplied);
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.amount, 0);
 
-  const handleAddDeduction = () => {
-    if (!formData.employeeId || !formData.amount || !formData.description) {
-      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
-      return;
-    }
-    addDeduction(formData as DeductionFormData);
-    setIsAddDialogOpen(false);
+  const resetForm = () => {
     setFormData({
       employeeId: '',
       type: 'salary_advance',
@@ -54,11 +50,66 @@ export default function Deductions() {
       date: new Date().toISOString().split('T')[0],
       installments: 1,
     });
+  };
+
+  const handleAddDeduction = () => {
+    if (!formData.employeeId || !formData.amount || !formData.description) {
+      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
+      return;
+    }
+    addDeduction(formData as DeductionFormData);
+    setIsAddDialogOpen(false);
+    resetForm();
     toast.success(language === 'pt' ? 'Desconto registado com sucesso!' : 'Deduction registered successfully!');
   };
 
-  const handleDelete = (id: string) => {
-    deleteDeduction(id);
+  const handleEditClick = (deduction: Deduction) => {
+    if (deduction.isApplied) {
+      toast.error(language === 'pt' 
+        ? 'Não é possível editar um desconto já aplicado à folha salarial' 
+        : 'Cannot edit a deduction already applied to payroll');
+      return;
+    }
+    setEditingDeduction(deduction);
+    setFormData({
+      employeeId: deduction.employeeId,
+      type: deduction.type,
+      description: deduction.description,
+      amount: deduction.amount,
+      date: deduction.date,
+      installments: deduction.installments || 1,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateDeduction = async () => {
+    if (!editingDeduction) return;
+    if (!formData.amount || !formData.description) {
+      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
+      return;
+    }
+    await updateDeduction(editingDeduction.id, {
+      employeeId: formData.employeeId,
+      type: formData.type as DeductionType,
+      description: formData.description,
+      amount: formData.amount,
+      date: formData.date,
+      installments: formData.installments,
+    });
+    setIsEditDialogOpen(false);
+    setEditingDeduction(null);
+    resetForm();
+    toast.success(language === 'pt' ? 'Desconto actualizado com sucesso!' : 'Deduction updated successfully!');
+  };
+
+  const handleDelete = (deduction: Deduction) => {
+    if (deduction.isApplied) {
+      toast.error(language === 'pt' 
+        ? 'Não é possível apagar um desconto já aplicado à folha salarial. Dados históricos devem ser mantidos.' 
+        : 'Cannot delete a deduction already applied to payroll. Historical data must be preserved.');
+      return;
+    }
+    deleteDeduction(deduction.id);
     toast.success(language === 'pt' ? 'Desconto removido' : 'Deduction removed');
   };
 
@@ -78,6 +129,84 @@ export default function Deductions() {
     { value: 'other', icon: Wallet },
   ];
 
+  const DeductionFormFields = () => (
+    <div className="grid gap-4 py-4">
+      <div className="space-y-2">
+        <Label>{language === 'pt' ? 'Funcionário *' : 'Employee *'}</Label>
+        <Select 
+          value={formData.employeeId} 
+          onValueChange={(v) => setFormData({ ...formData, employeeId: v })}
+          disabled={!!editingDeduction}
+        >
+          <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
+          <SelectContent>
+            {employees.filter(e => e.status === 'active').map((e) => (
+              <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
+        <Select 
+          value={formData.type} 
+          onValueChange={(v) => setFormData({ ...formData, type: v as DeductionType })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {deductionTypes.map(({ value }) => (
+              <SelectItem key={value} value={value}>
+                {getDeductionTypeLabel(value, language)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>{language === 'pt' ? 'Valor (AOA) *' : 'Amount (AOA) *'}</Label>
+          <Input
+            type="number"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{language === 'pt' ? 'Data' : 'Date'}</Label>
+          <Input
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+          />
+        </div>
+      </div>
+      {formData.type === 'salary_advance' && (
+        <div className="space-y-2">
+          <Label>{language === 'pt' ? 'Prestações' : 'Installments'}</Label>
+          <Select 
+            value={String(formData.installments || 1)} 
+            onValueChange={(v) => setFormData({ ...formData, installments: Number(v) })}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5, 6].map(n => (
+                <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="space-y-2">
+        <Label>{language === 'pt' ? 'Descrição *' : 'Description *'}</Label>
+        <Textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder={language === 'pt' ? 'Motivo do desconto...' : 'Reason for deduction...'}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -89,7 +218,7 @@ export default function Deductions() {
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={resetForm}>
                 <Plus className="h-4 w-4" />
                 {addDeductionLabel}
               </Button>
@@ -98,83 +227,10 @@ export default function Deductions() {
               <DialogHeader>
                 <DialogTitle>{addDeductionLabel}</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Funcionário *' : 'Employee *'}</Label>
-                  <Select 
-                    value={formData.employeeId} 
-                    onValueChange={(v) => setFormData({ ...formData, employeeId: v })}
-                  >
-                    <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
-                    <SelectContent>
-                      {employees.filter(e => e.status === 'active').map((e) => (
-                        <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
-                  <Select 
-                    value={formData.type} 
-                    onValueChange={(v) => setFormData({ ...formData, type: v as DeductionType })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {deductionTypes.map(({ value }) => (
-                        <SelectItem key={value} value={value}>
-                          {getDeductionTypeLabel(value, language)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Valor (AOA) *' : 'Amount (AOA) *'}</Label>
-                    <Input
-                      type="number"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Data' : 'Date'}</Label>
-                    <Input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    />
-                  </div>
-                </div>
-                {formData.type === 'salary_advance' && (
-                  <div className="space-y-2">
-                    <Label>{language === 'pt' ? 'Prestações' : 'Installments'}</Label>
-                    <Select 
-                      value={String(formData.installments || 1)} 
-                      onValueChange={(v) => setFormData({ ...formData, installments: Number(v) })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4, 5, 6].map(n => (
-                          <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Descrição *' : 'Description *'}</Label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder={language === 'pt' ? 'Motivo do desconto...' : 'Reason for deduction...'}
-                  />
-                </div>
-                <Button onClick={handleAddDeduction} className="w-full">
-                  {addDeductionLabel}
-                </Button>
-              </div>
+              <DeductionFormFields />
+              <Button onClick={handleAddDeduction} className="w-full">
+                {addDeductionLabel}
+              </Button>
             </DialogContent>
           </Dialog>
         </div>
@@ -254,6 +310,14 @@ export default function Deductions() {
             <Package className="h-4 w-4 mr-1" />
             {language === 'pt' ? 'Perdas Armazém' : 'Warehouse'}
           </Button>
+          <Button 
+            variant={filterType === 'loan' ? 'default' : 'outline'} 
+            size="sm"
+            onClick={() => setFilterType('loan')}
+          >
+            <Wallet className="h-4 w-4 mr-1" />
+            {language === 'pt' ? 'Empréstimos' : 'Loans'}
+          </Button>
         </div>
 
         {/* Table */}
@@ -310,14 +374,30 @@ export default function Deductions() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => handleDelete(deduction.id)}
-                          disabled={deduction.isApplied}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleEditClick(deduction)}
+                            disabled={deduction.isApplied}
+                            title={deduction.isApplied 
+                              ? (language === 'pt' ? 'Não é possível editar desconto aplicado' : 'Cannot edit applied deduction')
+                              : (language === 'pt' ? 'Editar' : 'Edit')}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleDelete(deduction)}
+                            disabled={deduction.isApplied}
+                            title={deduction.isApplied 
+                              ? (language === 'pt' ? 'Não é possível apagar desconto aplicado' : 'Cannot delete applied deduction')
+                              : (language === 'pt' ? 'Apagar' : 'Delete')}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -326,6 +406,25 @@ export default function Deductions() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingDeduction(null);
+            resetForm();
+          }
+        }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{language === 'pt' ? 'Editar Desconto' : 'Edit Deduction'}</DialogTitle>
+            </DialogHeader>
+            <DeductionFormFields />
+            <Button onClick={handleUpdateDeduction} className="w-full">
+              {language === 'pt' ? 'Guardar Alterações' : 'Save Changes'}
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
