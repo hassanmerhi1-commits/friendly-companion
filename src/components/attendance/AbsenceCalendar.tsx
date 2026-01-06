@@ -120,7 +120,7 @@ export function AbsenceCalendar() {
                 <SelectItem key={e.id} value={e.id}>
                   <div className="flex items-center gap-2">
                     <User className="h-3 w-3" />
-                    {e.name}
+                    {e.firstName} {e.lastName}
                   </div>
                 </SelectItem>
               ))}

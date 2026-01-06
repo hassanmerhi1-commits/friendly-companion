@@ -21,6 +21,8 @@ import { initDeductionStoreSync } from "@/stores/deduction-store";
 import { initAbsenceStoreSync } from "@/stores/absence-store";
 import { initHolidayStoreSync } from "@/stores/holiday-store";
 import { initSettingsStoreSync } from "@/stores/settings-store";
+import { initAttendanceStoreSync } from "@/stores/attendance-store";
+import { useAttendanceStore } from "@/stores/attendance-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -40,6 +42,7 @@ import LaborLaw from "./pages/LaborLaw";
 import Documents from "./pages/Documents";
 import EmployeeCards from "./pages/EmployeeCards";
 import HRDashboard from "./pages/HRDashboard";
+import Attendance from "./pages/Attendance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -92,6 +95,7 @@ const AppRoutes = () => {
       <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
       <Route path="/employee-cards" element={<ProtectedRoute><EmployeeCards /></ProtectedRoute>} />
       <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
+      <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -166,6 +170,7 @@ function AppContent() {
             initAbsenceStoreSync();
             initHolidayStoreSync();
             initSettingsStoreSync();
+            initAttendanceStoreSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
@@ -186,6 +191,7 @@ function AppContent() {
             const { loadAbsences } = useAbsenceStore.getState();
             const { loadHolidays } = useHolidayStore.getState();
             const { loadSettings } = useSettingsStore.getState();
+            const { loadAttendance } = useAttendanceStore.getState();
 
             await Promise.all([
               loadUsers(),
@@ -196,6 +202,7 @@ function AppContent() {
               loadAbsences(),
               loadHolidays(),
               loadSettings(),
+              loadAttendance(),
             ]);
 
             console.log('[App] All stores loaded from database');
