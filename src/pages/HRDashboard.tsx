@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,11 +11,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useBranchStore } from "@/stores/branch-store";
+import { useHRStore } from "@/stores/hr-store";
 import { useLanguage } from "@/lib/i18n";
-import { formatAOA, calculateSeverance, calculateNoticePeriod, calculateAnnualLeaveDays } from "@/lib/angola-labor-law";
+import { formatAOA } from "@/lib/angola-labor-law";
 import { buildEmployeeSalaryHistory, buildSalaryComparison, calculateTerminationPackage } from "@/lib/salary-history";
 import { EmployeeSalaryHistoryReport } from "@/components/reports/EmployeeSalaryHistoryReport";
 import { SalaryComparisonReport } from "@/components/reports/SalaryComparisonReport";
+import { TerminationDialog } from "@/components/hr/TerminationDialog";
+import { SalaryAdjustmentsList } from "@/components/hr/SalaryAdjustmentsList";
 import { 
   Calculator, 
   TrendingUp, 
@@ -28,7 +31,8 @@ import {
   Printer,
   BarChart3,
   UserX,
-  Briefcase
+  CheckCircle,
+  ArrowRight
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 
@@ -37,14 +41,21 @@ export default function HRDashboard() {
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
+  const { loadHRData, salaryAdjustments } = useHRStore();
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [terminationDate, setTerminationDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [terminationReason, setTerminationReason] = useState<'voluntary' | 'dismissal' | 'contract_end' | 'retirement'>('voluntary');
   const [unusedLeaveDays, setUnusedLeaveDays] = useState<number>(0);
+  const [showTerminationDialog, setShowTerminationDialog] = useState(false);
   
   const historyReportRef = useRef<HTMLDivElement>(null);
   const comparisonReportRef = useRef<HTMLDivElement>(null);
+
+  // Load HR data on mount
+  useEffect(() => {
+    loadHRData();
+  }, [loadHRData]);
 
   const handlePrintHistory = useReactToPrint({
     contentRef: historyReportRef,
@@ -99,13 +110,21 @@ export default function HRDashboard() {
       const daysUntilEnd = (endDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
       return daysUntilEnd > 0 && daysUntilEnd <= 90;
     });
+    
+    const pendingAdjustments = salaryAdjustments.filter(a => a.status === 'pending').length;
 
-    return { totalEmployees, avgTenure, avgSalary, contractsEndingSoon };
-  }, [activeEmployees]);
+    return { totalEmployees, avgTenure, avgSalary, contractsEndingSoon, pendingAdjustments };
+  }, [activeEmployees, salaryAdjustments]);
 
   const getBranchName = (branchId: string) => {
     const branch = branches.find(b => b.id === branchId);
     return branch?.name || '-';
+  };
+
+  const handleTerminationSuccess = () => {
+    // Reset form after successful termination
+    setSelectedEmployeeId("");
+    setUnusedLeaveDays(0);
   };
 
   return (
@@ -126,7 +145,7 @@ export default function HRDashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
@@ -190,6 +209,22 @@ export default function HRDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-500/10 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    {language === 'pt' ? 'Ajustes Pendentes' : 'Pending Adjustments'}
+                  </p>
+                  <p className="text-2xl font-bold">{stats.pendingAdjustments}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Contracts Expiring Soon Alert */}
@@ -219,7 +254,7 @@ export default function HRDashboard() {
                       <TableRow key={emp.id}>
                         <TableCell className="font-medium">{emp.firstName} {emp.lastName}</TableCell>
                         <TableCell>{emp.position}</TableCell>
-                        <TableCell>{getBranchName(emp.branchId)}</TableCell>
+                        <TableCell>{getBranchName(emp.branchId || '')}</TableCell>
                         <TableCell>{new Date(emp.contractEndDate!).toLocaleDateString()}</TableCell>
                         <TableCell>
                           <Badge variant={daysLeft <= 30 ? "destructive" : "secondary"}>
@@ -237,18 +272,27 @@ export default function HRDashboard() {
 
         {/* Main Tabs */}
         <Tabs defaultValue="termination" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="termination" className="flex items-center gap-2">
               <UserX className="h-4 w-4" />
-              {language === 'pt' ? 'Calculadora de Rescisão' : 'Termination Calculator'}
+              {language === 'pt' ? 'Rescisão' : 'Termination'}
+            </TabsTrigger>
+            <TabsTrigger value="adjustments" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              {language === 'pt' ? 'Ajustes Salariais' : 'Salary Adjustments'}
+              {stats.pendingAdjustments > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                  {stats.pendingAdjustments}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              {language === 'pt' ? 'Histórico Salarial' : 'Salary History'}
+              {language === 'pt' ? 'Histórico' : 'History'}
             </TabsTrigger>
             <TabsTrigger value="comparison" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              {language === 'pt' ? 'Comparação Anual' : 'Annual Comparison'}
+              {language === 'pt' ? 'Comparação' : 'Comparison'}
             </TabsTrigger>
           </TabsList>
 
@@ -412,7 +456,18 @@ export default function HRDashboard() {
                         </div>
                       </div>
 
-                      <div className="text-xs text-muted-foreground">
+                      {/* Process Termination Button */}
+                      <Button 
+                        className="w-full" 
+                        size="lg"
+                        onClick={() => setShowTerminationDialog(true)}
+                      >
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        {language === 'pt' ? 'Processar Rescisão' : 'Process Termination'}
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </Button>
+
+                      <div className="text-xs text-muted-foreground text-center">
                         {language === 'pt' 
                           ? '* Valores calculados com base na Lei Geral do Trabalho de Angola' 
                           : '* Values calculated based on Angola General Labor Law'}
@@ -427,6 +482,11 @@ export default function HRDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Salary Adjustments Tab */}
+          <TabsContent value="adjustments" className="space-y-4">
+            <SalaryAdjustmentsList />
           </TabsContent>
 
           {/* Salary History Tab */}
@@ -526,6 +586,20 @@ export default function HRDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Termination Dialog */}
+      {selectedEmployee && terminationPackage && (
+        <TerminationDialog
+          open={showTerminationDialog}
+          onOpenChange={setShowTerminationDialog}
+          employee={selectedEmployee}
+          terminationDate={terminationDate}
+          terminationReason={terminationReason}
+          unusedLeaveDays={unusedLeaveDays}
+          terminationPackage={terminationPackage}
+          onSuccess={handleTerminationSuccess}
+        />
+      )}
     </MainLayout>
   );
 }
