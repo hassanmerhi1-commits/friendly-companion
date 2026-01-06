@@ -15,6 +15,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
+import { printHtml } from "@/lib/print";
 import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 type DocumentType = 'advertencia' | 'ferias' | 'disciplinar' | 'suspensao' | 'contrato';
@@ -178,29 +179,37 @@ const Documents = () => {
   ];
 
   const selectedEmployee = employees.find(e => e.id === documentData.employeeId);
-  const companyBranch = branches.find(b => b.isHeadquarters) || branches[0];
-  
-  // Full headquarters address from settings
-  const headquartersAddress = `${settings.address}, ${settings.municipality}, ${settings.city}, ${settings.province}`;
 
-  const handlePrint = () => {
+  const headquartersBranch = branches.find(b => b.isHeadquarters) || branches[0];
+  const employeeBranch = selectedEmployee?.branchId ? branches.find(b => b.id === selectedEmployee.branchId) : undefined;
+  const documentBranch = employeeBranch || headquartersBranch;
+
+  // Branch address shown on documents (defaults to HQ/settings)
+  const documentAddress = documentBranch
+    ? `${documentBranch.address}, ${documentBranch.city}, ${documentBranch.province}`
+    : `${settings.address}, ${settings.municipality}, ${settings.city}, ${settings.province}`;
+
+  const documentLocation = documentBranch?.city || settings.city || settings.province || 'Luanda';
+
+  const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
-    
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (!printWindow) return;
 
-    // Clone and replace logo with base64
-    const clonedContent = content.cloneNode(true) as HTMLElement;
-    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
-    if (logoImg && logoBase64) {
-      logoImg.src = logoBase64;
+    if (!logoBase64) {
+      toast.error(language === 'pt' ? 'A carregar o logotipo, tente novamente...' : 'Logo is loading, try again...');
+      return;
     }
-    
-    printWindow.document.write(`
+
+    // Clone and replace logo with base64 (ensures it appears in print)
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement | null;
+    if (logoImg) logoImg.src = logoBase64;
+
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="utf-8" />
         <title>${t[selectedType]}</title>
         <style>
           body { font-family: 'Times New Roman', serif; margin: 40px; line-height: 1.6; }
@@ -220,30 +229,31 @@ const Documents = () => {
       </head>
       <body>${clonedContent.innerHTML}</body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    `;
+
+    await printHtml(html, { delayMs: 700 });
   };
 
-  const handlePrintContract = () => {
+  const handlePrintContract = async () => {
     const content = contractPrintRef.current;
     if (!content) return;
-    
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (!printWindow) return;
+
+    if (!logoBase64) {
+      toast.error(language === 'pt' ? 'A carregar o logotipo, tente novamente...' : 'Logo is loading, try again...');
+      return;
+    }
 
     // Clone and replace logo with base64
     const clonedContent = content.cloneNode(true) as HTMLElement;
-    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement;
-    if (logoImg && logoBase64) {
-      logoImg.src = logoBase64;
-    }
-    
+    const logoImg = clonedContent.querySelector('img.logo') as HTMLImageElement | null;
+    if (logoImg) logoImg.src = logoBase64;
+
     // Print two copies - one for company, one for worker
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="utf-8" />
         <title>Contrato de Trabalho</title>
         <style>
           body { font-family: 'Times New Roman', serif; margin: 30px; line-height: 1.5; font-size: 11px; }
@@ -259,10 +269,7 @@ const Documents = () => {
           .signature-section { margin-top: 40px; display: flex; justify-content: space-between; }
           .signature-box { width: 200px; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
           .copy-label { text-align: right; font-size: 10px; font-style: italic; margin-bottom: 10px; }
-          @media print { 
-            body { margin: 15px; }
-            .contract-copy { page-break-after: always; }
-          }
+          @media print { body { margin: 15px; } .contract-copy { page-break-after: always; } }
         </style>
       </head>
       <body>
@@ -276,9 +283,9 @@ const Documents = () => {
         </div>
       </body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    `;
+
+    await printHtml(html, { delayMs: 900 });
   };
 
   const renderContractContent = () => {
@@ -293,7 +300,7 @@ const Documents = () => {
           <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
             <div className="company-name">{settings.companyName}</div>
             <div>NIF: {settings.nif}</div>
-            <div>{headquartersAddress}</div>
+            <div>{documentAddress}</div>
           </div>
         </div>
         
@@ -302,7 +309,7 @@ const Documents = () => {
         <div className="content">
           <div className="clause">
             <p><span className="clause-title">CLÁUSULA 1ª - DAS PARTES CONTRATANTES:</span></p>
-            <p><strong>PRIMEIRA CONTRATANTE (EMPREGADORA):</strong> {settings.companyName}, sociedade comercial por quotas de direito angolano, com sede em {headquartersAddress}, contribuinte fiscal nº {settings.nif}.</p>
+            <p><strong>PRIMEIRA CONTRATANTE (EMPREGADORA):</strong> {settings.companyName}, sociedade comercial por quotas de direito angolano, com sede em {documentAddress}, contribuinte fiscal nº {settings.nif}.</p>
             <p><strong>SEGUNDA CONTRATANTE (TRABALHADOR/A):</strong> {contractData.workerName || '______________________________'}, de nacionalidade {contractData.workerNationality}, portador(a) do Bilhete de Identidade nº {contractData.workerIdNumber || '_______________'}, válido até {contractData.workerIdExpiry ? new Date(contractData.workerIdExpiry).toLocaleDateString('pt-AO') : '___/___/______'}, passado pelo {contractData.workerIdIssuer || '_______________'}, residente em {contractData.workerAddress || '______________________________'}, Município de {contractData.workerMunicipality || '_______________'}, Província de {contractData.workerProvince}.</p>
           </div>
 
@@ -313,7 +320,7 @@ const Documents = () => {
 
           <div className="clause">
             <p><span className="clause-title">CLÁUSULA 3ª - DO LOCAL DE TRABALHO:</span></p>
-            <p>O local de trabalho será em {contractData.workLocation || companyBranch?.address || 'Luanda'}.</p>
+            <p>O local de trabalho será em {contractData.workLocation || documentBranch?.address || documentAddress}.</p>
           </div>
 
           <div className="clause">
@@ -364,7 +371,7 @@ const Documents = () => {
           </div>
 
           <div style={{ marginTop: '20px', textAlign: 'center' }}>
-            <p>Luanda, aos {new Date().toLocaleDateString('pt-AO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p>{documentLocation}, aos {new Date().toLocaleDateString('pt-AO', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
 
           <div className="signature-section">
@@ -404,14 +411,17 @@ const Documents = () => {
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
                 <div className="company-name">{settings.companyName}</div>
                 <div>NIF: {settings.nif}</div>
-                <div>{headquartersAddress}</div>
+                <div>{documentAddress}</div>
+                <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                  <strong>{language === 'pt' ? 'Filial:' : 'Branch:'}</strong> {documentBranch?.name || '-'}
+                </div>
               </div>
             </div>
             <div className="document-title">ADVERTÊNCIA DISCIPLINAR</div>
             <div className="content">
-              <div className="section">
-                <p>Luanda, {today}</p>
-              </div>
+               <div className="section">
+                 <p>{documentLocation}, {today}</p>
+               </div>
               <div className="section">
                 <p><strong>A:</strong> {selectedEmployee.firstName} {selectedEmployee.lastName}</p>
                 <p><strong>Função:</strong> {selectedEmployee.position}</p>
@@ -447,14 +457,17 @@ const Documents = () => {
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
                 <div className="company-name">{settings.companyName}</div>
                 <div>NIF: {settings.nif}</div>
-                <div>{headquartersAddress}</div>
+                 <div>{documentAddress}</div>
+                 <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                   <strong>{language === 'pt' ? 'Filial:' : 'Branch:'}</strong> {documentBranch?.name || '-'}
+                 </div>
               </div>
             </div>
             <div className="document-title">GUIA DE FÉRIAS</div>
             <div className="content">
-              <div className="section">
-                <p>Luanda, {today}</p>
-              </div>
+               <div className="section">
+                 <p>{documentLocation}, {today}</p>
+               </div>
               <div className="section">
                 <p><strong>Funcionário:</strong> {selectedEmployee.firstName} {selectedEmployee.lastName}</p>
                 <p><strong>Função:</strong> {selectedEmployee.position}</p>
@@ -494,7 +507,10 @@ const Documents = () => {
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
                 <div className="company-name">{settings.companyName}</div>
                 <div>NIF: {settings.nif}</div>
-                <div>{headquartersAddress}</div>
+                 <div>{documentAddress}</div>
+                 <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                   <strong>{language === 'pt' ? 'Filial:' : 'Branch:'}</strong> {documentBranch?.name || '-'}
+                 </div>
               </div>
             </div>
             <div className="document-title">PROCESSO DISCIPLINAR</div>
@@ -544,14 +560,17 @@ const Documents = () => {
               <div className="header-info" style={{ flex: 1, textAlign: 'center' }}>
                 <div className="company-name">{settings.companyName}</div>
                 <div>NIF: {settings.nif}</div>
-                <div>{headquartersAddress}</div>
+                 <div>{documentAddress}</div>
+                 <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                   <strong>{language === 'pt' ? 'Filial:' : 'Branch:'}</strong> {documentBranch?.name || '-'}
+                 </div>
               </div>
             </div>
             <div className="document-title">CARTA DE SUSPENSÃO</div>
             <div className="content">
-              <div className="section">
-                <p>Luanda, {today}</p>
-              </div>
+               <div className="section">
+                 <p>{documentLocation}, {today}</p>
+               </div>
               <div className="section">
                 <p><strong>A:</strong> {selectedEmployee.firstName} {selectedEmployee.lastName}</p>
                 <p><strong>Função:</strong> {selectedEmployee.position}</p>

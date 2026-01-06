@@ -92,10 +92,12 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const updated: Deduction = { ...current, ...data, updatedAt: now };
       const { id: _, ...row } = mapDeductionToDbRow(updated);
       await liveUpdate('deductions', id, row);
+      await get().loadDeductions();
     },
 
     deleteDeduction: async (id: string) => {
       await liveDelete('deductions', id);
+      await get().loadDeductions();
     },
 
     getDeductionsByEmployee: (employeeId: string) => {
@@ -109,6 +111,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
     applyDeductionToPayroll: async (id: string, payrollPeriodId: string) => {
       const now = new Date().toISOString();
       await liveUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
+      await get().loadDeductions();
     },
 
     getTotalPendingByEmployee: (employeeId: string) => {

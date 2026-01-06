@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
+import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
@@ -19,7 +20,8 @@ import { toast } from 'sonner';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
-  const { deductions, addDeduction, updateDeduction, deleteDeduction, getTotalPendingByEmployee } = useDeductionStore();
+  const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
+  const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -64,12 +66,7 @@ export default function Deductions() {
   };
 
   const handleEditClick = (deduction: Deduction) => {
-    if (deduction.isApplied) {
-      toast.error(language === 'pt' 
-        ? 'Não é possível editar um desconto já aplicado à folha salarial' 
-        : 'Cannot edit a deduction already applied to payroll');
-      return;
-    }
+    // Deductions remain editable (even if applied) to support corrections.
     setEditingDeduction(deduction);
     setFormData({
       employeeId: deduction.employeeId,
@@ -103,17 +100,22 @@ export default function Deductions() {
   };
 
   const handleDelete = (deduction: Deduction) => {
-    if (deduction.isApplied) {
-      toast.error(language === 'pt' 
-        ? 'Não é possível apagar um desconto já aplicado à folha salarial. Dados históricos devem ser mantidos.' 
-        : 'Cannot delete a deduction already applied to payroll. Historical data must be preserved.');
-      return;
-    }
     deleteDeduction(deduction.id);
     toast.success(language === 'pt' ? 'Desconto removido' : 'Deduction removed');
   };
 
   const getEmployee = (id: string) => employees.find(e => e.id === id);
+
+  const monthNames = language === 'pt'
+    ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+    : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const getPeriodLabel = (periodId?: string) => {
+    if (!periodId) return '';
+    const p = periods.find((x) => x.id === periodId);
+    if (!p) return periodId;
+    return `${monthNames[p.month - 1]} ${p.year}`;
+  };
 
   const pageTitle = language === 'pt' ? 'Descontos' : 'Deductions';
   const pageSubtitle = language === 'pt' 
@@ -332,6 +334,7 @@ export default function Deductions() {
                   <TableHead>{language === 'pt' ? 'Data' : 'Date'}</TableHead>
                   <TableHead className="text-right">{language === 'pt' ? 'Valor' : 'Amount'}</TableHead>
                   <TableHead>{t.common.status}</TableHead>
+                  <TableHead>{language === 'pt' ? 'Folha' : 'Payroll'}</TableHead>
                   <TableHead className="text-right">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -373,16 +376,20 @@ export default function Deductions() {
                           <Badge variant="secondary">{t.common.pending}</Badge>
                         )}
                       </TableCell>
+                      <TableCell>
+                        {deduction.payrollPeriodId ? (
+                          <span className="text-sm text-muted-foreground">{getPeriodLabel(deduction.payrollPeriodId)}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button 
                             variant="ghost" 
                             size="icon"
                             onClick={() => handleEditClick(deduction)}
-                            disabled={deduction.isApplied}
-                            title={deduction.isApplied 
-                              ? (language === 'pt' ? 'Não é possível editar desconto aplicado' : 'Cannot edit applied deduction')
-                              : (language === 'pt' ? 'Editar' : 'Edit')}
+                            title={language === 'pt' ? 'Editar' : 'Edit'}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -390,10 +397,7 @@ export default function Deductions() {
                             variant="ghost" 
                             size="icon"
                             onClick={() => handleDelete(deduction)}
-                            disabled={deduction.isApplied}
-                            title={deduction.isApplied 
-                              ? (language === 'pt' ? 'Não é possível apagar desconto aplicado' : 'Cannot delete applied deduction')
-                              : (language === 'pt' ? 'Apagar' : 'Delete')}
+                            title={language === 'pt' ? 'Apagar' : 'Delete'}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
