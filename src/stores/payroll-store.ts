@@ -32,6 +32,7 @@ interface PayrollState {
 
   calculatePeriod: (periodId: string) => Promise<void>;
   approvePeriod: (periodId: string) => Promise<void>;
+  reopenPeriod: (periodId: string) => Promise<void>;
   markAsPaid: (periodId: string) => Promise<void>;
 }
 
@@ -284,19 +285,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
           }
 
-          // Calculate pending deductions if deduction store is provided
+          // Calculate deductions if deduction store is provided
+          // Include:
+          // - pending deductions (!isApplied)
+          // - deductions already applied to THIS period (so reopening/recalculating keeps them)
           let loanDeduction = 0;
           let advanceDeduction = 0;
           let otherDeductions = 0;
           const deductionBreakdown: { type: string; description: string; amount: number }[] = [];
-          
+
           if (deductionStore) {
-            const pendingDeductions = deductionStore.getPendingDeductions(emp.id);
-            for (const d of pendingDeductions) {
-              const amount = d.installments && d.installments > 1 
-                ? d.amount / d.installments 
-                : d.amount;
-              
+            const all = deductionStore.getDeductionsByEmployee(emp.id) || [];
+            for (const d of all) {
+              const isForThisPeriod = d.payrollPeriodId === periodId;
+              const isPending = !d.isApplied;
+              if (!isForThisPeriod && !isPending) continue;
+
+              // Basic time filter for pending deductions (don't pull future-dated items)
+              if (isPending && period.endDate && d.date && d.date > period.endDate) continue;
+
+              const amount = d.installments && d.installments > 1 ? d.amount / d.installments : d.amount;
+
               if (d.type === 'loan') {
                 loanDeduction += amount;
               } else if (d.type === 'salary_advance') {
@@ -304,11 +313,11 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               } else {
                 otherDeductions += amount;
               }
-              
+
               deductionBreakdown.push({
                 type: d.type,
                 description: d.description,
-                amount
+                amount,
               });
             }
           }
@@ -639,6 +648,17 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     approvePeriod: async (periodId) => {
       const now = new Date().toISOString();
       await liveUpdate('payroll_periods', periodId, { status: 'approved', approved_at: now, updated_at: now });
+    },
+
+    reopenPeriod: async (periodId) => {
+      const now = new Date().toISOString();
+      // Reopen for edits; user must approve again afterwards.
+      await liveUpdate('payroll_periods', periodId, {
+        status: 'calculated',
+        approved_at: null,
+        paid_at: null,
+        updated_at: now,
+      });
     },
 
     markAsPaid: async (periodId) => {

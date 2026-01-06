@@ -55,15 +55,32 @@ export async function printHtml(html: string, options: PrintHtmlOptions = {}) {
     iframe.style.height = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
-    
+
     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
     if (iframeDoc) {
       iframeDoc.open();
       iframeDoc.write(html);
       iframeDoc.close();
-      
-      setTimeout(() => {
+
+      const waitForIframeImages = async () => {
+        const win = iframe.contentWindow;
+        if (!win) return;
+        const imgs = Array.from(win.document.images || []);
+        await Promise.all(
+          imgs.map((img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise<void>((resolve) => {
+                  img.onload = () => resolve();
+                  img.onerror = () => resolve();
+                })
+          )
+        );
+      };
+
+      setTimeout(async () => {
         try {
+          await waitForIframeImages();
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
         } catch {
@@ -80,9 +97,29 @@ export async function printHtml(html: string, options: PrintHtmlOptions = {}) {
   printWindow.document.write(html);
   printWindow.document.close();
 
+  const waitForImages = async () => {
+    const imgs = Array.from(printWindow.document.images || []);
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            })
+      )
+    );
+  };
+
   const triggerPrint = async () => {
     try {
       await (printWindow.document as any).fonts?.ready;
+    } catch {
+      // ignore
+    }
+
+    try {
+      await waitForImages();
     } catch {
       // ignore
     }

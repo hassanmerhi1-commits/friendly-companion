@@ -1378,25 +1378,43 @@ ipcMain.handle('print:html', async (event, html, options = {}) => {
 
       const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(String(html || ''));
 
-      printWin.webContents.once('did-finish-load', () => {
-        const printOptions = {
-          silent: !!options.silent,
-          printBackground: options.printBackground !== false,
-        };
+       printWin.webContents.once('did-finish-load', async () => {
+         const printOptions = {
+           silent: !!options.silent,
+           printBackground: options.printBackground !== false,
+         };
 
-        try {
-          if (!printOptions.silent) {
-            // Ensure print dialog appears on top
-            printWin.show();
-            printWin.focus();
-          }
-        } catch (e) {}
+         try {
+           // Wait for images to load/resolve inside the print window (prevents blank preview)
+           await printWin.webContents.executeJavaScript(`
+             (async () => {
+               try { await document.fonts?.ready; } catch (e) {}
+               const imgs = Array.from(document.images || []);
+               await Promise.all(imgs.map(img => {
+                 if (img.complete) return Promise.resolve();
+                 return new Promise(res => { img.onload = res; img.onerror = res; });
+               }));
+               return true;
+             })();
+           `);
+         } catch (e) {}
 
-        printWin.webContents.print(printOptions, (success, failureReason) => {
-          try { printWin.close(); } catch (e) {}
-          resolve({ success: !!success, error: success ? null : (failureReason || 'Print failed') });
-        });
-      });
+         try {
+           if (!printOptions.silent) {
+             // Ensure print dialog appears on top
+             printWin.show();
+             printWin.focus();
+           }
+         } catch (e) {}
+
+         // Small delay for rendering stability
+         setTimeout(() => {
+           printWin.webContents.print(printOptions, (success, failureReason) => {
+             try { printWin.close(); } catch (e) {}
+             resolve({ success: !!success, error: success ? null : (failureReason || 'Print failed') });
+           });
+         }, 250);
+       });
 
       printWin.webContents.once('did-fail-load', (e, errorCode, errorDescription) => {
         try { printWin.close(); } catch (err) {}

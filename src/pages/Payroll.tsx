@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -28,7 +28,7 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
   const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = deductionStore;
@@ -162,21 +162,15 @@ const Payroll = () => {
     const freshStore = usePayrollStore.getState();
     const freshEntries = freshStore.entries.filter(e => e.payrollPeriodId === period.id);
     
-    // Mark subsidy as paid and mark deductions as applied
-    for (const entry of freshEntries) {
-      // If holiday subsidy was added, mark it as paid
-      if (entry.holidaySubsidy > 0) {
-        const nextMonth = period.month === 12 ? 1 : period.month + 1;
-        const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
-        await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
-      }
-      
-      // Mark pending deductions as applied (they were already calculated in generateEntriesForPeriod)
-      const pendingDeductions = getPendingDeductions(entry.employeeId);
-      for (const d of pendingDeductions) {
-        await applyDeductionToPayroll(d.id, period.id);
-      }
-    }
+     // Mark subsidy as paid (deductions are only marked as applied on APPROVAL)
+     for (const entry of freshEntries) {
+       // If holiday subsidy was added, mark it as paid
+       if (entry.holidaySubsidy > 0) {
+         const nextMonth = period.month === 12 ? 1 : period.month + 1;
+         const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
+         await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
+       }
+     }
     
     // Show info about holiday subsidies
     const subsidyCount = freshEntries.filter(e => e.holidaySubsidy > 0).length;
@@ -218,11 +212,22 @@ const Payroll = () => {
     setOvertimeDialogOpen(true);
   };
 
-  const handleApprove = () => {
-    if (currentPeriod) {
-      approvePeriod(currentPeriod.id);
-      toast.success(t.common.approved);
+  const handleApprove = async () => {
+    if (!currentPeriod) return;
+
+    // First approve period (history)
+    await approvePeriod(currentPeriod.id);
+
+    // Then mark deductions as applied to THIS payroll period
+    const periodEnd = currentPeriod.endDate;
+    for (const entry of currentEntries) {
+      const pending = getPendingDeductions(entry.employeeId).filter((d) => !periodEnd || !d.date || d.date <= periodEnd);
+      for (const d of pending) {
+        await applyDeductionToPayroll(d.id, currentPeriod.id);
+      }
     }
+
+    toast.success(t.common.approved);
   };
 
   const monthNames = language === 'pt'
@@ -590,8 +595,8 @@ const Payroll = () => {
               <h3 className="font-semibold text-foreground">{t.payroll.readyToProcess}</h3>
               <p className="text-sm text-muted-foreground">
                 {language === 'pt' 
-                  ? 'Após aprovação, os dados ficam bloqueados e guardados permanentemente.' 
-                  : 'After approval, data is locked and saved permanently.'}
+                  ? 'Após aprovação, os dados ficam guardados no histórico. Pode reabrir para editar e aprovar novamente.' 
+                  : 'After approval, data is saved in history. You can reopen it to edit and approve again.'}
               </p>
             </div>
             <Button variant="accent" size="lg" onClick={handleApprove}>
@@ -602,24 +607,38 @@ const Payroll = () => {
         </div>
       )}
 
-      {/* Historical view info */}
-      {isHistoricalView && currentEntries.length > 0 && (
-        <div className="stat-card border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-amber-700 dark:text-amber-400">
-                {language === 'pt' ? 'Período Aprovado' : 'Approved Period'}
-              </h3>
-              <p className="text-sm text-amber-600 dark:text-amber-500">
-                {language === 'pt' 
-                  ? 'Este período já foi aprovado. Os dados são apenas para consulta e não podem ser editados.' 
-                  : 'This period has been approved. Data is read-only and cannot be edited.'}
-              </p>
-            </div>
-            {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
-          </div>
-        </div>
-      )}
+       {/* Historical view info */}
+       {isHistoricalView && currentEntries.length > 0 && (
+         <div className="stat-card border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+           <div className="flex flex-wrap items-center justify-between gap-3">
+             <div>
+               <h3 className="font-semibold text-amber-700 dark:text-amber-400">
+                 {language === 'pt' ? 'Período Aprovado' : 'Approved Period'}
+               </h3>
+               <p className="text-sm text-amber-600 dark:text-amber-500">
+                 {language === 'pt'
+                   ? 'Este período está no histórico. Se precisar corrigir, reabra para editar e depois aprove novamente.'
+                   : 'This period is in history. If you need corrections, reopen to edit and then approve again.'}
+               </p>
+             </div>
+             <div className="flex items-center gap-2">
+               {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={async () => {
+                   if (!currentPeriod) return;
+                   await reopenPeriod(currentPeriod.id);
+                   toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
+                 }}
+               >
+                 <RotateCcw className="h-4 w-4 mr-2" />
+                 {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
+               </Button>
+             </div>
+           </div>
+         </div>
+       )}
 
       {/* Individual Receipt Dialog */}
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
