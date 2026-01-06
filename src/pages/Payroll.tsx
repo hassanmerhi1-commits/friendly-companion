@@ -30,14 +30,16 @@ const Payroll = () => {
   const { t, language } = useLanguage();
   const { periods, entries, generateEntriesForPeriod, approvePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
-  const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = useDeductionStore();
+  const deductionStore = useDeductionStore();
+  const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = deductionStore;
   const { branches: allBranches } = useBranchStore();
   // Derive active branches and employees from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
   const activeEmployees = employees.filter(emp => emp.status === 'active');
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
-  const { calculateDeductionForEmployee, getPendingAbsences } = useAbsenceStore();
+  const absenceStore = useAbsenceStore();
+  const { calculateDeductionForEmployee, getPendingAbsences } = absenceStore;
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
@@ -48,15 +50,27 @@ const Payroll = () => {
   const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
   const [overtimeEntry, setOvertimeEntry] = useState<PayrollEntry | null>(null);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
 
   const pendingAbsences = getPendingAbsences();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
-  // Derive current period and entries from subscribed state
-  // Attach employee data to each entry for display
-  const currentPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
+  // Sort periods by date (newest first)
+  const sortedPeriods = [...periods].sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return b.month - a.month;
+  });
+
+  // Get current period based on selection or default to latest draft/calculated
+  const defaultPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
+  const currentPeriod = selectedPeriodId 
+    ? periods.find(p => p.id === selectedPeriodId) || defaultPeriod
+    : defaultPeriod;
+  
+  // Check if viewing historical (approved/paid) period
+  const isHistoricalView = currentPeriod?.status === 'approved' || currentPeriod?.status === 'paid';
   
   // Get all entries for the current period - don't filter by employee existence
   // This ensures payroll data shows even if employee data sync is delayed
@@ -140,16 +154,15 @@ const Payroll = () => {
     // Get or create period for current month
     const period = await getOrCreateCurrentPeriod();
     
-    // Pass holiday records to check who should receive holiday subsidy this month
-    // (employees going on holiday NEXT month get their subsidy THIS month)
-    await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords);
+    // Pass absence store and deduction store to integrate calculations
+    await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords, absenceStore, deductionStore);
     
     // IMPORTANT: Get fresh entries from the store AFTER generation completes
     // The store.entries is now updated via loadPayroll() inside generateEntriesForPeriod
     const freshStore = usePayrollStore.getState();
     const freshEntries = freshStore.entries.filter(e => e.payrollPeriodId === period.id);
     
-    // Mark subsidy as paid and apply deductions
+    // Mark subsidy as paid and mark deductions as applied
     for (const entry of freshEntries) {
       // If holiday subsidy was added, mark it as paid
       if (entry.holidaySubsidy > 0) {
@@ -158,46 +171,10 @@ const Payroll = () => {
         await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
       }
       
-      // Apply pending deductions with categorization
+      // Mark pending deductions as applied (they were already calculated in generateEntriesForPeriod)
       const pendingDeductions = getPendingDeductions(entry.employeeId);
-      if (pendingDeductions.length > 0) {
-        let loanTotal = 0;
-        let advanceTotal = 0;
-        let otherTotal = 0;
-        const deductionBreakdown: { type: string; description: string; amount: number }[] = [];
-        
-        for (const d of pendingDeductions) {
-          const amount = d.installments && d.installments > 1 
-            ? d.amount / d.installments 
-            : d.amount;
-          
-          if (d.type === 'loan') {
-            loanTotal += amount;
-          } else if (d.type === 'salary_advance') {
-            advanceTotal += amount;
-          } else {
-            otherTotal += amount;
-          }
-          
-          deductionBreakdown.push({
-            type: d.type,
-            description: d.description,
-            amount
-          });
-          
-          await applyDeductionToPayroll(d.id, period.id);
-        }
-        
-        const totalPending = loanTotal + advanceTotal + otherTotal;
-        
-        await updateEntry(entry.id, { 
-          loanDeduction: loanTotal,
-          advanceDeduction: advanceTotal,
-          otherDeductions: otherTotal,
-          deductionDetails: JSON.stringify(deductionBreakdown),
-          netSalary: entry.netSalary - totalPending,
-          totalDeductions: entry.totalDeductions + totalPending,
-        });
+      for (const d of pendingDeductions) {
+        await applyDeductionToPayroll(d.id, period.id);
       }
     }
     
@@ -252,7 +229,30 @@ const Payroll = () => {
     ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
     : ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  const periodLabel = `${monthNames[new Date().getMonth()]} ${new Date().getFullYear()}`;
+  // Dynamic period label based on selected period
+  const periodLabel = currentPeriod 
+    ? `${monthNames[currentPeriod.month - 1]} ${currentPeriod.year}`
+    : `${monthNames[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
+  const getStatusBadge = (status: string) => {
+    const statusColors: Record<string, string> = {
+      draft: 'bg-muted text-muted-foreground',
+      calculated: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      paid: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    };
+    const statusLabels: Record<string, { pt: string; en: string }> = {
+      draft: { pt: 'Rascunho', en: 'Draft' },
+      calculated: { pt: 'Calculado', en: 'Calculated' },
+      approved: { pt: 'Aprovado', en: 'Approved' },
+      paid: { pt: 'Pago', en: 'Paid' },
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[status] || statusColors.draft}`}>
+        {statusLabels[status]?.[language] || status}
+      </span>
+    );
+  };
 
   return (
     <MainLayout>
@@ -261,6 +261,11 @@ const Payroll = () => {
           <h1 className="text-3xl font-display font-bold text-foreground">{t.payroll.title}</h1>
           <p className="text-muted-foreground mt-1">
             {periodLabel} • {t.payroll.paymentPeriod}
+            {isHistoricalView && (
+              <span className="ml-2 text-amber-600 dark:text-amber-400">
+                ({language === 'pt' ? 'Visualização histórica' : 'Historical view'})
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -285,34 +290,85 @@ const Payroll = () => {
         </div>
       </div>
 
-      {/* Calculate Payroll Button */}
-      <div className="stat-card mb-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <div>
-            <h3 className="font-semibold text-foreground">
-              {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {language === 'pt' 
-                ? 'Sub. Férias é definido por funcionário. Sub. Natal pode ser activado individualmente na tabela.' 
-                : 'Holiday subsidy is per employee. 13th month can be toggled individually in the table.'}
-            </p>
-          </div>
-          <Button variant="accent" onClick={handleCalculate}>
-            <Calculator className="h-4 w-4 mr-2" />
-            {t.payroll.calculatePayroll}
-          </Button>
-          <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
-            <UserX className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Ausências' : 'Absences'}
-            {pendingAbsences.length > 0 && (
-              <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
-                {pendingAbsences.length}
-              </span>
+      {/* Period History Selector */}
+      {sortedPeriods.length > 0 && (
+        <div className="stat-card mb-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <div>
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                {language === 'pt' ? 'Histórico de Períodos' : 'Period History'}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {language === 'pt' 
+                  ? 'Seleccione um período para ver dados guardados' 
+                  : 'Select a period to view saved data'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label>{language === 'pt' ? 'Período:' : 'Period:'}</Label>
+              <Select 
+                value={selectedPeriodId || currentPeriod?.id || ''} 
+                onValueChange={(v) => setSelectedPeriodId(v)}
+              >
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder={language === 'pt' ? 'Período actual' : 'Current period'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedPeriods.map(period => (
+                    <SelectItem key={period.id} value={period.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{monthNames[period.month - 1]} {period.year}</span>
+                        {getStatusBadge(period.status)}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isHistoricalView && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setSelectedPeriodId('')}
+              >
+                {language === 'pt' ? 'Voltar ao Actual' : 'Back to Current'}
+              </Button>
             )}
-          </Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Calculate Payroll Button - hidden when viewing historical data */}
+      {!isHistoricalView && (
+        <div className="stat-card mb-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <div>
+              <h3 className="font-semibold text-foreground">
+                {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {language === 'pt' 
+                  ? 'Ausências e descontos pendentes serão incluídos automaticamente.' 
+                  : 'Absences and pending deductions will be included automatically.'}
+              </p>
+            </div>
+            <Button variant="accent" onClick={handleCalculate}>
+              <Calculator className="h-4 w-4 mr-2" />
+              {t.payroll.calculatePayroll}
+            </Button>
+            <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
+              <UserX className="h-4 w-4 mr-2" />
+              {language === 'pt' ? 'Ausências' : 'Absences'}
+              {pendingAbsences.length > 0 && (
+                <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+                  {pendingAbsences.length}
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Branch and Warehouse Selection for Print */}
       <div className="stat-card mb-6">
@@ -436,58 +492,76 @@ const Payroll = () => {
                       <td className="px-3 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
                       <td className="px-3 py-3 text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditOvertime(entry)}
-                          className={`h-7 px-2 text-xs font-mono ${totalOvertimeValue > 0 ? 'text-primary' : 'text-muted-foreground'}`}
-                          title={language === 'pt' ? 'Editar horas extra e faltas' : 'Edit overtime and absences'}
-                        >
-                          {totalOvertimeHours > 0 ? `+${totalOvertimeHours}h` : '0h'}
-                          {totalOvertimeValue > 0 && <span className="ml-1 text-primary">+{formatAOA(totalOvertimeValue)}</span>}
-                          <Clock className="h-3 w-3 ml-1" />
-                        </Button>
+                        {!isHistoricalView ? (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditOvertime(entry)}
+                            className={`h-7 px-2 text-xs font-mono ${totalOvertimeValue > 0 ? 'text-primary' : 'text-muted-foreground'}`}
+                            title={language === 'pt' ? 'Editar horas extra e faltas' : 'Edit overtime and absences'}
+                          >
+                            {totalOvertimeHours > 0 ? `+${totalOvertimeHours}h` : '0h'}
+                            {totalOvertimeValue > 0 && <span className="ml-1 text-primary">+{formatAOA(totalOvertimeValue)}</span>}
+                            <Clock className="h-3 w-3 ml-1" />
+                          </Button>
+                        ) : (
+                          <span className={`text-xs font-mono ${totalOvertimeValue > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                            {totalOvertimeHours > 0 ? `+${totalOvertimeHours}h` : '0h'}
+                            {totalOvertimeValue > 0 && <span className="ml-1">+{formatAOA(totalOvertimeValue)}</span>}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditOvertime(entry)}
-                          className={`h-7 px-2 text-xs font-mono ${(entry.daysAbsent || 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`}
-                          title={language === 'pt' ? 'Editar faltas' : 'Edit absences'}
-                        >
-                          {(entry.daysAbsent || 0) > 0 ? `-${entry.daysAbsent}d` : '0d'}
-                          {(entry.absenceDeduction || 0) > 0 && <span className="ml-1 text-destructive">-{formatAOA(entry.absenceDeduction)}</span>}
-                        </Button>
+                        {!isHistoricalView ? (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditOvertime(entry)}
+                            className={`h-7 px-2 text-xs font-mono ${(entry.daysAbsent || 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`}
+                            title={language === 'pt' ? 'Editar faltas' : 'Edit absences'}
+                          >
+                            {(entry.daysAbsent || 0) > 0 ? `-${entry.daysAbsent}d` : '0d'}
+                            {(entry.absenceDeduction || 0) > 0 && <span className="ml-1 text-destructive">-{formatAOA(entry.absenceDeduction)}</span>}
+                          </Button>
+                        ) : (
+                          <span className={`text-xs font-mono ${(entry.daysAbsent || 0) > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {(entry.daysAbsent || 0) > 0 ? `-${entry.daysAbsent}d` : '0d'}
+                            {(entry.absenceDeduction || 0) > 0 && <span className="ml-1">-{formatAOA(entry.absenceDeduction)}</span>}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <span className="font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</span>
-                          <Button 
-                            variant={entry.holidaySubsidy > 0 ? "default" : "outline"} 
-                            size="sm"
-                            onClick={() => handleToggleHolidaySubsidy(entry)}
-                            className="h-6 px-2 text-xs"
-                            title={language === 'pt' ? '50% do salário base' : '50% of base salary'}
-                          >
-                            {entry.holidaySubsidy > 0 ? '✓' : '+'}
-                          </Button>
+                          {!isHistoricalView && (
+                            <Button 
+                              variant={entry.holidaySubsidy > 0 ? "default" : "outline"} 
+                              size="sm"
+                              onClick={() => handleToggleHolidaySubsidy(entry)}
+                              className="h-6 px-2 text-xs"
+                              title={language === 'pt' ? '50% do salário base' : '50% of base salary'}
+                            >
+                              {entry.holidaySubsidy > 0 ? '✓' : '+'}
+                            </Button>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
-                          <Button 
-                            variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
-                            size="sm"
-                            onClick={() => handleToggle13thMonth(entry)}
-                            className="h-6 px-2 text-xs"
-                            title={language === 'pt' 
-                              ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
-                              : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
-                          >
-                            {entry.thirteenthMonth > 0 ? '✓' : '+'}
-                          </Button>
+                          {!isHistoricalView && (
+                            <Button 
+                              variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
+                              size="sm"
+                              onClick={() => handleToggle13thMonth(entry)}
+                              className="h-6 px-2 text-xs"
+                              title={language === 'pt' 
+                                ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
+                                : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
+                            >
+                              {entry.thirteenthMonth > 0 ? '✓' : '+'}
+                            </Button>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
@@ -508,18 +582,44 @@ const Payroll = () => {
         </div>
       )}
 
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-foreground">{t.payroll.readyToProcess}</h3>
-            <p className="text-sm text-muted-foreground">{t.payroll.reviewAndApprove}</p>
+      {/* Approve section - only show when not viewing historical data */}
+      {!isHistoricalView && currentEntries.length > 0 && (
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-foreground">{t.payroll.readyToProcess}</h3>
+              <p className="text-sm text-muted-foreground">
+                {language === 'pt' 
+                  ? 'Após aprovação, os dados ficam bloqueados e guardados permanentemente.' 
+                  : 'After approval, data is locked and saved permanently.'}
+              </p>
+            </div>
+            <Button variant="accent" size="lg" onClick={handleApprove}>
+              <Send className="h-4 w-4 mr-2" />
+              {t.payroll.approveAndProcess}
+            </Button>
           </div>
-          <Button variant="accent" size="lg" onClick={handleApprove} disabled={currentEntries.length === 0}>
-            <Send className="h-4 w-4 mr-2" />
-            {t.payroll.approveAndProcess}
-          </Button>
         </div>
-      </div>
+      )}
+
+      {/* Historical view info */}
+      {isHistoricalView && currentEntries.length > 0 && (
+        <div className="stat-card border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-amber-700 dark:text-amber-400">
+                {language === 'pt' ? 'Período Aprovado' : 'Approved Period'}
+              </h3>
+              <p className="text-sm text-amber-600 dark:text-amber-500">
+                {language === 'pt' 
+                  ? 'Este período já foi aprovado. Os dados são apenas para consulta e não podem ser editados.' 
+                  : 'This period has been approved. Data is read-only and cannot be edited.'}
+              </p>
+            </div>
+            {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
+          </div>
+        </div>
+      )}
 
       {/* Individual Receipt Dialog */}
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
