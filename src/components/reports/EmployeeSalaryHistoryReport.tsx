@@ -15,7 +15,8 @@ import type { EmployeeSalaryHistory } from '@/types/audit';
 
 interface Props {
   history: EmployeeSalaryHistory;
-  companyName: string;
+  companyName?: string;
+  language?: 'pt' | 'en';
 }
 
 const MONTH_NAMES_EN = [
@@ -23,9 +24,11 @@ const MONTH_NAMES_EN = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export function EmployeeSalaryHistoryReport({ history, companyName }: Props) {
+export function EmployeeSalaryHistoryReport({ history, companyName, language: propLang }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
-  const { language } = useLanguage();
+  const { language: contextLang } = useLanguage();
+  const language = propLang || contextLang;
+  const displayCompanyName = companyName || 'PayrollAO';
   
   const handlePrint = useReactToPrint({
     // @ts-ignore - react-to-print types
@@ -61,7 +64,7 @@ export function EmployeeSalaryHistoryReport({ history, companyName }: Props) {
       <div ref={printRef} className="bg-white text-black p-6 print:p-0">
         {/* Header */}
         <div className="text-center border-b-2 border-black pb-4 mb-6">
-          <h1 className="text-xl font-bold uppercase">{companyName}</h1>
+          <h1 className="text-xl font-bold uppercase">{displayCompanyName}</h1>
           <h2 className="text-lg font-semibold mt-2">
             {language === 'pt' ? 'HISTÓRICO SALARIAL' : 'SALARY HISTORY'}
           </h2>

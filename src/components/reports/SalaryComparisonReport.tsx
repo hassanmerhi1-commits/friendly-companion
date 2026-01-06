@@ -14,12 +14,16 @@ import type { SalaryComparison } from '@/types/audit';
 
 interface Props {
   comparisons: SalaryComparison[];
-  companyName: string;
+  companyName?: string;
+  year?: number;
+  language?: 'pt' | 'en';
 }
 
-export function SalaryComparisonReport({ comparisons, companyName }: Props) {
+export function SalaryComparisonReport({ comparisons, companyName, year, language: propLang }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
-  const { language } = useLanguage();
+  const { language: contextLang } = useLanguage();
+  const language = propLang || contextLang;
+  const displayCompanyName = companyName || 'PayrollAO';
   
   const handlePrint = useReactToPrint({
     // @ts-ignore
@@ -45,7 +49,7 @@ export function SalaryComparisonReport({ comparisons, companyName }: Props) {
       <div ref={printRef} className="bg-white text-black p-6 print:p-0">
         {/* Header */}
         <div className="text-center border-b-2 border-black pb-4 mb-6">
-          <h1 className="text-xl font-bold uppercase">{companyName}</h1>
+          <h1 className="text-xl font-bold uppercase">{displayCompanyName}</h1>
           <h2 className="text-lg font-semibold mt-2">
             {language === 'pt' ? 'COMPARATIVO SALARIAL ANUAL' : 'ANNUAL SALARY COMPARISON'}
           </h2>

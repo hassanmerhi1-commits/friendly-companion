@@ -39,6 +39,7 @@ import UsersPage from "./pages/Users";
 import LaborLaw from "./pages/LaborLaw";
 import Documents from "./pages/Documents";
 import EmployeeCards from "./pages/EmployeeCards";
+import HRDashboard from "./pages/HRDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +91,7 @@ const AppRoutes = () => {
       <Route path="/labor-law" element={<ProtectedRoute><LaborLaw /></ProtectedRoute>} />
       <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
       <Route path="/employee-cards" element={<ProtectedRoute><EmployeeCards /></ProtectedRoute>} />
+      <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
