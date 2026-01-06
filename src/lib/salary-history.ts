@@ -80,7 +80,7 @@ export function buildEmployeeSalaryHistory(
 /**
  * Build year-over-year salary comparison for an employee
  */
-export function buildSalaryComparison(
+export function buildSalaryComparisonForEmployee(
   employee: Employee,
   entries: PayrollEntry[],
   periods: PayrollPeriod[]
@@ -128,6 +128,18 @@ export function buildSalaryComparison(
     salaryGrowthPercent,
     netGrowthPercent,
   };
+}
+
+/**
+ * Build year-over-year salary comparison for ALL employees
+ */
+export function buildSalaryComparison(
+  employees: Employee[],
+  entries: PayrollEntry[],
+  periods: PayrollPeriod[],
+  focusYear?: number
+): SalaryComparison[] {
+  return employees.map(emp => buildSalaryComparisonForEmployee(emp, entries, periods));
 }
 
 /**
@@ -227,13 +239,14 @@ export function buildPayrollHistorySummary(
 
 /**
  * Get all employees with their salary comparisons for HR dashboard
+ * @deprecated Use buildSalaryComparison instead
  */
 export function getAllEmployeeSalaryComparisons(
   employees: Employee[],
   entries: PayrollEntry[],
   periods: PayrollPeriod[]
 ): SalaryComparison[] {
-  return employees.map(emp => buildSalaryComparison(emp, entries, periods));
+  return employees.map(emp => buildSalaryComparisonForEmployee(emp, entries, periods));
 }
 
 /**
@@ -244,43 +257,96 @@ export function calculateTerminationPackage(
   employee: Employee,
   entries: PayrollEntry[],
   periods: PayrollPeriod[],
-  terminationDate: Date = new Date()
+  terminationDateStr: string = new Date().toISOString().split('T')[0],
+  terminationReason: 'voluntary' | 'dismissal' | 'contract_end' | 'retirement' = 'voluntary',
+  unusedLeaveDays: number = 0
 ): {
+  yearsOfService: number;
   monthsWorked: number;
   averageSalary: number;
-  pendingHolidayPay: number;
-  pending13thMonth: number;
-  severanceAmount: number;
-  totalDue: number;
+  severancePay: number;
+  proportionalLeave: number;
+  proportional13th: number;
+  proportionalHolidaySubsidy: number;
+  noticePeriodDays: number;
+  noticeCompensation: number;
+  unusedLeaveCompensation: number;
+  totalPackage: number;
 } {
   const history = buildEmployeeSalaryHistory(employee, entries, periods);
   
   const hireDate = new Date(employee.hireDate);
-  const monthsWorked = Math.floor(
-    (terminationDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-  );
+  const terminationDate = new Date(terminationDateStr);
+  const msWorked = terminationDate.getTime() - hireDate.getTime();
+  const daysWorked = msWorked / (1000 * 60 * 60 * 24);
+  const monthsWorked = Math.floor(daysWorked / 30);
+  const yearsOfService = daysWorked / 365.25;
   
   const averageSalary = history.averageMonthlySalary || employee.baseSalary;
+  const dailyRate = employee.baseSalary / 22; // 22 working days
   
-  // Pending holiday pay (proportional)
+  // Calculate months in current year for proportional benefits
   const currentMonth = terminationDate.getMonth() + 1;
-  const pendingHolidayPay = (averageSalary * 0.5 * currentMonth) / 12;
   
-  // Pending 13th month (proportional)
-  const pending13thMonth = (employee.baseSalary * 0.5 * currentMonth) / 12;
+  // Proportional annual leave (based on months worked this year)
+  const proportionalLeave = (averageSalary * currentMonth) / 12;
   
-  // Severance: 1 month salary per year worked (Angolan law)
-  const yearsWorked = Math.floor(monthsWorked / 12);
-  const severanceAmount = yearsWorked * averageSalary;
+  // Proportional 13th month (50% of base salary, proportional to months worked)
+  const proportional13th = (employee.baseSalary * 0.5 * currentMonth) / 12;
   
-  const totalDue = pendingHolidayPay + pending13thMonth + severanceAmount;
+  // Proportional holiday subsidy (50% of base salary, proportional)
+  const proportionalHolidaySubsidy = (employee.baseSalary * 0.5 * currentMonth) / 12;
+  
+  // Notice period (based on years of service)
+  // Less than 3 months: 15 days
+  // 3 months to 1 year: 30 days
+  // 1-5 years: 30 days
+  // 5+ years: 60 days
+  let noticePeriodDays = 15;
+  if (yearsOfService >= 5) {
+    noticePeriodDays = 60;
+  } else if (yearsOfService >= 0.25) {
+    noticePeriodDays = 30;
+  }
+  
+  // Notice compensation (only if employer dismisses without notice)
+  const noticeCompensation = terminationReason === 'dismissal' ? dailyRate * noticePeriodDays : 0;
+  
+  // Severance pay (depends on reason)
+  // Dismissal without just cause: 1 month per year
+  // Voluntary resignation: typically no severance
+  // Contract end: may include proportional severance
+  let severancePay = 0;
+  if (terminationReason === 'dismissal') {
+    severancePay = Math.floor(yearsOfService) * averageSalary;
+  } else if (terminationReason === 'contract_end') {
+    severancePay = Math.floor(yearsOfService) * averageSalary * 0.5;
+  } else if (terminationReason === 'retirement') {
+    severancePay = Math.floor(yearsOfService) * averageSalary;
+  }
+  
+  // Unused leave compensation
+  const unusedLeaveCompensation = unusedLeaveDays * dailyRate;
+  
+  const totalPackage = 
+    severancePay + 
+    proportionalLeave + 
+    proportional13th + 
+    proportionalHolidaySubsidy + 
+    noticeCompensation + 
+    unusedLeaveCompensation;
   
   return {
+    yearsOfService,
     monthsWorked,
     averageSalary,
-    pendingHolidayPay,
-    pending13thMonth,
-    severanceAmount,
-    totalDue,
+    severancePay,
+    proportionalLeave,
+    proportional13th,
+    proportionalHolidaySubsidy,
+    noticePeriodDays,
+    noticeCompensation,
+    unusedLeaveCompensation,
+    totalPackage,
   };
 }

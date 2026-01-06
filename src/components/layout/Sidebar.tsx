@@ -10,7 +10,8 @@ import {
   UserCog,
   Scale,
   FileWarning,
-  CreditCard
+  CreditCard,
+  UserCheck
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function Sidebar() {
     { name: t.nav.employees, href: "/employees", icon: Users },
     { name: language === 'pt' ? 'Cartões ID' : 'ID Cards', href: "/employee-cards", icon: CreditCard },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
+    { name: language === 'pt' ? 'Painel RH' : 'HR Dashboard', href: "/hr-dashboard", icon: UserCheck },
     { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
     { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
     { name: language === 'pt' ? 'Lei do Trabalho' : 'Labor Law', href: "/labor-law", icon: Scale },
