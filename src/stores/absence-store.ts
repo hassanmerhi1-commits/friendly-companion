@@ -135,7 +135,13 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
     },
 
     deleteAbsence: async (id) => {
-      await liveDelete('absences', id);
+      const success = await liveDelete('absences', id);
+      // If not in Electron or delete failed silently, update local state directly
+      if (!success) {
+        set(state => ({
+          absences: state.absences.filter(a => a.id !== id)
+        }));
+      }
     },
 
     justifyAbsence: async (id, document, notes) => {

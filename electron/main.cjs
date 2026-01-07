@@ -1357,68 +1357,122 @@ ipcMain.handle('db:testConnection', async () => {
 });
 
 // ============= PRINTING (ELECTRON) =============
-// Chromium print preview is often disabled in Electron; use webContents.print.
+// Show a preview window first, then trigger print when user clicks print button
 ipcMain.handle('print:html', async (event, html, options = {}) => {
   return await new Promise((resolve) => {
     let printWin = null;
 
     try {
       printWin = new BrowserWindow({
-        // If we're showing a system print dialog (silent=false), the window must be visible
-        // on some OS/drivers otherwise the dialog may not appear / list printers.
-        show: options?.silent ? false : true,
-        width: 1000,
-        height: 800,
+        show: true,
+        width: 900,
+        height: 700,
         parent: mainWindow || undefined,
+        title: 'Pré-visualização de Impressão',
         webPreferences: {
           contextIsolation: true,
           nodeIntegration: false,
         },
       });
 
-      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(String(html || ''));
+      // Wrap HTML with print controls at the top
+      const wrappedHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Pré-visualização de Impressão</title>
+  <style>
+    .print-toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #333;
+      color: white;
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      z-index: 99999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .print-toolbar button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .print-toolbar button:hover {
+      background: #0056b3;
+    }
+    .print-toolbar button.cancel {
+      background: #6c757d;
+    }
+    .print-toolbar button.cancel:hover {
+      background: #545b62;
+    }
+    .print-toolbar span {
+      flex: 1;
+      font-size: 14px;
+    }
+    .print-content {
+      margin-top: 60px;
+      padding: 20px;
+    }
+    @media print {
+      .print-toolbar { display: none !important; }
+      .print-content { margin-top: 0 !important; padding: 0 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-toolbar">
+    <span>Pré-visualização do documento | Document Preview</span>
+    <button onclick="window.print()">🖨️ Imprimir / Print</button>
+    <button class="cancel" onclick="window.close()">✕ Fechar / Close</button>
+  </div>
+  <div class="print-content">
+    ${html}
+  </div>
+</body>
+</html>`;
 
-       printWin.webContents.once('did-finish-load', async () => {
-         const printOptions = {
-           silent: !!options.silent,
-           printBackground: options.printBackground !== false,
-         };
+      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(wrappedHtml);
 
-         try {
-           // Wait for images to load/resolve inside the print window (prevents blank preview)
-           await printWin.webContents.executeJavaScript(`
-             (async () => {
-               try { await document.fonts?.ready; } catch (e) {}
-               const imgs = Array.from(document.images || []);
-               await Promise.all(imgs.map(img => {
-                 if (img.complete) return Promise.resolve();
-                 return new Promise(res => { img.onload = res; img.onerror = res; });
-               }));
-               return true;
-             })();
-           `);
-         } catch (e) {}
+      printWin.webContents.once('did-finish-load', async () => {
+        try {
+          // Wait for images and fonts to load
+          await printWin.webContents.executeJavaScript(\`
+            (async () => {
+              try { await document.fonts?.ready; } catch (e) {}
+              const imgs = Array.from(document.images || []);
+              await Promise.all(imgs.map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(res => { img.onload = res; img.onerror = res; });
+              }));
+              return true;
+            })();
+          \`);
+        } catch (e) {}
 
-         try {
-           if (!printOptions.silent) {
-             // Ensure print dialog appears on top
-             printWin.show();
-             printWin.focus();
-           }
-         } catch (e) {}
+        // Focus the print window
+        printWin.show();
+        printWin.focus();
+      });
 
-         // Small delay for rendering stability
-         setTimeout(() => {
-           printWin.webContents.print(printOptions, (success, failureReason) => {
-             try { printWin.close(); } catch (e) {}
-             resolve({ success: !!success, error: success ? null : (failureReason || 'Print failed') });
-           });
-         }, 250);
-       });
+      // When window closes, resolve as success (user either printed or cancelled)
+      printWin.on('closed', () => {
+        resolve({ success: true });
+      });
 
       printWin.webContents.once('did-fail-load', (e, errorCode, errorDescription) => {
         try { printWin.close(); } catch (err) {}
-        resolve({ success: false, error: `${errorCode}: ${errorDescription}` });
+        resolve({ success: false, error: \`\${errorCode}: \${errorDescription}\` });
       });
 
       printWin.loadURL(dataUrl);
