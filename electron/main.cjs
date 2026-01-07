@@ -1447,17 +1447,17 @@ ipcMain.handle('print:html', async (event, html, options = {}) => {
       printWin.webContents.once('did-finish-load', async () => {
         try {
           // Wait for images and fonts to load
-          await printWin.webContents.executeJavaScript(\`
-            (async () => {
-              try { await document.fonts?.ready; } catch (e) {}
-              const imgs = Array.from(document.images || []);
-              await Promise.all(imgs.map(img => {
-                if (img.complete) return Promise.resolve();
-                return new Promise(res => { img.onload = res; img.onerror = res; });
-              }));
-              return true;
-            })();
-          \`);
+          await printWin.webContents.executeJavaScript(
+            '(async () => {' +
+            '  try { await document.fonts?.ready; } catch (e) {}' +
+            '  const imgs = Array.from(document.images || []);' +
+            '  await Promise.all(imgs.map(img => {' +
+            '    if (img.complete) return Promise.resolve();' +
+            '    return new Promise(res => { img.onload = res; img.onerror = res; });' +
+            '  }));' +
+            '  return true;' +
+            '})();'
+          );
         } catch (e) {}
 
         // Focus the print window
@@ -1472,7 +1472,7 @@ ipcMain.handle('print:html', async (event, html, options = {}) => {
 
       printWin.webContents.once('did-fail-load', (e, errorCode, errorDescription) => {
         try { printWin.close(); } catch (err) {}
-        resolve({ success: false, error: \`\${errorCode}: \${errorDescription}\` });
+        resolve({ success: false, error: errorCode + ': ' + errorDescription });
       });
 
       printWin.loadURL(dataUrl);
