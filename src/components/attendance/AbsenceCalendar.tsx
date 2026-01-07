@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronLeft, ChevronRight, User, AlertCircle } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, User, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useHolidayStore } from "@/stores/holiday-store";
@@ -19,7 +20,7 @@ export function AbsenceCalendar() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
 
   const { employees } = useEmployeeStore();
-  const { absences, getAbsencesByPeriod } = useAbsenceStore();
+  const { absences, getAbsencesByPeriod, deleteAbsence } = useAbsenceStore();
   const holidayStore = useHolidayStore();
 
   const locale = language === 'pt' ? pt : enUS;
@@ -40,6 +41,12 @@ export function AbsenceCalendar() {
     weekDays: language === 'pt' 
       ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
       : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    deleteConfirm: language === 'pt' ? 'Ausência eliminada' : 'Absence deleted',
+  };
+
+  const handleDeleteAbsence = async (id: string) => {
+    await deleteAbsence(id);
+    toast.success(t.deleteConfirm);
   };
 
   const monthStart = startOfMonth(currentDate);
@@ -264,14 +271,24 @@ export function AbsenceCalendar() {
                       <span className="font-medium">{employee?.firstName} {employee?.lastName}</span>
                       <span className="text-muted-foreground">- {label}</span>
                     </div>
-                    <div className="text-muted-foreground text-xs">
-                      {format(new Date(absence.startDate), 'dd/MM')}
-                      {absence.startDate !== absence.endDate && (
-                        <> - {format(new Date(absence.endDate), 'dd/MM')}</>
-                      )}
-                      <Badge variant="outline" className="ml-2">
-                        {absence.days}d
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      <div className="text-muted-foreground text-xs">
+                        {format(new Date(absence.startDate), 'dd/MM')}
+                        {absence.startDate !== absence.endDate && (
+                          <> - {format(new Date(absence.endDate), 'dd/MM')}</>
+                        )}
+                        <Badge variant="outline" className="ml-2">
+                          {absence.days}d
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteAbsence(absence.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 );
