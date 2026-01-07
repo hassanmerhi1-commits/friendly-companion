@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/i18n";
 import { ABSENCE_TYPE_INFO } from "@/types/absence";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isToday, isSameDay } from "date-fns";
 import { pt, enUS } from "date-fns/locale";
+import { NATIONAL_HOLIDAYS } from "@/lib/angola-labor-law";
 
 export function AbsenceCalendar() {
   const { language } = useLanguage();
@@ -56,8 +57,6 @@ export function AbsenceCalendar() {
 
   // Get holidays for the current month - use national holidays from labor law
   const monthHolidays = useMemo(() => {
-    // Import national holidays from labor law
-    const { NATIONAL_HOLIDAYS } = require('@/lib/angola-labor-law');
     return (NATIONAL_HOLIDAYS || []).filter((h: any) => {
       return h.date.startsWith(format(currentDate, 'MM'));
     });
