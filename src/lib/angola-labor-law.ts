@@ -32,23 +32,23 @@ export interface IRTBracket {
 }
 
 // IRT progressive tax brackets for Group A (Employment Income)
-// Updated according to AGT Angola simulator (quiosqueagt.minfin.gov.ao/simulador/irt)
-// Formula: IRT = (Rendimento Coletável - Limite Inferior) × Taxa
+// Updated according to Lei n.º 14/25 - Orçamento Geral do Estado 2026
+// Anexo I - Artigo 21.º (Effective January 2026)
+// Formula: IRT = Parcela Fixa + (Rendimento Coletável - Limite Inferior) × Taxa
 // Rendimento Coletável = (Salário Base + Sub. Férias + Sub. Natal) - INSS
 // Note: Transport, Meal, and Family allowances are NOT taxable for IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500 },
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250 },
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_250 },
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250 },
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_249 },
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_249 },
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_249 },
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_249 },
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_249 },
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_248 },
+  { min: 0, max: 150_000, rate: 0, fixedAmount: 0 },           // 1º Escalão - ISENTO
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 0 },  // 2º Escalão - 16% + Parcela 12.500 (excess over 150k)
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 12_500 },  // 3º Escalão
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 31_250 },  // 4º Escalão
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 49_250 }, // 5º Escalão
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 87_250 }, // 6º Escalão
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 187_250 }, // 7º Escalão
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 292_250 }, // 8º Escalão
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 402_250 }, // 9º Escalão
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 517_250 }, // 10º Escalão
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 1_117_250 }, // 11º Escalão
 ];
 
 // ============================================================================
@@ -175,7 +175,7 @@ export const NATIONAL_HOLIDAYS = [
  * Calculate IRT (Income Tax) for a given taxable income
  * Based on Group A - Employment Income
  * Formula: IRT = Parcela Fixa + (Rendimento Coletável - Limite Inferior) × Taxa
- * According to AGT Angola simulator (quiosqueagt.minfin.gov.ao/simulador/irt)
+ * According to Lei n.º 14/25 - OGE 2026, Anexo I, Artigo 21.º
  * 
  * IMPORTANT: The taxable income should ALREADY have INSS deducted
  * 
@@ -190,8 +190,8 @@ export const NATIONAL_HOLIDAYS = [
  * - Abono de Família (Family Allowance)
  */
 export function calculateIRT(taxableIncome: number): number {
-  // Salaries up to 100,000 AOA are exempt
-  if (taxableIncome <= 100_000) {
+  // Salaries up to 150,000 AOA are exempt (1º Escalão - Lei 14/25)
+  if (taxableIncome <= 150_000) {
     return 0;
   }
 
@@ -203,12 +203,13 @@ export function calculateIRT(taxableIncome: number): number {
   if (!bracket) {
     // Use highest bracket for salaries above 10,000,000
     const highestBracket = IRT_BRACKETS[IRT_BRACKETS.length - 1];
-    const excess = taxableIncome - highestBracket.min;
-    return Math.round(highestBracket.fixedAmount + (excess * highestBracket.rate) * 100) / 100;
+    const excess = taxableIncome - highestBracket.min + 1;
+    return Math.round((highestBracket.fixedAmount + (excess * highestBracket.rate)) * 100) / 100;
   }
 
   // Calculate: Fixed Amount + (Income - Lower Limit of Bracket) × Rate
-  const excess = taxableIncome - bracket.min;
+  // The "excess" is calculated from the lower limit of the current bracket
+  const excess = taxableIncome - bracket.min + 1;
   return Math.round((bracket.fixedAmount + (excess * bracket.rate)) * 100) / 100;
 }
 
