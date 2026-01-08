@@ -23,6 +23,7 @@ interface PayrollState {
   updateEntry: (id: string, data: Partial<PayrollEntry>) => Promise<void>;
   getEntriesForPeriod: (periodId: string) => PayrollEntry[];
   recalculateEntry: (id: string) => Promise<void>;
+  recalculateAllEntries: () => Promise<number>;
   removeEntriesForEmployee: (employeeId: string) => Promise<void>;
 
   updateAbsences: (entryId: string, daysAbsent: number) => Promise<void>;
@@ -562,6 +563,51 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
       const { id: _, ...row } = mapEntryToDbRow(updated);
       await liveUpdate('payroll_entries', id, row);
+    },
+
+    recalculateAllEntries: async () => {
+      const entries = get().entries;
+      let recalculatedCount = 0;
+
+      for (const entry of entries) {
+        const period = get().getPeriod(entry.payrollPeriodId);
+        // Only recalculate draft periods (not approved or paid)
+        if (period && period.status === 'draft') {
+          const include13thMonth = period?.month === 12;
+
+          const payrollResult = calculatePayroll({
+            baseSalary: entry.baseSalary,
+            mealAllowance: entry.mealAllowance,
+            transportAllowance: entry.transportAllowance,
+            otherAllowances: entry.otherAllowances,
+            overtimeHoursNormal: entry.overtimeHoursNormal,
+            overtimeHoursNight: entry.overtimeHoursNight,
+            overtimeHoursHoliday: entry.overtimeHoursHoliday,
+            isRetired: entry.employee?.isRetired ?? false,
+            include13thMonth,
+          });
+
+          const updated: PayrollEntry = {
+            ...entry,
+            ...payrollResult,
+            totalDeductions: payrollResult.totalDeductions + (entry.otherDeductions || 0),
+            netSalary: payrollResult.netSalary - (entry.otherDeductions || 0),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const { id: _, ...row } = mapEntryToDbRow(updated);
+          await liveUpdate('payroll_entries', entry.id, row);
+          recalculatedCount++;
+        }
+      }
+
+      // Recalculate all draft periods totals
+      const draftPeriods = get().periods.filter(p => p.status === 'draft');
+      for (const period of draftPeriods) {
+        await get().calculatePeriod(period.id);
+      }
+
+      return recalculatedCount;
     },
 
     getPayrollSummary: (periodId) => {

@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
+import { usePayrollStore } from "@/stores/payroll-store";
 import { toast } from "sonner";
 import { 
   exportDataToFile, 
@@ -25,14 +26,34 @@ import { getSelectedProvince, clearProvinceSelection, ANGOLA_PROVINCES } from "@
 const Settings = () => {
   const { t } = useLanguage();
   const { settings, updateSettings } = useSettingsStore();
+  const { recalculateAllEntries, loadPayroll, isLoaded } = usePayrollStore();
   const [formData, setFormData] = useState(settings);
   const [stats, setStats] = useState(getBackupStats());
+  const [isRecalculating, setIsRecalculating] = useState(false);
   const currentProvince = getSelectedProvince();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!isLoaded) {
+      loadPayroll();
+    }
+  }, [isLoaded, loadPayroll]);
+
+  useEffect(() => {
     setStats(getBackupStats());
   }, []);
+
+  const handleRecalculatePayroll = async () => {
+    setIsRecalculating(true);
+    try {
+      const count = await recalculateAllEntries();
+      toast.success(`${count} registos de folha de pagamento recalculados com as novas taxas IRT 2026!`);
+    } catch (error) {
+      toast.error("Erro ao recalcular folha de pagamento");
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
 
   const handleChange = (field: string, value: string | number | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -125,6 +146,50 @@ const Settings = () => {
                 Mudar Província
               </Button>
             </div>
+          </div>
+
+          {/* IRT 2026 Recalculation */}
+          <div className="stat-card animate-slide-up border-2 border-success/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
+                <Calculator className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-foreground">Actualização IRT 2026</h2>
+                <p className="text-sm text-muted-foreground">Lei n.º 14/25 - Orçamento Geral do Estado</p>
+              </div>
+            </div>
+            
+            <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+              <h3 className="text-sm font-medium text-foreground mb-2">Alterações Principais:</h3>
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                <li>Novo limite isento: <strong>150.000 Kz</strong> (antes 100.000 Kz)</li>
+                <li>Escalão de 13% eliminado (100k-150k)</li>
+                <li>Parcelas fixas actualizadas</li>
+              </ul>
+            </div>
+
+            <Button 
+              variant="default" 
+              className="w-full bg-success hover:bg-success/90"
+              onClick={handleRecalculatePayroll}
+              disabled={isRecalculating}
+            >
+              {isRecalculating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  A recalcular...
+                </>
+              ) : (
+                <>
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Recalcular Folhas de Pagamento (Rascunho)
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Apenas períodos em rascunho serão recalculados
+            </p>
           </div>
 
           {/* Network Settings */}
