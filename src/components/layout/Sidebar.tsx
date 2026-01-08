@@ -12,7 +12,8 @@ import {
   FileWarning,
   CreditCard,
   UserCheck,
-  Clock
+  Clock,
+  Calculator
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ export function Sidebar() {
     { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
     { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
     { name: language === 'pt' ? 'Lei do Trabalho' : 'Labor Law', href: "/labor-law", icon: Scale },
+    { name: language === 'pt' ? 'Simulador IRT' : 'Tax Simulator', href: "/tax-simulator", icon: Calculator },
     { name: language === 'pt' ? 'Documentos' : 'Documents', href: "/documents", icon: FileWarning },
     { name: t.nav.reports, href: "/reports", icon: FileText },
     { name: t.nav.settings, href: "/settings", icon: Settings },
