@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/lib/i18n';
-import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
+import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, calculateIRT } from '@/lib/angola-labor-law';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
-import { Printer } from 'lucide-react';
+import { Printer, Info } from 'lucide-react';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 interface SalaryReceiptProps {
@@ -94,6 +94,13 @@ export function SalaryReceipt({
             .line-item .label { font-size: 8px; }
             .line-item .amount { font-size: 8px; font-family: monospace; }
             .subtotal { display: flex; justify-content: space-between; font-weight: bold; padding: 4px 0; border-top: 1px solid #333; margin-top: 4px; }
+            .tax-breakdown { background: #f5f5f5; padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #ddd; }
+            .tax-breakdown h3 { font-size: 7px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; color: #666; display: flex; align-items: center; gap: 4px; }
+            .tax-breakdown .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .tax-breakdown .space-y-1 > div { margin-bottom: 2px; }
+            .tax-breakdown .text-\\[10px\\] { font-size: 8px; font-weight: 600; color: #555; text-transform: uppercase; margin-bottom: 4px; }
+            .tax-breakdown .text-\\[9px\\] { font-size: 7px; }
+            .tax-breakdown .font-mono { font-family: monospace; }
             .net-salary { display: flex; justify-content: space-between; align-items: center; background: #e8f4e8; padding: 8px; margin-top: 10px; border-radius: 4px; }
             .net-label { font-size: 10px; font-weight: bold; }
             .net-amount { font-size: 14px; font-weight: bold; color: #27ae60; }
@@ -154,6 +161,26 @@ export function SalaryReceipt({
   };
 
   const overtimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
+
+  // ============= TAX BREAKDOWN CALCULATION =============
+  // INSS Base = Base + Natal + Transport + Meal + Family Allowance (NOT Férias)
+  const inssBase = entry.baseSalary + (entry.thirteenthMonth || 0) + entry.transportAllowance + entry.mealAllowance + (entry.familyAllowance || 0);
+  const { employeeContribution: calculatedInss } = calculateINSS(inssBase, employee.isRetired);
+
+  // IRT Taxable = Base + Férias + Natal + Overtime + Other Allowances (NOT Transport, Meal, Family)
+  const irtTaxableGross = entry.baseSalary + (entry.holidaySubsidy || 0) + (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
+  const rendimentoColetavel = irtTaxableGross - calculatedInss;
+
+  // Find current IRT bracket
+  const currentBracket = IRT_BRACKETS.find(
+    b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
+  );
+  const escalaoIndex = currentBracket ? IRT_BRACKETS.indexOf(currentBracket) + 1 : 1;
+  const excessoDE = currentBracket ? currentBracket.min - 1 : 0;
+  const excessoValue = currentBracket ? rendimentoColetavel - excessoDE : 0;
+  const isIsento = rendimentoColetavel <= 150_000;
+
+  const formatNumber = (n: number) => n.toLocaleString('pt-AO');
 
   return (
     <div className="space-y-4">
@@ -296,6 +323,73 @@ export function SalaryReceipt({
             </div>
 
             <Separator className="my-3" />
+
+            {/* Tax Breakdown Section */}
+            <div className="tax-breakdown bg-muted/20 p-3 rounded-lg mb-3 border border-border/50">
+              <h3 className="text-xs font-semibold uppercase mb-2 flex items-center gap-1 text-muted-foreground">
+                <Info className="h-3 w-3" />
+                {language === 'pt' ? 'Cálculo Tributário (Lei 14/25)' : 'Tax Calculation (Law 14/25)'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {/* INSS Breakdown */}
+                <div className="space-y-1">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase">
+                    {language === 'pt' ? 'Base INSS' : 'INSS Base'}
+                  </div>
+                  <div className="text-[9px] space-y-0.5 text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>{language === 'pt' ? 'Base + Natal + Transp + Alim + Fam' : 'Base + 13th + Trans + Meal + Fam'}</span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span>=</span>
+                      <span>{formatNumber(inssBase)} Kz</span>
+                    </div>
+                    <div className="flex justify-between font-medium text-foreground border-t border-border/30 pt-0.5">
+                      <span>INSS (3%)</span>
+                      <span className="font-mono">{formatNumber(calculatedInss)} Kz</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* IRT Breakdown */}
+                <div className="space-y-1">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase">
+                    {language === 'pt' ? 'Cálculo IRT' : 'IRT Calculation'}
+                  </div>
+                  <div className="text-[9px] space-y-0.5 text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>{language === 'pt' ? 'Rend. Coletável' : 'Taxable Income'}</span>
+                      <span className="font-mono">{formatNumber(rendimentoColetavel)} Kz</span>
+                    </div>
+                    {isIsento ? (
+                      <div className="flex justify-between font-medium text-green-600">
+                        <span>{language === 'pt' ? 'Isento (≤150.000)' : 'Exempt (≤150,000)'}</span>
+                        <span className="font-mono">0 Kz</span>
+                      </div>
+                    ) : currentBracket ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span>{escalaoIndex}º {language === 'pt' ? 'Escalão' : 'Bracket'}</span>
+                          <span className="font-mono">{(currentBracket.rate * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{language === 'pt' ? 'Parcela Fixa' : 'Fixed Amount'}</span>
+                          <span className="font-mono">{formatNumber(currentBracket.fixedAmount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{language === 'pt' ? 'Excesso de' : 'Excess of'} {formatNumber(excessoDE)}</span>
+                          <span className="font-mono">{formatNumber(excessoValue)}</span>
+                        </div>
+                        <div className="flex justify-between font-medium text-foreground border-t border-border/30 pt-0.5">
+                          <span>IRT</span>
+                          <span className="font-mono">{formatNumber(entry.irt)} Kz</span>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Net Salary */}
             <div className="net-salary bg-primary/10 p-3 rounded-lg flex justify-between items-center">
