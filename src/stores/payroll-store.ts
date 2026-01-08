@@ -331,38 +331,36 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             familyAllowanceValue: emp.familyAllowance || 0,
             isRetired: emp.isRetired,
             include13thMonth: false,
-            includeHolidaySubsidy: false,
+            includeHolidaySubsidy: shouldPayHolidaySubsidy,
+            holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,
           });
 
           const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + absenceDeduction;
 
           const now = new Date().toISOString();
 
-          return {
-            id: `entry-${periodId}-${emp.id}`,
-            payrollPeriodId: periodId,
-            employeeId: emp.id,
-            employee: emp,
-            ...payrollResult,
-            holidaySubsidy: holidaySubsidyAmount,
-            grossSalary: payrollResult.grossSalary + holidaySubsidyAmount,
-            netSalary: payrollResult.netSalary + holidaySubsidyAmount - totalExtraDeductions,
-            totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
-            totalEmployerCost: payrollResult.totalEmployerCost + holidaySubsidyAmount,
-            monthlyBonus: emp.monthlyBonus || 0,
-            absenceDeduction,
-            loanDeduction,
-            advanceDeduction,
-            daysAbsent: absenceDays,
-            otherDeductions,
-            deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
-            overtimeHoursNormal: 0,
-            overtimeHoursNight: 0,
-            overtimeHoursHoliday: 0,
-            status: 'draft' as const,
-            createdAt: now,
-            updatedAt: now,
-          };
+            return {
+              id: `entry-${periodId}-${emp.id}`,
+              payrollPeriodId: periodId,
+              employeeId: emp.id,
+              employee: emp,
+              ...payrollResult,
+              netSalary: payrollResult.netSalary - totalExtraDeductions,
+              totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
+              monthlyBonus: emp.monthlyBonus || 0,
+              absenceDeduction,
+              loanDeduction,
+              advanceDeduction,
+              daysAbsent: absenceDays,
+              otherDeductions,
+              deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
+              overtimeHoursNormal: 0,
+              overtimeHoursNight: 0,
+              overtimeHoursHoliday: 0,
+              status: 'draft' as const,
+              createdAt: now,
+              updatedAt: now,
+            };
         });
 
       console.log('[Payroll] New entries to create:', newEntries.length);
@@ -411,14 +409,28 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const baseSalary = entry.baseSalary;
 
       const subsidyValue = hasSubsidy ? 0 : (baseSalary * 0.5 * monthsWorked) / 12;
-      const difference = hasSubsidy ? -entry.thirteenthMonth : subsidyValue;
+
+      const payrollResult = calculatePayroll({
+        baseSalary: entry.baseSalary,
+        mealAllowance: entry.mealAllowance,
+        transportAllowance: entry.transportAllowance,
+        otherAllowances: entry.otherAllowances,
+        familyAllowanceValue: entry.familyAllowance,
+        overtimeHoursNormal: entry.overtimeHoursNormal,
+        overtimeHoursNight: entry.overtimeHoursNight,
+        overtimeHoursHoliday: entry.overtimeHoursHoliday,
+        isRetired: entry.employee?.isRetired ?? false,
+        thirteenthMonthValue: subsidyValue,
+        holidaySubsidyValue: entry.holidaySubsidy || 0,
+      });
+
+      const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
 
       const updated: PayrollEntry = {
         ...entry,
-        thirteenthMonth: subsidyValue,
-        grossSalary: entry.grossSalary + difference,
-        netSalary: entry.netSalary + difference,
-        totalEmployerCost: entry.totalEmployerCost + difference,
+        ...payrollResult,
+        totalDeductions: payrollResult.totalDeductions + extraDeductions,
+        netSalary: payrollResult.netSalary - extraDeductions,
         updatedAt: new Date().toISOString(),
       };
 
@@ -437,16 +449,31 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const hasSubsidy = entry.holidaySubsidy > 0;
       const baseSalary = entry.baseSalary;
 
-      // Holiday subsidy = 50% of base salary (like 13th month but simpler)
-      const subsidyValue = hasSubsidy ? 0 : baseSalary * 0.5;
-      const difference = hasSubsidy ? -entry.holidaySubsidy : subsidyValue;
+      // Prefer employee-specific configured value when available; fallback to 50% of base salary
+      const defaultValue = (entry.employee as any)?.holidaySubsidy ?? baseSalary * 0.5;
+      const subsidyValue = hasSubsidy ? 0 : defaultValue;
+
+      const payrollResult = calculatePayroll({
+        baseSalary: entry.baseSalary,
+        mealAllowance: entry.mealAllowance,
+        transportAllowance: entry.transportAllowance,
+        otherAllowances: entry.otherAllowances,
+        familyAllowanceValue: entry.familyAllowance,
+        overtimeHoursNormal: entry.overtimeHoursNormal,
+        overtimeHoursNight: entry.overtimeHoursNight,
+        overtimeHoursHoliday: entry.overtimeHoursHoliday,
+        isRetired: entry.employee?.isRetired ?? false,
+        thirteenthMonthValue: entry.thirteenthMonth || 0,
+        holidaySubsidyValue: subsidyValue,
+      });
+
+      const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
 
       const updated: PayrollEntry = {
         ...entry,
-        holidaySubsidy: subsidyValue,
-        grossSalary: entry.grossSalary + difference,
-        netSalary: entry.netSalary + difference,
-        totalEmployerCost: entry.totalEmployerCost + difference,
+        ...payrollResult,
+        totalDeductions: payrollResult.totalDeductions + extraDeductions,
+        netSalary: payrollResult.netSalary - extraDeductions,
         updatedAt: new Date().toISOString(),
       };
 
@@ -497,32 +524,39 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === entryId);
       if (!entry) return;
 
-      const hourlyRate = calculateHourlyRate(entry.baseSalary);
-
-      const overtimeNormal = calculateOvertime(hourlyRate, hoursNormal, 'normal', 0);
-      const overtimeNight = calculateOvertime(hourlyRate, hoursNight, 'night', 0);
-      const overtimeHoliday = calculateOvertime(hourlyRate, hoursHoliday, 'holiday', 0);
-
-      const oldOvertimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
-      const newOvertimeTotal = overtimeNormal + overtimeNight + overtimeHoliday;
-      const difference = newOvertimeTotal - oldOvertimeTotal;
-
-      const updated: PayrollEntry = {
-        ...entry,
+      const payrollResult = calculatePayroll({
+        baseSalary: entry.baseSalary,
+        mealAllowance: entry.mealAllowance,
+        transportAllowance: entry.transportAllowance,
+        otherAllowances: entry.otherAllowances,
+        familyAllowanceValue: entry.familyAllowance,
         overtimeHoursNormal: hoursNormal,
         overtimeHoursNight: hoursNight,
         overtimeHoursHoliday: hoursHoliday,
-        overtimeNormal,
-        overtimeNight,
-        overtimeHoliday,
-        grossSalary: entry.grossSalary + difference,
-        netSalary: entry.netSalary + difference,
-        totalEmployerCost: entry.totalEmployerCost + difference,
+        isRetired: entry.employee?.isRetired ?? false,
+        thirteenthMonthValue: entry.thirteenthMonth || 0,
+        holidaySubsidyValue: entry.holidaySubsidy || 0,
+      });
+
+      const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
+
+      const updated: PayrollEntry = {
+        ...entry,
+        ...payrollResult,
+        overtimeHoursNormal: hoursNormal,
+        overtimeHoursNight: hoursNight,
+        overtimeHoursHoliday: hoursHoliday,
+        totalDeductions: payrollResult.totalDeductions + extraDeductions,
+        netSalary: payrollResult.netSalary - extraDeductions,
         updatedAt: new Date().toISOString(),
       };
 
       const { id: _, ...row } = mapEntryToDbRow(updated);
       await liveUpdate('payroll_entries', entryId, row);
+
+      if (entry.payrollPeriodId) {
+        await get().calculatePeriod(entry.payrollPeriodId);
+      }
     },
 
     getEntriesForPeriod: (periodId) => get().entries.filter((e) => e.payrollPeriodId === periodId),
@@ -538,26 +572,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === id);
       if (!entry) return;
 
-      const period = get().getPeriod(entry.payrollPeriodId);
-      const include13thMonth = period?.month === 12;
-
       const payrollResult = calculatePayroll({
         baseSalary: entry.baseSalary,
         mealAllowance: entry.mealAllowance,
         transportAllowance: entry.transportAllowance,
         otherAllowances: entry.otherAllowances,
+        familyAllowanceValue: entry.familyAllowance,
         overtimeHoursNormal: entry.overtimeHoursNormal,
         overtimeHoursNight: entry.overtimeHoursNight,
         overtimeHoursHoliday: entry.overtimeHoursHoliday,
         isRetired: entry.employee?.isRetired ?? false,
-        include13thMonth,
+        thirteenthMonthValue: entry.thirteenthMonth || 0,
+        holidaySubsidyValue: entry.holidaySubsidy || 0,
       });
+
+      const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
 
       const updated: PayrollEntry = {
         ...entry,
         ...payrollResult,
-        totalDeductions: payrollResult.totalDeductions + (entry.otherDeductions || 0),
-        netSalary: payrollResult.netSalary - (entry.otherDeductions || 0),
+        totalDeductions: payrollResult.totalDeductions + extraDeductions,
+        netSalary: payrollResult.netSalary - extraDeductions,
         updatedAt: new Date().toISOString(),
       };
 
@@ -573,25 +608,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         const period = get().getPeriod(entry.payrollPeriodId);
         // Only recalculate draft periods (not approved or paid)
         if (period && period.status === 'draft') {
-          const include13thMonth = period?.month === 12;
-
           const payrollResult = calculatePayroll({
             baseSalary: entry.baseSalary,
             mealAllowance: entry.mealAllowance,
             transportAllowance: entry.transportAllowance,
             otherAllowances: entry.otherAllowances,
+            familyAllowanceValue: entry.familyAllowance,
             overtimeHoursNormal: entry.overtimeHoursNormal,
             overtimeHoursNight: entry.overtimeHoursNight,
             overtimeHoursHoliday: entry.overtimeHoursHoliday,
             isRetired: entry.employee?.isRetired ?? false,
-            include13thMonth,
+            thirteenthMonthValue: entry.thirteenthMonth || 0,
+            holidaySubsidyValue: entry.holidaySubsidy || 0,
           });
+
+          const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
 
           const updated: PayrollEntry = {
             ...entry,
             ...payrollResult,
-            totalDeductions: payrollResult.totalDeductions + (entry.otherDeductions || 0),
-            netSalary: payrollResult.netSalary - (entry.otherDeductions || 0),
+            totalDeductions: payrollResult.totalDeductions + extraDeductions,
+            netSalary: payrollResult.netSalary - extraDeductions,
             updatedAt: new Date().toISOString(),
           };
 

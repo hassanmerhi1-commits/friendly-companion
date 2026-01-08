@@ -395,9 +395,15 @@ export interface PayrollInput {
   overtimeHoursNight?: number;
   overtimeHoursHoliday?: number;
   isRetired?: boolean;
+
+  // Auto-calculated subsidies
   include13thMonth?: boolean;
   monthsWorkedThisYear?: number;
   includeHolidaySubsidy?: boolean;
+
+  // Explicit overrides (when the payroll entry stores a specific value)
+  thirteenthMonthValue?: number;
+  holidaySubsidyValue?: number;
 }
 
 export interface PayrollResult {
@@ -457,12 +463,13 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const overtimeHoliday = calculateOvertime(hourlyRate, overtimeHoursHoliday, 'holiday');
 
   // Calculate subsidies
-  const thirteenthMonth = include13thMonth 
-    ? calculate13thMonth(baseSalary, monthsWorkedThisYear) 
-    : 0;
-  const holidaySubsidy = includeHolidaySubsidy 
-    ? calculateHolidaySubsidy(baseSalary) 
-    : 0;
+  const thirteenthMonth = typeof input.thirteenthMonthValue === 'number'
+    ? input.thirteenthMonthValue
+    : (include13thMonth ? calculate13thMonth(baseSalary, monthsWorkedThisYear) : 0);
+
+  const holidaySubsidy = typeof input.holidaySubsidyValue === 'number'
+    ? input.holidaySubsidyValue
+    : (includeHolidaySubsidy ? calculateHolidaySubsidy(baseSalary) : 0);
   
   // Use the fixed family allowance value directly
   const familyAllowance = familyAllowanceValue;
