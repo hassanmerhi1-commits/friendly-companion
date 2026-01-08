@@ -34,21 +34,21 @@ export interface IRTBracket {
 // IRT progressive tax brackets for Group A (Employment Income)
 // Updated according to Lei n.º 14/25 - Orçamento Geral do Estado 2026
 // Anexo I - Artigo 21.º (Effective January 2026)
-// Formula: IRT = Parcela Fixa + (Rendimento Coletável - Limite Inferior) × Taxa
+// Formula: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
 // Rendimento Coletável = (Salário Base + Sub. Férias + Sub. Natal) - INSS
 // Note: Transport, Meal, and Family allowances are NOT taxable for IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 150_000, rate: 0, fixedAmount: 0 },           // 1º Escalão - ISENTO
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 0 },  // 2º Escalão - 16% + Parcela 12.500 (excess over 150k)
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 12_500 },  // 3º Escalão
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 31_250 },  // 4º Escalão
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 49_250 }, // 5º Escalão
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 87_250 }, // 6º Escalão
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 187_250 }, // 7º Escalão
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 292_250 }, // 8º Escalão
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 402_250 }, // 9º Escalão
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 517_250 }, // 10º Escalão
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 1_117_250 }, // 11º Escalão
+  { min: 0, max: 150_000, rate: 0, fixedAmount: 0 },                    // 1º Escalão - ISENTO
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500 },      // 2º Escalão - Excesso de 150.000
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250 },      // 3º Escalão - Excesso de 200.000
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_250 },      // 4º Escalão - Excesso de 300.000
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250 },    // 5º Escalão - Excesso de 500.000
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_250 }, // 6º Escalão - Excesso de 1.000.000
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_250 }, // 7º Escalão - Excesso de 1.500.000
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_250 }, // 8º Escalão - Excesso de 2.000.000
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_250 }, // 9º Escalão - Excesso de 2.500.000
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_250 }, // 10º Escalão - Excesso de 5.000.000
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_250 },   // 11º Escalão - Excesso de 10.000.000
 ];
 
 // ============================================================================
@@ -203,13 +203,18 @@ export function calculateIRT(taxableIncome: number): number {
   if (!bracket) {
     // Use highest bracket for salaries above 10,000,000
     const highestBracket = IRT_BRACKETS[IRT_BRACKETS.length - 1];
-    const excess = taxableIncome - highestBracket.min + 1;
+    // Excess is calculated from the "Excesso de" value (lower bound - 1)
+    const excessoDE = highestBracket.min - 1; // 10,000,000
+    const excess = taxableIncome - excessoDE;
     return Math.round((highestBracket.fixedAmount + (excess * highestBracket.rate)) * 100) / 100;
   }
 
-  // Calculate: Fixed Amount + (Income - Lower Limit of Bracket) × Rate
-  // The "excess" is calculated from the lower limit of the current bracket
-  const excess = taxableIncome - bracket.min + 1;
+  // Calculate: Parcela Fixa + (Rendimento - "Excesso de") × Taxa
+  // "Excesso de" is the lower bound of the bracket minus 1 (i.e., previous bracket's max)
+  // For 2º Escalão (150,001-200,000), Excesso de = 150,000
+  // For 3º Escalão (200,001-300,000), Excesso de = 200,000
+  const excessoDE = bracket.min - 1;
+  const excess = taxableIncome - excessoDE;
   return Math.round((bracket.fixedAmount + (excess * bracket.rate)) * 100) / 100;
 }
 
@@ -464,10 +469,10 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
 
   // =========================================================================
   // INSS Calculation (According to AGT Angola simulator)
-  // INSS base = Base + Transport + Meal + Family Allowance
-  // NOT including: Holiday Subsidy (Férias) and 13th Month (Natal)
+  // INSS base = Base + Natal (13º) + Transport + Meal + Family Allowance
+  // NOT including: Holiday Subsidy (Férias)
   // =========================================================================
-  const inssBase = baseSalary + transportAllowance + mealAllowance + familyAllowance;
+  const inssBase = baseSalary + thirteenthMonth + transportAllowance + mealAllowance + familyAllowance;
   const { employeeContribution: inssEmployee, employerContribution: inssEmployer } = 
     calculateINSS(inssBase, isRetired);
 
