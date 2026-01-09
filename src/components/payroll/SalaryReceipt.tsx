@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/lib/i18n';
-import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, calculateIRT } from '@/lib/angola-labor-law';
+import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, calculateIRT, getIRTTaxableAllowance } from '@/lib/angola-labor-law';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
@@ -163,23 +163,28 @@ export function SalaryReceipt({
   const overtimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
 
   // ============= TAX BREAKDOWN CALCULATION =============
-  // INSS Base = Base + Natal + Transport + Meal + Family Allowance (NOT Férias)
-  const inssBase = entry.baseSalary + (entry.thirteenthMonth || 0) + entry.transportAllowance + entry.mealAllowance + (entry.familyAllowance || 0);
+  // INSS Base = Base + Transport + Meal + Natal + Overtime + Other (NOT Férias, NOT Abono Familiar)
+  const inssBase = entry.baseSalary + entry.transportAllowance + entry.mealAllowance + 
+                   (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
   const { employeeContribution: calculatedInss } = calculateINSS(inssBase, employee.isRetired);
 
-  // IRT Taxable = Base + ALL allowances (Transport, Meal, Family, Férias, Natal, Overtime)
-  const irtTaxableGross = entry.baseSalary + entry.transportAllowance + entry.mealAllowance + (entry.familyAllowance || 0) +
-                          (entry.holidaySubsidy || 0) + (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
+  // IRT Taxable = Base + excess of Transport/Meal above 30k + Natal + Overtime + Other
+  // NOT included: Férias, Abono Familiar
+  const taxableTransport = getIRTTaxableAllowance(entry.transportAllowance);
+  const taxableMeal = getIRTTaxableAllowance(entry.mealAllowance);
+  
+  const irtTaxableGross = entry.baseSalary + taxableTransport + taxableMeal +
+                          (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
   const rendimentoColetavel = irtTaxableGross - calculatedInss;
 
-  // Find current IRT bracket
+  // Find current IRT bracket (OLD table - exempt up to 70,000)
   const currentBracket = IRT_BRACKETS.find(
     b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
   );
   const escalaoIndex = currentBracket ? IRT_BRACKETS.indexOf(currentBracket) + 1 : 1;
   const excessoDE = currentBracket ? currentBracket.min - 1 : 0;
   const excessoValue = currentBracket ? rendimentoColetavel - excessoDE : 0;
-  const isIsento = rendimentoColetavel <= 150_000;
+  const isIsento = rendimentoColetavel <= 70_000;
 
   const formatNumber = (n: number) => n.toLocaleString('pt-AO');
 
