@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Calculator, RefreshCw } from "lucide-react";
-import { calculateIRT, calculateINSS, formatAOA, IRT_BRACKETS } from "@/lib/angola-labor-law";
+import { calculateIRT, calculateINSS, formatAOA, IRT_BRACKETS, IRT_ALLOWANCE_EXEMPTION, getIRTTaxableAllowance } from "@/lib/angola-labor-law";
 import { useLanguage } from "@/lib/i18n";
 import {
   Select,
@@ -53,13 +53,22 @@ const TaxSimulator = () => {
   const abonoFamilia = getSubsidyTotal("abono_familia");
   const outrosSubsidios = getSubsidyTotal("outro");
 
-  // INSS Base: Base + Natal + Alimentação + Transporte + Abono de Família (NOT Férias)
-  const inssBase = baseSalary + subsidioNatal + subsidioAlimentacao + subsidioTransporte + abonoFamilia;
+  // INSS Base: Base + Natal + Alimentação + Transporte + Outros (NOT Férias, NOT Abono de Família)
+  const inssBase = baseSalary + subsidioNatal + subsidioAlimentacao + subsidioTransporte + outrosSubsidios;
   const { employeeContribution: inssEmployee } = calculateINSS(inssBase, false);
 
-  // IRT Taxable: Base + ALL allowances (Alimentação, Transporte, Abono de Família, Férias, Natal)
-  const irtTaxableGross = baseSalary + subsidioAlimentacao + subsidioTransporte + abonoFamilia + 
-                          subsidioFerias + subsidioNatal + outrosSubsidios;
+  // IRT Taxable: 
+  // - Base salary: fully taxable
+  // - Alimentação: only EXCESS above 30,000 Kz
+  // - Transporte: only EXCESS above 30,000 Kz
+  // - Natal: fully taxable
+  // - Outros: fully taxable
+  // NOT included: Férias, Abono de Família
+  const taxableAlimentacao = getIRTTaxableAllowance(subsidioAlimentacao);
+  const taxableTransporte = getIRTTaxableAllowance(subsidioTransporte);
+  
+  const irtTaxableGross = baseSalary + taxableAlimentacao + taxableTransporte + 
+                          subsidioNatal + outrosSubsidios;
   
   // Rendimento Coletável = IRT Taxable - INSS
   const rendimentoColetavel = irtTaxableGross - inssEmployee;
@@ -67,14 +76,14 @@ const TaxSimulator = () => {
   // Calculate IRT
   const irt = calculateIRT(rendimentoColetavel);
 
-  // Total gross salary
+  // Total gross salary (for display - includes everything)
   const grossSalary = baseSalary + subsidioNatal + subsidioFerias + subsidioAlimentacao + 
                       subsidioTransporte + abonoFamilia + outrosSubsidios;
 
   // Net salary
   const netSalary = grossSalary - inssEmployee - irt;
 
-  // Find current IRT bracket
+  // Find current IRT bracket (using OLD table - exempt up to 70,000)
   const currentBracket = IRT_BRACKETS.find(
     b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
   );
@@ -128,7 +137,7 @@ const TaxSimulator = () => {
             Simulador Tributário IRT
           </h1>
           <p className="text-muted-foreground mt-1">
-            Calcule o IRT e INSS conforme Lei n.º 14/25 - OGE 2026
+            Calcule o IRT e INSS conforme legislação angolana vigente
           </p>
         </div>
 
@@ -310,27 +319,36 @@ const TaxSimulator = () => {
               <CardContent className="space-y-3 text-sm">
                 <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                   <h4 className="font-medium text-foreground">Base INSS (3%)</h4>
+                  <p className="text-xs text-muted-foreground mb-2">Não inclui: Subsídio de Férias, Abono de Família</p>
                   <div className="text-muted-foreground space-y-1">
                     <div className="flex justify-between">
                       <span>Salário Base</span>
                       <span>{formatNumber(baseSalary)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>+ Subsídio de Natal</span>
-                      <span>{formatNumber(subsidioNatal)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Alimentação</span>
-                      <span>{formatNumber(subsidioAlimentacao)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Transporte</span>
-                      <span>{formatNumber(subsidioTransporte)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Abono de Família</span>
-                      <span>{formatNumber(abonoFamilia)}</span>
-                    </div>
+                    {subsidioNatal > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Subsídio de Natal</span>
+                        <span>{formatNumber(subsidioNatal)}</span>
+                      </div>
+                    )}
+                    {subsidioAlimentacao > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Alimentação</span>
+                        <span>{formatNumber(subsidioAlimentacao)}</span>
+                      </div>
+                    )}
+                    {subsidioTransporte > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Transporte</span>
+                        <span>{formatNumber(subsidioTransporte)}</span>
+                      </div>
+                    )}
+                    {outrosSubsidios > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Outros Subsídios</span>
+                        <span>{formatNumber(outrosSubsidios)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-medium border-t pt-1">
                       <span>= Base INSS</span>
                       <span>{formatNumber(inssBase)}</span>
@@ -344,34 +362,41 @@ const TaxSimulator = () => {
 
                 <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                   <h4 className="font-medium text-foreground">Base IRT (Rendimento Coletável)</h4>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Alimentação/Transporte: isento até 30.000 Kz • Não inclui: Férias, Abono Familiar
+                  </p>
                   <div className="text-muted-foreground space-y-1">
                     <div className="flex justify-between">
                       <span>Salário Base</span>
                       <span>{formatNumber(baseSalary)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>+ Alimentação</span>
-                      <span>{formatNumber(subsidioAlimentacao)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Transporte</span>
-                      <span>{formatNumber(subsidioTransporte)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Abono de Família</span>
-                      <span>{formatNumber(abonoFamilia)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Subsídio de Férias</span>
-                      <span>{formatNumber(subsidioFerias)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Subsídio de Natal</span>
-                      <span>{formatNumber(subsidioNatal)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>+ Outros Subsídios</span>
-                      <span>{formatNumber(outrosSubsidios)}</span>
+                    {subsidioAlimentacao > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Alimentação (excesso de 30.000)</span>
+                        <span>{formatNumber(taxableAlimentacao)}</span>
+                      </div>
+                    )}
+                    {subsidioTransporte > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Transporte (excesso de 30.000)</span>
+                        <span>{formatNumber(taxableTransporte)}</span>
+                      </div>
+                    )}
+                    {subsidioNatal > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Subsídio de Natal</span>
+                        <span>{formatNumber(subsidioNatal)}</span>
+                      </div>
+                    )}
+                    {outrosSubsidios > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Outros Subsídios</span>
+                        <span>{formatNumber(outrosSubsidios)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium border-t pt-1">
+                      <span>= Total Tributável Bruto</span>
+                      <span>{formatNumber(irtTaxableGross)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>- INSS</span>
@@ -386,7 +411,7 @@ const TaxSimulator = () => {
 
                 <div className="p-3 bg-primary/5 rounded-lg space-y-2 border border-primary/20">
                   <h4 className="font-medium text-foreground">Cálculo IRT - {escalaoIndex}º Escalão</h4>
-                  {currentBracket && rendimentoColetavel > 150_000 ? (
+                  {currentBracket && rendimentoColetavel > 70_000 ? (
                     <div className="text-muted-foreground space-y-1">
                       <div className="flex justify-between">
                         <span>Parcela Fixa</span>
@@ -407,7 +432,7 @@ const TaxSimulator = () => {
                     </div>
                   ) : (
                     <div className="text-success font-medium">
-                      Isento de IRT (até 150.000 Kz)
+                      Isento de IRT (até 70.000 Kz)
                     </div>
                   )}
                 </div>
@@ -417,7 +442,7 @@ const TaxSimulator = () => {
             {/* IRT Table Reference */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Tabela IRT 2026 (Lei n.º 14/25)</CardTitle>
+                <CardTitle className="text-lg">Tabela IRT (Vigente)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
