@@ -53,8 +53,8 @@ const TaxSimulator = () => {
   const abonoFamilia = getSubsidyTotal("abono_familia");
   const outrosSubsidios = getSubsidyTotal("outro");
 
-  // INSS Base: Base + Natal + Alimentação + Transporte + Outros (NOT Férias, NOT Abono de Família)
-  const inssBase = baseSalary + subsidioNatal + subsidioAlimentacao + subsidioTransporte + outrosSubsidios;
+  // INSS Base: Base + Natal + Alimentação + Transporte + Abono + Outros (NOT Férias)
+  const inssBase = baseSalary + subsidioNatal + subsidioAlimentacao + subsidioTransporte + abonoFamilia + outrosSubsidios;
   const { employeeContribution: inssEmployee } = calculateINSS(inssBase, false);
 
   // IRT Taxable: 
@@ -62,13 +62,14 @@ const TaxSimulator = () => {
   // - Alimentação: only EXCESS above 30,000 Kz
   // - Transporte: only EXCESS above 30,000 Kz
   // - Natal: fully taxable
+  // - Férias: fully taxable
   // - Outros: fully taxable
-  // NOT included: Férias, Abono de Família
+  // NOT included: Abono de Família
   const taxableAlimentacao = getIRTTaxableAllowance(subsidioAlimentacao);
   const taxableTransporte = getIRTTaxableAllowance(subsidioTransporte);
   
   const irtTaxableGross = baseSalary + taxableAlimentacao + taxableTransporte + 
-                          subsidioNatal + outrosSubsidios;
+                          subsidioNatal + subsidioFerias + outrosSubsidios;
   
   // Rendimento Coletável = IRT Taxable - INSS
   const rendimentoColetavel = irtTaxableGross - inssEmployee;
@@ -319,7 +320,7 @@ const TaxSimulator = () => {
               <CardContent className="space-y-3 text-sm">
                 <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                   <h4 className="font-medium text-foreground">Base INSS (3%)</h4>
-                  <p className="text-xs text-muted-foreground mb-2">Não inclui: Subsídio de Férias, Abono de Família</p>
+                  <p className="text-xs text-muted-foreground mb-2">Não inclui: Subsídio de Férias</p>
                   <div className="text-muted-foreground space-y-1">
                     <div className="flex justify-between">
                       <span>Salário Base</span>
@@ -343,6 +344,12 @@ const TaxSimulator = () => {
                         <span>{formatNumber(subsidioTransporte)}</span>
                       </div>
                     )}
+                    {abonoFamilia > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Abono de Família</span>
+                        <span>{formatNumber(abonoFamilia)}</span>
+                      </div>
+                    )}
                     {outrosSubsidios > 0 && (
                       <div className="flex justify-between">
                         <span>+ Outros Subsídios</span>
@@ -363,7 +370,7 @@ const TaxSimulator = () => {
                 <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                   <h4 className="font-medium text-foreground">Base IRT (Rendimento Coletável)</h4>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Alimentação/Transporte: isento até 30.000 Kz • Não inclui: Férias, Abono Familiar
+                    Alimentação/Transporte: isento até 30.000 Kz • Não inclui: Abono de Família
                   </p>
                   <div className="text-muted-foreground space-y-1">
                     <div className="flex justify-between">
@@ -386,6 +393,12 @@ const TaxSimulator = () => {
                       <div className="flex justify-between">
                         <span>+ Subsídio de Natal</span>
                         <span>{formatNumber(subsidioNatal)}</span>
+                      </div>
+                    )}
+                    {subsidioFerias > 0 && (
+                      <div className="flex justify-between">
+                        <span>+ Subsídio de Férias</span>
+                        <span>{formatNumber(subsidioFerias)}</span>
                       </div>
                     )}
                     {outrosSubsidios > 0 && (
