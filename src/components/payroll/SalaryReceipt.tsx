@@ -177,14 +177,14 @@ export function SalaryReceipt({
                           (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
   const rendimentoColetavel = irtTaxableGross - calculatedInss;
 
-  // Find current IRT bracket (OLD table - exempt up to 70,000)
+  // Find current IRT bracket (exempt up to 100,000)
   const currentBracket = IRT_BRACKETS.find(
     b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
   );
   const escalaoIndex = currentBracket ? IRT_BRACKETS.indexOf(currentBracket) + 1 : 1;
   const excessoDE = currentBracket ? currentBracket.min - 1 : 0;
   const excessoValue = currentBracket ? rendimentoColetavel - excessoDE : 0;
-  const isIsento = rendimentoColetavel <= 70_000;
+  const isIsento = rendimentoColetavel <= 100_000;
 
   const formatNumber = (n: number) => n.toLocaleString('pt-AO');
 

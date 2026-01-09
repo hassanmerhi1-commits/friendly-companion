@@ -45,19 +45,18 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // - Subsídio de Alimentação: Exempt up to 30,000 Kz (only excess is taxable)
 // - Subsídio de Transporte: Exempt up to 30,000 Kz (only excess is taxable)
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 70_000, rate: 0, fixedAmount: 0 },                     // 1º Escalão - ISENTO
-  { min: 70_001, max: 100_000, rate: 0.10, fixedAmount: 0 },            // 2º Escalão - 10%
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 3_000 },       // 3º Escalão - 13%
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 9_500 },       // 4º Escalão - 16%
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 17_500 },      // 5º Escalão - 18%
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 35_500 },      // 6º Escalão - 19%
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 73_500 },    // 7º Escalão - 20%
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 173_500 }, // 8º Escalão - 21%
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 278_500 }, // 9º Escalão - 22%
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 388_500 }, // 10º Escalão - 23%
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 503_500 }, // 11º Escalão - 24%
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_103_500 }, // 12º Escalão - 24.5%
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_328_500 },   // 13º Escalão - 25%
+  { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },                     // 1º Escalão - ISENTO (até 100.000 Kz)
+  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },            // 2º Escalão - 13%
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 6_500 },        // 3º Escalão - 16%
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 14_500 },       // 4º Escalão - 18%
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 32_500 },       // 5º Escalão - 19%
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 70_500 },     // 6º Escalão - 20%
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 170_500 },  // 7º Escalão - 21%
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 275_500 },  // 8º Escalão - 22%
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 385_500 },  // 9º Escalão - 23%
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 500_500 },  // 10º Escalão - 24%
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_100_500 }, // 11º Escalão - 24.5%
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_325_500 },   // 12º Escalão - 25%
 ];
 
 // ============================================================================
@@ -203,8 +202,8 @@ export const NATIONAL_HOLIDAYS = [
  * - First 30,000 Kz of Transporte
  */
 export function calculateIRT(taxableIncome: number): number {
-  // Salaries up to 70,000 AOA are exempt (1º Escalão - OLD table)
-  if (taxableIncome <= 70_000) {
+  // Salaries up to 100,000 AOA are exempt (1º Escalão)
+  if (taxableIncome <= 100_000) {
     return 0;
   }
 
