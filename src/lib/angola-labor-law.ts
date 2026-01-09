@@ -35,8 +35,8 @@ export interface IRTBracket {
 // Updated according to Lei n.º 14/25 - Orçamento Geral do Estado 2026
 // Anexo I - Artigo 21.º (Effective January 2026)
 // Formula: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
-// Rendimento Coletável = (Salário Base + Sub. Férias + Sub. Natal) - INSS
-// Note: Transport, Meal, and Family allowances are NOT taxable for IRT
+// Rendimento Coletável = (Total Bruto) - INSS
+// Note: ALL allowances (Transport, Meal, Family) ARE taxable for IRT
 export const IRT_BRACKETS: IRTBracket[] = [
   { min: 0, max: 150_000, rate: 0, fixedAmount: 0 },                    // 1º Escalão - ISENTO
   { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500 },      // 2º Escalão - Excesso de 150.000
@@ -181,13 +181,14 @@ export const NATIONAL_HOLIDAYS = [
  * 
  * IRT Taxable items (Rendimento Tributável):
  * - Salário Base
+ * - Subsídio de Alimentação
+ * - Subsídio de Transporte
+ * - Abono de Família (Family Allowance)
  * - Subsídio de Férias (50% of base)
  * - Subsídio de Natal (13º mês)
+ * - Overtime
  * 
- * NON-Taxable for IRT:
- * - Subsídio de Alimentação
- * - Subsídio de Transporte  
- * - Abono de Família (Family Allowance)
+ * ALL allowances are taxable for IRT (confirmed with AGT simulator)
  */
 export function calculateIRT(taxableIncome: number): number {
   // Salaries up to 150,000 AOA are exempt (1º Escalão - Lei 14/25)
@@ -483,13 +484,14 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   const { employeeContribution: inssEmployee, employerContribution: inssEmployer } = 
     calculateINSS(inssBase, isRetired);
 
-  // =========================================================================
+// =========================================================================
   // IRT Calculation (According to AGT Angola simulator)
-  // IRT taxable = Base + Holiday Subsidy + 13th Month + Overtime
-  // NOT taxable: Transport, Meal, Family Allowance
+  // IRT taxable = Base + Transport + Meal + Family + Holiday Subsidy + 13th Month + Overtime
+  // ALL allowances are taxable for IRT
   // Then subtract INSS to get Rendimento Coletável
   // =========================================================================
-  const irtTaxableGross = baseSalary + holidaySubsidy + thirteenthMonth + 
+  const irtTaxableGross = baseSalary + transportAllowance + mealAllowance + familyAllowance +
+                          holidaySubsidy + thirteenthMonth + 
                           overtimeNormal + overtimeNight + overtimeHoliday + otherAllowances;
   
   // Rendimento Coletável = IRT Taxable Gross - INSS

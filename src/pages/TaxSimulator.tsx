@@ -57,8 +57,9 @@ const TaxSimulator = () => {
   const inssBase = baseSalary + subsidioNatal + subsidioAlimentacao + subsidioTransporte + abonoFamilia;
   const { employeeContribution: inssEmployee } = calculateINSS(inssBase, false);
 
-  // IRT Taxable: Base + Férias + Natal (NOT Alimentação, Transporte, Abono de Família)
-  const irtTaxableGross = baseSalary + subsidioFerias + subsidioNatal + outrosSubsidios;
+  // IRT Taxable: Base + ALL allowances (Alimentação, Transporte, Abono de Família, Férias, Natal)
+  const irtTaxableGross = baseSalary + subsidioAlimentacao + subsidioTransporte + abonoFamilia + 
+                          subsidioFerias + subsidioNatal + outrosSubsidios;
   
   // Rendimento Coletável = IRT Taxable - INSS
   const rendimentoColetavel = irtTaxableGross - inssEmployee;
@@ -347,6 +348,18 @@ const TaxSimulator = () => {
                     <div className="flex justify-between">
                       <span>Salário Base</span>
                       <span>{formatNumber(baseSalary)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>+ Alimentação</span>
+                      <span>{formatNumber(subsidioAlimentacao)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>+ Transporte</span>
+                      <span>{formatNumber(subsidioTransporte)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>+ Abono de Família</span>
+                      <span>{formatNumber(abonoFamilia)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>+ Subsídio de Férias</span>

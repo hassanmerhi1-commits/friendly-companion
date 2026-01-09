@@ -167,8 +167,9 @@ export function SalaryReceipt({
   const inssBase = entry.baseSalary + (entry.thirteenthMonth || 0) + entry.transportAllowance + entry.mealAllowance + (entry.familyAllowance || 0);
   const { employeeContribution: calculatedInss } = calculateINSS(inssBase, employee.isRetired);
 
-  // IRT Taxable = Base + Férias + Natal + Overtime + Other Allowances (NOT Transport, Meal, Family)
-  const irtTaxableGross = entry.baseSalary + (entry.holidaySubsidy || 0) + (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
+  // IRT Taxable = Base + ALL allowances (Transport, Meal, Family, Férias, Natal, Overtime)
+  const irtTaxableGross = entry.baseSalary + entry.transportAllowance + entry.mealAllowance + (entry.familyAllowance || 0) +
+                          (entry.holidaySubsidy || 0) + (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
   const rendimentoColetavel = irtTaxableGross - calculatedInss;
 
   // Find current IRT bracket
