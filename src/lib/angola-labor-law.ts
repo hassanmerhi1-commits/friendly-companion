@@ -29,7 +29,7 @@ export interface IRTBracket {
   max: number;
   rate: number;
   fixedAmount: number; // Parcela fixa (fixed amount to add)
-  excessOver: number;  // "Excesso de" - threshold for calculating excess (previous bracket's max)
+  excessOver: number;  // "Excesso de" exactly as defined by the IRT table
 }
 
 // IRT Exemption threshold for Transport and Meal Allowances
@@ -38,16 +38,21 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // IRT progressive tax brackets for Group A (Employment Income)
 // Formula: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
 // Rendimento Coletável = IRT Taxable Gross - INSS
-// 
-// OFFICIAL TABLE (Tabela IRT Vigente):
-// Escalão | Até (Kz)     | Parcela Fixa | Taxa
-// 1º      | 100.000      | 0            | Isento
-// 2º      | 150.000      | 0            | 13%
-// 3º      | 200.000      | 12.500       | 16%
-// 4º      | 300.000      | 20.500       | 18%
-// 5º      | 500.000      | 38.500       | 19%
-// 6º      | 1.000.000    | 76.500       | 20%
-// 7º      | 1.500.000    | 176.500      | 21%
+//
+// TABLE SOURCE: "Tabela do IRT" (MAUBE Consultoria e Auditoria)
+// Escalão | De (Kz)     | Até (Kz)      | Parcela Fixa | Taxa   | Excesso de
+// 1º      | 0           | 100.000       | 0            | Isento | -
+// 2º      | 100.001     | 150.000       | 0            | 13%    | 100.001
+// 3º      | 150.001     | 200.000       | 12.500       | 16%    | 150.001
+// 4º      | 200.001     | 300.000       | 31.250       | 18%    | 200.001
+// 5º      | 300.001     | 500.000       | 49.259       | 19%    | 300.001
+// 6º      | 500.001     | 1.000.000     | 87.250       | 20%    | 500.001
+// 7º      | 1.000.001   | 1.500.000     | 187.249      | 21%    | 1.000.001
+// 8º      | 1.500.001   | 2.000.000     | 292.249      | 22%    | 1.500.001
+// 9º      | 2.000.001   | 2.500.000     | 402.249      | 23%    | 2.000.001
+// 10º     | 2.500.001   | 5.000.000     | 517.249      | 24%    | 2.500.001
+// 11º     | 5.000.001   | 10.000.000    | 1.117.249    | 24.5%  | 5.000.001
+// 12º     | 10.000.001  | ∞             | 2.342.248    | 25%    | 10.000.001
 // 
 // IRT INCLUSIONS:
 // - Salário Base: Fully taxable
@@ -59,18 +64,18 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // IRT EXCLUSIONS:
 // - Abono de Família: Fully exempt from IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 100_000, rate: 0, fixedAmount: 0, excessOver: 0 },                       // 1º Escalão - ISENTO (até 100.000 Kz)
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0, excessOver: 100_000 },        // 2º Escalão - 13%, Excesso de 100.000
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500, excessOver: 150_000 },   // 3º Escalão - 16%, Excesso de 150.000 (Official P.Fixa: 12,500)
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 20_500, excessOver: 200_000 },   // 4º Escalão - 18%, Excesso de 200.000 (Official P.Fixa: 20,500)
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 38_500, excessOver: 300_000 },   // 5º Escalão - 19%, Excesso de 300.000 (Official P.Fixa: 38,500)
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 76_500, excessOver: 500_000 },     // 6º Escalão - 20%, Excesso de 500.000 (Official P.Fixa: 76,500)
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 176_500, excessOver: 1_000_000 },  // 7º Escalão - 21%, Excesso de 1.000.000 (Official P.Fixa: 176,500)
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 281_500, excessOver: 1_500_000 },  // 8º Escalão - 22%, Excesso de 1.500.000
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 391_500, excessOver: 2_000_000 },  // 9º Escalão - 23%, Excesso de 2.000.000
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 506_500, excessOver: 2_500_000 },  // 10º Escalão - 24%, Excesso de 2.500.000
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_106_500, excessOver: 5_000_000 }, // 11º Escalão - 24.5%, Excesso de 5.000.000
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_331_500, excessOver: 10_000_000 },   // 12º Escalão - 25%, Excesso de 10.000.000
+  { min: 0, max: 100_000, rate: 0, fixedAmount: 0, excessOver: 0 },
+  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0, excessOver: 100_001 },
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500, excessOver: 150_001 },
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250, excessOver: 200_001 },
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_259, excessOver: 300_001 },
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250, excessOver: 500_001 },
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_249, excessOver: 1_000_001 },
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_249, excessOver: 1_500_001 },
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_249, excessOver: 2_000_001 },
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_249, excessOver: 2_500_001 },
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_249, excessOver: 5_000_001 },
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_248, excessOver: 10_000_001 },
 ];
 
 // ============================================================================
@@ -233,7 +238,7 @@ export function calculateIRT(taxableIncome: number): number {
   }
 
   // Calculate: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
-  // Where "Excesso de" is the previous bracket's max (stored in excessOver)
+  // Where "Excesso de" is taken directly from the IRT table (stored in excessOver)
   const excess = taxableIncome - bracket.excessOver;
   return Math.round((bracket.fixedAmount + (excess * bracket.rate)) * 100) / 100;
 }
