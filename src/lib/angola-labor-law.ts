@@ -29,6 +29,7 @@ export interface IRTBracket {
   max: number;
   rate: number;
   fixedAmount: number; // Parcela fixa (fixed amount to add)
+  excessOver: number;  // "Excesso de" - threshold for calculating excess (previous bracket's max)
 }
 
 // IRT Exemption threshold for Transport and Meal Allowances
@@ -37,6 +38,16 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // IRT progressive tax brackets for Group A (Employment Income)
 // Formula: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
 // Rendimento Coletável = IRT Taxable Gross - INSS
+// 
+// OFFICIAL TABLE (Tabela IRT Vigente):
+// Escalão | Até (Kz)     | Parcela Fixa | Taxa
+// 1º      | 100.000      | 0            | Isento
+// 2º      | 150.000      | 0            | 13%
+// 3º      | 200.000      | 12.500       | 16%
+// 4º      | 300.000      | 20.500       | 18%
+// 5º      | 500.000      | 38.500       | 19%
+// 6º      | 1.000.000    | 76.500       | 20%
+// 7º      | 1.500.000    | 176.500      | 21%
 // 
 // IRT INCLUSIONS:
 // - Salário Base: Fully taxable
@@ -48,18 +59,18 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // IRT EXCLUSIONS:
 // - Abono de Família: Fully exempt from IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 100_000, rate: 0, fixedAmount: 0 },                     // 1º Escalão - ISENTO (até 100.000 Kz)
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0 },            // 2º Escalão - 13%, Excesso de 100.001
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500 },       // 3º Escalão - 16%, Excesso de 150.001
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 20_500 },       // 4º Escalão - 18%, Excesso de 200.001
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 38_500 },       // 5º Escalão - 19%, Excesso de 300.001
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 76_500 },     // 6º Escalão - 20%, Excesso de 500.001
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 176_500 },  // 7º Escalão - 21%, Excesso de 1.000.001
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 281_500 },  // 8º Escalão - 22%, Excesso de 1.500.001
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 391_500 },  // 9º Escalão - 23%, Excesso de 2.000.001
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 506_500 },  // 10º Escalão - 24%, Excesso de 2.500.001
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_106_500 }, // 11º Escalão - 24.5%, Excesso de 5.000.001
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_331_500 },   // 12º Escalão - 25%, Excesso de 10.000.001
+  { min: 0, max: 100_000, rate: 0, fixedAmount: 0, excessOver: 0 },                       // 1º Escalão - ISENTO (até 100.000 Kz)
+  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0, excessOver: 100_000 },        // 2º Escalão - 13%, Excesso de 100.000
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500, excessOver: 150_000 },   // 3º Escalão - 16%, Excesso de 150.000 (Official P.Fixa: 12,500)
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 20_500, excessOver: 200_000 },   // 4º Escalão - 18%, Excesso de 200.000 (Official P.Fixa: 20,500)
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 38_500, excessOver: 300_000 },   // 5º Escalão - 19%, Excesso de 300.000 (Official P.Fixa: 38,500)
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 76_500, excessOver: 500_000 },     // 6º Escalão - 20%, Excesso de 500.000 (Official P.Fixa: 76,500)
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 176_500, excessOver: 1_000_000 },  // 7º Escalão - 21%, Excesso de 1.000.000 (Official P.Fixa: 176,500)
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 281_500, excessOver: 1_500_000 },  // 8º Escalão - 22%, Excesso de 1.500.000
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 391_500, excessOver: 2_000_000 },  // 9º Escalão - 23%, Excesso de 2.000.000
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 506_500, excessOver: 2_500_000 },  // 10º Escalão - 24%, Excesso de 2.500.000
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_106_500, excessOver: 5_000_000 }, // 11º Escalão - 24.5%, Excesso de 5.000.000
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_331_500, excessOver: 10_000_000 },   // 12º Escalão - 25%, Excesso de 10.000.000
 ];
 
 // ============================================================================
@@ -217,14 +228,13 @@ export function calculateIRT(taxableIncome: number): number {
   if (!bracket) {
     // Use highest bracket for salaries above 10,000,000
     const highestBracket = IRT_BRACKETS[IRT_BRACKETS.length - 1];
-    const excessoDE = highestBracket.min - 1;
-    const excess = taxableIncome - excessoDE;
+    const excess = taxableIncome - highestBracket.excessOver;
     return Math.round((highestBracket.fixedAmount + (excess * highestBracket.rate)) * 100) / 100;
   }
 
-  // Calculate: Parcela Fixa + (Rendimento - "Excesso de") × Taxa
-  const excessoDE = bracket.min - 1;
-  const excess = taxableIncome - excessoDE;
+  // Calculate: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
+  // Where "Excesso de" is the previous bracket's max (stored in excessOver)
+  const excess = taxableIncome - bracket.excessOver;
   return Math.round((bracket.fixedAmount + (excess * bracket.rate)) * 100) / 100;
 }
 
