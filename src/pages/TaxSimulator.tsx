@@ -84,7 +84,7 @@ const TaxSimulator = () => {
   // Net salary
   const netSalary = grossSalary - inssEmployee - irt;
 
-  // Find current IRT bracket (using OLD table - exempt up to 70,000)
+  // Find current IRT bracket (current table - exempt up to 100,000)
   const currentBracket = IRT_BRACKETS.find(
     b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
   );
