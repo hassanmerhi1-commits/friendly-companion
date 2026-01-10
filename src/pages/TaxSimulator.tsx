@@ -431,8 +431,8 @@ const TaxSimulator = () => {
                         <span>{formatNumber(currentBracket.fixedAmount)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Excesso de {formatNumber(currentBracket.min - 1)}</span>
-                        <span>{formatNumber(rendimentoColetavel - (currentBracket.min - 1))}</span>
+                        <span>Excesso de {formatNumber(currentBracket.excessOver)}</span>
+                        <span>{formatNumber(rendimentoColetavel - currentBracket.excessOver)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Taxa</span>
