@@ -12,6 +12,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useHRStore } from "@/stores/hr-store";
+import { useDisciplinaryStore, initDisciplinaryStoreSync } from "@/stores/disciplinary-store";
 import { useLanguage } from "@/lib/i18n";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { buildEmployeeSalaryHistory, buildSalaryComparison, calculateTerminationPackage } from "@/lib/salary-history";
@@ -19,6 +20,8 @@ import { EmployeeSalaryHistoryReport } from "@/components/reports/EmployeeSalary
 import { SalaryComparisonReport } from "@/components/reports/SalaryComparisonReport";
 import { TerminationDialog } from "@/components/hr/TerminationDialog";
 import { SalaryAdjustmentsList } from "@/components/hr/SalaryAdjustmentsList";
+import { DisciplinaryRecordDialog } from "@/components/hr/DisciplinaryRecordDialog";
+import { DisciplinaryRecordsList } from "@/components/hr/DisciplinaryRecordsList";
 import { 
   Calculator, 
   TrendingUp, 
@@ -32,7 +35,9 @@ import {
   BarChart3,
   UserX,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  FileWarning,
+  Plus
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 
@@ -42,12 +47,14 @@ export default function HRDashboard() {
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
   const { loadHRData, salaryAdjustments } = useHRStore();
+  const { records: disciplinaryRecords, loadRecords: loadDisciplinaryRecords, getActiveRecordsByEmployee } = useDisciplinaryStore();
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [terminationDate, setTerminationDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [terminationReason, setTerminationReason] = useState<'voluntary' | 'dismissal' | 'contract_end' | 'retirement'>('voluntary');
   const [unusedLeaveDays, setUnusedLeaveDays] = useState<number>(0);
   const [showTerminationDialog, setShowTerminationDialog] = useState(false);
+  const [showDisciplinaryDialog, setShowDisciplinaryDialog] = useState(false);
   
   const historyReportRef = useRef<HTMLDivElement>(null);
   const comparisonReportRef = useRef<HTMLDivElement>(null);
@@ -55,7 +62,10 @@ export default function HRDashboard() {
   // Load HR data on mount
   useEffect(() => {
     loadHRData();
-  }, [loadHRData]);
+    loadDisciplinaryRecords();
+    const unsubscribe = initDisciplinaryStoreSync();
+    return () => unsubscribe?.();
+  }, [loadHRData, loadDisciplinaryRecords]);
 
   const handlePrintHistory = useReactToPrint({
     contentRef: historyReportRef,
@@ -112,9 +122,10 @@ export default function HRDashboard() {
     });
     
     const pendingAdjustments = salaryAdjustments.filter(a => a.status === 'pending').length;
+    const activeDisciplinary = disciplinaryRecords.filter(r => r.status === 'pendente' || r.status === 'escalado').length;
 
-    return { totalEmployees, avgTenure, avgSalary, contractsEndingSoon, pendingAdjustments };
-  }, [activeEmployees, salaryAdjustments]);
+    return { totalEmployees, avgTenure, avgSalary, contractsEndingSoon, pendingAdjustments, activeDisciplinary };
+  }, [activeEmployees, salaryAdjustments, disciplinaryRecords]);
 
   const getBranchName = (branchId: string) => {
     const branch = branches.find(b => b.id === branchId);
@@ -272,10 +283,19 @@ export default function HRDashboard() {
 
         {/* Main Tabs */}
         <Tabs defaultValue="termination" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="termination" className="flex items-center gap-2">
               <UserX className="h-4 w-4" />
               {language === 'pt' ? 'Rescisão' : 'Termination'}
+            </TabsTrigger>
+            <TabsTrigger value="disciplinary" className="flex items-center gap-2">
+              <FileWarning className="h-4 w-4" />
+              {language === 'pt' ? 'Disciplinar' : 'Disciplinary'}
+              {stats.activeDisciplinary > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5">
+                  {stats.activeDisciplinary}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="adjustments" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -484,6 +504,32 @@ export default function HRDashboard() {
             </div>
           </TabsContent>
 
+          {/* Disciplinary Records Tab */}
+          <TabsContent value="disciplinary" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileWarning className="h-5 w-5 text-destructive" />
+                    {language === 'pt' ? 'Registos Disciplinares' : 'Disciplinary Records'}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'pt' 
+                      ? 'Advertências, suspensões e processos disciplinares' 
+                      : 'Warnings, suspensions and disciplinary processes'}
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setShowDisciplinaryDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {language === 'pt' ? 'Novo Registo' : 'New Record'}
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <DisciplinaryRecordsList />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Salary Adjustments Tab */}
           <TabsContent value="adjustments" className="space-y-4">
             <SalaryAdjustmentsList />
@@ -600,6 +646,12 @@ export default function HRDashboard() {
           onSuccess={handleTerminationSuccess}
         />
       )}
+
+      {/* Disciplinary Record Dialog */}
+      <DisciplinaryRecordDialog
+        open={showDisciplinaryDialog}
+        onOpenChange={setShowDisciplinaryDialog}
+      />
     </MainLayout>
   );
 }
