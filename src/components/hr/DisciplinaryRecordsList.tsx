@@ -57,12 +57,12 @@ export function DisciplinaryRecordsList({ employeeId: propEmployeeId }: Discipli
   const { settings } = useSettingsStore();
   const [printingRecord, setPrintingRecord] = useState<DisciplinaryRecord | null>(null);
   const [printingHistory, setPrintingHistory] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(propEmployeeId || '');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(propEmployeeId || 'all');
   const printRef = useRef<HTMLDivElement>(null);
   const historyPrintRef = useRef<HTMLDivElement>(null);
 
-  // Use prop employeeId if provided, otherwise use selected
-  const effectiveEmployeeId = propEmployeeId || selectedEmployeeId;
+  // Use prop employeeId if provided, otherwise use selected (convert 'all' to empty for logic)
+  const effectiveEmployeeId = propEmployeeId || (selectedEmployeeId === 'all' ? '' : selectedEmployeeId);
   const displayRecords = effectiveEmployeeId ? getRecordsByEmployee(effectiveEmployeeId) : records;
 
   const getEmployee = (id: string) => employees.find((e) => e.id === id);
@@ -123,7 +123,7 @@ export function DisciplinaryRecordsList({ employeeId: propEmployeeId }: Discipli
               <SelectValue placeholder="Todos os funcionários" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos os funcionários</SelectItem>
+              <SelectItem value="all">Todos os funcionários</SelectItem>
               {employees.map((emp) => (
                 <SelectItem key={emp.id} value={emp.id}>
                   {emp.firstName} {emp.lastName} - {emp.position}
