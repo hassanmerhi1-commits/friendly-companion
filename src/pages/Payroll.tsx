@@ -21,6 +21,7 @@ import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollShee
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
 import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialog";
 import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
+import { BatchReceiptPrinter } from "@/components/payroll/BatchReceiptPrinter";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -50,6 +51,7 @@ const Payroll = () => {
   const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
   const [overtimeEntry, setOvertimeEntry] = useState<PayrollEntry | null>(null);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
+  const [batchReceiptOpen, setBatchReceiptOpen] = useState(false);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
 
   const pendingAbsences = getPendingAbsences();
@@ -291,6 +293,14 @@ const Payroll = () => {
           >
             <Printer className="h-4 w-4 mr-2" />
             {language === 'pt' ? 'Imprimir Folha' : 'Print Sheet'}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setBatchReceiptOpen(true)} 
+            disabled={currentEntries.length === 0}
+          >
+            <Receipt className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Recibos em Lote' : 'Batch Receipts'}
           </Button>
         </div>
       </div>
@@ -708,6 +718,16 @@ const Payroll = () => {
       <AbsenceDialog
         open={absenceDialogOpen}
         onOpenChange={setAbsenceDialogOpen}
+      />
+
+      {/* Batch Receipt Printer Dialog */}
+      <BatchReceiptPrinter
+        open={batchReceiptOpen}
+        onOpenChange={setBatchReceiptOpen}
+        entries={currentEntries}
+        periodLabel={periodLabel}
+        companyName={settings.companyName}
+        companyNif={settings.nif}
       />
     </MainLayout>
   );
