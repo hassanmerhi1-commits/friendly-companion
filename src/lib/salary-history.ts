@@ -251,7 +251,8 @@ export function getAllEmployeeSalaryComparisons(
 
 /**
  * Calculate termination package for employee
- * Based on Angolan labor law
+ * Based on Angolan Labor Law 12/23 (Lei Geral do Trabalho)
+ * Articles 307-311
  */
 export function calculateTerminationPackage(
   employee: Employee,
@@ -279,53 +280,86 @@ export function calculateTerminationPackage(
   const terminationDate = new Date(terminationDateStr);
   const msWorked = terminationDate.getTime() - hireDate.getTime();
   const daysWorked = msWorked / (1000 * 60 * 60 * 24);
-  const monthsWorked = Math.floor(daysWorked / 30);
-  const yearsOfService = daysWorked / 365.25;
+  const totalMonthsWorked = daysWorked / 30.44; // Average days per month
+  
+  // Lei 12/23: Fracções ≥ 3 meses contam como ano completo
+  const completeYears = Math.floor(totalMonthsWorked / 12);
+  const remainingMonths = totalMonthsWorked % 12;
+  const yearsOfService = remainingMonths >= 3 ? completeYears + 1 : completeYears;
   
   const averageSalary = history.averageMonthlySalary || employee.baseSalary;
-  const dailyRate = employee.baseSalary / 22; // 22 working days
+  const baseSalary = employee.baseSalary;
+  const dailyRate = baseSalary / 22; // 22 working days per month
   
-  // Calculate months in current year for proportional benefits
-  const currentMonth = terminationDate.getMonth() + 1;
+  // Calculate months worked in current calendar year for proportional benefits
+  const currentYearStart = new Date(terminationDate.getFullYear(), 0, 1);
+  const msThisYear = terminationDate.getTime() - currentYearStart.getTime();
+  const monthsInCurrentYear = Math.min(12, Math.max(1, Math.ceil(msThisYear / (1000 * 60 * 60 * 24 * 30.44))));
   
-  // Proportional annual leave (based on months worked this year)
-  const proportionalLeave = (averageSalary * currentMonth) / 12;
+  // ==================================================================
+  // FÉRIAS PROPORCIONAIS (Art. 310)
+  // Base: 22 dias úteis de férias anuais
+  // Fórmula: (22 dias × meses trabalhados / 12) × taxa diária
+  // ==================================================================
+  const annualLeaveDays = 22;
+  const proportionalLeaveDays = (annualLeaveDays * monthsInCurrentYear) / 12;
+  const proportionalLeave = proportionalLeaveDays * dailyRate;
   
-  // Proportional 13th month (50% of base salary, proportional to months worked)
-  const proportional13th = (employee.baseSalary * 0.5 * currentMonth) / 12;
+  // ==================================================================
+  // 13º MÊS PROPORCIONAL (Art. 310)
+  // Fórmula: (salário base × meses trabalhados) / 12
+  // ==================================================================
+  const proportional13th = (baseSalary * monthsInCurrentYear) / 12;
   
-  // Proportional holiday subsidy (50% of base salary, proportional)
-  const proportionalHolidaySubsidy = (employee.baseSalary * 0.5 * currentMonth) / 12;
+  // ==================================================================
+  // SUBSÍDIO DE FÉRIAS PROPORCIONAL (Art. 310)
+  // Fórmula: (salário base × meses trabalhados) / 12
+  // ==================================================================
+  const proportionalHolidaySubsidy = (baseSalary * monthsInCurrentYear) / 12;
   
-  // Notice period (based on years of service)
-  // Less than 3 months: 15 days
-  // 3 months to 1 year: 30 days
-  // 1-5 years: 30 days
-  // 5+ years: 60 days
-  let noticePeriodDays = 15;
-  if (yearsOfService >= 5) {
-    noticePeriodDays = 60;
-  } else if (yearsOfService >= 0.25) {
-    noticePeriodDays = 30;
-  }
+  // ==================================================================
+  // AVISO PRÉVIO (Art. 307)
+  // Padrão: 30 dias (60 dias para despedimento colectivo)
+  // ==================================================================
+  const noticePeriodDays = 30;
   
-  // Notice compensation (only if employer dismisses without notice)
+  // Compensação por aviso prévio (só se empregador despede sem aviso)
   const noticeCompensation = terminationReason === 'dismissal' ? dailyRate * noticePeriodDays : 0;
   
-  // Severance pay (depends on reason)
-  // Dismissal without just cause: 1 month per year
-  // Voluntary resignation: typically no severance
-  // Contract end: may include proportional severance
+  // ==================================================================
+  // INDEMNIZAÇÃO POR DESPEDIMENTO (Art. 308-309)
+  // Até 5 anos: 100% salário base × anos
+  // Após 5 anos: 50% salário base × anos excedentes
+  // ==================================================================
   let severancePay = 0;
-  if (terminationReason === 'dismissal') {
-    severancePay = Math.floor(yearsOfService) * averageSalary;
-  } else if (terminationReason === 'contract_end') {
-    severancePay = Math.floor(yearsOfService) * averageSalary * 0.5;
-  } else if (terminationReason === 'retirement') {
-    severancePay = Math.floor(yearsOfService) * averageSalary;
-  }
   
-  // Unused leave compensation
+  if (terminationReason === 'dismissal' || terminationReason === 'retirement') {
+    if (yearsOfService <= 5) {
+      // 100% do salário base por cada ano até 5 anos
+      severancePay = yearsOfService * baseSalary;
+    } else {
+      // Primeiros 5 anos: 100%
+      // Anos após 5: 50%
+      const firstFiveYears = 5 * baseSalary;
+      const remainingYears = (yearsOfService - 5) * baseSalary * 0.5;
+      severancePay = firstFiveYears + remainingYears;
+    }
+  } else if (terminationReason === 'contract_end') {
+    // Fim de contrato: 50% da indemnização normal
+    if (yearsOfService <= 5) {
+      severancePay = yearsOfService * baseSalary * 0.5;
+    } else {
+      const firstFiveYears = 5 * baseSalary * 0.5;
+      const remainingYears = (yearsOfService - 5) * baseSalary * 0.25;
+      severancePay = firstFiveYears + remainingYears;
+    }
+  }
+  // voluntary = 0 (sem direito a indemnização)
+  
+  // ==================================================================
+  // FÉRIAS NÃO GOZADAS (Art. 310)
+  // Fórmula: dias não gozados × taxa diária
+  // ==================================================================
   const unusedLeaveCompensation = unusedLeaveDays * dailyRate;
   
   const totalPackage = 
@@ -338,7 +372,7 @@ export function calculateTerminationPackage(
   
   return {
     yearsOfService,
-    monthsWorked,
+    monthsWorked: Math.floor(totalMonthsWorked),
     averageSalary,
     severancePay,
     proportionalLeave,
