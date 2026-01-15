@@ -69,7 +69,8 @@ export function BatchReceiptPrinter({
   };
 
   // Generate receipt HTML for a single entry
-  const generateReceiptHtml = (entry: PayrollEntry, employee: Employee, branch?: Branch): string => {
+  // isEmployeeCopy: true = shows bonus, false = no bonus (company archive)
+  const generateReceiptHtml = (entry: PayrollEntry, employee: Employee, branch?: Branch, isEmployeeCopy: boolean = true): string => {
     const labels = {
       receiptTitle: language === 'pt' ? 'RECIBO DE VENCIMENTO' : 'SALARY RECEIPT',
       employee: language === 'pt' ? 'FUNCIONÁRIO' : 'EMPLOYEE',
@@ -79,6 +80,7 @@ export function BatchReceiptPrinter({
       gross: language === 'pt' ? 'Total Bruto' : 'Gross Total',
       totalDeductions: language === 'pt' ? 'Total Deduções' : 'Total Deductions',
       net: language === 'pt' ? 'Salário Líquido' : 'Net Salary',
+      totalReceived: language === 'pt' ? 'Total Recebido' : 'Total Received',
       employeeSignature: language === 'pt' ? 'Assinatura do Funcionário' : 'Employee Signature',
       employerSignature: language === 'pt' ? 'Assinatura da Entidade' : 'Employer Signature',
       baseSalary: language === 'pt' ? 'Salário Base' : 'Base Salary',
@@ -89,6 +91,7 @@ export function BatchReceiptPrinter({
       overtime: language === 'pt' ? 'Horas Extra' : 'Overtime',
       holidaySubsidy: language === 'pt' ? 'Subsídio de Férias' : 'Holiday Subsidy',
       thirteenthMonth: language === 'pt' ? 'Subsídio de Natal' : '13th Month',
+      bonus: language === 'pt' ? 'Bónus' : 'Bonus',
       irt: language === 'pt' ? 'IRT' : 'IRT',
       inss: language === 'pt' ? 'INSS' : 'INSS',
       otherDeductions: language === 'pt' ? 'Outros Descontos' : 'Other Deductions',
@@ -110,11 +113,15 @@ export function BatchReceiptPrinter({
     const isIsento = rendimentoColetavel <= 100_000;
     const formatNumber = (n: number) => n.toLocaleString('pt-AO');
 
+    // Bonus is ONLY shown on employee copy, does NOT affect taxes
+    const bonus = isEmployeeCopy ? (entry.monthlyBonus || 0) : 0;
+    const totalReceived = entry.netSalary + bonus;
+
     return `
       <div class="receipt">
         <!-- Header -->
         <div class="header">
-          ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="logo" />` : ''}
+          <div class="logo-placeholder"></div>
           <div class="header-text">
             <h1 class="company-name">${companyName}</h1>
             <p class="company-info">NIF: ${companyNif} ${branch ? `• ${branch.name}` : ''}</p>
@@ -193,6 +200,14 @@ export function BatchReceiptPrinter({
           <span class="net-amount">${formatAOA(entry.netSalary)}</span>
         </div>
 
+        ${isEmployeeCopy && bonus > 0 ? `
+        <!-- Bonus Section (Employee Copy Only) -->
+        <div class="bonus-section">
+          <div class="bonus-line"><span class="label">${labels.bonus}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>
+          <div class="total-received"><span>${labels.totalReceived}</span><span class="total-amount">${formatAOA(totalReceived)}</span></div>
+        </div>
+        ` : ''}
+
         <!-- Signatures -->
         <div class="signatures">
           <div class="signature"><div class="signature-line">${labels.employeeSignature}</div></div>
@@ -216,24 +231,27 @@ export function BatchReceiptPrinter({
     setIsPrinting(true);
     
     try {
-      // Generate all receipts
-      const receiptsHtml = filteredEntries
-        .filter(entry => entry.employee)
+      // Process in smaller batches to avoid memory issues
+      const validEntries = filteredEntries.filter(entry => entry.employee);
+      
+      // Generate all receipts - employee copy shows bonus, company copy does not
+      const receiptsHtml = validEntries
         .map(entry => {
           const branch = getBranchForEntry(entry);
-          const receiptHtml = generateReceiptHtml(entry, entry.employee!, branch);
+          const employeeReceiptHtml = generateReceiptHtml(entry, entry.employee!, branch, true); // With bonus
+          const companyReceiptHtml = generateReceiptHtml(entry, entry.employee!, branch, false); // Without bonus
           
           // Each page has two copies (employee + company)
           return `
             <div class="page-container">
               <div class="receipt-wrapper">
                 <div class="copy-label">${language === 'pt' ? 'VIA DO FUNCIONÁRIO' : 'EMPLOYEE COPY'}</div>
-                ${receiptHtml}
+                ${employeeReceiptHtml}
               </div>
               <div class="divider"></div>
               <div class="receipt-wrapper">
                 <div class="copy-label">${language === 'pt' ? 'VIA DA EMPRESA (ARQUIVO)' : 'COMPANY COPY (ARCHIVE)'}</div>
-                ${receiptHtml}
+                ${companyReceiptHtml}
               </div>
             </div>
           `;
@@ -266,7 +284,7 @@ export function BatchReceiptPrinter({
               
               .receipt { width: 100%; }
               .header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
-              .logo { width: 44px; height: auto; }
+              .logo-placeholder { width: 44px; height: 44px; background: url('${logoBase64}') no-repeat center; background-size: contain; }
               .header-text { flex: 1; }
               .company-name { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
               .company-info { font-size: 8px; color: #666; }
@@ -301,6 +319,14 @@ export function BatchReceiptPrinter({
               .net-label { font-size: 10px; font-weight: bold; }
               .net-amount { font-size: 14px; font-weight: bold; color: #27ae60; }
               
+              .bonus-section { background: #fff8e6; padding: 8px; margin-top: 8px; border-radius: 4px; border: 1px dashed #f0c020; }
+              .bonus-line { display: flex; justify-content: space-between; padding: 2px 0; }
+              .bonus-line .label { font-size: 9px; font-weight: 600; }
+              .bonus-amount { font-size: 9px; font-family: monospace; color: #d4a000; font-weight: bold; }
+              .total-received { display: flex; justify-content: space-between; font-weight: bold; padding: 4px 0; border-top: 1px solid #f0c020; margin-top: 4px; }
+              .total-received span:first-child { font-size: 10px; }
+              .total-amount { font-size: 14px; color: #d4a000; }
+              
               .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
               .signature { text-align: center; }
               .signature-line { border-top: 1px solid #333; margin-top: 22px; padding-top: 5px; font-size: 7px; }
@@ -320,7 +346,7 @@ export function BatchReceiptPrinter({
         </html>
       `;
 
-      await printHtml(htmlContent, { width: 1100, height: 800 });
+      await printHtml(htmlContent, { width: 1100, height: 800, delayMs: 800 });
     } finally {
       setIsPrinting(false);
     }
