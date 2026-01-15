@@ -62,6 +62,19 @@ export function SalaryReceipt({
     });
 
     const receiptHtml = clonedContent.innerHTML;
+    
+    // Generate bonus section for employee copy only
+    const bonus = entry.monthlyBonus || 0;
+    const totalReceived = entry.netSalary + bonus;
+    const bonusLabel = language === 'pt' ? 'Bónus' : 'Bonus';
+    const totalReceivedLabel = language === 'pt' ? 'Total Recebido' : 'Total Received';
+    
+    const bonusSectionHtml = bonus > 0 ? `
+      <div class="bonus-section">
+        <div class="bonus-line"><span class="label">${bonusLabel}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>
+        <div class="total-received"><span>${totalReceivedLabel}</span><span class="total-amount">${formatAOA(totalReceived)}</span></div>
+      </div>
+    ` : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -104,6 +117,13 @@ export function SalaryReceipt({
             .net-salary { display: flex; justify-content: space-between; align-items: center; background: #e8f4e8; padding: 8px; margin-top: 10px; border-radius: 4px; }
             .net-label { font-size: 10px; font-weight: bold; }
             .net-amount { font-size: 14px; font-weight: bold; color: #27ae60; }
+            .bonus-section { background: #fff8e6; padding: 8px; margin-top: 8px; border-radius: 4px; border: 1px dashed #f0c020; }
+            .bonus-line { display: flex; justify-content: space-between; padding: 2px 0; }
+            .bonus-line .label { font-size: 9px; font-weight: 600; }
+            .bonus-amount { font-size: 9px; font-family: monospace; color: #d4a000; font-weight: bold; }
+            .total-received { display: flex; justify-content: space-between; font-weight: bold; padding: 4px 0; border-top: 1px solid #f0c020; margin-top: 4px; }
+            .total-received span:first-child { font-size: 10px; }
+            .total-amount { font-size: 14px; color: #d4a000; }
             .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
             .signature { text-align: center; }
             .signature-line { border-top: 1px solid #333; margin-top: 22px; padding-top: 5px; font-size: 7px; }
@@ -120,6 +140,7 @@ export function SalaryReceipt({
             <div class="receipt-wrapper">
               <div class="copy-label">${language === 'pt' ? 'VIA DO FUNCIONÁRIO' : 'EMPLOYEE COPY'}</div>
               ${receiptHtml}
+              ${bonusSectionHtml}
             </div>
 
             <div class="divider" aria-hidden="true"></div>
@@ -402,6 +423,25 @@ export function SalaryReceipt({
               <span className="net-label text-sm font-bold">{labels.net}</span>
               <span className="net-amount text-xl font-bold text-primary">{formatAOA(entry.netSalary)}</span>
             </div>
+
+            {/* Bonus Section (Preview - Employee only sees this) */}
+            {(entry.monthlyBonus || 0) > 0 && (
+              <div className="bonus-section bg-amber-50 dark:bg-amber-950/30 p-3 mt-2 rounded-lg border border-dashed border-amber-400">
+                <div className="flex justify-between py-1">
+                  <span className="text-sm font-medium">{language === 'pt' ? 'Bónus' : 'Bonus'}</span>
+                  <span className="text-sm font-mono text-amber-600 font-bold">+{formatAOA(entry.monthlyBonus)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-amber-400 mt-2">
+                  <span className="text-sm font-bold">{language === 'pt' ? 'Total Recebido' : 'Total Received'}</span>
+                  <span className="text-lg font-bold text-amber-600">{formatAOA(entry.netSalary + entry.monthlyBonus)}</span>
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-1 italic">
+                  {language === 'pt' 
+                    ? '* Bónus não sujeito a impostos - apenas na via do funcionário' 
+                    : '* Bonus not subject to taxes - employee copy only'}
+                </p>
+              </div>
+            )}
 
             {/* Signatures */}
             <div className="signatures grid grid-cols-2 gap-8 mt-6">
