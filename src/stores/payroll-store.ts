@@ -245,6 +245,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const period = get().getPeriod(periodId);
       if (!period) return;
 
+      // PROTECTION: Do not regenerate entries for approved or paid periods
+      // This preserves historical data and prevents deductions from reappearing
+      if (period.status === 'approved' || period.status === 'paid') {
+        console.log('[Payroll] Skipping generation - period is already', period.status);
+        return;
+      }
+
       const nextMonth = period.month === 12 ? 1 : period.month + 1;
       const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
 

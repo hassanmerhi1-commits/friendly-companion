@@ -14,6 +14,8 @@ interface DeductionState {
   getDeductionsByEmployee: (employeeId: string) => Deduction[];
   getPendingDeductions: (employeeId: string) => Deduction[];
   applyDeductionToPayroll: (id: string, payrollPeriodId: string) => Promise<void>;
+  unapplyDeductionsFromPayroll: (payrollPeriodId: string) => Promise<void>;
+  getDeductionsForPeriod: (payrollPeriodId: string) => Deduction[];
   getTotalPendingByEmployee: (employeeId: string) => number;
 }
 
@@ -112,6 +114,22 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const now = new Date().toISOString();
       await liveUpdate('deductions', id, { is_applied: 1, payroll_period_id: payrollPeriodId, updated_at: now });
       await get().loadDeductions();
+    },
+
+    // Unapply all deductions linked to a specific payroll period (used when reopening)
+    unapplyDeductionsFromPayroll: async (payrollPeriodId: string) => {
+      const now = new Date().toISOString();
+      const linkedDeductions = get().deductions.filter(d => d.payrollPeriodId === payrollPeriodId);
+      for (const d of linkedDeductions) {
+        await liveUpdate('deductions', d.id, { is_applied: 0, payroll_period_id: null, updated_at: now });
+      }
+      await get().loadDeductions();
+      console.log('[Deductions] Unapplied', linkedDeductions.length, 'deductions from period', payrollPeriodId);
+    },
+
+    // Get deductions applied to a specific period
+    getDeductionsForPeriod: (payrollPeriodId: string) => {
+      return get().deductions.filter(d => d.payrollPeriodId === payrollPeriodId);
     },
 
     getTotalPendingByEmployee: (employeeId: string) => {
