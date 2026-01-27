@@ -96,6 +96,7 @@ export function BatchReceiptPrinter({
       inss: language === 'pt' ? 'INSS' : 'INSS',
       advanceDeduction: language === 'pt' ? 'Adiantamento' : 'Advance',
       loanDeduction: language === 'pt' ? 'Empréstimo' : 'Loan',
+      absenceDeduction: language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence',
       otherDeductions: language === 'pt' ? 'Outros Descontos' : 'Other Deductions',
     };
 
@@ -169,6 +170,7 @@ export function BatchReceiptPrinter({
             <div class="line-item deduction"><span class="label">${labels.inss} (${(INSS_RATES.EMPLOYEE_RATE * 100).toFixed(0)}%)</span><span class="amount">-${formatAOA(entry.inssEmployee)}</span></div>
             ${entry.advanceDeduction > 0 ? `<div class="line-item deduction"><span class="label">${labels.advanceDeduction}</span><span class="amount">-${formatAOA(entry.advanceDeduction)}</span></div>` : ''}
             ${entry.loanDeduction > 0 ? `<div class="line-item deduction"><span class="label">${labels.loanDeduction}</span><span class="amount">-${formatAOA(entry.loanDeduction)}</span></div>` : ''}
+            ${entry.absenceDeduction > 0 ? `<div class="line-item deduction"><span class="label">${labels.absenceDeduction}</span><span class="amount">-${formatAOA(entry.absenceDeduction)}</span></div>` : ''}
             ${entry.otherDeductions > 0 ? `<div class="line-item deduction"><span class="label">${labels.otherDeductions}</span><span class="amount">-${formatAOA(entry.otherDeductions)}</span></div>` : ''}
             <div class="subtotal"><span>${labels.totalDeductions}</span><span class="deduction-total">-${formatAOA(entry.totalDeductions)}</span></div>
           </div>

@@ -180,6 +180,7 @@ export function SalaryReceipt({
     inss: language === 'pt' ? 'INSS' : 'INSS',
     advanceDeduction: language === 'pt' ? 'Adiantamento' : 'Advance',
     loanDeduction: language === 'pt' ? 'Empréstimo' : 'Loan',
+    absenceDeduction: language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence',
     otherDeductions: language === 'pt' ? 'Outros Descontos' : 'Other Deductions',
   };
 
@@ -348,6 +349,12 @@ export function SalaryReceipt({
                   <div className="line-item deduction flex justify-between py-1 border-b border-dashed border-border/50">
                     <span className="label text-xs">{labels.loanDeduction}</span>
                     <span className="amount text-xs font-mono text-destructive">-{formatAOA(entry.loanDeduction)}</span>
+                  </div>
+                )}
+                {entry.absenceDeduction > 0 && (
+                  <div className="line-item deduction flex justify-between py-1 border-b border-dashed border-border/50">
+                    <span className="label text-xs">{labels.absenceDeduction}</span>
+                    <span className="amount text-xs font-mono text-destructive">-{formatAOA(entry.absenceDeduction)}</span>
                   </div>
                 )}
                 {entry.otherDeductions > 0 && (
