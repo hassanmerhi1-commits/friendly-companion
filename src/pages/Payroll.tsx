@@ -32,7 +32,7 @@ const Payroll = () => {
   const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
-  const { getPendingDeductions, applyDeductionToPayroll, getTotalPendingByEmployee } = deductionStore;
+  const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
   const { branches: allBranches } = useBranchStore();
   // Derive active branches and employees from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
@@ -150,6 +150,16 @@ const Payroll = () => {
   const handleCalculate = async () => {
     if (activeEmployees.length === 0) {
       toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
+      return;
+    }
+
+    // PROTECTION: Block calculation on approved/paid periods
+    if (currentPeriod && (currentPeriod.status === 'approved' || currentPeriod.status === 'paid')) {
+      toast.error(
+        language === 'pt' 
+          ? 'Não é possível recalcular um período aprovado/pago. Use "Reabrir" primeiro.'
+          : 'Cannot recalculate an approved/paid period. Use "Reopen" first.'
+      );
       return;
     }
     
@@ -634,17 +644,19 @@ const Payroll = () => {
              <div className="flex items-center gap-2">
                {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
                <Button
-                 variant="outline"
-                 size="sm"
-                 onClick={async () => {
-                   if (!currentPeriod) return;
-                   await reopenPeriod(currentPeriod.id);
-                   toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
-                 }}
-               >
-                 <RotateCcw className="h-4 w-4 mr-2" />
-                 {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
-               </Button>
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (!currentPeriod) return;
+                    // Unapply all deductions linked to this period so they become pending again
+                    await unapplyDeductionsFromPayroll(currentPeriod.id);
+                    await reopenPeriod(currentPeriod.id);
+                    toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
+                </Button>
              </div>
            </div>
          </div>
