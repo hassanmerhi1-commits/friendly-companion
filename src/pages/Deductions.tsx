@@ -131,13 +131,14 @@ export default function Deductions() {
     { value: 'other', icon: Wallet },
   ];
 
-  const DeductionFormFields = () => (
+  // Inline form fields to avoid re-creating function component on every render (causes focus loss)
+  const deductionFormFields = (
     <div className="grid gap-4 py-4">
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Funcionário *' : 'Employee *'}</Label>
         <Select 
           value={formData.employeeId} 
-          onValueChange={(v) => setFormData({ ...formData, employeeId: v })}
+          onValueChange={(v) => setFormData(prev => ({ ...prev, employeeId: v }))}
           disabled={!!editingDeduction}
         >
           <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
@@ -152,7 +153,7 @@ export default function Deductions() {
         <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
         <Select 
           value={formData.type} 
-          onValueChange={(v) => setFormData({ ...formData, type: v as DeductionType })}
+          onValueChange={(v) => setFormData(prev => ({ ...prev, type: v as DeductionType }))}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -170,7 +171,7 @@ export default function Deductions() {
           <Input
             type="number"
             value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+            onChange={(e) => setFormData(prev => ({ ...prev, amount: Number(e.target.value) }))}
           />
         </div>
         <div className="space-y-2">
@@ -178,16 +179,16 @@ export default function Deductions() {
           <Input
             type="date"
             value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
           />
         </div>
       </div>
-      {formData.type === 'salary_advance' && (
+      {(formData.type === 'salary_advance' || formData.type === 'loan') && (
         <div className="space-y-2">
           <Label>{language === 'pt' ? 'Prestações' : 'Installments'}</Label>
           <Select 
             value={String(formData.installments || 1)} 
-            onValueChange={(v) => setFormData({ ...formData, installments: Number(v) })}
+            onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -202,7 +203,7 @@ export default function Deductions() {
         <Label>{language === 'pt' ? 'Descrição *' : 'Description *'}</Label>
         <Textarea
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
           placeholder={language === 'pt' ? 'Motivo do desconto...' : 'Reason for deduction...'}
         />
       </div>
@@ -229,7 +230,7 @@ export default function Deductions() {
               <DialogHeader>
                 <DialogTitle>{addDeductionLabel}</DialogTitle>
               </DialogHeader>
-              <DeductionFormFields />
+              {deductionFormFields}
               <Button onClick={handleAddDeduction} className="w-full">
                 {addDeductionLabel}
               </Button>
@@ -423,7 +424,7 @@ export default function Deductions() {
             <DialogHeader>
               <DialogTitle>{language === 'pt' ? 'Editar Desconto' : 'Edit Deduction'}</DialogTitle>
             </DialogHeader>
-            <DeductionFormFields />
+            {deductionFormFields}
             <Button onClick={handleUpdateDeduction} className="w-full">
               {language === 'pt' ? 'Guardar Alterações' : 'Save Changes'}
             </Button>

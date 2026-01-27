@@ -178,6 +178,8 @@ export function SalaryReceipt({
     thirteenthMonth: language === 'pt' ? 'Subsídio de Natal' : '13th Month',
     irt: language === 'pt' ? 'IRT' : 'IRT',
     inss: language === 'pt' ? 'INSS' : 'INSS',
+    advanceDeduction: language === 'pt' ? 'Adiantamento' : 'Advance',
+    loanDeduction: language === 'pt' ? 'Empréstimo' : 'Loan',
     otherDeductions: language === 'pt' ? 'Outros Descontos' : 'Other Deductions',
   };
 
@@ -336,6 +338,18 @@ export function SalaryReceipt({
                   <span className="label text-xs">{labels.inss} ({(INSS_RATES.EMPLOYEE_RATE * 100).toFixed(0)}%)</span>
                   <span className="amount text-xs font-mono text-destructive">-{formatAOA(entry.inssEmployee)}</span>
                 </div>
+                {entry.advanceDeduction > 0 && (
+                  <div className="line-item deduction flex justify-between py-1 border-b border-dashed border-border/50">
+                    <span className="label text-xs">{labels.advanceDeduction}</span>
+                    <span className="amount text-xs font-mono text-destructive">-{formatAOA(entry.advanceDeduction)}</span>
+                  </div>
+                )}
+                {entry.loanDeduction > 0 && (
+                  <div className="line-item deduction flex justify-between py-1 border-b border-dashed border-border/50">
+                    <span className="label text-xs">{labels.loanDeduction}</span>
+                    <span className="amount text-xs font-mono text-destructive">-{formatAOA(entry.loanDeduction)}</span>
+                  </div>
+                )}
                 {entry.otherDeductions > 0 && (
                   <div className="line-item deduction flex justify-between py-1 border-b border-dashed border-border/50">
                     <span className="label text-xs">{labels.otherDeductions}</span>
