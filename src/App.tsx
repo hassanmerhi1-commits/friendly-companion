@@ -46,6 +46,7 @@ import HRDashboard from "./pages/HRDashboard";
 import Attendance from "./pages/Attendance";
 import NotFound from "./pages/NotFound";
 import TaxSimulator from "./pages/TaxSimulator";
+import PayrollHistory from "./pages/PayrollHistory";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +100,7 @@ const AppRoutes = () => {
       <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
       <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
       <Route path="/tax-simulator" element={<ProtectedRoute><TaxSimulator /></ProtectedRoute>} />
+      <Route path="/payroll-history" element={<ProtectedRoute><PayrollHistory /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
