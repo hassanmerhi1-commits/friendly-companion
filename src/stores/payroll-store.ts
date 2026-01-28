@@ -35,6 +35,9 @@ interface PayrollState {
   approvePeriod: (periodId: string) => Promise<void>;
   reopenPeriod: (periodId: string) => Promise<void>;
   markAsPaid: (periodId: string) => Promise<void>;
+  
+  // Archive system - closes month and clears active data
+  archivePeriod: (periodId: string, deductionStore: any, absenceStore: any) => Promise<{ archivedDeductions: number; archivedAbsences: number; installmentsCarried: number }>;
 }
 
 function getPeriodDates(year: number, month: number) {
@@ -754,6 +757,80 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     markAsPaid: async (periodId) => {
       const now = new Date().toISOString();
       await liveUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
+    },
+
+    // ARCHIVE SYSTEM: Closes the month, moves data to history, clears active items
+    archivePeriod: async (periodId, deductionStore, absenceStore) => {
+      const period = get().getPeriod(periodId);
+      if (!period) {
+        throw new Error('Period not found');
+      }
+
+      // Period must be approved first
+      if (period.status !== 'approved' && period.status !== 'paid') {
+        throw new Error('Period must be approved before archiving');
+      }
+
+      const now = new Date().toISOString();
+      let archivedDeductions = 0;
+      let archivedAbsences = 0;
+      let installmentsCarried = 0;
+
+      // 1. Get all deductions applied to this period
+      const appliedDeductions = deductionStore.getDeductionsForPeriod(periodId);
+      
+      for (const deduction of appliedDeductions) {
+        // Check if this is an installment deduction with remaining installments
+        if (deduction.installments && deduction.installments > 1 && deduction.currentInstallment < deduction.installments) {
+          // Calculate next month
+          const nextMonth = period.month === 12 ? 1 : period.month + 1;
+          const nextYear = period.month === 12 ? period.year + 1 : period.year;
+          const nextDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+          
+          // Create new deduction for next installment
+          await deductionStore.addDeduction({
+            employeeId: deduction.employeeId,
+            type: deduction.type,
+            description: `${deduction.description} (${deduction.currentInstallment + 1}/${deduction.installments})`,
+            amount: deduction.amount, // Keep original total amount
+            date: nextDate,
+            installments: deduction.installments,
+            currentInstallment: deduction.currentInstallment + 1,
+          });
+          installmentsCarried++;
+        }
+        
+        // Delete the applied deduction (it's now archived in payroll entry data)
+        await deductionStore.deleteDeduction(deduction.id);
+        archivedDeductions++;
+      }
+
+      // 2. Delete absences that were applied in this period's date range
+      const periodStart = new Date(period.startDate);
+      const periodEnd = new Date(period.endDate);
+      const allAbsences = absenceStore.getAbsencesByPeriod(period.startDate, period.endDate);
+      
+      for (const absence of allAbsences) {
+        // Only delete unjustified/rejected absences (the ones that affect salary)
+        if (absence.status === 'unjustified' || absence.status === 'rejected') {
+          await absenceStore.deleteAbsence(absence.id);
+          archivedAbsences++;
+        }
+      }
+
+      // 3. Mark period as paid/archived
+      await liveUpdate('payroll_periods', periodId, { 
+        status: 'paid', 
+        paid_at: now, 
+        updated_at: now 
+      });
+
+      // Reload data
+      await get().loadPayroll();
+
+      console.log(`[Payroll] Archived period ${periodId}: ${archivedDeductions} deductions, ${archivedAbsences} absences, ${installmentsCarried} installments carried`);
+
+      return { archivedDeductions, archivedAbsences, installmentsCarried };
     },
   }));
 

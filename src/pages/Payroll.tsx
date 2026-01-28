@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -29,7 +29,7 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
   const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
@@ -633,30 +633,66 @@ const Payroll = () => {
            <div className="flex flex-wrap items-center justify-between gap-3">
              <div>
                <h3 className="font-semibold text-amber-700 dark:text-amber-400">
-                 {language === 'pt' ? 'Período Aprovado' : 'Approved Period'}
+                 {currentPeriod?.status === 'paid' 
+                   ? (language === 'pt' ? 'Período Arquivado' : 'Archived Period')
+                   : (language === 'pt' ? 'Período Aprovado' : 'Approved Period')
+                 }
                </h3>
                <p className="text-sm text-amber-600 dark:text-amber-500">
-                 {language === 'pt'
-                   ? 'Este período está no histórico. Se precisar corrigir, reabra para editar e depois aprove novamente.'
-                   : 'This period is in history. If you need corrections, reopen to edit and then approve again.'}
+                 {currentPeriod?.status === 'paid'
+                   ? (language === 'pt'
+                       ? 'Este período foi arquivado. Os dados estão no histórico e não podem ser alterados.'
+                       : 'This period has been archived. Data is in history and cannot be modified.')
+                   : (language === 'pt'
+                       ? 'Este período está aprovado. Pode arquivar para fechar o mês ou reabrir para editar.'
+                       : 'This period is approved. You can archive to close the month or reopen to edit.')
+                 }
                </p>
              </div>
              <div className="flex items-center gap-2">
                {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
-               <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (!currentPeriod) return;
-                    // Unapply all deductions linked to this period so they become pending again
-                    await unapplyDeductionsFromPayroll(currentPeriod.id);
-                    await reopenPeriod(currentPeriod.id);
-                    toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
-                  }}
-                >
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
-                </Button>
+               
+               {/* Archive button - only show for approved (not yet paid/archived) */}
+               {currentPeriod?.status === 'approved' && (
+                 <Button
+                   variant="accent"
+                   size="sm"
+                   onClick={async () => {
+                     if (!currentPeriod) return;
+                     try {
+                       const result = await archivePeriod(currentPeriod.id, deductionStore, absenceStore);
+                       toast.success(
+                         language === 'pt' 
+                           ? `Mês arquivado! ${result.archivedDeductions} descontos removidos, ${result.installmentsCarried} prestações continuadas.`
+                           : `Month archived! ${result.archivedDeductions} deductions removed, ${result.installmentsCarried} installments carried.`
+                       );
+                     } catch (error: any) {
+                       toast.error(error.message || (language === 'pt' ? 'Erro ao arquivar' : 'Error archiving'));
+                     }
+                   }}
+                 >
+                   <Archive className="h-4 w-4 mr-2" />
+                   {language === 'pt' ? 'Arquivar Mês' : 'Archive Month'}
+                 </Button>
+               )}
+
+               {/* Reopen button - only show for approved (not paid/archived) */}
+               {currentPeriod?.status === 'approved' && (
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={async () => {
+                     if (!currentPeriod) return;
+                     // Unapply all deductions linked to this period so they become pending again
+                     await unapplyDeductionsFromPayroll(currentPeriod.id);
+                     await reopenPeriod(currentPeriod.id);
+                     toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
+                   }}
+                 >
+                   <RotateCcw className="h-4 w-4 mr-2" />
+                   {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
+                 </Button>
+               )}
              </div>
            </div>
          </div>
