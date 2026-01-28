@@ -69,14 +69,14 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       }
     },
 
-    addDeduction: async (data: DeductionFormData) => {
+    addDeduction: async (data: DeductionFormData & { currentInstallment?: number }) => {
       const now = new Date().toISOString();
 
       const newDeduction: Deduction = {
         ...data,
         id: crypto.randomUUID(),
         isApplied: false,
-        currentInstallment: 1,
+        currentInstallment: data.currentInstallment ?? 1,
         createdAt: now,
         updatedAt: now,
       };
