@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { DbStatusIndicator } from "./DbStatusIndicator";
+import { UpdateNotification } from "@/components/UpdateNotification";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -13,7 +14,10 @@ export function MainLayout({ children }: MainLayoutProps) {
       <Sidebar />
       <main className="pl-64 flex-1 flex flex-col">
         <div className="flex items-center justify-between p-4 pb-0">
-          <DbStatusIndicator />
+          <div className="flex items-center gap-4">
+            <DbStatusIndicator />
+            <UpdateNotification />
+          </div>
           <LanguageSwitcher />
         </div>
         <div className="p-8 pt-4 flex-1">
