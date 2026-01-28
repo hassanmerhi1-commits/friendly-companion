@@ -40,13 +40,24 @@ const PayrollHistory = () => {
 
   const selectedPeriod = archivedPeriods.find(p => p.id === selectedPeriodId);
 
-  // Get entries for selected period
+  // Get entries for selected period, sorted by category then alphabetically
   const periodEntries = selectedPeriod
     ? entries
         .filter(e => e.payrollPeriodId === selectedPeriod.id)
         .map(e => {
           const employeeData = employees.find(emp => emp.id === e.employeeId);
           return { ...e, employee: employeeData || e.employee };
+        })
+        .sort((a, b) => {
+          // First sort by position/category
+          const posA = (a.employee?.position || '').toLowerCase();
+          const posB = (b.employee?.position || '').toLowerCase();
+          if (posA !== posB) return posA.localeCompare(posB);
+          
+          // Then sort alphabetically by name within same category
+          const nameA = `${a.employee?.firstName || ''} ${a.employee?.lastName || ''}`.toLowerCase();
+          const nameB = `${b.employee?.firstName || ''} ${b.employee?.lastName || ''}`.toLowerCase();
+          return nameA.localeCompare(nameB);
         })
     : [];
 
