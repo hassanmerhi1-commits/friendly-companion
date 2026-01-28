@@ -1,0 +1,49 @@
+directories:
+  output: release
+  buildResources: public
+$schema: https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json
+appId: com.payrollao.app
+productName: PayrollAO
+asar: false
+extraMetadata:
+  main: index.cjs
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+      - index.cjs
+      - public/pwa-192x192.png
+      - public/pwa-512x512.png
+publish:
+  provider: github
+  owner: hassanmerhi1-commits
+  repo: friendly-companion
+  releaseType: release
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: public/pwa-512x512.png
+nsis:
+  artifactName: ${productName} Setup ${version}.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PayrollAO
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: public/pwa-512x512.png
+  category: Office
+mac:
+  target:
+    - dmg
+  icon: public/pwa-512x512.png
+  category: public.app-category.business
+electronVersion: 40.0.0
