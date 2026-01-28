@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2 } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -22,6 +22,7 @@ import { DataResetSettings } from "@/components/settings/DataResetSettings";
 import { NetworkSettings } from "@/components/settings/NetworkSettings";
 import { DatabaseSettings } from "@/components/settings/DatabaseSettings";
 import { getSelectedProvince, clearProvinceSelection, ANGOLA_PROVINCES } from "@/lib/province-storage";
+import { CheckForUpdatesButton } from "@/components/UpdateNotification";
 
 const Settings = () => {
   const { t } = useLanguage();
@@ -436,6 +437,21 @@ const Settings = () => {
               </div>
             </div>
           </div>
+
+          {/* Auto-Update Section */}
+          <div className="stat-card animate-slide-up" style={{ animationDelay: "175ms" }}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-foreground">Actualizações</h2>
+                <p className="text-sm text-muted-foreground">Verificar novas versões</p>
+              </div>
+            </div>
+            <CheckForUpdatesButton />
+          </div>
+
           <Button variant="accent" size="lg" className="w-full" onClick={handleSave}>
             {t.settings.saveChanges}
           </Button>

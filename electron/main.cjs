@@ -14,6 +14,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { WebSocketServer, WebSocket } = require('ws');
+const { autoUpdater } = require('electron-updater');
+
+// ============= AUTO-UPDATER CONFIGURATION =============
+autoUpdater.autoDownload = false; // User chooses when to download
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.logger = console;
+autoUpdater.logger.transports = { file: { level: 'info' } };
 
 // ============= CONFIGURATION =============
 const INSTALL_DIR = 'C:\\PayrollAO';
@@ -1488,10 +1495,101 @@ ipcMain.handle('network:getInstallPath', () => INSTALL_DIR);
 ipcMain.handle('network:getIPFilePath', () => IP_FILE_PATH);
 ipcMain.handle('network:getComputerName', () => os.hostname());
 
+// ============= AUTO-UPDATER HANDLERS =============
+ipcMain.handle('updater:check', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, updateInfo: result?.updateInfo };
+  } catch (error) {
+    console.error('[Updater] Check failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('updater:download', async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (error) {
+    console.error('[Updater] Download failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('updater:install', () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle('updater:getVersion', () => {
+  return app.getVersion();
+});
+
+// Auto-updater event handlers
+autoUpdater.on('checking-for-update', () => {
+  console.log('[Updater] Checking for update...');
+  mainWindow?.webContents.send('updater:status', { status: 'checking' });
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[Updater] Update available:', info.version);
+  mainWindow?.webContents.send('updater:status', { 
+    status: 'available', 
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: info.releaseNotes
+  });
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  console.log('[Updater] No update available, current version is latest');
+  mainWindow?.webContents.send('updater:status', { 
+    status: 'not-available',
+    version: info.version 
+  });
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  console.log(`[Updater] Download progress: ${Math.round(progress.percent)}%`);
+  mainWindow?.webContents.send('updater:status', { 
+    status: 'downloading',
+    percent: progress.percent,
+    transferred: progress.transferred,
+    total: progress.total
+  });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('[Updater] Update downloaded:', info.version);
+  mainWindow?.webContents.send('updater:status', { 
+    status: 'downloaded',
+    version: info.version
+  });
+});
+
+autoUpdater.on('error', (error) => {
+  console.error('[Updater] Error:', error);
+  mainWindow?.webContents.send('updater:status', { 
+    status: 'error',
+    error: error.message
+  });
+});
+
 // ============= APP LIFECYCLE =============
 app.whenReady().then(() => {
   initDatabase();
   createWindow();
+
+  // Check for updates after window is ready (delay to not slow down startup)
+  setTimeout(() => {
+    if (app.isPackaged) {
+      console.log('[Updater] Checking for updates on startup...');
+      autoUpdater.checkForUpdates().catch(err => {
+        console.log('[Updater] Startup check failed (normal in dev):', err.message);
+      });
+    } else {
+      console.log('[Updater] Skipping update check in development mode');
+    }
+  }, 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

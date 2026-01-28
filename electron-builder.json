@@ -17,6 +17,12 @@
     "public/pwa-192x192.png",
     "public/pwa-512x512.png"
   ],
+  "publish": {
+    "provider": "github",
+    "owner": "AO-Systems",
+    "repo": "PayrollAO",
+    "releaseType": "release"
+  },
   "win": {
     "target": [
       {

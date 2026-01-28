@@ -67,6 +67,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   app: {
     relaunch: () => ipcRenderer.invoke('app:relaunch'),
   },
+
+  // Auto-updater
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    getVersion: () => ipcRenderer.invoke('updater:getVersion'),
+    onStatus: (callback) => {
+      ipcRenderer.removeAllListeners('updater:status');
+      ipcRenderer.on('updater:status', (_, data) => callback(data));
+    },
+  },
   
   // Platform info
   platform: process.platform,
