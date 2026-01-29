@@ -65,11 +65,13 @@ const Payroll = () => {
     return b.month - a.month;
   });
 
-  // Get current period based on selection or default to latest draft/calculated
-  const defaultPeriod = periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1];
-  const currentPeriod = selectedPeriodId 
-    ? periods.find(p => p.id === selectedPeriodId) || defaultPeriod
-    : defaultPeriod;
+  // Active/current period is the newest draft/calculated one.
+  // IMPORTANT: If there is NO active period (e.g., after archiving), currentPeriod must be undefined
+  // so the UI can show the "Calcular Folha" button and create the next month.
+  const activePeriod = sortedPeriods.find(p => p.status === 'calculated' || p.status === 'draft');
+  const selectedPeriod = selectedPeriodId ? periods.find(p => p.id === selectedPeriodId) : undefined;
+  const currentPeriod = selectedPeriod || activePeriod;
+  const isViewingSelectedPeriod = Boolean(selectedPeriodId);
   
   // Check if viewing historical (approved/paid) period
   const isHistoricalView = currentPeriod?.status === 'approved' || currentPeriod?.status === 'paid';
@@ -91,10 +93,25 @@ const Payroll = () => {
   // Helper to get or create current period
   const getOrCreateCurrentPeriod = async () => {
     let period = currentPeriod;
-    if (!period) {
-      const now = new Date();
-      period = await createPeriod(now.getFullYear(), now.getMonth() + 1);
+
+    // If we already have an active editable period, use it
+    if (period && (period.status === 'draft' || period.status === 'calculated')) {
+      return period;
     }
+
+    // If we don't have an active period (common after archiving), create the NEXT month
+    // relative to the latest existing period (usually the one just archived).
+    const latest = sortedPeriods[0];
+    const now = new Date();
+
+    const baseYear = latest?.year ?? now.getFullYear();
+    const baseMonth = latest?.month ?? (now.getMonth() + 1);
+
+    const targetMonth = baseMonth === 12 ? 1 : baseMonth + 1;
+    const targetYear = baseMonth === 12 ? baseYear + 1 : baseYear;
+
+    const existing = periods.find(p => p.year === targetYear && p.month === targetMonth);
+    period = existing ?? (await createPeriod(targetYear, targetMonth));
     return period;
   };
 
@@ -334,7 +351,14 @@ const Payroll = () => {
               <Label>{language === 'pt' ? 'Período:' : 'Period:'}</Label>
               <Select 
                 value={selectedPeriodId || currentPeriod?.id || ''} 
-                onValueChange={(v) => setSelectedPeriodId(v)}
+                onValueChange={(v) => {
+                  // Selecting the active period should behave like "Current" (no explicit selection)
+                  if (activePeriod && v === activePeriod.id) {
+                    setSelectedPeriodId('');
+                    return;
+                  }
+                  setSelectedPeriodId(v);
+                }}
               >
                 <SelectTrigger className="w-[250px]">
                   <SelectValue placeholder={language === 'pt' ? 'Período actual' : 'Current period'} />
@@ -351,7 +375,7 @@ const Payroll = () => {
                 </SelectContent>
               </Select>
             </div>
-            {isHistoricalView && (
+            {isViewingSelectedPeriod && (
               <Button 
                 variant="outline" 
                 size="sm"
@@ -666,6 +690,9 @@ const Payroll = () => {
                            ? `Mês arquivado! ${result.archivedDeductions} descontos removidos, ${result.installmentsCarried} prestações continuadas.`
                            : `Month archived! ${result.archivedDeductions} deductions removed, ${result.installmentsCarried} installments carried.`
                        );
+
+                        // After archiving, return to "Current" view so user can generate the next month
+                        setSelectedPeriodId('');
                      } catch (error: any) {
                        toast.error(error.message || (language === 'pt' ? 'Erro ao arquivar' : 'Error archiving'));
                      }
