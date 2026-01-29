@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag do release para compilar/publicar (ex.: v1.0.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
@@ -13,6 +21,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # electron-builder precisa ver as tags para publicar no GitHub Releases corretamente
+          fetch-depth: 0
+          # Em execuções manuais, garantimos que estamos no tag do release (e não no main)
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,7 +42,8 @@ jobs:
       - name: Build Electron app
         run: npx electron-builder --win --publish always
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Usar o token padrão do GitHub Actions (com contents:write acima)
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
