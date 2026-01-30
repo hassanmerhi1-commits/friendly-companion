@@ -160,6 +160,9 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
   
   try {
     const result = await (window as any).electronAPI.db.insert(table, data);
+    if (result?.success !== true) {
+      console.error(`[DB-Live] Insert failed for ${table}:`, result?.error || result);
+    }
     // Server will broadcast full table data - no local action needed
     return result?.success === true;
   } catch (error) {
@@ -175,6 +178,9 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
   
   try {
     const result = await (window as any).electronAPI.db.update(table, id, data);
+    if (result?.success !== true) {
+      console.error(`[DB-Live] Update failed for ${table} id=${id}:`, result?.error || result);
+    }
     // Server will broadcast full table data - no local action needed
     return result?.success === true;
   } catch (error) {
@@ -190,6 +196,9 @@ export async function liveDelete(table: string, id: string): Promise<boolean> {
   
   try {
     const result = await (window as any).electronAPI.db.delete(table, id);
+    if (result?.success !== true) {
+      console.error(`[DB-Live] Delete failed for ${table} id=${id}:`, result?.error || result);
+    }
     // Server will broadcast full table data - no local action needed
     return result?.success === true;
   } catch (error) {

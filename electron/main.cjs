@@ -752,11 +752,15 @@ function createNewDatabaseInternal(targetPath) {
         employee_id TEXT NOT NULL,
         type TEXT NOT NULL,
         description TEXT,
+        total_amount REAL,
         amount REAL DEFAULT 0,
         date TEXT,
         payroll_period_id TEXT,
         is_applied INTEGER DEFAULT 0,
+        is_fully_paid INTEGER DEFAULT 0,
         installments INTEGER,
+        installments_paid INTEGER DEFAULT 0,
+        remaining_amount REAL,
         current_installment INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -998,12 +1002,56 @@ function runMigrations() {
     // Deduction columns
     addColumnIfMissing('deductions', 'employee_id', "ALTER TABLE deductions ADD COLUMN employee_id TEXT");
     addColumnIfMissing('deductions', 'description', "ALTER TABLE deductions ADD COLUMN description TEXT");
+    addColumnIfMissing('deductions', 'total_amount', "ALTER TABLE deductions ADD COLUMN total_amount REAL");
     addColumnIfMissing('deductions', 'amount', "ALTER TABLE deductions ADD COLUMN amount REAL DEFAULT 0");
     addColumnIfMissing('deductions', 'date', "ALTER TABLE deductions ADD COLUMN date TEXT");
     addColumnIfMissing('deductions', 'payroll_period_id', "ALTER TABLE deductions ADD COLUMN payroll_period_id TEXT");
     addColumnIfMissing('deductions', 'is_applied', "ALTER TABLE deductions ADD COLUMN is_applied INTEGER DEFAULT 0");
     addColumnIfMissing('deductions', 'installments', "ALTER TABLE deductions ADD COLUMN installments INTEGER");
     addColumnIfMissing('deductions', 'current_installment', "ALTER TABLE deductions ADD COLUMN current_installment INTEGER");
+    addColumnIfMissing('deductions', 'installments_paid', "ALTER TABLE deductions ADD COLUMN installments_paid INTEGER DEFAULT 0");
+    addColumnIfMissing('deductions', 'remaining_amount', "ALTER TABLE deductions ADD COLUMN remaining_amount REAL");
+    addColumnIfMissing('deductions', 'is_fully_paid', "ALTER TABLE deductions ADD COLUMN is_fully_paid INTEGER DEFAULT 0");
+
+    // Backfill new installment-tracking columns for existing DBs (safe no-op if already populated)
+    try {
+      db.exec(`
+        UPDATE deductions
+        SET total_amount = COALESCE(total_amount, amount)
+        WHERE total_amount IS NULL;
+
+        UPDATE deductions
+        SET installments = COALESCE(installments, 1)
+        WHERE installments IS NULL;
+
+        UPDATE deductions
+        SET installments_paid = COALESCE(installments_paid, COALESCE(current_installment, 0))
+        WHERE installments_paid IS NULL;
+
+        UPDATE deductions
+        SET remaining_amount = COALESCE(
+          remaining_amount,
+          MAX(
+            0,
+            total_amount - (installments_paid * (total_amount / COALESCE(NULLIF(installments, 0), 1)))
+          )
+        )
+        WHERE remaining_amount IS NULL;
+
+        UPDATE deductions
+        SET is_fully_paid = COALESCE(
+          is_fully_paid,
+          CASE
+            WHEN installments_paid >= COALESCE(NULLIF(installments, 0), 1) OR remaining_amount <= 0 THEN 1
+            ELSE 0
+          END
+        )
+        WHERE is_fully_paid IS NULL;
+      `);
+      console.log('Migration: Backfilled deductions installment-tracking columns');
+    } catch (e) {
+      console.error('Migration: Failed to backfill deductions installment columns:', e?.message || e);
+    }
     
     // User columns
     addColumnIfMissing('users', 'name', "ALTER TABLE users ADD COLUMN name TEXT");
