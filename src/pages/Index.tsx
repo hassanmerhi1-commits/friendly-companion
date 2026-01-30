@@ -1,9 +1,8 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { EmployeeTable } from "@/components/dashboard/EmployeeTable";
+import { DailyWallpaper } from "@/components/dashboard/DailyWallpaper";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { PayrollSummary } from "@/components/dashboard/PayrollSummary";
-import { Users, DollarSign, Clock, CheckCircle, TrendingUp } from "lucide-react";
+import { Users, DollarSign, Clock, CheckCircle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -34,7 +33,7 @@ const Index = () => {
       {/* Modern Header with gradient accent */}
       <div className="mb-8 animate-fade-in">
         <div className="flex items-center gap-3 mb-2">
-          <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600" />
+          <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-primary to-primary/60" />
           <div>
             <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
               {t.dashboard.welcome}
@@ -84,20 +83,15 @@ const Index = () => {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Employee Table - Takes 2 columns */}
+        {/* Daily Wallpaper - Takes 2 columns */}
         <div className="lg:col-span-2">
-          <div className="rounded-2xl border border-border/50 bg-card shadow-sm overflow-hidden">
-            <EmployeeTable />
-          </div>
+          <DailyWallpaper />
         </div>
 
-        {/* Sidebar Content with modern styling */}
+        {/* Sidebar - Quick Actions only */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
             <QuickActions />
-          </div>
-          <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-            <PayrollSummary />
           </div>
         </div>
       </div>
