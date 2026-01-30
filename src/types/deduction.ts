@@ -16,12 +16,15 @@ export interface Deduction {
   employeeId: string;
   type: DeductionType;
   description: string;
-  amount: number;
+  totalAmount: number; // Total amount to be deducted
+  amount: number; // Monthly installment amount (totalAmount / installments)
   date: string;
   payrollPeriodId?: string; // If already applied to a payroll
   isApplied: boolean;
-  installments?: number; // For advances paid in installments
-  currentInstallment?: number;
+  isFullyPaid: boolean; // True when all installments are paid
+  installments: number; // Total number of installments (1 = single payment)
+  installmentsPaid: number; // Number of installments already paid
+  remainingAmount: number; // Amount still to be deducted
   createdAt: string;
   updatedAt: string;
 }
@@ -30,9 +33,9 @@ export interface DeductionFormData {
   employeeId: string;
   type: DeductionType;
   description: string;
-  amount: number;
+  totalAmount: number; // Total amount to deduct
   date: string;
-  installments?: number;
+  installments: number; // Number of installments to spread over
 }
 
 // Salary advance specific

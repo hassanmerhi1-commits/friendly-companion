@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/lib/i18n';
 import { useDeductionStore } from '@/stores/deduction-store';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { formatAOA } from '@/lib/angola-labor-law';
 import type { DeductionFormData, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
 
@@ -20,14 +21,13 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
   const { t, language } = useLanguage();
   const { addDeduction } = useDeductionStore();
   const { employees } = useEmployeeStore();
-  // Derive active employees from subscribed state - ensures re-render on changes
   const activeEmployees = employees.filter(emp => emp.status === 'active');
 
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
     type: 'salary_advance',
     description: '',
-    amount: 0,
+    totalAmount: 0,
     date: new Date().toISOString().split('T')[0],
     installments: 1,
   });
@@ -38,30 +38,20 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
         employeeId: '',
         type: 'salary_advance',
         description: '',
-        amount: 0,
+        totalAmount: 0,
         date: new Date().toISOString().split('T')[0],
         installments: 1,
       });
     }
   }, [open]);
 
+  const monthlyAmount = formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addDeduction(formData);
     toast.success(t.common.save);
     onOpenChange(false);
-  };
-
-  const getTypeLabel = (type: DeductionType) => {
-    const labels: Record<DeductionType, string> = {
-      salary_advance: t.deductions.salaryAdvance,
-      warehouse_loss: t.deductions.warehouseLoss,
-      unjustified_absence: language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence',
-      loan: t.deductions.loan,
-      disciplinary: t.deductions.disciplinary,
-      other: t.deductions.other,
-    };
-    return labels[type];
   };
 
   return (
@@ -123,11 +113,11 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{t.deductions.amount} (Kz)</Label>
+              <Label>{language === 'pt' ? 'Valor Total (Kz)' : 'Total Amount (Kz)'}</Label>
               <Input
                 type="number"
-                value={formData.amount}
-                onChange={(e) => setFormData(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                value={formData.totalAmount}
+                onChange={(e) => setFormData(prev => ({ ...prev, totalAmount: Number(e.target.value) }))}
                 required
               />
             </div>
@@ -142,15 +132,45 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
             </div>
           </div>
 
-          {(formData.type === 'salary_advance' || formData.type === 'loan') && (
-            <div className="space-y-2">
-              <Label>{t.deductions.installments}</Label>
-              <Input
-                type="number"
-                min="1"
-                value={formData.installments || 1}
-                onChange={(e) => setFormData(prev => ({ ...prev, installments: Number(e.target.value) }))}
-              />
+          {/* Installments - available for ALL deduction types */}
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
+            <Select 
+              value={String(formData.installments)} 
+              onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}x {n === 1 ? (language === 'pt' ? '(pagamento único)' : '(single payment)') : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Show calculated monthly amount */}
+          {formData.installments > 1 && formData.totalAmount > 0 && (
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {language === 'pt' ? 'Desconto mensal:' : 'Monthly deduction:'}
+                </span>
+                <span className="font-semibold text-destructive">
+                  {formatAOA(monthlyAmount)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span className="text-muted-foreground">
+                  {language === 'pt' ? 'Durante:' : 'Over:'}
+                </span>
+                <span className="font-medium">
+                  {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+                </span>
+              </div>
             </div>
           )}
 
