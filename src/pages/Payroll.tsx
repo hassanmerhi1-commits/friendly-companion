@@ -99,16 +99,10 @@ const Payroll = () => {
       return period;
     }
 
-    // If we don't have an active period (common after archiving), create the NEXT month
-    // relative to the latest existing period (usually the one just archived).
-    const latest = sortedPeriods[0];
+    // Use the REAL current date - don't auto-advance to next month after archiving
     const now = new Date();
-
-    const baseYear = latest?.year ?? now.getFullYear();
-    const baseMonth = latest?.month ?? (now.getMonth() + 1);
-
-    const targetMonth = baseMonth === 12 ? 1 : baseMonth + 1;
-    const targetYear = baseMonth === 12 ? baseYear + 1 : baseYear;
+    const targetYear = now.getFullYear();
+    const targetMonth = now.getMonth() + 1; // 1-indexed
 
     const existing = periods.find(p => p.year === targetYear && p.month === targetMonth);
     period = existing ?? (await createPeriod(targetYear, targetMonth));
@@ -388,36 +382,38 @@ const Payroll = () => {
         </div>
       )}
 
-      {/* Calculate Payroll Button - hidden when viewing historical data */}
-      {!isHistoricalView && (
-        <div className="stat-card mb-6">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <h3 className="font-semibold text-foreground">
-                {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {language === 'pt' 
-                  ? 'Ausências e descontos pendentes serão incluídos automaticamente.' 
-                  : 'Absences and pending deductions will be included automatically.'}
-              </p>
-            </div>
+      {/* Ausências button - always visible */}
+      <div className="stat-card mb-6">
+        <div className="flex flex-wrap items-center gap-6">
+          <div>
+            <h3 className="font-semibold text-foreground">
+              {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {language === 'pt' 
+                ? 'Ausências e descontos pendentes serão incluídos automaticamente.' 
+                : 'Absences and pending deductions will be included automatically.'}
+            </p>
+          </div>
+          {/* Calculate button only when not viewing historical data */}
+          {!isHistoricalView && (
             <Button variant="accent" onClick={handleCalculate}>
               <Calculator className="h-4 w-4 mr-2" />
               {t.payroll.calculatePayroll}
             </Button>
-            <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
-              <UserX className="h-4 w-4 mr-2" />
-              {language === 'pt' ? 'Ausências' : 'Absences'}
-              {pendingAbsences.length > 0 && (
-                <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
-                  {pendingAbsences.length}
-                </span>
-              )}
-            </Button>
-          </div>
+          )}
+          {/* Ausências button always visible */}
+          <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
+            <UserX className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Ausências' : 'Absences'}
+            {pendingAbsences.length > 0 && (
+              <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+                {pendingAbsences.length}
+              </span>
+            )}
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* Branch and Warehouse Selection for Print */}
       <div className="stat-card mb-6">
