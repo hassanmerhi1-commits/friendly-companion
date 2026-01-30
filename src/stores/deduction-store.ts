@@ -20,17 +20,26 @@ interface DeductionState {
 }
 
 function mapDbRowToDeduction(row: any): Deduction {
+  const totalAmount = row.total_amount || row.amount || 0;
+  const installments = row.installments || 1;
+  const installmentsPaid = row.installments_paid || 0;
+  const monthlyAmount = installments > 0 ? totalAmount / installments : totalAmount;
+  const remainingAmount = row.remaining_amount ?? (totalAmount - (installmentsPaid * monthlyAmount));
+  
   return {
     id: row.id,
     employeeId: row.employee_id,
     type: row.type as DeductionType,
     description: row.description || '',
-    amount: row.amount || 0,
+    totalAmount: totalAmount,
+    amount: monthlyAmount,
     date: row.date || '',
     payrollPeriodId: row.payroll_period_id || undefined,
     isApplied: row.is_applied === 1,
-    installments: row.installments || undefined,
-    currentInstallment: row.current_installment || undefined,
+    isFullyPaid: row.is_fully_paid === 1 || installmentsPaid >= installments,
+    installments: installments,
+    installmentsPaid: installmentsPaid,
+    remainingAmount: remainingAmount,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -42,12 +51,15 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
     employee_id: d.employeeId,
     type: d.type,
     description: d.description,
+    total_amount: d.totalAmount,
     amount: d.amount,
     date: d.date,
     payroll_period_id: d.payrollPeriodId || null,
     is_applied: d.isApplied ? 1 : 0,
-    installments: d.installments || null,
-    current_installment: d.currentInstallment || null,
+    is_fully_paid: d.isFullyPaid ? 1 : 0,
+    installments: d.installments,
+    installments_paid: d.installmentsPaid,
+    remaining_amount: d.remainingAmount,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
   };
@@ -69,14 +81,24 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       }
     },
 
-    addDeduction: async (data: DeductionFormData & { currentInstallment?: number }) => {
+    addDeduction: async (data: DeductionFormData) => {
       const now = new Date().toISOString();
+      const installments = data.installments || 1;
+      const monthlyAmount = data.totalAmount / installments;
 
       const newDeduction: Deduction = {
-        ...data,
         id: crypto.randomUUID(),
+        employeeId: data.employeeId,
+        type: data.type,
+        description: data.description,
+        totalAmount: data.totalAmount,
+        amount: monthlyAmount,
+        date: data.date,
         isApplied: false,
-        currentInstallment: data.currentInstallment ?? 1,
+        isFullyPaid: false,
+        installments: installments,
+        installmentsPaid: 0,
+        remainingAmount: data.totalAmount,
         createdAt: now,
         updatedAt: now,
       };
@@ -133,14 +155,10 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
     },
 
     getTotalPendingByEmployee: (employeeId: string) => {
+      // Returns the total MONTHLY deduction amount for pending (not fully paid) deductions
       return get()
-        .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isApplied)
-        .reduce((sum, ded) => {
-          if (ded.installments && ded.installments > 1) {
-            return sum + ded.amount / ded.installments;
-          }
-          return sum + ded.amount;
-        }, 0);
+        .deductions.filter((ded) => ded.employeeId === employeeId && !ded.isFullyPaid)
+        .reduce((sum, ded) => sum + ded.amount, 0);
     },
   }));
 

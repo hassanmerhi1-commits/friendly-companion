@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -27,11 +28,11 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-  const [formData, setFormData] = useState<Partial<DeductionFormData>>({
+  const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
     type: 'salary_advance',
     description: '',
-    amount: 0,
+    totalAmount: 0,
     date: new Date().toISOString().split('T')[0],
     installments: 1,
   });
@@ -40,39 +41,40 @@ export default function Deductions() {
     ? deductions 
     : deductions.filter(d => d.type === filterType);
 
-  const pendingDeductions = deductions.filter(d => !d.isApplied);
-  const totalPending = pendingDeductions.reduce((sum, d) => sum + d.amount, 0);
+  const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
+  const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
+
+  const monthlyAmount = formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount;
 
   const resetForm = () => {
     setFormData({
       employeeId: '',
       type: 'salary_advance',
       description: '',
-      amount: 0,
+      totalAmount: 0,
       date: new Date().toISOString().split('T')[0],
       installments: 1,
     });
   };
 
   const handleAddDeduction = () => {
-    if (!formData.employeeId || !formData.amount || !formData.description) {
+    if (!formData.employeeId || !formData.totalAmount || !formData.description) {
       toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
       return;
     }
-    addDeduction(formData as DeductionFormData);
+    addDeduction(formData);
     setIsAddDialogOpen(false);
     resetForm();
     toast.success(language === 'pt' ? 'Desconto registado com sucesso!' : 'Deduction registered successfully!');
   };
 
   const handleEditClick = (deduction: Deduction) => {
-    // Deductions remain editable (even if applied) to support corrections.
     setEditingDeduction(deduction);
     setFormData({
       employeeId: deduction.employeeId,
       type: deduction.type,
       description: deduction.description,
-      amount: deduction.amount,
+      totalAmount: deduction.totalAmount,
       date: deduction.date,
       installments: deduction.installments || 1,
     });
@@ -81,17 +83,24 @@ export default function Deductions() {
 
   const handleUpdateDeduction = async () => {
     if (!editingDeduction) return;
-    if (!formData.amount || !formData.description) {
+    if (!formData.totalAmount || !formData.description) {
       toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
       return;
     }
+    
+    const newMonthlyAmount = formData.totalAmount / formData.installments;
+    const newRemainingAmount = formData.totalAmount - (editingDeduction.installmentsPaid * newMonthlyAmount);
+    
     await updateDeduction(editingDeduction.id, {
       employeeId: formData.employeeId,
       type: formData.type as DeductionType,
       description: formData.description,
-      amount: formData.amount,
+      totalAmount: formData.totalAmount,
+      amount: newMonthlyAmount,
       date: formData.date,
       installments: formData.installments,
+      remainingAmount: Math.max(0, newRemainingAmount),
+      isFullyPaid: newRemainingAmount <= 0,
     });
     setIsEditDialogOpen(false);
     setEditingDeduction(null);
@@ -126,12 +135,13 @@ export default function Deductions() {
   const deductionTypes: { value: DeductionType; icon: typeof Wallet }[] = [
     { value: 'salary_advance', icon: Wallet },
     { value: 'warehouse_loss', icon: Package },
+    { value: 'unjustified_absence', icon: Wallet },
     { value: 'loan', icon: Wallet },
     { value: 'disciplinary', icon: Wallet },
     { value: 'other', icon: Wallet },
   ];
 
-  // Inline form fields to avoid re-creating function component on every render (causes focus loss)
+  // Inline form fields to avoid re-creating function component on every render
   const deductionFormFields = (
     <div className="grid gap-4 py-4">
       <div className="space-y-2">
@@ -167,11 +177,11 @@ export default function Deductions() {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>{language === 'pt' ? 'Valor (AOA) *' : 'Amount (AOA) *'}</Label>
+          <Label>{language === 'pt' ? 'Valor Total (AOA) *' : 'Total Amount (AOA) *'}</Label>
           <Input
             type="number"
-            value={formData.amount}
-            onChange={(e) => setFormData(prev => ({ ...prev, amount: Number(e.target.value) }))}
+            value={formData.totalAmount}
+            onChange={(e) => setFormData(prev => ({ ...prev, totalAmount: Number(e.target.value) }))}
           />
         </div>
         <div className="space-y-2">
@@ -183,22 +193,47 @@ export default function Deductions() {
           />
         </div>
       </div>
-      {(formData.type === 'salary_advance' || formData.type === 'loan') && (
-        <div className="space-y-2">
-          <Label>{language === 'pt' ? 'Prestações' : 'Installments'}</Label>
-          <Select 
-            value={String(formData.installments || 1)} 
-            onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4, 5, 6].map(n => (
-                <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      
+      {/* Installments - available for ALL deduction types */}
+      <div className="space-y-2">
+        <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
+        <Select 
+          value={String(formData.installments)} 
+          onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+              <SelectItem key={n} value={String(n)}>
+                {n}x {n === 1 ? (language === 'pt' ? '(pagamento único)' : '(single payment)') : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Show calculated monthly amount */}
+      {formData.installments > 1 && formData.totalAmount > 0 && (
+        <div className="p-3 bg-muted rounded-lg">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">
+              {language === 'pt' ? 'Desconto mensal:' : 'Monthly deduction:'}
+            </span>
+            <span className="font-semibold text-destructive">
+              {formatAOA(monthlyAmount)}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-muted-foreground">
+              {language === 'pt' ? 'Durante:' : 'Over:'}
+            </span>
+            <span className="font-medium">
+              {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+            </span>
+          </div>
         </div>
       )}
+
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Descrição *' : 'Description *'}</Label>
         <Textarea
@@ -258,7 +293,7 @@ export default function Deductions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {deductions.filter(d => d.type === 'salary_advance' && !d.isApplied).length}
+                {deductions.filter(d => d.type === 'salary_advance' && !d.isFullyPaid).length}
               </div>
             </CardContent>
           </Card>
@@ -270,26 +305,26 @@ export default function Deductions() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {deductions.filter(d => d.type === 'warehouse_loss' && !d.isApplied).length}
+                {deductions.filter(d => d.type === 'warehouse_loss' && !d.isFullyPaid).length}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                {language === 'pt' ? 'Aplicados' : 'Applied'}
+                {language === 'pt' ? 'Concluídos' : 'Completed'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {deductions.filter(d => d.isApplied).length}
+                {deductions.filter(d => d.isFullyPaid).length}
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Filter */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button 
             variant={filterType === 'all' ? 'default' : 'outline'} 
             size="sm"
@@ -332,16 +367,20 @@ export default function Deductions() {
                   <TableHead>{language === 'pt' ? 'Funcionário' : 'Employee'}</TableHead>
                   <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>
                   <TableHead>{language === 'pt' ? 'Descrição' : 'Description'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Data' : 'Date'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Valor' : 'Amount'}</TableHead>
+                  <TableHead className="text-right">{language === 'pt' ? 'Total' : 'Total'}</TableHead>
+                  <TableHead className="text-right">{language === 'pt' ? 'Mensal' : 'Monthly'}</TableHead>
+                  <TableHead>{language === 'pt' ? 'Progresso' : 'Progress'}</TableHead>
                   <TableHead>{t.common.status}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Folha' : 'Payroll'}</TableHead>
                   <TableHead className="text-right">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredDeductions.map((deduction) => {
                   const employee = getEmployee(deduction.employeeId);
+                  const progressPercent = deduction.installments > 0 
+                    ? (deduction.installmentsPaid / deduction.installments) * 100 
+                    : 0;
+                  
                   return (
                     <TableRow key={deduction.id}>
                       <TableCell>
@@ -358,30 +397,31 @@ export default function Deductions() {
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{deduction.description}</TableCell>
-                      <TableCell>{new Date(deduction.date).toLocaleDateString('pt-AO')}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatAOA(deduction.totalAmount)}
+                      </TableCell>
                       <TableCell className="text-right font-medium text-destructive">
                         {formatAOA(deduction.amount)}
-                        {deduction.installments && deduction.installments > 1 && (
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({deduction.currentInstallment}/{deduction.installments})
-                          </span>
-                        )}
                       </TableCell>
                       <TableCell>
-                        {deduction.isApplied ? (
+                        <div className="space-y-1 min-w-[120px]">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>{deduction.installmentsPaid}/{deduction.installments}</span>
+                            <span>{formatAOA(deduction.remainingAmount)}</span>
+                          </div>
+                          <Progress value={progressPercent} className="h-2" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {deduction.isFullyPaid ? (
                           <Badge variant="outline" className="text-green-600">
                             <CheckCircle className="h-3 w-3 mr-1" />
-                            {language === 'pt' ? 'Aplicado' : 'Applied'}
+                            {language === 'pt' ? 'Pago' : 'Paid'}
                           </Badge>
                         ) : (
-                          <Badge variant="secondary">{t.common.pending}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {deduction.payrollPeriodId ? (
-                          <span className="text-sm text-muted-foreground">{getPeriodLabel(deduction.payrollPeriodId)}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
+                          <Badge variant="secondary">
+                            {language === 'pt' ? 'Em curso' : 'In progress'}
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -425,6 +465,13 @@ export default function Deductions() {
               <DialogTitle>{language === 'pt' ? 'Editar Desconto' : 'Edit Deduction'}</DialogTitle>
             </DialogHeader>
             {deductionFormFields}
+            {editingDeduction && editingDeduction.installmentsPaid > 0 && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+                {language === 'pt' 
+                  ? `Atenção: ${editingDeduction.installmentsPaid} prestação(ões) já foram pagas.`
+                  : `Note: ${editingDeduction.installmentsPaid} installment(s) have already been paid.`}
+              </div>
+            )}
             <Button onClick={handleUpdateDeduction} className="w-full">
               {language === 'pt' ? 'Guardar Alterações' : 'Save Changes'}
             </Button>
