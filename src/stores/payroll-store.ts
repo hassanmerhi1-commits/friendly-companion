@@ -280,7 +280,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         existingForPeriod.length
       );
 
-      const newEntries: PayrollEntry[] = employees
+      // Extended type to track deduction IDs temporarily
+      type EntryWithDeductionIds = PayrollEntry & { _deductionIds?: string[] };
+      
+      const newEntries: EntryWithDeductionIds[] = employees
         .filter((emp) => emp.status === 'active')
         .map((emp) => {
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
@@ -298,16 +301,19 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
           // Calculate deductions if deduction store is provided
           // Include:
-          // - pending deductions (!isApplied)
+          // - pending deductions that are NOT fully paid (!isFullyPaid)
           // - deductions already applied to THIS period (so reopening/recalculating keeps them)
           let loanDeduction = 0;
           let advanceDeduction = 0;
           let otherDeductions = 0;
-          const deductionBreakdown: { type: string; description: string; amount: number }[] = [];
+          const deductionBreakdown: { type: string; description: string; amount: number; deductionId: string }[] = [];
 
           if (deductionStore) {
             const all = deductionStore.getDeductionsByEmployee(emp.id) || [];
             for (const d of all) {
+              // Skip fully paid deductions
+              if (d.isFullyPaid) continue;
+              
               const isForThisPeriod = d.payrollPeriodId === periodId;
               const isPending = !d.isApplied;
               if (!isForThisPeriod && !isPending) continue;
@@ -315,7 +321,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // Basic time filter for pending deductions (don't pull future-dated items)
               if (isPending && period.endDate && d.date && d.date > period.endDate) continue;
 
-              const amount = d.installments && d.installments > 1 ? d.amount / d.installments : d.amount;
+              // FIX: d.amount is ALREADY the monthly installment amount (totalAmount / installments)
+              // No need to divide again!
+              const amount = d.amount;
 
               if (d.type === 'loan') {
                 loanDeduction += amount;
@@ -329,6 +337,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 type: d.type,
                 description: d.description,
                 amount,
+                deductionId: d.id, // Track which deduction this came from
               });
             }
           }
@@ -370,10 +379,20 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               status: 'draft' as const,
               createdAt: now,
               updatedAt: now,
+              // Store deduction IDs for linking after save
+              _deductionIds: deductionBreakdown.map(db => db.deductionId),
             };
         });
 
       console.log('[Payroll] New entries to create:', newEntries.length);
+
+      // Collect all deduction IDs that need to be marked as applied
+      const deductionIdsToApply: string[] = [];
+      for (const e of newEntries) {
+        if (e._deductionIds && e._deductionIds.length > 0) {
+          deductionIdsToApply.push(...e._deductionIds);
+        }
+      }
 
       // SAFETY: Upsert first; only delete old entries if all writes succeed.
       // This prevents data loss if the server DB schema is outdated.
@@ -381,7 +400,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       let allWritesOk = true;
 
       for (const e of newEntries) {
-        const row = mapEntryToDbRow(e);
+        // Remove internal tracking field before saving
+        const { _deductionIds, ...entryData } = e;
+        const row = mapEntryToDbRow(entryData as PayrollEntry);
 
         const inserted = await liveInsert('payroll_entries', row);
         if (inserted) continue;
@@ -398,6 +419,14 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         for (const oldEntry of existingForPeriod) {
           if (!newIds.has(oldEntry.id)) {
             await liveDelete('payroll_entries', oldEntry.id);
+          }
+        }
+
+        // CRITICAL: Mark all deductions as applied to this payroll period
+        if (deductionStore && deductionIdsToApply.length > 0) {
+          console.log('[Payroll] Marking', deductionIdsToApply.length, 'deductions as applied to period', periodId);
+          for (const deductionId of deductionIdsToApply) {
+            await deductionStore.applyDeductionToPayroll(deductionId, periodId);
           }
         }
       } else {
@@ -776,33 +805,30 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       let archivedAbsences = 0;
       let installmentsCarried = 0;
 
-      // 1. Get all deductions applied to this period
+      // 1. Get all deductions applied to this period and update their installment tracking
       const appliedDeductions = deductionStore.getDeductionsForPeriod(periodId);
       
       for (const deduction of appliedDeductions) {
-        // Check if this is an installment deduction with remaining installments
-        if (deduction.installments && deduction.installments > 1 && deduction.currentInstallment < deduction.installments) {
-          // Calculate next month
-          const nextMonth = period.month === 12 ? 1 : period.month + 1;
-          const nextYear = period.month === 12 ? period.year + 1 : period.year;
-          const nextDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
-          
-          // Create new deduction for next installment
-          await deductionStore.addDeduction({
-            employeeId: deduction.employeeId,
-            type: deduction.type,
-            description: `${deduction.description} (${deduction.currentInstallment + 1}/${deduction.installments})`,
-            amount: deduction.amount, // Keep original total amount
-            date: nextDate,
-            installments: deduction.installments,
-            currentInstallment: deduction.currentInstallment + 1,
-          });
+        const newInstallmentsPaid = (deduction.installmentsPaid || 0) + 1;
+        const newRemainingAmount = deduction.totalAmount - (newInstallmentsPaid * deduction.amount);
+        const isNowFullyPaid = newInstallmentsPaid >= deduction.installments || newRemainingAmount <= 0;
+
+        // Update the deduction with the new installment count
+        await deductionStore.updateDeduction(deduction.id, {
+          installmentsPaid: newInstallmentsPaid,
+          remainingAmount: Math.max(0, newRemainingAmount),
+          isFullyPaid: isNowFullyPaid,
+          isApplied: false, // Reset applied status so it can be picked up in next period (if not fully paid)
+          payrollPeriodId: undefined, // Clear the period link
+        });
+
+        if (isNowFullyPaid) {
+          archivedDeductions++;
+          console.log(`[Payroll] Deduction ${deduction.id} fully paid after ${newInstallmentsPaid} installments`);
+        } else {
           installmentsCarried++;
+          console.log(`[Payroll] Deduction ${deduction.id}: ${newInstallmentsPaid}/${deduction.installments} paid, ${newRemainingAmount} remaining`);
         }
-        
-        // Delete the applied deduction (it's now archived in payroll entry data)
-        await deductionStore.deleteDeduction(deduction.id);
-        archivedDeductions++;
       }
 
       // 2. Delete absences that were applied in this period's date range
