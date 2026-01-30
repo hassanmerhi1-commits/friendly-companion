@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -52,6 +52,9 @@ function formatDate(dateString: string): string {
   });
 }
 
+type SortField = 'name' | 'department' | 'branch' | 'salary' | 'hireDate';
+type SortOrder = 'asc' | 'desc';
+
 const Employees = () => {
   const { t, language } = useLanguage();
   const { employees, deleteEmployee } = useEmployeeStore();
@@ -60,6 +63,8 @@ const Employees = () => {
   const branches = allBranches.filter(b => b.isActive);
   const [search, setSearch] = useState("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -68,16 +73,47 @@ const Employees = () => {
   const [employeeForCard, setEmployeeForCard] = useState<Employee | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
-      emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
-      emp.email.toLowerCase().includes(search.toLowerCase()) ||
-      emp.department.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
-    
-    return matchesSearch && matchesBranch;
-  });
+  // Get branch name helper for sorting
+  const getBranchNameForSort = (branchId?: string) => {
+    if (!branchId) return '';
+    const branch = branches.find(b => b.id === branchId);
+    return branch ? branch.name : '';
+  };
+
+  const filteredAndSortedEmployees = employees
+    .filter(emp => {
+      const matchesSearch = emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
+        emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
+        emp.email.toLowerCase().includes(search.toLowerCase()) ||
+        emp.department.toLowerCase().includes(search.toLowerCase());
+      
+      const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
+      
+      return matchesSearch && matchesBranch;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'name':
+          comparison = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+          break;
+        case 'department':
+          comparison = (a.department || '').localeCompare(b.department || '');
+          break;
+        case 'branch':
+          comparison = getBranchNameForSort(a.branchId).localeCompare(getBranchNameForSort(b.branchId));
+          break;
+        case 'salary':
+          comparison = a.baseSalary - b.baseSalary;
+          break;
+        case 'hireDate':
+          comparison = new Date(a.hireDate || 0).getTime() - new Date(b.hireDate || 0).getTime();
+          break;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
 
   const getBranchName = (branchId?: string) => {
     if (!branchId) return '-';
@@ -168,8 +204,8 @@ const Employees = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 mb-6 animate-slide-up">
+      {/* Search, Filters and Sorting */}
+      <div className="flex flex-wrap items-center gap-4 mb-6 animate-slide-up">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -193,6 +229,33 @@ const Employees = () => {
             ))}
           </SelectContent>
         </Select>
+        
+        {/* Sort by field */}
+        <Select value={sortField} onValueChange={(value) => setSortField(value as SortField)}>
+          <SelectTrigger className="w-[180px]">
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            <SelectValue placeholder={language === 'pt' ? 'Ordenar por' : 'Sort by'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">{language === 'pt' ? 'Nome' : 'Name'}</SelectItem>
+            <SelectItem value="department">{language === 'pt' ? 'Departamento' : 'Department'}</SelectItem>
+            <SelectItem value="branch">{language === 'pt' ? 'Filial' : 'Branch'}</SelectItem>
+            <SelectItem value="salary">{language === 'pt' ? 'Salário' : 'Salary'}</SelectItem>
+            <SelectItem value="hireDate">{language === 'pt' ? 'Data de Admissão' : 'Hire Date'}</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        {/* Sort order toggle */}
+        <Button 
+          variant="outline" 
+          size="icon"
+          onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+          title={sortOrder === 'asc' 
+            ? (language === 'pt' ? 'Ascendente (A-Z, 1-9)' : 'Ascending (A-Z, 1-9)') 
+            : (language === 'pt' ? 'Descendente (Z-A, 9-1)' : 'Descending (Z-A, 9-1)')}
+        >
+          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+        </Button>
       </div>
 
       {/* Employee Table */}
@@ -225,7 +288,7 @@ const Employees = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredEmployees.map((employee) => (
+              {filteredAndSortedEmployees.map((employee) => (
                 <tr key={employee.id} className="table-row-hover">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -307,7 +370,7 @@ const Employees = () => {
         {/* Pagination */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
           <p className="text-sm text-muted-foreground">
-            {t.common.showing} <span className="font-medium">1-{filteredEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
+            {t.common.showing} <span className="font-medium">1-{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
           </p>
         </div>
       </div>
