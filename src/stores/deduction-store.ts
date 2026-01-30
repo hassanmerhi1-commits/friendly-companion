@@ -22,7 +22,8 @@ interface DeductionState {
 function mapDbRowToDeduction(row: any): Deduction {
   const totalAmount = row.total_amount || row.amount || 0;
   const installments = row.installments || 1;
-  const installmentsPaid = row.installments_paid || 0;
+  // Legacy compatibility: older DBs stored installment progress in `current_installment`
+  const installmentsPaid = row.installments_paid ?? row.current_installment ?? 0;
   const monthlyAmount = installments > 0 ? totalAmount / installments : totalAmount;
   const remainingAmount = row.remaining_amount ?? (totalAmount - (installmentsPaid * monthlyAmount));
   
@@ -59,6 +60,8 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
     is_fully_paid: d.isFullyPaid ? 1 : 0,
     installments: d.installments,
     installments_paid: d.installmentsPaid,
+    // Legacy compatibility
+    current_installment: d.installmentsPaid,
     remaining_amount: d.remainingAmount,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
