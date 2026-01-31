@@ -16,6 +16,7 @@ import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useAbsenceStore } from "@/stores/absence-store";
+import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { SalaryReceipt } from "@/components/payroll/SalaryReceipt";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
@@ -40,6 +41,7 @@ const Payroll = () => {
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
   const absenceStore = useAbsenceStore();
+  const bulkAttendanceStore = useBulkAttendanceStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = absenceStore;
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
@@ -177,8 +179,9 @@ const Payroll = () => {
     // Get or create period for current month
     const period = await getOrCreateCurrentPeriod();
     
-    // Pass absence store and deduction store to integrate calculations
-    await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords, absenceStore, deductionStore);
+    // Pass absence store, deduction store and bulk attendance store to integrate calculations
+    // Bulk attendance takes priority for absence/delay deductions (uses FULL salary including bonuses)
+    await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords, absenceStore, deductionStore, bulkAttendanceStore);
     
     // IMPORTANT: Get fresh entries from the store AFTER generation completes
     // The store.entries is now updated via loadPayroll() inside generateEntriesForPeriod

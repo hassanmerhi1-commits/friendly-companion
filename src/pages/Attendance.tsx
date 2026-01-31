@@ -5,19 +5,32 @@ import { ClockInOut } from "@/components/attendance/ClockInOut";
 import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
+import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
 import { useLanguage } from "@/lib/i18n";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
-import { Clock, List, Timer, Calendar } from "lucide-react";
+import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
+import { Clock, List, Timer, Calendar, UserMinus } from "lucide-react";
 
 export default function Attendance() {
   const { language } = useLanguage();
   const { getPendingAbsences } = useAbsenceStore();
   const { records } = useAttendanceStore();
+  const { entries: bulkEntries } = useBulkAttendanceStore();
 
   const pendingAbsences = getPendingAbsences().length;
   const todayRecords = records.filter(r => 
     r.date === new Date().toISOString().split('T')[0]
+  ).length;
+
+  // Get current month and year for bulk attendance
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  // Count entries with deductions for the current month
+  const currentMonthEntries = bulkEntries.filter(
+    e => e.month === currentMonth && e.year === currentYear && e.totalDeduction > 0
   ).length;
 
   const t = {
@@ -29,6 +42,7 @@ export default function Attendance() {
     records: language === 'pt' ? 'Registos' : 'Records',
     overtime: language === 'pt' ? 'Horas Extra' : 'Overtime',
     calendar: language === 'pt' ? 'Calendário' : 'Calendar',
+    bulkEntry: language === 'pt' ? 'Ausências/Atrasos' : 'Absences/Delays',
   };
 
   return (
@@ -39,8 +53,17 @@ export default function Attendance() {
           <p className="text-muted-foreground">{t.subtitle}</p>
         </div>
 
-        <Tabs defaultValue="clock" className="space-y-4">
+        <Tabs defaultValue="bulk" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="bulk" className="flex items-center gap-2">
+              <UserMinus className="h-4 w-4" />
+              {t.bulkEntry}
+              {currentMonthEntries > 0 && (
+                <Badge variant="destructive" className="ml-1">
+                  {currentMonthEntries}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="clock" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               {t.clockInOut}
@@ -68,6 +91,10 @@ export default function Attendance() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="bulk" className="space-y-4">
+            <BulkAttendanceEntry month={currentMonth} year={currentYear} />
+          </TabsContent>
 
           <TabsContent value="clock" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
