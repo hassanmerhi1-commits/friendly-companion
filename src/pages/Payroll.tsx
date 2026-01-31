@@ -61,8 +61,29 @@ const Payroll = () => {
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
   const bonusBranch = branches.find(b => b.id === bonusBranchId);
 
-  // Sort periods by date (newest first)
-  const sortedPeriods = [...periods].sort((a, b) => {
+  // Sort periods by date (newest first) and filter out future months beyond next month
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-indexed
+  
+  // Calculate the maximum allowed month (current month, or next month if current is archived)
+  const currentMonthPeriod = periods.find(p => p.year === currentYear && p.month === currentMonth);
+  const isCurrentMonthArchived = currentMonthPeriod && (currentMonthPeriod.status === 'approved' || currentMonthPeriod.status === 'paid');
+  
+  // Max allowed: current month + 1 if current is archived, otherwise current month
+  const maxAllowedMonth = isCurrentMonthArchived ? currentMonth + 1 : currentMonth;
+  const maxAllowedYear = maxAllowedMonth > 12 ? currentYear + 1 : currentYear;
+  const normalizedMaxMonth = maxAllowedMonth > 12 ? 1 : maxAllowedMonth;
+  
+  // Filter periods to exclude future months beyond allowed limit
+  const filteredPeriods = periods.filter(p => {
+    // Convert to comparable number (YYYYMM)
+    const periodNum = p.year * 100 + p.month;
+    const maxNum = maxAllowedYear * 100 + normalizedMaxMonth;
+    return periodNum <= maxNum;
+  });
+  
+  const sortedPeriods = [...filteredPeriods].sort((a, b) => {
     if (a.year !== b.year) return b.year - a.year;
     return b.month - a.month;
   });
@@ -92,23 +113,49 @@ const Payroll = () => {
         })
     : [];
   
-  // Helper to get or create current period
+  // Helper to get or create the NEXT available period
+  // Logic: Only allow current month OR next month if current month is archived
+  // NEVER allow 2+ months ahead
   const getOrCreateCurrentPeriod = async () => {
-    let period = currentPeriod;
-
     // If we already have an active editable period, use it
-    if (period && (period.status === 'draft' || period.status === 'calculated')) {
-      return period;
+    if (activePeriod) {
+      return activePeriod;
     }
 
-    // Use the REAL current date - don't auto-advance to next month after archiving
     const now = new Date();
-    const targetYear = now.getFullYear();
-    const targetMonth = now.getMonth() + 1; // 1-indexed
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-indexed
 
+    // Check if current month exists and is archived (approved/paid)
+    const currentMonthPeriod = periods.find(p => p.year === currentYear && p.month === currentMonth);
+    const isCurrentMonthArchived = currentMonthPeriod && (currentMonthPeriod.status === 'approved' || currentMonthPeriod.status === 'paid');
+
+    let targetYear: number;
+    let targetMonth: number;
+
+    if (isCurrentMonthArchived) {
+      // Current month is archived - allow NEXT month only
+      if (currentMonth === 12) {
+        targetMonth = 1;
+        targetYear = currentYear + 1;
+      } else {
+        targetMonth = currentMonth + 1;
+        targetYear = currentYear;
+      }
+    } else {
+      // Current month not archived - use current month
+      targetMonth = currentMonth;
+      targetYear = currentYear;
+    }
+
+    // Check if target period already exists
     const existing = periods.find(p => p.year === targetYear && p.month === targetMonth);
-    period = existing ?? (await createPeriod(targetYear, targetMonth));
-    return period;
+    if (existing) {
+      return existing;
+    }
+
+    // Create new period
+    return await createPeriod(targetYear, targetMonth);
   };
 
   // Filter entries by branch for payroll sheet

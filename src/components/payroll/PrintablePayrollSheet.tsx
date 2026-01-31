@@ -129,30 +129,32 @@ export function PrintablePayrollSheet({
         <title>${t.title} - ${periodLabel}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 9px; padding: 15px; }
-          .header { display: flex; align-items: center; margin-bottom: 20px; gap: 20px; }
-          .logo { width: 80px; height: auto; }
+          body { font-family: Arial, sans-serif; font-size: 7px; padding: 10px; }
+          .header { display: flex; align-items: center; margin-bottom: 15px; gap: 15px; }
+          .logo { width: 60px; height: auto; }
           .header-info { flex: 1; text-align: center; }
-          .company-name { font-size: 16px; font-weight: bold; }
-          .document-title { font-size: 14px; font-weight: bold; margin: 10px 0; text-transform: uppercase; }
-          .period { font-size: 11px; margin-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-          th, td { border: 1px solid #333; padding: 4px 3px; text-align: right; }
-          th { background: #f0f0f0; font-weight: bold; text-align: center; }
-          td:first-child, td:nth-child(2) { text-align: left; }
+          .company-name { font-size: 12px; font-weight: bold; }
+          .document-title { font-size: 11px; font-weight: bold; margin: 8px 0; text-transform: uppercase; }
+          .period { font-size: 9px; margin-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+          th, td { border: 1px solid #333; padding: 2px 2px; text-align: right; font-size: 7px; }
+          th { background: #f0f0f0; font-weight: bold; text-align: center; font-size: 6px; text-transform: uppercase; }
+          td:first-child { text-align: center; }
+          td:nth-child(2) { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+          .employee-name { font-size: 7px; }
           .totals-row { background: #e0e0e0; font-weight: bold; }
           .net-salary { background: #d0f0d0; font-weight: bold; }
-          .inss-table { width: 300px; margin-top: 20px; }
-          .inss-table th { background: #4a90d9; color: white; }
+          .inss-table { width: 280px; margin-top: 15px; }
+          .inss-table th { background: #4a90d9; color: white; font-size: 7px; }
           .inss-total { background: #2e5a8a; color: white; font-weight: bold; }
-          .footer { display: flex; justify-content: space-between; margin-top: 40px; }
-          .signature-box { width: 200px; text-align: center; }
-          .signature-line { border-top: 1px solid #000; margin-top: 40px; padding-top: 5px; }
-          .legal-note { font-size: 8px; font-style: italic; margin-top: 20px; text-align: center; }
-          .bottom-section { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 30px; }
+          .footer { display: flex; justify-content: space-between; margin-top: 30px; }
+          .signature-box { width: 180px; text-align: center; font-size: 8px; }
+          .signature-line { border-top: 1px solid #000; margin-top: 35px; padding-top: 4px; }
+          .legal-note { font-size: 6px; font-style: italic; margin-top: 15px; text-align: center; }
+          .bottom-section { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 20px; }
           @media print {
-            body { padding: 10px; }
-            @page { size: landscape; margin: 10mm; }
+            body { padding: 8px; font-size: 7px; }
+            @page { size: landscape; margin: 8mm; }
           }
         </style>
       </head>
@@ -200,79 +202,80 @@ export function PrintablePayrollSheet({
         <table>
           <thead>
             <tr>
-              <th colSpan={11} style={{ background: '#4a90d9', color: 'white' }}>{language === 'pt' ? 'ABONOS / RENDIMENTOS' : 'EARNINGS / INCOME'}</th>
+              <th colSpan={11} style={{ background: '#4a90d9', color: 'white', fontSize: '8px' }}>{language === 'pt' ? 'ABONOS / RENDIMENTOS' : 'EARNINGS / INCOME'}</th>
             </tr>
             <tr>
-              <th style={{ width: '20px' }}>Nº</th>
-              <th style={{ width: '140px' }}>{t.employee}</th>
-              <th>{t.baseSalary}</th>
-              <th>{t.mealAllowance}</th>
-              <th>{t.transportAllowance}</th>
-              <th>{t.familyAllowance}</th>
-              <th>{t.overtime}</th>
-              <th>{t.holidaySubsidy}</th>
-              <th>{t.thirteenthMonth}</th>
-              <th>{t.grossSalary}</th>
+              <th style={{ width: '18px', fontSize: '6px' }}>Nº</th>
+              <th style={{ width: '130px', fontSize: '6px' }}>{t.employee}</th>
+              <th style={{ fontSize: '6px' }}>{t.baseSalary}</th>
+              <th style={{ fontSize: '6px' }}>{t.mealAllowance}</th>
+              <th style={{ fontSize: '6px' }}>{t.transportAllowance}</th>
+              <th style={{ fontSize: '6px' }}>{t.familyAllowance}</th>
+              <th style={{ fontSize: '6px' }}>{t.overtime}</th>
+              <th style={{ fontSize: '6px' }}>{t.holidaySubsidy}</th>
+              <th style={{ fontSize: '6px' }}>{t.thirteenthMonth}</th>
+              <th style={{ fontSize: '6px' }}>{t.grossSalary}</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry, idx) => {
               const totalOvertime = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+              const fullName = `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim();
               return (
                 <tr key={entry.id}>
-                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                  <td>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                  <td>{formatAOA(entry.baseSalary)}</td>
-                  <td>{formatAOA(entry.mealAllowance)}</td>
-                  <td>{formatAOA(entry.transportAllowance)}</td>
-                  <td>{formatAOA(entry.familyAllowance || 0)}</td>
-                  <td style={{ color: totalOvertime > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(totalOvertime)}</td>
-                  <td style={{ color: entry.holidaySubsidy > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(entry.holidaySubsidy)}</td>
-                  <td style={{ color: entry.thirteenthMonth > 0 ? '#27ae60' : 'inherit' }}>{formatAOA(entry.thirteenthMonth)}</td>
-                  <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.grossSalary)}</td>
+                  <td style={{ textAlign: 'center', fontSize: '7px' }}>{idx + 1}</td>
+                  <td className="employee-name" style={{ textAlign: 'left', fontSize: '7px' }}>{fullName}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.baseSalary)}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.mealAllowance)}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.transportAllowance)}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.familyAllowance || 0)}</td>
+                  <td style={{ color: totalOvertime > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(totalOvertime)}</td>
+                  <td style={{ color: entry.holidaySubsidy > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(entry.holidaySubsidy)}</td>
+                  <td style={{ color: entry.thirteenthMonth > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(entry.thirteenthMonth)}</td>
+                  <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.grossSalary)}</td>
                 </tr>
               );
             })}
             {/* Totals Row */}
             <tr className="totals-row">
-              <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
-              <td>{formatAOA(totals.baseSalary)}</td>
-              <td>{formatAOA(totals.mealAllowance)}</td>
-              <td>{formatAOA(totals.transportAllowance)}</td>
-              <td>{formatAOA(totals.familyAllowance)}</td>
-              <td>{formatAOA(totals.overtime)}</td>
-              <td>{formatAOA(totals.holidaySubsidy)}</td>
-              <td>{formatAOA(totals.thirteenthMonth)}</td>
-              <td>{formatAOA(totals.grossSalary)}</td>
+              <td colSpan={2} style={{ textAlign: 'center', fontSize: '7px' }}>{t.totals}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.baseSalary)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.mealAllowance)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.transportAllowance)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.familyAllowance)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.overtime)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.holidaySubsidy)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.thirteenthMonth)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.grossSalary)}</td>
             </tr>
           </tbody>
         </table>
 
         {/* DESCONTOS/DEDUCTIONS Section - Separate Tables for IRT and INSS */}
-        <div style={{ display: 'flex', gap: '20px', marginTop: '15px' }}>
+        <div style={{ display: 'flex', gap: '15px', marginTop: '12px' }}>
           {/* IRT Table */}
           <table style={{ flex: '1' }}>
             <thead>
               <tr>
-                <th colSpan={3} style={{ background: '#e74c3c', color: 'white' }}>{language === 'pt' ? 'IMPOSTO (IRT)' : 'TAX (IRT)'}</th>
+                <th colSpan={3} style={{ background: '#e74c3c', color: 'white', fontSize: '7px' }}>{language === 'pt' ? 'IMPOSTO (IRT)' : 'TAX (IRT)'}</th>
               </tr>
               <tr>
-                <th style={{ width: '20px' }}>Nº</th>
-                <th>{t.employee}</th>
-                <th>{t.irt}</th>
+                <th style={{ width: '18px', fontSize: '6px' }}>Nº</th>
+                <th style={{ fontSize: '6px' }}>{t.employee}</th>
+                <th style={{ fontSize: '6px' }}>{t.irt}</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry, idx) => (
                 <tr key={entry.id}>
-                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                  <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                  <td>{formatAOA(entry.irt)}</td>
+                  <td style={{ textAlign: 'center', fontSize: '7px' }}>{idx + 1}</td>
+                  <td style={{ textAlign: 'left', fontSize: '7px' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.irt)}</td>
                 </tr>
               ))}
               <tr className="totals-row">
-                <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
-                <td>{formatAOA(totals.irt)}</td>
+                <td colSpan={2} style={{ textAlign: 'center', fontSize: '7px' }}>{t.totals}</td>
+                <td style={{ fontSize: '7px' }}>{formatAOA(totals.irt)}</td>
               </tr>
             </tbody>
           </table>
@@ -281,76 +284,76 @@ export function PrintablePayrollSheet({
           <table style={{ flex: '1' }}>
             <thead>
               <tr>
-                <th colSpan={4} style={{ background: '#27ae60', color: 'white' }}>{language === 'pt' ? 'SEGURANÇA SOCIAL (INSS)' : 'SOCIAL SECURITY (INSS)'}</th>
+                <th colSpan={4} style={{ background: '#27ae60', color: 'white', fontSize: '7px' }}>{language === 'pt' ? 'SEGURANÇA SOCIAL (INSS)' : 'SOCIAL SECURITY (INSS)'}</th>
               </tr>
               <tr>
-                <th style={{ width: '20px' }}>Nº</th>
-                <th>{t.employee}</th>
-                <th>{t.inssEmployee} (3%)</th>
-                <th>{t.inssEmployer} (8%)</th>
+                <th style={{ width: '18px', fontSize: '6px' }}>Nº</th>
+                <th style={{ fontSize: '6px' }}>{t.employee}</th>
+                <th style={{ fontSize: '6px' }}>{t.inssEmployee} (3%)</th>
+                <th style={{ fontSize: '6px' }}>{t.inssEmployer} (8%)</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry, idx) => (
                 <tr key={entry.id}>
-                  <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                  <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                  <td>{formatAOA(entry.inssEmployee)}</td>
-                  <td>{formatAOA(entry.inssEmployer)}</td>
+                  <td style={{ textAlign: 'center', fontSize: '7px' }}>{idx + 1}</td>
+                  <td style={{ textAlign: 'left', fontSize: '7px' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.inssEmployee)}</td>
+                  <td style={{ fontSize: '7px' }}>{formatAOA(entry.inssEmployer)}</td>
                 </tr>
               ))}
               <tr className="totals-row">
-                <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
-                <td>{formatAOA(totals.inssEmployee)}</td>
-                <td>{formatAOA(totals.inssEmployer)}</td>
+                <td colSpan={2} style={{ textAlign: 'center', fontSize: '7px' }}>{t.totals}</td>
+                <td style={{ fontSize: '7px' }}>{formatAOA(totals.inssEmployee)}</td>
+                <td style={{ fontSize: '7px' }}>{formatAOA(totals.inssEmployer)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Net Salary and All Deductions Detailed */}
-        <table style={{ marginTop: '15px' }}>
+        <table style={{ marginTop: '12px' }}>
           <thead>
             <tr>
-              <th colSpan={10} style={{ background: '#2c3e50', color: 'white' }}>{language === 'pt' ? 'DESCONTOS DETALHADOS / RESUMO' : 'DETAILED DEDUCTIONS / SUMMARY'}</th>
+              <th colSpan={10} style={{ background: '#2c3e50', color: 'white', fontSize: '7px' }}>{language === 'pt' ? 'DESCONTOS DETALHADOS / RESUMO' : 'DETAILED DEDUCTIONS / SUMMARY'}</th>
             </tr>
             <tr>
-              <th style={{ width: '20px' }}>Nº</th>
-              <th>{t.employee}</th>
-              <th>{t.daysAbsent}</th>
-              <th>{t.absenceDeduction}</th>
-              <th>{t.loanDeduction}</th>
-              <th>{t.advanceDeduction}</th>
-              <th>{t.otherDeductions}</th>
-              <th>{t.totalDeductions}</th>
-              <th className="net-salary">{t.netSalary}</th>
-              <th>{t.signature}</th>
+              <th style={{ width: '18px', fontSize: '6px' }}>Nº</th>
+              <th style={{ fontSize: '6px' }}>{t.employee}</th>
+              <th style={{ fontSize: '6px' }}>{t.daysAbsent}</th>
+              <th style={{ fontSize: '6px' }}>{t.absenceDeduction}</th>
+              <th style={{ fontSize: '6px' }}>{t.loanDeduction}</th>
+              <th style={{ fontSize: '6px' }}>{t.advanceDeduction}</th>
+              <th style={{ fontSize: '6px' }}>{t.otherDeductions}</th>
+              <th style={{ fontSize: '6px' }}>{t.totalDeductions}</th>
+              <th style={{ fontSize: '6px' }} className="net-salary">{t.netSalary}</th>
+              <th style={{ fontSize: '6px' }}>{t.signature}</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry, idx) => (
               <tr key={entry.id}>
-                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                <td style={{ textAlign: 'left' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                <td style={{ textAlign: 'center' }}>{entry.daysAbsent || 0}</td>
-                <td className={entry.absenceDeduction ? 'text-destructive' : ''}>{formatAOA(entry.absenceDeduction || 0)}</td>
-                <td className={entry.loanDeduction ? 'text-destructive' : ''}>{formatAOA(entry.loanDeduction || 0)}</td>
-                <td className={entry.advanceDeduction ? 'text-destructive' : ''}>{formatAOA(entry.advanceDeduction || 0)}</td>
-                <td>{formatAOA(entry.otherDeductions || 0)}</td>
-                <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.totalDeductions)}</td>
-                <td className="net-salary">{formatAOA(entry.netSalary)}</td>
-                <td style={{ width: '80px' }}></td>
+                <td style={{ textAlign: 'center', fontSize: '7px' }}>{idx + 1}</td>
+                <td style={{ textAlign: 'left', fontSize: '7px' }}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                <td style={{ textAlign: 'center', fontSize: '7px' }}>{entry.daysAbsent || 0}</td>
+                <td style={{ fontSize: '7px', color: entry.absenceDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.absenceDeduction || 0)}</td>
+                <td style={{ fontSize: '7px', color: entry.loanDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.loanDeduction || 0)}</td>
+                <td style={{ fontSize: '7px', color: entry.advanceDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.advanceDeduction || 0)}</td>
+                <td style={{ fontSize: '7px' }}>{formatAOA(entry.otherDeductions || 0)}</td>
+                <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.totalDeductions)}</td>
+                <td className="net-salary" style={{ fontSize: '7px' }}>{formatAOA(entry.netSalary)}</td>
+                <td style={{ width: '60px' }}></td>
               </tr>
             ))}
             <tr className="totals-row">
-              <td colSpan={2} style={{ textAlign: 'center' }}>{t.totals}</td>
-              <td style={{ textAlign: 'center' }}>{totals.daysAbsent}</td>
-              <td>{formatAOA(totals.absenceDeduction)}</td>
-              <td>{formatAOA(totals.loanDeduction)}</td>
-              <td>{formatAOA(totals.advanceDeduction)}</td>
-              <td>{formatAOA(totals.otherDeductions)}</td>
-              <td>{formatAOA(totals.totalDeductions)}</td>
-              <td className="net-salary">{formatAOA(totals.netSalary)}</td>
+              <td colSpan={2} style={{ textAlign: 'center', fontSize: '7px' }}>{t.totals}</td>
+              <td style={{ textAlign: 'center', fontSize: '7px' }}>{totals.daysAbsent}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.absenceDeduction)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.loanDeduction)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.advanceDeduction)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.otherDeductions)}</td>
+              <td style={{ fontSize: '7px' }}>{formatAOA(totals.totalDeductions)}</td>
+              <td className="net-salary" style={{ fontSize: '7px' }}>{formatAOA(totals.netSalary)}</td>
               <td></td>
             </tr>
           </tbody>
