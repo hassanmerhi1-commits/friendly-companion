@@ -159,12 +159,70 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     }
     
     // Check for duplicate name
-    const fullName = `${data.firstName} ${data.lastName}`.toLowerCase();
+    const fullName = `${data.firstName} ${data.lastName}`.toLowerCase().trim();
     const existingByName = get().employees.find(
-      e => `${e.firstName} ${e.lastName}`.toLowerCase() === fullName && e.status === 'active'
+      e => `${e.firstName} ${e.lastName}`.toLowerCase().trim() === fullName && e.status === 'active'
     );
     if (existingByName) {
       return { success: false, error: 'Funcionário com este nome já existe / Employee with this name already exists' };
+    }
+    
+    // Check for duplicate bank account number (if provided)
+    if (data.bankAccountNumber && data.bankAccountNumber.trim()) {
+      const existingByAccount = get().employees.find(
+        e => e.bankAccountNumber && 
+             e.bankAccountNumber.replace(/\s/g, '') === data.bankAccountNumber!.replace(/\s/g, '') &&
+             e.status === 'active'
+      );
+      if (existingByAccount) {
+        return { 
+          success: false, 
+          error: `Conta bancária já registada para ${existingByAccount.firstName} ${existingByAccount.lastName} / Bank account already registered for ${existingByAccount.firstName} ${existingByAccount.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate IBAN (if provided)
+    if (data.iban && data.iban.trim()) {
+      const existingByIban = get().employees.find(
+        e => e.iban && 
+             e.iban.replace(/\s/g, '').toLowerCase() === data.iban!.replace(/\s/g, '').toLowerCase() &&
+             e.status === 'active'
+      );
+      if (existingByIban) {
+        return { 
+          success: false, 
+          error: `IBAN já registado para ${existingByIban.firstName} ${existingByIban.lastName} / IBAN already registered for ${existingByIban.firstName} ${existingByIban.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate BI (Bilhete de Identidade)
+    if (data.bilheteIdentidade && data.bilheteIdentidade.trim()) {
+      const existingByBI = get().employees.find(
+        e => e.bilheteIdentidade && 
+             e.bilheteIdentidade.replace(/\s/g, '').toLowerCase() === data.bilheteIdentidade!.replace(/\s/g, '').toLowerCase()
+      );
+      if (existingByBI) {
+        return { 
+          success: false, 
+          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName} / ID already registered for ${existingByBI.firstName} ${existingByBI.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate NIF
+    if (data.nif && data.nif.trim()) {
+      const existingByNIF = get().employees.find(
+        e => e.nif && 
+             e.nif.replace(/\s/g, '').toLowerCase() === data.nif!.replace(/\s/g, '').toLowerCase()
+      );
+      if (existingByNIF) {
+        return { 
+          success: false, 
+          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName} / NIF already registered for ${existingByNIF.firstName} ${existingByNIF.lastName}` 
+        };
+      }
     }
     
     const now = new Date().toISOString();
@@ -237,13 +295,75 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       if (currentEmployee) {
         const newFirstName = data.firstName || currentEmployee.firstName;
         const newLastName = data.lastName || currentEmployee.lastName;
-        const fullName = `${newFirstName} ${newLastName}`.toLowerCase();
+        const fullName = `${newFirstName} ${newLastName}`.toLowerCase().trim();
         const existingByName = get().employees.find(
-          e => `${e.firstName} ${e.lastName}`.toLowerCase() === fullName && e.id !== id && e.status === 'active'
+          e => `${e.firstName} ${e.lastName}`.toLowerCase().trim() === fullName && e.id !== id && e.status === 'active'
         );
         if (existingByName) {
           return { success: false, error: 'Funcionário com este nome já existe / Employee with this name already exists' };
         }
+      }
+    }
+    
+    // Check for duplicate bank account number if being updated
+    if (data.bankAccountNumber && data.bankAccountNumber.trim()) {
+      const existingByAccount = get().employees.find(
+        e => e.bankAccountNumber && 
+             e.bankAccountNumber.replace(/\s/g, '') === data.bankAccountNumber!.replace(/\s/g, '') &&
+             e.id !== id &&
+             e.status === 'active'
+      );
+      if (existingByAccount) {
+        return { 
+          success: false, 
+          error: `Conta bancária já registada para ${existingByAccount.firstName} ${existingByAccount.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate IBAN if being updated
+    if (data.iban && data.iban.trim()) {
+      const existingByIban = get().employees.find(
+        e => e.iban && 
+             e.iban.replace(/\s/g, '').toLowerCase() === data.iban!.replace(/\s/g, '').toLowerCase() &&
+             e.id !== id &&
+             e.status === 'active'
+      );
+      if (existingByIban) {
+        return { 
+          success: false, 
+          error: `IBAN já registado para ${existingByIban.firstName} ${existingByIban.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate BI if being updated
+    if (data.bilheteIdentidade && data.bilheteIdentidade.trim()) {
+      const existingByBI = get().employees.find(
+        e => e.bilheteIdentidade && 
+             e.bilheteIdentidade.replace(/\s/g, '').toLowerCase() === data.bilheteIdentidade!.replace(/\s/g, '').toLowerCase() &&
+             e.id !== id
+      );
+      if (existingByBI) {
+        return { 
+          success: false, 
+          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName}` 
+        };
+      }
+    }
+    
+    // Check for duplicate NIF if being updated
+    if (data.nif && data.nif.trim()) {
+      const existingByNIF = get().employees.find(
+        e => e.nif && 
+             e.nif.replace(/\s/g, '').toLowerCase() === data.nif!.replace(/\s/g, '').toLowerCase() &&
+             e.id !== id
+      );
+      if (existingByNIF) {
+        return { 
+          success: false, 
+          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName}` 
+        };
       }
     }
     
