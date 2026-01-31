@@ -17,7 +17,7 @@ interface PayrollState {
   getCurrentPeriod: () => PayrollPeriod | undefined;
   updatePeriodStatus: (id: string, status: PayrollPeriod['status']) => Promise<void>;
 
-  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[], absenceStore?: any, deductionStore?: any) => Promise<void>;
+  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[], absenceStore?: any, deductionStore?: any, bulkAttendanceStore?: any) => Promise<void>;
   toggle13thMonth: (entryId: string, monthsWorked: number) => Promise<void>;
   toggleHolidaySubsidy: (entryId: string) => Promise<void>;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => Promise<void>;
@@ -244,7 +244,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       await liveUpdate('payroll_periods', id, { status, updated_at: now });
     },
 
-    generateEntriesForPeriod: async (periodId, employees, holidayRecords, absenceStore?, deductionStore?) => {
+    generateEntriesForPeriod: async (periodId, employees, holidayRecords, absenceStore?, deductionStore?, bulkAttendanceStore?) => {
       const period = get().getPeriod(periodId);
       if (!period) return;
 
@@ -289,15 +289,30 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
 
-          // Calculate absence deduction if absence store is provided
+          // Calculate absence deduction from BULK ATTENDANCE (NEW - uses FULL salary including bonuses)
           let absenceDeduction = 0;
           let absenceDays = 0;
-          if (absenceStore) {
+          let delayDeduction = 0;
+          
+          if (bulkAttendanceStore) {
+            const bulkEntry = bulkAttendanceStore.getEntryForEmployee(emp.id, period.month, period.year);
+            if (bulkEntry) {
+              absenceDays = bulkEntry.absenceDays || 0;
+              absenceDeduction = bulkEntry.absenceDeduction || 0;
+              delayDeduction = bulkEntry.delayDeduction || 0;
+              console.log(`[Payroll] Bulk attendance for ${emp.firstName}: ${absenceDays} days, ${bulkEntry.delayHours || 0}h delay = ${absenceDeduction + delayDeduction} Kz deduction`);
+            }
+          }
+          // Fallback to legacy absence store if bulk attendance not provided
+          else if (absenceStore) {
             // Month is 0-indexed for absence store
             const absenceInfo = absenceStore.getAbsenceDaysForEmployee(emp.id, period.month - 1, period.year);
             absenceDays = absenceInfo.unjustified;
             absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
           }
+          
+          // Combine absence + delay deductions
+          const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
           // Calculate deductions if deduction store is provided
           // Include:
@@ -354,7 +369,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,
           });
 
-          const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + absenceDeduction;
+          const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
 
           const now = new Date().toISOString();
 
@@ -367,7 +382,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               netSalary: payrollResult.netSalary - totalExtraDeductions,
               totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
               monthlyBonus: emp.monthlyBonus || 0,
-              absenceDeduction,
+              absenceDeduction: totalAbsenceDeduction, // Includes absence days + delay hours deduction
               loanDeduction,
               advanceDeduction,
               daysAbsent: absenceDays,

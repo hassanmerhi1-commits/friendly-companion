@@ -23,6 +23,7 @@ import { initHolidayStoreSync } from "@/stores/holiday-store";
 import { initSettingsStoreSync } from "@/stores/settings-store";
 import { initAttendanceStoreSync } from "@/stores/attendance-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
+import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
@@ -176,6 +177,7 @@ function AppContent() {
             initHolidayStoreSync();
             initSettingsStoreSync();
             initAttendanceStoreSync();
+            initBulkAttendanceStoreSync();
             initHRStoreSync();
 
             // Get database status for logging
@@ -198,6 +200,7 @@ function AppContent() {
             const { loadHolidays } = useHolidayStore.getState();
             const { loadSettings } = useSettingsStore.getState();
             const { loadAttendance } = useAttendanceStore.getState();
+            const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
             const { loadHRData } = useHRStore.getState();
 
             await Promise.all([
@@ -210,6 +213,7 @@ function AppContent() {
               loadHolidays(),
               loadSettings(),
               loadAttendance(),
+              loadBulkAttendance(),
               loadHRData(),
             ]);
 

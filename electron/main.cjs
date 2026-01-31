@@ -138,7 +138,7 @@ function startWebSocketServer() {
       console.log(`[WS] Client connected from ${clientIP}`);
 
       // Send initial data to newly connected client (TRUE PUSH on connect)
-      const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents'];
+      const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance'];
       for (const table of tables) {
         try {
           const rows = dbGetAll(table);
@@ -1147,6 +1147,30 @@ function runMigrations() {
     addColumnIfMissing('documents', 'employee_id', "ALTER TABLE documents ADD COLUMN employee_id TEXT");
     addColumnIfMissing('documents', 'type', "ALTER TABLE documents ADD COLUMN type TEXT");
     addColumnIfMissing('documents', 'file_path', "ALTER TABLE documents ADD COLUMN file_path TEXT");
+    
+    // Create bulk_attendance table for absence days and delay hours per employee per month
+    // Uses FULL salary (base + all bonuses) for deduction calculation:
+    // Daily Rate = Full Salary / 30, Hourly Rate = Daily Rate / 8
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS bulk_attendance (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        absence_days REAL DEFAULT 0,
+        delay_hours REAL DEFAULT 0,
+        daily_rate REAL DEFAULT 0,
+        hourly_rate REAL DEFAULT 0,
+        absence_deduction REAL DEFAULT 0,
+        delay_deduction REAL DEFAULT 0,
+        total_deduction REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(employee_id, month, year)
+      );
+    `);
+    console.log('Migration: Ensured bulk_attendance table exists');
     
     console.log('Database migrations completed');
   } catch (error) {
