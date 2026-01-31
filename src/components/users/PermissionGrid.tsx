@@ -190,14 +190,9 @@ export function PermissionGrid({ selectedPermissions, onChange, disabled = false
                 onClick={() => handleToggleCategory(key)}
               >
                 <Checkbox 
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el) {
-                      (el as HTMLButtonElement).dataset.state = someSelected ? 'indeterminate' : allSelected ? 'checked' : 'unchecked';
-                    }
-                  }}
-                  className={someSelected ? 'data-[state=indeterminate]:bg-primary/50' : ''}
+                  checked={someSelected ? 'indeterminate' : allSelected}
                   disabled={disabled}
+                  className={someSelected ? 'data-[state=indeterminate]:bg-primary/50' : ''}
                 />
                 <Label className="font-semibold text-sm cursor-pointer">
                   {language === 'pt' ? category.labelPt : category.labelEn}
