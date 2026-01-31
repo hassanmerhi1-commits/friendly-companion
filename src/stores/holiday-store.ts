@@ -17,13 +17,15 @@ interface HolidayState {
   records: HolidayRecord[];
   isLoaded: boolean;
   loadHolidays: () => Promise<void>;
-  addOrUpdateRecord: (record: HolidayRecord) => Promise<void>;
+  addOrUpdateRecord: (record: HolidayRecord) => Promise<{ success: boolean; error?: string }>;
   getRecordsForYear: (year: number) => HolidayRecord[];
   getRecordForEmployee: (employeeId: string, year: number) => HolidayRecord | undefined;
-  saveRecords: (records: HolidayRecord[]) => Promise<void>;
+  saveRecords: (records: HolidayRecord[]) => Promise<{ success: boolean; errors: string[] }>;
   getEmployeesForSubsidyPayment: (year: number, month: number) => string[];
   markSubsidyPaid: (employeeId: string, year: number, paidInMonth: number, paidInYear: number) => Promise<void>;
   isSubsidyPaid: (employeeId: string, year: number) => boolean;
+  hasHolidayRegisteredForYear: (employeeId: string, year: number) => boolean;
+  canRegisterHoliday: (employeeId: string, year: number) => { allowed: boolean; reason?: string };
 }
 
 function mapDbRowToHoliday(row: any): HolidayRecord {
@@ -73,12 +75,26 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     },
 
     addOrUpdateRecord: async (record) => {
+      // Check if holiday already registered AND paid for this year
+      const existingRecord = get().records.find(
+        r => r.employeeId === record.employeeId && r.year === record.year
+      );
+      
+      // If subsidy already paid, don't allow changes
+      if (existingRecord?.subsidyPaidInMonth) {
+        return { 
+          success: false, 
+          error: 'Férias já pagas para este ano / Holiday already paid for this year' 
+        };
+      }
+      
       let holidayMonth = record.holidayMonth;
       if (record.startDate && !holidayMonth) {
         holidayMonth = new Date(record.startDate).getMonth() + 1;
       }
       const updatedRecord = { ...record, holidayMonth };
       await liveInsert('holidays', mapHolidayToDbRow(updatedRecord));
+      return { success: true };
     },
 
     getRecordsForYear: (year) => get().records.filter((r) => r.year === year),
@@ -86,7 +102,20 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     getRecordForEmployee: (employeeId, year) => get().records.find((r) => r.employeeId === employeeId && r.year === year),
 
     saveRecords: async (records) => {
+      const errors: string[] = [];
+      
       for (const newRecord of records) {
+        // Check if this is a new holiday registration (has dates) for someone who already has paid holiday
+        const existingRecord = get().records.find(
+          r => r.employeeId === newRecord.employeeId && r.year === newRecord.year
+        );
+        
+        // If subsidy already paid, skip this record and add error
+        if (existingRecord?.subsidyPaidInMonth && newRecord.startDate) {
+          errors.push(`Funcionário já tem férias pagas em ${newRecord.year}`);
+          continue;
+        }
+        
         let holidayMonth = newRecord.holidayMonth;
         if (newRecord.startDate && !holidayMonth) {
           holidayMonth = new Date(newRecord.startDate).getMonth() + 1;
@@ -94,6 +123,8 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
         const recordWithMonth = { ...newRecord, holidayMonth };
         await liveInsert('holidays', mapHolidayToDbRow(recordWithMonth));
       }
+      
+      return { success: errors.length === 0, errors };
     },
 
     getEmployeesForSubsidyPayment: (year, month) => {
@@ -111,6 +142,35 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     isSubsidyPaid: (employeeId, year) => {
       const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
       return !!record?.subsidyPaidInMonth;
+    },
+    
+    // Check if employee has a holiday registered for this year (with dates)
+    hasHolidayRegisteredForYear: (employeeId, year) => {
+      const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
+      return !!(record?.startDate || record?.subsidyPaidInMonth);
+    },
+    
+    // Check if employee can register a new holiday for this year
+    canRegisterHoliday: (employeeId, year) => {
+      const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
+      
+      // If subsidy already paid, cannot register again
+      if (record?.subsidyPaidInMonth) {
+        return { 
+          allowed: false, 
+          reason: `Férias já pagas (${record.subsidyPaidInMonth}/${record.subsidyPaidInYear})` 
+        };
+      }
+      
+      // If dates already set, warn but allow editing
+      if (record?.startDate) {
+        return { 
+          allowed: true, 
+          reason: `Férias já registadas: ${new Date(record.startDate).toLocaleDateString('pt-AO')}` 
+        };
+      }
+      
+      return { allowed: true };
     },
   }));
 

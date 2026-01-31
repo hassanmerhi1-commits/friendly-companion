@@ -2,9 +2,12 @@ import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Printer, Save } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Printer, Save, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
+import { useHolidayStore } from '@/stores/holiday-store';
 import { printHtml } from '@/lib/print';
+import { toast } from 'sonner';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import companyLogo from '@/assets/distri-good-logo.jpeg';
@@ -40,6 +43,7 @@ export function PrintableHolidayMap({
   onClose,
 }: PrintableHolidayMapProps) {
   const { language } = useLanguage();
+  const { canRegisterHoliday, isSubsidyPaid } = useHolidayStore();
   const printRef = useRef<HTMLDivElement>(null);
   const [editableRecords, setEditableRecords] = useState<HolidayRecord[]>(holidayRecords);
   const [selectedYear, setSelectedYear] = useState(year);
@@ -86,6 +90,8 @@ export function PrintableHolidayMap({
     totalDaysRemaining: language === 'pt' ? 'Total Dias Restantes' : 'Total Days Remaining',
     firstYear: language === 'pt' ? '1º Ano' : '1st Year',
     selectYear: language === 'pt' ? 'Seleccionar Ano' : 'Select Year',
+    holidayPaid: language === 'pt' ? 'Férias Pagas' : 'Holiday Paid',
+    holidayRegistered: language === 'pt' ? 'Registado' : 'Registered',
   };
 
   const activeEmployees = employees.filter(e => e.status === 'active');
@@ -146,6 +152,10 @@ export function PrintableHolidayMap({
     const record = editableRecords.find(r => r.employeeId === emp.id && r.year === selectedYear);
     const daysUsed = record?.daysUsed || 0;
     
+    // Check if holiday is already paid for this year
+    const isPaid = isSubsidyPaid(emp.id, selectedYear);
+    const registrationStatus = canRegisterHoliday(emp.id, selectedYear);
+    
     return {
       ...emp,
       yearsWorked,
@@ -156,6 +166,9 @@ export function PrintableHolidayMap({
       daysRemaining: Math.max(0, daysEntitled - daysUsed),
       startDate: record?.startDate || '',
       endDate: record?.endDate || '',
+      isPaid,
+      canEdit: registrationStatus.allowed && !isPaid,
+      statusReason: registrationStatus.reason,
     };
   };
 
@@ -164,8 +177,18 @@ export function PrintableHolidayMap({
   const totalDaysEntitled = holidayData.reduce((sum, e) => sum + e.daysEntitled, 0);
   const totalDaysUsed = holidayData.reduce((sum, e) => sum + e.daysUsed, 0);
   const totalDaysRemaining = holidayData.reduce((sum, e) => sum + e.daysRemaining, 0);
+  const totalPaid = holidayData.filter(e => e.isPaid).length;
 
   const handleDaysUsedChange = (employeeId: string, daysUsed: number) => {
+    // Check if employee can be edited
+    const empData = holidayData.find(e => e.id === employeeId);
+    if (empData?.isPaid) {
+      toast.error(language === 'pt' 
+        ? 'Férias já pagas - não pode ser alterado' 
+        : 'Holiday already paid - cannot be changed');
+      return;
+    }
+    
     setEditableRecords(prev => {
       const existing = prev.findIndex(r => r.employeeId === employeeId && r.year === selectedYear);
       if (existing >= 0) {
@@ -178,6 +201,15 @@ export function PrintableHolidayMap({
   };
 
   const handleDateChange = (employeeId: string, field: 'startDate' | 'endDate', value: string) => {
+    // Check if employee can be edited
+    const empData = holidayData.find(e => e.id === employeeId);
+    if (empData?.isPaid) {
+      toast.error(language === 'pt' 
+        ? 'Férias já pagas - não pode ser alterado' 
+        : 'Holiday already paid - cannot be changed');
+      return;
+    }
+    
     setEditableRecords(prev => {
       const existing = prev.findIndex(r => r.employeeId === employeeId && r.year === selectedYear);
       if (existing >= 0) {
@@ -306,19 +338,24 @@ export function PrintableHolidayMap({
           <thead>
             <tr>
               <th style={{ width: '20px' }}>Nº</th>
-              <th style={{ width: '150px' }}>{t.employee}</th>
-              <th style={{ width: '100px' }}>{t.department}</th>
-              <th style={{ width: '80px' }}>{t.hireDate}</th>
-              <th style={{ width: '80px' }}>{t.yearsWorked}</th>
-              <th style={{ width: '60px' }} className="days-entitled">{t.daysEntitled}</th>
-              <th style={{ width: '60px' }}>{t.daysUsed}</th>
-              <th style={{ width: '60px' }} className="days-remaining">{t.daysRemaining}</th>
-              <th style={{ width: '160px' }}>{t.holidayPeriod}</th>
+              <th style={{ width: '140px' }}>{t.employee}</th>
+              <th style={{ width: '80px' }}>{t.department}</th>
+              <th style={{ width: '70px' }}>{t.hireDate}</th>
+              <th style={{ width: '60px' }}>{t.yearsWorked}</th>
+              <th style={{ width: '50px' }} className="days-entitled">{t.daysEntitled}</th>
+              <th style={{ width: '50px' }}>{t.daysUsed}</th>
+              <th style={{ width: '50px' }} className="days-remaining">{t.daysRemaining}</th>
+              <th style={{ width: '150px' }}>{t.holidayPeriod}</th>
+              <th style={{ width: '60px' }}>Status</th>
             </tr>
           </thead>
           <tbody>
             {holidayData.map((emp, idx) => (
-              <tr key={emp.id} className={emp.isFirstYear ? 'first-year' : ''}>
+              <tr 
+                key={emp.id} 
+                className={`${emp.isFirstYear ? 'first-year' : ''} ${emp.isPaid ? 'opacity-70' : ''}`}
+                style={emp.isPaid ? { backgroundColor: '#d5f5e3' } : undefined}
+              >
                 <td>{idx + 1}</td>
                 <td style={{ textAlign: 'left' }}>
                   {emp.firstName} {emp.lastName}
@@ -341,7 +378,8 @@ export function PrintableHolidayMap({
                     max={emp.daysEntitled}
                     value={emp.daysUsed}
                     onChange={(e) => handleDaysUsedChange(emp.id, Number(e.target.value))}
-                    className="w-14 h-6 text-xs p-1 text-center print:border-none print:bg-transparent"
+                    disabled={emp.isPaid}
+                    className={`w-14 h-6 text-xs p-1 text-center print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
                   />
                 </td>
                 <td className="days-remaining">{emp.daysRemaining}</td>
@@ -351,16 +389,31 @@ export function PrintableHolidayMap({
                       type="date"
                       value={emp.startDate}
                       onChange={(e) => handleDateChange(emp.id, 'startDate', e.target.value)}
-                      className="w-24 h-6 text-xs p-1 print:border-none print:bg-transparent"
+                      disabled={emp.isPaid}
+                      className={`w-24 h-6 text-xs p-1 print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
                     />
                     <span>-</span>
                     <Input
                       type="date"
                       value={emp.endDate}
                       onChange={(e) => handleDateChange(emp.id, 'endDate', e.target.value)}
-                      className="w-24 h-6 text-xs p-1 print:border-none print:bg-transparent"
+                      disabled={emp.isPaid}
+                      className={`w-24 h-6 text-xs p-1 print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
                     />
                   </div>
+                </td>
+                <td>
+                  {emp.isPaid ? (
+                    <Badge variant="default" className="text-xs bg-green-600 print:bg-green-600">
+                      <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
+                      {t.holidayPaid}
+                    </Badge>
+                  ) : emp.startDate ? (
+                    <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                      <AlertTriangle className="h-3 w-3 mr-1 print:hidden" />
+                      {t.holidayRegistered}
+                    </Badge>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -385,6 +438,10 @@ export function PrintableHolidayMap({
             <div className="summary-item">
               <span>{t.totalDaysRemaining}:</span>
               <strong style={{ color: '#27ae60' }}>{totalDaysRemaining}</strong>
+            </div>
+            <div className="summary-item" style={{ borderTop: '1px solid #27ae60', paddingTop: '4px', marginTop: '4px' }}>
+              <span>{language === 'pt' ? 'Férias Pagas' : 'Holidays Paid'}:</span>
+              <strong style={{ color: '#27ae60' }}>{totalPaid} / {holidayData.length}</strong>
             </div>
           </div>
 
