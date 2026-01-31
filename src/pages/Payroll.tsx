@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -23,6 +23,7 @@ import { PrintableBonusSheet } from "@/components/payroll/PrintableBonusSheet";
 import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialog";
 import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { BatchReceiptPrinter } from "@/components/payroll/BatchReceiptPrinter";
+import { BankPaymentExport } from "@/components/payroll/BankPaymentExport";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -54,6 +55,7 @@ const Payroll = () => {
   const [overtimeEntry, setOvertimeEntry] = useState<PayrollEntry | null>(null);
   const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
   const [batchReceiptOpen, setBatchReceiptOpen] = useState(false);
+  const [bankExportOpen, setBankExportOpen] = useState(false);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
 
   const pendingAbsences = getPendingAbsences();
@@ -372,6 +374,14 @@ const Payroll = () => {
           >
             <Receipt className="h-4 w-4 mr-2" />
             {language === 'pt' ? 'Recibos em Lote' : 'Batch Receipts'}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setBankExportOpen(true)} 
+            disabled={currentEntries.length === 0}
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            {language === 'pt' ? 'Ficheiro Banco' : 'Bank File'}
           </Button>
         </div>
       </div>
@@ -849,6 +859,14 @@ const Payroll = () => {
         periodLabel={periodLabel}
         companyName={settings.companyName}
         companyNif={settings.nif}
+      />
+
+      {/* Bank Payment Export Dialog */}
+      <BankPaymentExport
+        open={bankExportOpen}
+        onOpenChange={setBankExportOpen}
+        entries={currentEntries}
+        periodLabel={periodLabel}
       />
     </MainLayout>
   );
