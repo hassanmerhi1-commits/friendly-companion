@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/lib/i18n';
 import { useAuthStore, type AppUser, type UserRole, roleLabels, rolePermissions, type Permission } from '@/stores/auth-store';
-import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye } from 'lucide-react';
+import { PermissionGrid } from '@/components/users/PermissionGrid';
+import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye, Key } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -45,7 +46,10 @@ const UsersPage = () => {
     name: '',
     role: 'viewer' as UserRole,
     isActive: true,
+    customPermissions: [] as Permission[],
+    useCustomPermissions: false,
   });
+  const [activeTab, setActiveTab] = useState<string>('info');
 
   const canManageUsers = hasPermission('users.view');
 
@@ -64,12 +68,15 @@ const UsersPage = () => {
   const handleOpenDialog = (user?: AppUser) => {
     if (user) {
       setEditUser(user);
+      const hasCustom = Boolean(user.customPermissions && user.customPermissions.length > 0);
       setFormData({
         username: user.username,
         password: '',
         name: user.name,
         role: user.role,
         isActive: user.isActive,
+        customPermissions: user.customPermissions || rolePermissions[user.role] || [],
+        useCustomPermissions: hasCustom,
       });
     } else {
       setEditUser(null);
@@ -79,8 +86,11 @@ const UsersPage = () => {
         name: '',
         role: 'viewer',
         isActive: true,
+        customPermissions: rolePermissions.viewer || [],
+        useCustomPermissions: false,
       });
     }
+    setActiveTab('info');
     setDialogOpen(true);
   };
 
@@ -93,6 +103,7 @@ const UsersPage = () => {
         name: formData.name,
         role: formData.role,
         isActive: formData.isActive,
+        customPermissions: formData.useCustomPermissions ? formData.customPermissions : undefined,
       };
       if (formData.password) {
         updateData.password = formData.password;
@@ -110,6 +121,7 @@ const UsersPage = () => {
         name: formData.name,
         role: formData.role,
         isActive: formData.isActive,
+        customPermissions: formData.useCustomPermissions ? formData.customPermissions : undefined,
       });
       if (!result.success) {
         toast.error(result.error);
@@ -139,8 +151,11 @@ const UsersPage = () => {
     return language === 'pt' ? roleLabels[role].pt : roleLabels[role].en;
   };
 
-  const getPermissionCount = (role: UserRole) => {
-    return rolePermissions[role]?.length || 0;
+  const getPermissionCount = (user: AppUser) => {
+    if (user.customPermissions && user.customPermissions.length > 0) {
+      return user.customPermissions.length;
+    }
+    return rolePermissions[user.role]?.length || 0;
   };
 
   return (
@@ -189,8 +204,11 @@ const UsersPage = () => {
                 <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                   {getRoleLabel(user.role)}
                 </Badge>
-                <Badge variant="outline" className="text-xs">
-                  {getPermissionCount(user.role)} {language === 'pt' ? 'permissões' : 'permissions'}
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  {user.customPermissions && user.customPermissions.length > 0 && (
+                    <Key className="h-3 w-3" />
+                  )}
+                  {getPermissionCount(user)} {language === 'pt' ? 'permissões' : 'permissions'}
                 </Badge>
                 <Badge variant={user.isActive ? 'default' : 'destructive'} className={user.isActive ? 'bg-green-600' : ''}>
                   {user.isActive 
@@ -206,7 +224,7 @@ const UsersPage = () => {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editUser 
@@ -215,91 +233,109 @@ const UsersPage = () => {
               }
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>{language === 'pt' ? 'Nome' : 'Name'}</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{language === 'pt' ? 'Utilizador' : 'Username'}</Label>
-              <Input
-                value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>
-                {language === 'pt' ? 'Palavra-passe' : 'Password'}
-                {editUser && <span className="text-muted-foreground text-xs ml-1">
-                  ({language === 'pt' ? 'deixe vazio para manter' : 'leave empty to keep'})
-                </span>}
-              </Label>
-              <Input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                required={!editUser}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{language === 'pt' ? 'Perfil / Permissões' : 'Role / Permissions'}</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(v) => setFormData(prev => ({ ...prev, role: v as UserRole }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      {getRoleLabel('admin')} - {language === 'pt' ? 'Acesso total' : 'Full access'}
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="manager">
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="h-4 w-4" />
-                      {getRoleLabel('manager')} - {language === 'pt' ? 'Gestão operacional' : 'Operational management'}
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="hr">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      {getRoleLabel('hr')} - {language === 'pt' ? 'Funcionários e documentos' : 'Employees and documents'}
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="accountant">
-                    <div className="flex items-center gap-2">
-                      <Calculator className="h-4 w-4" />
-                      {getRoleLabel('accountant')} - {language === 'pt' ? 'Folha salarial e relatórios' : 'Payroll and reports'}
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="viewer">
-                    <div className="flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      {getRoleLabel('viewer')} - {language === 'pt' ? 'Apenas visualizar' : 'View only'}
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {getPermissionCount(formData.role)} {language === 'pt' ? 'permissões incluídas' : 'permissions included'}
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={formData.isActive}
-                onCheckedChange={(v) => setFormData(prev => ({ ...prev, isActive: v }))}
-              />
-              <Label>{language === 'pt' ? 'Ativo' : 'Active'}</Label>
-            </div>
-            <div className="flex justify-end gap-2 pt-4">
+          <form onSubmit={handleSubmit}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="info">
+                  {language === 'pt' ? 'Informações' : 'Information'}
+                </TabsTrigger>
+                <TabsTrigger value="permissions">
+                  {language === 'pt' ? 'Permissões' : 'Permissions'}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="info" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label>{language === 'pt' ? 'Nome' : 'Name'}</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{language === 'pt' ? 'Utilizador' : 'Username'}</Label>
+                  <Input
+                    value={formData.username}
+                    onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    {language === 'pt' ? 'Palavra-passe' : 'Password'}
+                    {editUser && <span className="text-muted-foreground text-xs ml-1">
+                      ({language === 'pt' ? 'deixe vazio para manter' : 'leave empty to keep'})
+                    </span>}
+                  </Label>
+                  <Input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    required={!editUser}
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.isActive}
+                    onCheckedChange={(v) => setFormData(prev => ({ ...prev, isActive: v }))}
+                  />
+                  <Label>{language === 'pt' ? 'Ativo' : 'Active'}</Label>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="permissions" className="space-y-4 mt-4">
+                {/* Use custom permissions toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/50">
+                  <div>
+                    <Label className="font-medium">
+                      {language === 'pt' ? 'Permissões Personalizadas' : 'Custom Permissions'}
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === 'pt' 
+                        ? 'Activar para definir permissões individuais para este utilizador'
+                        : 'Enable to set individual permissions for this user'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.useCustomPermissions}
+                    onCheckedChange={(v) => {
+                      if (v) {
+                        // When enabling custom, start with the role's default permissions
+                        setFormData(prev => ({
+                          ...prev,
+                          useCustomPermissions: true,
+                          customPermissions: rolePermissions[prev.role] || [],
+                        }));
+                      } else {
+                        setFormData(prev => ({
+                          ...prev,
+                          useCustomPermissions: false,
+                          customPermissions: [],
+                        }));
+                      }
+                    }}
+                  />
+                </div>
+
+                {formData.useCustomPermissions ? (
+                  <PermissionGrid
+                    selectedPermissions={formData.customPermissions}
+                    onChange={(perms) => setFormData(prev => ({ ...prev, customPermissions: perms }))}
+                  />
+                ) : (
+                  <div className="p-4 rounded-lg border text-center">
+                    <p className="text-muted-foreground">
+                      {language === 'pt' 
+                        ? `Utilizando permissões do perfil "${getRoleLabel(formData.role)}" (${rolePermissions[formData.role]?.length || 0} permissões)`
+                        : `Using "${getRoleLabel(formData.role)}" role permissions (${rolePermissions[formData.role]?.length || 0} permissions)`}
+                    </p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex justify-end gap-2 pt-6 border-t mt-6">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 {t.common.cancel}
               </Button>
