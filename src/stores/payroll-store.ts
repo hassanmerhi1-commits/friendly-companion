@@ -553,7 +553,19 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === entryId);
       if (!entry) return;
 
-      const absenceDeduction = calculateAbsenceDeduction(entry.baseSalary, daysAbsent);
+      // Use NEW formula: Full Salary (base + all bonuses) / 30 days
+      // This matches the bulk attendance calculation
+      const fullMonthlySalary = 
+        entry.baseSalary + 
+        (entry.mealAllowance || 0) + 
+        (entry.transportAllowance || 0) + 
+        (entry.familyAllowance || 0) + 
+        (entry.monthlyBonus || 0) + 
+        (entry.holidaySubsidy || 0);
+      
+      const dailyRate = fullMonthlySalary / 30;
+      const absenceDeduction = dailyRate * daysAbsent;
+      
       const oldAbsenceDeduction = entry.absenceDeduction || 0;
       const difference = absenceDeduction - oldAbsenceDeduction;
 

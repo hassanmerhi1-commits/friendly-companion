@@ -29,7 +29,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
-  const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries } = useBulkAttendanceStore();
+  const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries, deleteEntry } = useBulkAttendanceStore();
   
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -122,9 +122,13 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
     try {
       // Build entries to save with calculated deductions
       const entriesToSave: Omit<BulkEntry, 'id' | 'createdAt' | 'updatedAt'>[] = [];
+      const entriesToDelete: string[] = [];
       
       for (const emp of activeEmployees) {
         const entry = localEntries[emp.id];
+        const existingEntry = getEntriesForPeriod(month, year).find(e => e.employeeId === emp.id);
+        
+        // If entry has values > 0, save it
         if (entry && (entry.absenceDays > 0 || entry.delayHours > 0)) {
           const fullSalary = getFullSalary(emp);
           const deduction = calculateBulkAttendanceDeduction(fullSalary, entry.absenceDays, entry.delayHours);
@@ -141,16 +145,28 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
             delayDeduction: deduction.delayDeduction,
             totalDeduction: deduction.totalDeduction,
           });
+        } 
+        // If entry is now 0/0 but previously existed, mark for deletion
+        else if (existingEntry && (!entry || (entry.absenceDays === 0 && entry.delayHours === 0))) {
+          entriesToDelete.push(existingEntry.id);
         }
       }
       
+      // Save entries with values
       await saveBulkEntries(entriesToSave);
+      
+      // Delete entries that are now zero
+      for (const id of entriesToDelete) {
+        await deleteEntry(id);
+      }
+      
       setHasChanges(false);
       
+      const totalChanges = entriesToSave.length + entriesToDelete.length;
       toast.success(
         language === 'pt' 
-          ? `${entriesToSave.length} registos guardados com sucesso`
-          : `${entriesToSave.length} records saved successfully`
+          ? `${totalChanges} registos atualizados com sucesso`
+          : `${totalChanges} records updated successfully`
       );
     } catch (error) {
       console.error('[BulkAttendance] Save error:', error);
