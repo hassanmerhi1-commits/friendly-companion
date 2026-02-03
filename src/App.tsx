@@ -115,13 +115,44 @@ function AppContent() {
 
   useEffect(() => {
       const initApp = async () => {
-        // Bypass checks in development preview mode
+        // Bypass activation and province checks in development preview mode
+        // but still load data from mock storage
         if (isDevelopmentPreview()) {
+          console.log('[App] Running in browser mode');
           setDeviceActivated(true);
           setProvinceSelected(true);
           if (!isProvinceSelected()) {
             localStorage.setItem('payroll_selected_province', 'Luanda');
           }
+          
+          // Load stores from mock localStorage data
+          const { loadUsers } = useAuthStore.getState();
+          const { loadEmployees } = useEmployeeStore.getState();
+          const { loadBranches } = useBranchStore.getState();
+          const { loadPayroll } = usePayrollStore.getState();
+          const { loadDeductions } = useDeductionStore.getState();
+          const { loadAbsences } = useAbsenceStore.getState();
+          const { loadHolidays } = useHolidayStore.getState();
+          const { loadSettings } = useSettingsStore.getState();
+          const { loadAttendance } = useAttendanceStore.getState();
+          const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
+          const { loadHRData } = useHRStore.getState();
+
+          await Promise.all([
+            loadUsers(),
+            loadEmployees(),
+            loadBranches(),
+            loadPayroll(),
+            loadDeductions(),
+            loadAbsences(),
+            loadHolidays(),
+            loadSettings(),
+            loadAttendance(),
+            loadBulkAttendance(),
+            loadHRData(),
+          ]);
+          
+          console.log('[App] Browser mode: stores loaded from mock data');
           return;
         }
 
