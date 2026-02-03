@@ -3,10 +3,12 @@
  * Displays checkboxes for granular permission management like the reference screenshot
  */
 
-import { Checkbox } from '@/components/ui/checkbox';
+import * as React from 'react';
 import { Label } from '@/components/ui/label';
 import { useLanguage } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import type { Permission } from '@/stores/auth-store';
+import { Check, Minus } from 'lucide-react';
 
 // Permission categories matching the reference screenshot layout
 export const PERMISSION_CATEGORIES = {
@@ -99,17 +101,68 @@ interface PermissionGridProps {
   disabled?: boolean;
 }
 
+type PermissionCheckboxProps = {
+  id?: string;
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  className?: string;
+  onCheckedChange?: (checked: boolean) => void;
+};
+
+/**
+ * NOTE: We intentionally use a native <input> here (instead of Radix Checkbox)
+ * because Radix Checkbox + callback refs can trigger a nested-update loop in this modal.
+ */
+function PermissionCheckbox({
+  id,
+  checked,
+  indeterminate = false,
+  disabled = false,
+  className,
+  onCheckedChange,
+}: PermissionCheckboxProps) {
+  const ref = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    if (ref.current) ref.current.indeterminate = Boolean(indeterminate);
+  }, [indeterminate]);
+
+  const state = indeterminate ? 'indeterminate' : checked ? 'checked' : 'unchecked';
+
+  return (
+    <span className="relative inline-flex h-4 w-4 shrink-0">
+      <input
+        ref={ref}
+        id={id}
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        data-state={state}
+        onChange={(e) => onCheckedChange?.(e.currentTarget.checked)}
+        className={cn(
+          "peer h-4 w-4 appearance-none rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+          "data-[state=indeterminate]:bg-primary/50 data-[state=indeterminate]:text-primary-foreground",
+          className,
+        )}
+      />
+
+      <Check className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 text-primary-foreground opacity-0 peer-data-[state=checked]:opacity-100" />
+      <Minus className="pointer-events-none absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 text-primary-foreground opacity-0 peer-data-[state=indeterminate]:opacity-100" />
+    </span>
+  );
+}
+
 export function PermissionGrid({ selectedPermissions, onChange, disabled = false }: PermissionGridProps) {
   const { language } = useLanguage();
 
-  const handleToggle = (permission: Permission) => {
+  const handleToggle = (permission: Permission, nextChecked: boolean) => {
     if (disabled) return;
-    
-    if (selectedPermissions.includes(permission)) {
-      onChange(selectedPermissions.filter(p => p !== permission));
-    } else {
-      onChange([...selectedPermissions, permission]);
-    }
+
+    const has = selectedPermissions.includes(permission);
+    if (nextChecked && !has) onChange([...selectedPermissions, permission]);
+    if (!nextChecked && has) onChange(selectedPermissions.filter((p) => p !== permission));
   };
 
   const handleToggleCategory = (categoryKey: string) => {
@@ -189,8 +242,9 @@ export function PermissionGrid({ selectedPermissions, onChange, disabled = false
                 className="flex items-center gap-2 pb-2 mb-2 border-b cursor-pointer hover:bg-muted/50 -mx-2 px-2 py-1 rounded"
                 onClick={() => handleToggleCategory(key)}
               >
-                <Checkbox 
-                  checked={someSelected ? 'indeterminate' : allSelected}
+                <PermissionCheckbox
+                  checked={allSelected}
+                  indeterminate={someSelected}
                   disabled={disabled}
                   className={someSelected ? 'data-[state=indeterminate]:bg-primary/50' : ''}
                 />
@@ -206,10 +260,10 @@ export function PermissionGrid({ selectedPermissions, onChange, disabled = false
               <div className="space-y-2">
                 {category.permissions.map(perm => (
                   <div key={perm.key} className="flex items-center gap-2">
-                    <Checkbox
+                    <PermissionCheckbox
                       id={perm.key}
                       checked={selectedPermissions.includes(perm.key)}
-                      onCheckedChange={() => handleToggle(perm.key)}
+                      onCheckedChange={(v) => handleToggle(perm.key, Boolean(v))}
                       disabled={disabled}
                     />
                     <Label 
