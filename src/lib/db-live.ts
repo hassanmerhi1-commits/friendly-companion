@@ -5,12 +5,87 @@
  * - Server broadcasts FULL TABLE DATA after every write
  * - Clients receive rows directly and update stores - NO refetch needed
  * - Zero round-trips after initial connection
+ * 
+ * MOCK MODE (Browser Preview):
+ * - Uses localStorage when not in Electron for testing UI flows
  */
 
 // Check if running in Electron
 function isElectron(): boolean {
   return typeof window !== 'undefined' && 
     (window as any).electronAPI?.isElectron === true;
+}
+
+// ============= MOCK STORAGE (for browser preview testing) =============
+const MOCK_STORAGE_PREFIX = 'payroll_mock_';
+
+function getMockData<T>(table: string): T[] {
+  try {
+    const data = localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setMockData(table: string, data: any[]): void {
+  localStorage.setItem(`${MOCK_STORAGE_PREFIX}${table}`, JSON.stringify(data));
+  // Notify listeners about the change
+  notifyTableSync(table, data);
+}
+
+function generateId(): string {
+  return `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Initialize mock data with sample employees for testing
+export function initMockData(): void {
+  if (isElectron()) return;
+  
+  const employees = getMockData('employees');
+  if (employees.length === 0) {
+    const sampleEmployees = [
+      {
+        id: 'emp-001',
+        name: 'João Silva',
+        position: 'Analista',
+        department: 'TI',
+        base_salary: 250000,
+        hire_date: '2022-01-15',
+        status: 'active',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'emp-002',
+        name: 'Maria Santos',
+        position: 'Gerente',
+        department: 'RH',
+        base_salary: 350000,
+        hire_date: '2021-06-01',
+        status: 'active',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'emp-003',
+        name: 'Pedro Costa',
+        position: 'Técnico',
+        department: 'Operações',
+        base_salary: 180000,
+        hire_date: '2023-03-20',
+        status: 'active',
+        created_at: new Date().toISOString(),
+      },
+    ];
+    setMockData('employees', sampleEmployees);
+    console.log('[DB-Live] Mock data initialized with', sampleEmployees.length, 'employees');
+  }
+  
+  // Ensure other tables exist
+  ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'users', 'settings'].forEach(table => {
+    if (!localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`)) {
+      setMockData(table, []);
+    }
+  });
 }
 
 // ============= PUSH-BASED SYNC SYSTEM =============
@@ -109,8 +184,10 @@ export function initSyncListener() {
 
 export async function liveGetAll<T>(table: string): Promise<T[]> {
   if (!isElectron()) {
-    console.warn('[DB-Live] Not in Electron environment');
-    return [];
+    // Use mock storage in browser preview
+    const data = getMockData<T>(table);
+    console.log(`[DB-Live/Mock] getAll ${table}:`, data.length, 'rows');
+    return data;
   }
   
   try {
@@ -124,7 +201,9 @@ export async function liveGetAll<T>(table: string): Promise<T[]> {
 
 export async function liveGetById<T>(table: string, id: string): Promise<T | null> {
   if (!isElectron()) {
-    return null;
+    // Use mock storage in browser preview
+    const data = getMockData<any>(table);
+    return data.find((row: any) => row.id === id) || null;
   }
   
   try {
@@ -155,7 +234,21 @@ export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]
 
 export async function liveInsert(table: string, data: Record<string, any>): Promise<boolean> {
   if (!isElectron()) {
-    return false;
+    // Use mock storage in browser preview
+    const existing = getMockData<any>(table);
+    const newData = { ...data, id: data.id || generateId() };
+    
+    // Check if record with same ID exists (upsert behavior)
+    const existingIndex = existing.findIndex((row: any) => row.id === newData.id);
+    if (existingIndex >= 0) {
+      existing[existingIndex] = { ...existing[existingIndex], ...newData };
+    } else {
+      existing.push(newData);
+    }
+    
+    setMockData(table, existing);
+    console.log(`[DB-Live/Mock] insert ${table}:`, newData.id);
+    return true;
   }
   
   try {
@@ -173,6 +266,16 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
 
 export async function liveUpdate(table: string, id: string, data: Record<string, any>): Promise<boolean> {
   if (!isElectron()) {
+    // Use mock storage in browser preview
+    const existing = getMockData<any>(table);
+    const index = existing.findIndex((row: any) => row.id === id);
+    if (index >= 0) {
+      existing[index] = { ...existing[index], ...data };
+      setMockData(table, existing);
+      console.log(`[DB-Live/Mock] update ${table}:`, id);
+      return true;
+    }
+    console.warn(`[DB-Live/Mock] update failed - not found: ${table}/${id}`);
     return false;
   }
   
@@ -191,6 +294,14 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
 
 export async function liveDelete(table: string, id: string): Promise<boolean> {
   if (!isElectron()) {
+    // Use mock storage in browser preview
+    const existing = getMockData<any>(table);
+    const filtered = existing.filter((row: any) => row.id !== id);
+    if (filtered.length < existing.length) {
+      setMockData(table, filtered);
+      console.log(`[DB-Live/Mock] delete ${table}:`, id);
+      return true;
+    }
     return false;
   }
   
