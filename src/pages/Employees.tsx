@@ -181,7 +181,7 @@ const Employees = () => {
   });
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
