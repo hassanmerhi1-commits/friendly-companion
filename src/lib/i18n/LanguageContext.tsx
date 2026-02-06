@@ -1,34 +1,64 @@
-import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import i18n, { LANGUAGES, isRTL, type Language } from './config';
-import { translations } from './translations';
+import { LANGUAGES, isRTL, type Language } from './config';
 
 // Re-export types
 export type { Language };
 export { LANGUAGES, isRTL };
 
-// Legacy translation type for backward compatibility
-type LegacyTranslations = typeof translations.pt | typeof translations.en;
+// Backward-compatible translation tree (most of the app still uses `t.nav.dashboard` style)
+type TranslationTree = Record<string, any>;
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  /** New i18next translate function - use t('key.path') */
+  /** New i18next translate function - use translate('key.path') */
   translate: ReturnType<typeof useTranslation>['t'];
-  /** Legacy translation object for backward compatibility - use t.key.path */
-  t: LegacyTranslations;
+  /** Backward compatible translation object - use t.key.path */
+  t: TranslationTree;
   isRTL: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+function deepMerge(base: any, override: any): any {
+  if (override === undefined || override === null) return base;
+  if (base === undefined || base === null) return override;
+
+  // If any side is an array, prefer override
+  if (Array.isArray(base) || Array.isArray(override)) return override;
+
+  if (typeof base === 'object' && typeof override === 'object') {
+    const out: any = { ...base };
+    for (const key of Object.keys(override)) {
+      out[key] = deepMerge(base[key], override[key]);
+    }
+    return out;
+  }
+
+  return override;
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { t: translate, i18n: i18nInstance } = useTranslation();
   const language = (i18nInstance.language || 'pt') as Language;
 
-  // Get legacy translations - fallback to 'pt' or 'en' for other languages
-  const legacyLang = language === 'pt' || language === 'en' ? language : 'en';
-  const legacyT = translations[legacyLang];
+  // IMPORTANT: Most components still use the object-based `t.*` API.
+  // Previously we only supported pt/en and forced es/fr/ar to fallback to English.
+  // This keeps the old API but sources it from the active i18next JSON resources.
+  const tObj = useMemo(() => {
+    const safeBundle = (lng: Language) => {
+      try {
+        return i18nInstance.getResourceBundle(lng, 'translation') as any;
+      } catch {
+        return {};
+      }
+    };
+
+    const base = safeBundle('pt');
+    const current = safeBundle(language);
+    return deepMerge(base, current);
+  }, [i18nInstance, language]);
 
   const setLanguage = (lang: Language) => {
     i18nInstance.changeLanguage(lang);
@@ -39,7 +69,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const currentLang = (i18nInstance.language || 'pt') as Language;
     document.documentElement.lang = currentLang;
     document.documentElement.dir = isRTL(currentLang) ? 'rtl' : 'ltr';
-    
+
     // Add/remove RTL class for CSS targeting
     if (isRTL(currentLang)) {
       document.documentElement.classList.add('rtl');
@@ -49,13 +79,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [i18nInstance.language]);
 
   return (
-    <LanguageContext.Provider value={{ 
-      language, 
-      setLanguage, 
-      translate,
-      t: legacyT,
-      isRTL: isRTL(language)
-    }}>
+    <LanguageContext.Provider
+      value={{
+        language,
+        setLanguage,
+        translate,
+        t: tObj,
+        isRTL: isRTL(language),
+      }}
+    >
       {children}
     </LanguageContext.Provider>
   );
@@ -73,8 +105,19 @@ export function useLanguage() {
 export function useMonthName(monthIndex: number): string {
   const { translate } = useLanguage();
   const monthKeys = [
-    'january', 'february', 'march', 'april', 'may', 'june',
-    'july', 'august', 'september', 'october', 'november', 'december'
+    'january',
+    'february',
+    'march',
+    'april',
+    'may',
+    'june',
+    'july',
+    'august',
+    'september',
+    'october',
+    'november',
+    'december',
   ] as const;
   return translate(`months.${monthKeys[monthIndex]}`);
 }
+

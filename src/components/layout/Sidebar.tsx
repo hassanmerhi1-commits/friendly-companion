@@ -31,23 +31,23 @@ export function Sidebar() {
   const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: t.nav.employees, href: "/employees", icon: Users },
-    { name: language === 'pt' ? 'Cartões ID' : 'ID Cards', href: "/employee-cards", icon: CreditCard },
+    { name: t.nav.idCards, href: "/employee-cards", icon: CreditCard },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
-    { name: language === 'pt' ? 'Histórico Folhas' : 'Payroll History', href: "/payroll-history", icon: Archive },
-    { name: language === 'pt' ? 'Painel RH' : 'HR Dashboard', href: "/hr-dashboard", icon: UserCheck },
-    { name: language === 'pt' ? 'Presenças' : 'Attendance', href: "/attendance", icon: Clock },
-    { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
-    { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
-    { name: language === 'pt' ? 'Lei do Trabalho' : 'Labor Law', href: "/labor-law", icon: Scale },
-    { name: language === 'pt' ? 'Simulador IRT' : 'Tax Simulator', href: "/tax-simulator", icon: Calculator },
-    { name: language === 'pt' ? 'Documentos' : 'Documents', href: "/documents", icon: FileWarning },
+    { name: t.nav.payrollHistory, href: "/payroll-history", icon: Archive },
+    { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: UserCheck },
+    { name: t.nav.attendance, href: "/attendance", icon: Clock },
+    { name: t.nav.deductions, href: "/deductions", icon: Wallet },
+    { name: t.nav.branches, href: "/branches", icon: MapPin },
+    { name: t.nav.laborLaw, href: "/labor-law", icon: Scale },
+    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Calculator },
+    { name: t.nav.documents, href: "/documents", icon: FileWarning },
     { name: t.nav.reports, href: "/reports", icon: FileText },
     { name: t.nav.settings, href: "/settings", icon: Settings },
   ];
   // Add users management for admins
   if (currentUser?.role === 'admin') {
     navigation.push({ 
-      name: language === 'pt' ? 'Utilizadores' : 'Users', 
+      name: t.nav.users, 
       href: "/users", 
       icon: UserCog 
     });

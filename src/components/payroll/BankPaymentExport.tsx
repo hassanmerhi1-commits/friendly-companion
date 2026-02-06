@@ -56,6 +56,12 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     }
 
     // Prepare data for export
+    const getTransferAmount = (entry: PayrollEntry) => {
+      // IMPORTANT: monthlyBonus is paid but not part of the taxed netSalary calculation.
+      // For bank transfers we must include the full amount to be paid.
+      return (entry.netSalary || 0) + (entry.monthlyBonus || 0);
+    };
+
     const exportData = bankableEntries.map((entry, index) => ({
       'Nº': index + 1,
       'Nº Funcionário': entry.employee?.employeeNumber || '',
@@ -63,13 +69,13 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       'Banco': entry.employee?.bankName || '',
       'Nº Conta': entry.employee?.bankAccountNumber || '',
       'IBAN': entry.employee?.iban || '',
-      'Valor (AOA)': entry.netSalary,
+      'Valor (AOA)': getTransferAmount(entry),
       'Referência': paymentReference,
       'Departamento': entry.employee?.department || '',
     }));
 
     // Add totals row
-    const totalNet = bankableEntries.reduce((sum, e) => sum + e.netSalary, 0);
+    const totalTransfer = bankableEntries.reduce((sum, e) => sum + getTransferAmount(e), 0);
     exportData.push({
       'Nº': '',
       'Nº Funcionário': '',
@@ -77,7 +83,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       'Banco': '',
       'Nº Conta': '',
       'IBAN': '',
-      'Valor (AOA)': totalNet,
+      'Valor (AOA)': totalTransfer,
       'Referência': '',
       'Departamento': '',
     } as any);
@@ -204,13 +210,13 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
                   {language === 'pt' ? 'Total a transferir:' : 'Total to transfer:'}
                 </span>
               </div>
-              <div className="font-medium text-right">
-                {bankableEntries.reduce((sum, e) => sum + e.netSalary, 0).toLocaleString('pt-AO', { 
-                  style: 'currency', 
-                  currency: 'AOA',
-                  minimumFractionDigits: 2 
-                })}
-              </div>
+               <div className="font-medium text-right">
+                 {bankableEntries.reduce((sum, e) => sum + (e.netSalary || 0) + (e.monthlyBonus || 0), 0).toLocaleString('pt-AO', { 
+                   style: 'currency', 
+                   currency: 'AOA',
+                   minimumFractionDigits: 2 
+                 })}
+               </div>
             </div>
             {filteredEntries.length > bankableEntries.length && (
               <p className="text-xs text-amber-600 mt-2">
