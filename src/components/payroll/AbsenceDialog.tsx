@@ -385,7 +385,7 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
                   <SelectValue placeholder={t.selectEmployee} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
+                  <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName}
