@@ -41,36 +41,24 @@ export function TopNavbar() {
   const { currentUser, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Main navigation items (most used)
-  const mainNavigation = [
+  // All navigation items in one array
+  const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: t.nav.employees, href: "/employees", icon: Users },
+    { name: language === 'pt' ? 'Cartões' : 'Cards', href: "/employee-cards", icon: CreditCard },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
-    { name: t.nav.reports, href: "/reports", icon: FileText },
-  ];
-
-  // Dropdown items for "More" menu
-  const moreNavigation = [
-    { name: language === 'pt' ? 'Cartões ID' : 'ID Cards', href: "/employee-cards", icon: CreditCard },
-    { name: language === 'pt' ? 'Histórico Folhas' : 'Payroll History', href: "/payroll-history", icon: Archive },
-    { name: language === 'pt' ? 'Painel RH' : 'HR Dashboard', href: "/hr-dashboard", icon: UserCheck },
+    { name: language === 'pt' ? 'Histórico' : 'History', href: "/payroll-history", icon: Archive },
+    { name: language === 'pt' ? 'RH' : 'HR', href: "/hr-dashboard", icon: UserCheck },
     { name: language === 'pt' ? 'Presenças' : 'Attendance', href: "/attendance", icon: Clock },
     { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
     { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
-    { name: language === 'pt' ? 'Lei do Trabalho' : 'Labor Law', href: "/labor-law", icon: Scale },
-    { name: language === 'pt' ? 'Simulador IRT' : 'Tax Simulator', href: "/tax-simulator", icon: Calculator },
-    { name: language === 'pt' ? 'Documentos' : 'Documents', href: "/documents", icon: FileWarning },
+    { name: language === 'pt' ? 'Lei' : 'Law', href: "/labor-law", icon: Scale },
+    { name: language === 'pt' ? 'IRT' : 'Tax', href: "/tax-simulator", icon: Calculator },
+    { name: language === 'pt' ? 'Docs' : 'Docs', href: "/documents", icon: FileWarning },
+    { name: t.nav.reports, href: "/reports", icon: FileText },
     { name: t.nav.settings, href: "/settings", icon: Settings },
+    ...(currentUser?.role === 'admin' ? [{ name: language === 'pt' ? 'Users' : 'Users', href: "/users", icon: UserCog }] : []),
   ];
-
-  // Add users management for admins
-  if (currentUser?.role === 'admin') {
-    moreNavigation.push({ 
-      name: language === 'pt' ? 'Utilizadores' : 'Users', 
-      href: "/users", 
-      icon: UserCog 
-    });
-  }
 
   const handleLogout = () => {
     logout();
@@ -78,70 +66,36 @@ export function TopNavbar() {
   };
 
   const isActive = (href: string) => location.pathname === href;
-  const isMoreActive = moreNavigation.some(item => isActive(item.href));
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center justify-between px-4 lg:px-6">
+      <div className="flex h-14 items-center justify-between px-4">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 shrink-0">
           <img 
             src={companyLogo} 
             alt="Company Logo" 
-            className="h-10 w-auto object-contain"
+            className="h-9 w-auto object-contain"
           />
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center gap-1">
-          {mainNavigation.map((item) => (
+        {/* Desktop Navigation - All items inline */}
+        <nav className="hidden lg:flex items-center gap-0.5 flex-wrap justify-center flex-1 px-4">
+          {navigation.map((item) => (
             <Link
               key={item.href}
               to={item.href}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
                 isActive(item.href)
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-3.5 w-3.5" />
               <span>{item.name}</span>
             </Link>
           ))}
-
-          {/* More Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant={isMoreActive ? "default" : "ghost"} 
-                className={cn(
-                  "flex items-center gap-2",
-                  isMoreActive && "bg-primary text-primary-foreground"
-                )}
-              >
-                <Menu className="h-4 w-4" />
-                <span>{language === 'pt' ? 'Mais' : 'More'}</span>
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {moreNavigation.map((item) => (
-                <DropdownMenuItem key={item.href} asChild>
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-2 cursor-pointer",
-                      isActive(item.href) && "bg-muted"
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.name}</span>
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
         </nav>
 
         {/* Right side - User menu */}
@@ -201,7 +155,7 @@ export function TopNavbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-border/40 bg-background p-4">
           <nav className="grid gap-2">
-            {[...mainNavigation, ...moreNavigation].map((item) => (
+            {navigation.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
