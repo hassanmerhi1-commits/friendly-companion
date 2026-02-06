@@ -96,7 +96,7 @@ export function KPIMetricsGrid() {
     const costPerEmployee = totalHeadcount > 0 ? currentPayroll / totalHeadcount : 0;
     
     // Total deductions this period
-    const totalDeductions = currentEntries.reduce((sum, e) => sum + e.irt + e.inss, 0);
+    const totalDeductions = currentEntries.reduce((sum, e) => sum + e.irt + e.inssEmployee, 0);
     
     return {
       headcount: totalHeadcount,

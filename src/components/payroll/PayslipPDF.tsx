@@ -188,7 +188,7 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
                   )}
                   <tr className="border-t border-gray-300 font-bold">
                     <td className="py-2">{t.totalDeductions}</td>
-                    <td className="text-right font-mono text-red-600">-{formatAOA(entry.irt + entry.inss + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0))}</td>
+                    <td className="text-right font-mono text-red-600">-{formatAOA(entry.totalDeductions)}</td>
                   </tr>
                 </tbody>
               </table>
