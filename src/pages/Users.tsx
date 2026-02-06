@@ -55,7 +55,7 @@ const UsersPage = () => {
 
   if (!canManageUsers) {
     return (
-      <MainLayout>
+      <TopNavLayout>
         <div className="flex items-center justify-center h-96">
           <p className="text-muted-foreground">
             {language === 'pt' ? 'Acesso restrito' : 'Access restricted'}
