@@ -155,7 +155,7 @@ export function TopNavbar() {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-border/40 bg-background p-4">
           <nav className="grid gap-2">
-            {[...mainNavigation, ...moreNavigation].map((item) => (
+            {navigation.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
