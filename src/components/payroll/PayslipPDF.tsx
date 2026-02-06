@@ -172,7 +172,7 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
                   </tr>
                   <tr>
                     <td className="py-1">{t.inssContrib}</td>
-                    <td className="text-right font-mono text-red-600">-{formatAOA(entry.inss)}</td>
+                    <td className="text-right font-mono text-red-600">-{formatAOA(entry.inssEmployee)}</td>
                   </tr>
                   {(entry.absenceDeduction || 0) > 0 && (
                     <tr>
