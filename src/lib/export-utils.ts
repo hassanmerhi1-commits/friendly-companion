@@ -11,9 +11,10 @@ import type { Employee } from '@/types/employee';
 export function exportPayrollToCSV(
   entries: PayrollEntry[],
   periodLabel: string,
-  language: 'pt' | 'en' = 'pt'
+  language: string = 'pt'
 ): void {
-  const headers = language === 'pt'
+  const isPt = language === 'pt';
+  const headers = isPt
     ? ['Funcionário', 'Departamento', 'Salário Base', 'Subsídios', 'Bruto', 'IRT', 'INSS', 'Outros Descontos', 'Líquido']
     : ['Employee', 'Department', 'Base Salary', 'Allowances', 'Gross', 'IRT', 'INSS', 'Other Deductions', 'Net'];
 
