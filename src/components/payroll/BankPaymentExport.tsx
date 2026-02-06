@@ -210,13 +210,13 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
                   {language === 'pt' ? 'Total a transferir:' : 'Total to transfer:'}
                 </span>
               </div>
-              <div className="font-medium text-right">
-                {bankableEntries.reduce((sum, e) => sum + e.netSalary, 0).toLocaleString('pt-AO', { 
-                  style: 'currency', 
-                  currency: 'AOA',
-                  minimumFractionDigits: 2 
-                })}
-              </div>
+               <div className="font-medium text-right">
+                 {bankableEntries.reduce((sum, e) => sum + (e.netSalary || 0) + (e.monthlyBonus || 0), 0).toLocaleString('pt-AO', { 
+                   style: 'currency', 
+                   currency: 'AOA',
+                   minimumFractionDigits: 2 
+                 })}
+               </div>
             </div>
             {filteredEntries.length > bankableEntries.length && (
               <p className="text-xs text-amber-600 mt-2">
