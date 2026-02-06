@@ -167,7 +167,7 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
   };
 
   const pendingAbsences = getPendingAbsences();
-  const employeeAbsences = selectedEmployeeId 
+  const employeeAbsences = selectedEmployeeId && selectedEmployeeId !== 'all'
     ? getAbsencesByEmployee(selectedEmployeeId)
     : absences;
 
