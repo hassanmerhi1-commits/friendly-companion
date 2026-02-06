@@ -478,6 +478,6 @@ export default function Deductions() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }

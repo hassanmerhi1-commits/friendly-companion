@@ -868,7 +868,7 @@ const Payroll = () => {
         entries={currentEntries}
         periodLabel={periodLabel}
       />
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

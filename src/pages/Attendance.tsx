@@ -118,6 +118,6 @@ export default function Attendance() {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }

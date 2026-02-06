@@ -652,6 +652,6 @@ export default function HRDashboard() {
         open={showDisciplinaryDialog}
         onOpenChange={setShowDisciplinaryDialog}
       />
-    </MainLayout>
+    </TopNavLayout>
   );
 }

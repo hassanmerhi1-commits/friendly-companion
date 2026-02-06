@@ -247,7 +247,7 @@ const EmployeeCards = () => {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

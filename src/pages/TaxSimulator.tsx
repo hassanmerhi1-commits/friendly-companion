@@ -492,7 +492,7 @@ const TaxSimulator = () => {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

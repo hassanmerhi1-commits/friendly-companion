@@ -349,7 +349,7 @@ const Reports = () => {
           />
         </DialogContent>
       </Dialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

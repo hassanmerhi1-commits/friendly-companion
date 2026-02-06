@@ -457,7 +457,7 @@ const Settings = () => {
           </Button>
         </div>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

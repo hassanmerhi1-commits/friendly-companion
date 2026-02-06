@@ -148,7 +148,7 @@ const LaborLaw = () => {
           </p>
         </CardContent>
       </Card>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

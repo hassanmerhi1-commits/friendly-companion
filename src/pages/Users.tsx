@@ -362,7 +362,7 @@ const UsersPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

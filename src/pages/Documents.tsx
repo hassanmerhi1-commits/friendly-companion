@@ -1021,7 +1021,7 @@ const Documents = () => {
           )}
         </CardContent>
       </Card>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

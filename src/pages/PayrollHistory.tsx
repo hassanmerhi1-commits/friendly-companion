@@ -460,7 +460,7 @@ const PayrollHistory = () => {
           )}
         </DialogContent>
       </Dialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

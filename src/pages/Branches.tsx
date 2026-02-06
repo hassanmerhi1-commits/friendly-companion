@@ -183,6 +183,6 @@ export default function Branches() {
           </div>
         ))}
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }

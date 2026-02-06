@@ -427,7 +427,7 @@ const Employees = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 
