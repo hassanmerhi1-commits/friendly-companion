@@ -16,7 +16,7 @@ import type { EmployeeSalaryHistory } from '@/types/audit';
 interface Props {
   history: EmployeeSalaryHistory;
   companyName?: string;
-  language?: 'pt' | 'en';
+  language?: string;
 }
 
 const MONTH_NAMES_EN = [

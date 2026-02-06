@@ -199,14 +199,15 @@ export function cleanupDeductionStoreSync() {
   }
 }
 
-export function getDeductionTypeLabel(type: DeductionType, lang: 'pt' | 'en' = 'pt'): string {
-  const labels: Record<DeductionType, { pt: string; en: string }> = {
-    salary_advance: { pt: 'Adiantamento Salarial', en: 'Salary Advance' },
-    warehouse_loss: { pt: 'Perda no Armazém', en: 'Warehouse Loss' },
-    unjustified_absence: { pt: 'Falta Injustificada', en: 'Unjustified Absence' },
-    loan: { pt: 'Empréstimo', en: 'Loan' },
-    disciplinary: { pt: 'Desconto Disciplinar', en: 'Disciplinary Deduction' },
-    other: { pt: 'Outros', en: 'Other' },
+export function getDeductionTypeLabel(type: DeductionType, lang: string = 'pt'): string {
+  const labels: Record<DeductionType, { pt: string; en: string; es: string; fr: string; ar: string }> = {
+    salary_advance: { pt: 'Adiantamento Salarial', en: 'Salary Advance', es: 'Anticipo Salarial', fr: 'Avance sur Salaire', ar: 'سلفة راتب' },
+    warehouse_loss: { pt: 'Perda no Armazém', en: 'Warehouse Loss', es: 'Pérdida en Almacén', fr: "Perte d'Entrepôt", ar: 'خسارة مستودع' },
+    unjustified_absence: { pt: 'Falta Injustificada', en: 'Unjustified Absence', es: 'Falta Injustificada', fr: 'Absence Injustifiée', ar: 'غياب غير مبرر' },
+    loan: { pt: 'Empréstimo', en: 'Loan', es: 'Préstamo', fr: 'Prêt', ar: 'قرض' },
+    disciplinary: { pt: 'Desconto Disciplinar', en: 'Disciplinary Deduction', es: 'Deducción Disciplinaria', fr: 'Déduction Disciplinaire', ar: 'خصم تأديبي' },
+    other: { pt: 'Outros', en: 'Other', es: 'Otros', fr: 'Autres', ar: 'أخرى' },
   };
-  return labels[type][lang];
+  const validLang = (lang in labels.salary_advance) ? lang as keyof typeof labels.salary_advance : 'en';
+  return labels[type][validLang];
 }
