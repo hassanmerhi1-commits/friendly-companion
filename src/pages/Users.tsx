@@ -61,7 +61,7 @@ const UsersPage = () => {
             {language === 'pt' ? 'Acesso restrito' : 'Access restricted'}
           </p>
         </div>
-      </MainLayout>
+      </TopNavLayout>
     );
   }
 
