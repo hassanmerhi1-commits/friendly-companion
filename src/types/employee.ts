@@ -6,6 +6,13 @@ export type EmployeeStatus = 'active' | 'inactive' | 'on_leave' | 'terminated';
 export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'probation';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'mobile_money';
 
+export interface EmployeeSkill {
+  name: string;
+  level: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  certifiedDate?: string;
+  expiryDate?: string;
+}
+
 export interface Employee {
   id: string;
   
@@ -33,6 +40,9 @@ export interface Employee {
   contractEndDate?: string; // For fixed-term contracts
   status: EmployeeStatus;
   branchId?: string; // Link to branch
+  
+  // Skills & Certifications
+  skills?: EmployeeSkill[];
   
   // Compensation
   baseSalary: number;
