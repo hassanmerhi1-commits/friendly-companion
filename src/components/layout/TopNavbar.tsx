@@ -41,36 +41,24 @@ export function TopNavbar() {
   const { currentUser, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Main navigation items (most used)
-  const mainNavigation = [
+  // All navigation items in one array
+  const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: t.nav.employees, href: "/employees", icon: Users },
+    { name: language === 'pt' ? 'Cartões' : 'Cards', href: "/employee-cards", icon: CreditCard },
     { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
-    { name: t.nav.reports, href: "/reports", icon: FileText },
-  ];
-
-  // Dropdown items for "More" menu
-  const moreNavigation = [
-    { name: language === 'pt' ? 'Cartões ID' : 'ID Cards', href: "/employee-cards", icon: CreditCard },
-    { name: language === 'pt' ? 'Histórico Folhas' : 'Payroll History', href: "/payroll-history", icon: Archive },
-    { name: language === 'pt' ? 'Painel RH' : 'HR Dashboard', href: "/hr-dashboard", icon: UserCheck },
+    { name: language === 'pt' ? 'Histórico' : 'History', href: "/payroll-history", icon: Archive },
+    { name: language === 'pt' ? 'RH' : 'HR', href: "/hr-dashboard", icon: UserCheck },
     { name: language === 'pt' ? 'Presenças' : 'Attendance', href: "/attendance", icon: Clock },
     { name: language === 'pt' ? 'Descontos' : 'Deductions', href: "/deductions", icon: Wallet },
     { name: language === 'pt' ? 'Filiais' : 'Branches', href: "/branches", icon: MapPin },
-    { name: language === 'pt' ? 'Lei do Trabalho' : 'Labor Law', href: "/labor-law", icon: Scale },
-    { name: language === 'pt' ? 'Simulador IRT' : 'Tax Simulator', href: "/tax-simulator", icon: Calculator },
-    { name: language === 'pt' ? 'Documentos' : 'Documents', href: "/documents", icon: FileWarning },
+    { name: language === 'pt' ? 'Lei' : 'Law', href: "/labor-law", icon: Scale },
+    { name: language === 'pt' ? 'IRT' : 'Tax', href: "/tax-simulator", icon: Calculator },
+    { name: language === 'pt' ? 'Docs' : 'Docs', href: "/documents", icon: FileWarning },
+    { name: t.nav.reports, href: "/reports", icon: FileText },
     { name: t.nav.settings, href: "/settings", icon: Settings },
+    ...(currentUser?.role === 'admin' ? [{ name: language === 'pt' ? 'Users' : 'Users', href: "/users", icon: UserCog }] : []),
   ];
-
-  // Add users management for admins
-  if (currentUser?.role === 'admin') {
-    moreNavigation.push({ 
-      name: language === 'pt' ? 'Utilizadores' : 'Users', 
-      href: "/users", 
-      icon: UserCog 
-    });
-  }
 
   const handleLogout = () => {
     logout();
