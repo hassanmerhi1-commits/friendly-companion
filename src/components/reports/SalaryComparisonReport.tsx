@@ -16,7 +16,7 @@ interface Props {
   comparisons: SalaryComparison[];
   companyName?: string;
   year?: number;
-  language?: 'pt' | 'en';
+  language?: string;
 }
 
 export function SalaryComparisonReport({ comparisons, companyName, year, language: propLang }: Props) {
