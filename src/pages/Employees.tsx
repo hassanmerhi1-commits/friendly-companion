@@ -261,108 +261,157 @@ const Employees = () => {
       {/* Employee Table */}
       <div className="stat-card p-0 overflow-hidden animate-slide-up" style={{ animationDelay: "100ms" }}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1400px]">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.employees.employee}
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  {language === 'pt' ? 'Filial' : 'Branch'}
+                <th className="px-4 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {t.branches?.title || 'Filial'}
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.employees.department}
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  {t.employees.salary}
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {t.employees.baseSalary}
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {t.employees.mealAllowance}
+                </th>
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {t.employees.transportAllowance}
+                </th>
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                  {t.payroll?.familyAllowance || 'Abono Fam.'}
+                </th>
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  {t.payroll?.bonus || 'Bónus'}
+                </th>
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider bg-primary/5">
+                  {t.payroll?.totalEarnings || 'Total'}
+                </th>
+                <th className="px-4 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.employees.contract}
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.common.status}
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className="px-4 py-4 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {t.common.actions}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredAndSortedEmployees.map((employee) => (
-                <tr key={employee.id} className="table-row-hover">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-accent">
-                          {employee.firstName[0]}{employee.lastName[0]}
-                        </span>
+              {filteredAndSortedEmployees.map((employee) => {
+                const totalComp = (employee.baseSalary || 0) + 
+                  (employee.mealAllowance || 0) + 
+                  (employee.transportAllowance || 0) + 
+                  (employee.familyAllowance || 0) + 
+                  (employee.monthlyBonus || 0) +
+                  (employee.otherAllowances || 0);
+                
+                return (
+                  <tr key={employee.id} className="table-row-hover">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-semibold text-accent">
+                            {employee.firstName[0]}{employee.lastName[0]}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">
+                            {employee.firstName} {employee.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate">{employee.email}</p>
+                        </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-foreground text-sm">{getBranchName(employee.branchId)}</span>
+                    </td>
+                    <td className="px-4 py-4">
                       <div>
-                        <p className="font-medium text-foreground">
-                          {employee.firstName} {employee.lastName}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{employee.email}</p>
+                        <p className="text-foreground text-sm">{employee.department}</p>
+                        <p className="text-xs text-muted-foreground">{employee.position}</p>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-foreground">{getBranchName(employee.branchId)}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="text-foreground">{employee.department}</p>
-                      <p className="text-sm text-muted-foreground">{employee.position}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="font-medium text-foreground">
-                      {formatAOA(employee.baseSalary)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-foreground">
-                      {getContractLabel(employee.contractType)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "badge-status",
-                      employee.status === "active" && "badge-paid",
-                      employee.status === "inactive" && "badge-overdue",
-                      employee.status === "on_leave" && "badge-pending",
-                      employee.status === "terminated" && "badge-overdue"
-                    )}>
-                      {getStatusLabel(employee.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          {t.common.edit}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          {language === 'pt' ? 'Cartão ID' : 'ID Card'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteClick(employee)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          {t.common.delete}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="font-medium text-foreground text-sm font-mono">
+                        {formatAOA(employee.baseSalary)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {employee.mealAllowance ? formatAOA(employee.mealAllowance) : '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {employee.transportAllowance ? formatAOA(employee.transportAllowance) : '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {employee.familyAllowance ? formatAOA(employee.familyAllowance) : '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {employee.monthlyBonus ? formatAOA(employee.monthlyBonus) : '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right bg-primary/5">
+                      <span className="font-semibold text-primary text-sm font-mono">
+                        {formatAOA(totalComp)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-foreground text-sm">
+                        {getContractLabel(employee.contractType)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={cn(
+                        "badge-status",
+                        employee.status === "active" && "badge-paid",
+                        employee.status === "inactive" && "badge-overdue",
+                        employee.status === "on_leave" && "badge-pending",
+                        employee.status === "terminated" && "badge-overdue"
+                      )}>
+                        {getStatusLabel(employee.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            {t.common.edit}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            {t.nav?.idCards || 'Cartão ID'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteClick(employee)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {t.common.delete}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
