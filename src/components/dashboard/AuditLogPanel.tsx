@@ -1,57 +1,53 @@
 import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { History, User, FileText, Users, DollarSign, Settings, Trash2, Edit, Plus, LogIn, LogOut, Check, X } from 'lucide-react';
+import { History, FileText, Users, DollarSign, Settings, Trash2, Edit, Plus, Check, Clock, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
-import { useAuditStore, type AuditAction, type AuditEntity } from '@/stores/audit-store';
+import { useAuditStore } from '@/stores/audit-store';
+import type { AuditAction, AuditLogEntry } from '@/types/audit';
 import { cn } from '@/lib/utils';
 
 const actionIcons: Record<AuditAction, typeof Edit> = {
-  create: Plus,
-  update: Edit,
-  delete: Trash2,
-  login: LogIn,
-  logout: LogOut,
-  approve: Check,
-  reject: X,
-  process: DollarSign,
-  export: FileText,
+  payroll_calculated: DollarSign,
+  payroll_approved: Check,
+  payroll_reopened: Clock,
+  payroll_paid: DollarSign,
+  entry_updated: Edit,
+  overtime_added: Plus,
+  absence_recorded: Clock,
+  deduction_applied: DollarSign,
+  salary_changed: Edit,
+  salary_adjusted: Edit,
+  employee_hired: Plus,
+  employee_terminated: Trash2,
+  correction_applied: AlertTriangle,
 };
 
 const actionColors: Record<AuditAction, string> = {
-  create: 'text-green-500',
-  update: 'text-blue-500',
-  delete: 'text-red-500',
-  login: 'text-emerald-500',
-  logout: 'text-gray-500',
-  approve: 'text-green-500',
-  reject: 'text-red-500',
-  process: 'text-amber-500',
-  export: 'text-purple-500',
-};
-
-const entityIcons: Record<AuditEntity, typeof Users> = {
-  employee: Users,
-  payroll: DollarSign,
-  deduction: DollarSign,
-  branch: Settings,
-  user: User,
-  settings: Settings,
-  absence: FileText,
-  loan: DollarSign,
-  termination: FileText,
+  payroll_calculated: 'text-blue-500',
+  payroll_approved: 'text-green-500',
+  payroll_reopened: 'text-amber-500',
+  payroll_paid: 'text-emerald-500',
+  entry_updated: 'text-blue-500',
+  overtime_added: 'text-purple-500',
+  absence_recorded: 'text-orange-500',
+  deduction_applied: 'text-red-500',
+  salary_changed: 'text-blue-500',
+  salary_adjusted: 'text-amber-500',
+  employee_hired: 'text-green-500',
+  employee_terminated: 'text-red-500',
+  correction_applied: 'text-amber-500',
 };
 
 export function AuditLogPanel() {
   const { language } = useLanguage();
-  const { logs, isLoaded, loadLogs, getRecentLogs } = useAuditStore();
+  const { logs, isLoaded, loadAuditLogs, getRecentLogs } = useAuditStore();
   
   useEffect(() => {
     if (!isLoaded) {
-      loadLogs();
+      loadAuditLogs();
     }
-  }, [isLoaded, loadLogs]);
+  }, [isLoaded, loadAuditLogs]);
   
   const recentLogs = getRecentLogs(15);
   
@@ -59,27 +55,20 @@ export function AuditLogPanel() {
     title: language === 'pt' ? 'Registo de Auditoria' : 'Audit Log',
     noLogs: language === 'pt' ? 'Nenhum registo de auditoria' : 'No audit logs',
     actions: {
-      create: language === 'pt' ? 'Criou' : 'Created',
-      update: language === 'pt' ? 'Atualizou' : 'Updated',
-      delete: language === 'pt' ? 'Eliminou' : 'Deleted',
-      login: language === 'pt' ? 'Entrou' : 'Logged in',
-      logout: language === 'pt' ? 'Saiu' : 'Logged out',
-      approve: language === 'pt' ? 'Aprovou' : 'Approved',
-      reject: language === 'pt' ? 'Rejeitou' : 'Rejected',
-      process: language === 'pt' ? 'Processou' : 'Processed',
-      export: language === 'pt' ? 'Exportou' : 'Exported',
-    },
-    entities: {
-      employee: language === 'pt' ? 'funcionário' : 'employee',
-      payroll: language === 'pt' ? 'folha salarial' : 'payroll',
-      deduction: language === 'pt' ? 'desconto' : 'deduction',
-      branch: language === 'pt' ? 'filial' : 'branch',
-      user: language === 'pt' ? 'utilizador' : 'user',
-      settings: language === 'pt' ? 'configurações' : 'settings',
-      absence: language === 'pt' ? 'ausência' : 'absence',
-      loan: language === 'pt' ? 'empréstimo' : 'loan',
-      termination: language === 'pt' ? 'rescisão' : 'termination',
-    },
+      payroll_calculated: language === 'pt' ? 'Folha calculada' : 'Payroll calculated',
+      payroll_approved: language === 'pt' ? 'Folha aprovada' : 'Payroll approved',
+      payroll_reopened: language === 'pt' ? 'Folha reaberta' : 'Payroll reopened',
+      payroll_paid: language === 'pt' ? 'Folha paga' : 'Payroll paid',
+      entry_updated: language === 'pt' ? 'Registo atualizado' : 'Entry updated',
+      overtime_added: language === 'pt' ? 'Horas extra adicionadas' : 'Overtime added',
+      absence_recorded: language === 'pt' ? 'Ausência registada' : 'Absence recorded',
+      deduction_applied: language === 'pt' ? 'Desconto aplicado' : 'Deduction applied',
+      salary_changed: language === 'pt' ? 'Salário alterado' : 'Salary changed',
+      salary_adjusted: language === 'pt' ? 'Salário ajustado' : 'Salary adjusted',
+      employee_hired: language === 'pt' ? 'Funcionário contratado' : 'Employee hired',
+      employee_terminated: language === 'pt' ? 'Funcionário desligado' : 'Employee terminated',
+      correction_applied: language === 'pt' ? 'Correção aplicada' : 'Correction applied',
+    } as Record<AuditAction, string>,
   };
 
   const formatTime = (timestamp: string) => {
@@ -114,36 +103,29 @@ export function AuditLogPanel() {
         ) : (
           <ScrollArea className="h-[350px]">
             <div className="space-y-1 p-4 pt-0">
-              {recentLogs.map(log => {
-                const ActionIcon = actionIcons[log.action];
-                const EntityIcon = entityIcons[log.entity];
+              {recentLogs.map((log: AuditLogEntry) => {
+                const ActionIcon = actionIcons[log.action] || Edit;
                 
                 return (
                   <div
                     key={log.id}
                     className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                      "bg-muted"
-                    )}>
-                      <ActionIcon className={cn("h-4 w-4", actionColors[log.action])} />
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-muted">
+                      <ActionIcon className={cn("h-4 w-4", actionColors[log.action] || 'text-muted-foreground')} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium truncate">{log.userName}</span>
-                        <span className="text-muted-foreground">
-                          {t.actions[log.action]} {t.entities[log.entity]}
+                        <span className="font-medium text-foreground">
+                          {t.actions[log.action] || log.action}
                         </span>
                       </div>
-                      {log.entityName && (
-                        <p className="text-sm text-muted-foreground truncate">
-                          {log.entityName}
-                        </p>
-                      )}
-                      {log.details && (
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {log.details}
+                      <p className="text-sm text-muted-foreground truncate">
+                        {log.description}
+                      </p>
+                      {log.userName && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {language === 'pt' ? 'Por' : 'By'}: {log.userName}
                         </p>
                       )}
                     </div>
