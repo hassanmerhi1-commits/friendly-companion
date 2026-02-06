@@ -1,42 +1,49 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { translations, type Language } from './translations';
+import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n, { LANGUAGES, isRTL, type Language } from './config';
 
-type TranslationType = typeof translations.pt | typeof translations.en;
+// Re-export types
+export type { Language };
+export { LANGUAGES, isRTL };
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: TranslationType;
+  t: ReturnType<typeof useTranslation>['t'];
+  isRTL: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'payrollao-language';
-
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === 'en' || stored === 'pt') {
-        return stored;
-      }
-    }
-    return 'pt'; // Default to Portuguese
-  });
+  const { t, i18n: i18nInstance } = useTranslation();
+  const language = i18nInstance.language as Language;
 
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem(STORAGE_KEY, lang);
+    i18nInstance.changeLanguage(lang);
   };
 
+  // Apply RTL direction on mount and language change
   useEffect(() => {
-    document.documentElement.lang = language;
-  }, [language]);
-
-  const t = translations[language];
+    const currentLang = i18nInstance.language as Language;
+    document.documentElement.lang = currentLang;
+    document.documentElement.dir = isRTL(currentLang) ? 'rtl' : 'ltr';
+    
+    // Add/remove RTL class for CSS targeting
+    if (isRTL(currentLang)) {
+      document.documentElement.classList.add('rtl');
+    } else {
+      document.documentElement.classList.remove('rtl');
+    }
+  }, [i18nInstance.language]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ 
+      language, 
+      setLanguage, 
+      t,
+      isRTL: isRTL(language)
+    }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -57,5 +64,5 @@ export function useMonthName(monthIndex: number): string {
     'january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december'
   ] as const;
-  return t.months[monthKeys[monthIndex]];
+  return t(`months.${monthKeys[monthIndex]}`);
 }
