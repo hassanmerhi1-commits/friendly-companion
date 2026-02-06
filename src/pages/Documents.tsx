@@ -615,7 +615,7 @@ const Documents = () => {
   const isContractFormValid = contractData.workerName && contractData.position && contractData.baseSalary;
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.title}</h1>
