@@ -1,4 +1,4 @@
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ClockInOut } from "@/components/attendance/ClockInOut";
@@ -46,7 +46,7 @@ export default function Attendance() {
   };
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t.title}</h1>
@@ -118,6 +118,6 @@ export default function Attendance() {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -335,7 +335,7 @@ const Payroll = () => {
   };
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.payroll.title}</h1>
@@ -868,7 +868,7 @@ const Payroll = () => {
         entries={currentEntries}
         periodLabel={periodLabel}
       />
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

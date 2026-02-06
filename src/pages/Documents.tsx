@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -615,7 +615,7 @@ const Documents = () => {
   const isContractFormValid = contractData.workerName && contractData.position && contractData.baseSalary;
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.title}</h1>
@@ -1021,7 +1021,7 @@ const Documents = () => {
           )}
         </CardContent>
       </Card>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

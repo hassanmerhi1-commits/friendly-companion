@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -181,7 +181,7 @@ const Employees = () => {
   });
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       {/* Header */}
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
@@ -427,7 +427,7 @@ const Employees = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

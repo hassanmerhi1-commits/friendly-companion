@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -246,7 +246,7 @@ export default function Deductions() {
   );
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -478,6 +478,6 @@ export default function Deductions() {
           </DialogContent>
         </Dialog>
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }

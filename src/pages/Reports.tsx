@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -155,7 +155,7 @@ const Reports = () => {
   };
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.reports.title}</h1>
@@ -349,7 +349,7 @@ const Reports = () => {
           />
         </DialogContent>
       </Dialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

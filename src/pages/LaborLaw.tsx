@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ const LaborLaw = () => {
   const searchResults = searchQuery.trim() ? searchLaborLaw(searchQuery) : [];
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ const LaborLaw = () => {
           </p>
         </CardContent>
       </Card>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

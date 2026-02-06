@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,13 +55,13 @@ const UsersPage = () => {
 
   if (!canManageUsers) {
     return (
-      <MainLayout>
+      <TopNavLayout>
         <div className="flex items-center justify-center h-96">
           <p className="text-muted-foreground">
             {language === 'pt' ? 'Acesso restrito' : 'Access restricted'}
           </p>
         </div>
-      </MainLayout>
+      </TopNavLayout>
     );
   }
 
@@ -159,7 +159,7 @@ const UsersPage = () => {
   };
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">
@@ -362,7 +362,7 @@ const UsersPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </TopNavLayout>
   );
 };
 

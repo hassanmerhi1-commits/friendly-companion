@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -50,7 +50,7 @@ export default function Branches() {
   const branchLabel = language === 'pt' ? 'Filial' : 'Branch';
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -183,6 +183,6 @@ export default function Branches() {
           </div>
         ))}
       </div>
-    </MainLayout>
+    </TopNavLayout>
   );
 }
