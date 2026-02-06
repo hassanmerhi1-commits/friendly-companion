@@ -135,22 +135,22 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
                       <td className="text-right font-mono">{formatAOA(employee.monthlyBonus)}</td>
                     </tr>
                   )}
-                  {(entry.overtimeAmount || 0) > 0 && (
+                  {(entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday) > 0 && (
                     <tr>
                       <td className="py-1">{t.overtime}</td>
-                      <td className="text-right font-mono">{formatAOA(entry.overtimeAmount || 0)}</td>
+                      <td className="text-right font-mono">{formatAOA(entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday)}</td>
                     </tr>
                   )}
-                  {(entry.thirteenthMonthAmount || 0) > 0 && (
+                  {(entry.thirteenthMonth || 0) > 0 && (
                     <tr>
                       <td className="py-1">{t.thirteenthMonth}</td>
-                      <td className="text-right font-mono">{formatAOA(entry.thirteenthMonthAmount || 0)}</td>
+                      <td className="text-right font-mono">{formatAOA(entry.thirteenthMonth || 0)}</td>
                     </tr>
                   )}
-                  {(entry.holidaySubsidyAmount || 0) > 0 && (
+                  {(entry.holidaySubsidy || 0) > 0 && (
                     <tr>
                       <td className="py-1">{t.holidaySubsidy}</td>
-                      <td className="text-right font-mono">{formatAOA(entry.holidaySubsidyAmount || 0)}</td>
+                      <td className="text-right font-mono">{formatAOA(entry.holidaySubsidy || 0)}</td>
                     </tr>
                   )}
                   <tr className="border-t border-gray-300 font-bold">
