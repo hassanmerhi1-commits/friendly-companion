@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

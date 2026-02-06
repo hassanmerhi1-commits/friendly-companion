@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
