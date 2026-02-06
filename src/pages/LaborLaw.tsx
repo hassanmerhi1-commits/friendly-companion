@@ -30,7 +30,7 @@ const LaborLaw = () => {
   const searchResults = searchQuery.trim() ? searchLaborLaw(searchQuery) : [];
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       <div className="flex items-center justify-between mb-8 animate-fade-in">
         <div>
           <div className="flex items-center gap-3">
