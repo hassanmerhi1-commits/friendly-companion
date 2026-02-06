@@ -21,7 +21,7 @@ interface Props {
   terminationPackage: TerminationPackage;
   reasonDetails?: string;
   processedBy: string;
-  language: 'pt' | 'en';
+  language: string;
 }
 
 export function PrintableTerminationLetter({
