@@ -1,4 +1,4 @@
-import { MainLayout } from "@/components/layout/MainLayout";
+import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DailyWallpaper } from "@/components/dashboard/DailyWallpaper";
 import { QuickActions } from "@/components/dashboard/QuickActions";
@@ -29,9 +29,9 @@ const Index = () => {
   const currentMonth = monthNames[new Date().getMonth()];
 
   return (
-    <MainLayout>
+    <TopNavLayout>
       {/* Modern Header with gradient accent */}
-      <div className="mb-8 animate-fade-in">
+      <div className="mb-6 animate-fade-in">
         <div className="flex items-center gap-3 mb-2">
           <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-primary to-primary/60" />
           <div>
@@ -46,7 +46,7 @@ const Index = () => {
       </div>
 
       {/* Stats Grid with modern cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         <StatCard
           title={t.dashboard.totalEmployees}
           value={String(employees.length)}
@@ -81,21 +81,18 @@ const Index = () => {
         />
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Daily Wallpaper - Takes 2 columns */}
-        <div className="lg:col-span-2">
-          <DailyWallpaper />
-        </div>
-
-        {/* Sidebar - Quick Actions only */}
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-            <QuickActions />
-          </div>
+      {/* Quick Actions - NOW HORIZONTAL AT TOP */}
+      <div className="mb-6">
+        <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
+          <QuickActions />
         </div>
       </div>
-    </MainLayout>
+
+      {/* Daily Wallpaper - FULL WIDTH */}
+      <div>
+        <DailyWallpaper />
+      </div>
+    </TopNavLayout>
   );
 };
 
