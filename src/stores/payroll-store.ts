@@ -38,6 +38,9 @@ interface PayrollState {
   
   // Archive system - closes month and clears active data
   archivePeriod: (periodId: string, deductionStore: any, absenceStore: any) => Promise<{ archivedDeductions: number; archivedAbsences: number; installmentsCarried: number }>;
+  
+  // Unarchive system - reverts archived/paid period back to approved status
+  unarchivePeriod: (periodId: string) => Promise<void>;
 }
 
 function getPeriodDates(year: number, month: number) {
@@ -884,6 +887,34 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       console.log(`[Payroll] Archived period ${periodId}: ${archivedDeductions} deductions, ${archivedAbsences} absences, ${installmentsCarried} installments carried`);
 
       return { archivedDeductions, archivedAbsences, installmentsCarried };
+    },
+
+    // UNARCHIVE SYSTEM: Reverts archived/paid period back to approved status
+    // This allows recovery from accidental archiving
+    unarchivePeriod: async (periodId) => {
+      const period = get().getPeriod(periodId);
+      if (!period) {
+        throw new Error('Period not found');
+      }
+
+      // Only paid/archived periods can be unarchived
+      if (period.status !== 'paid') {
+        throw new Error('Only archived (paid) periods can be unarchived');
+      }
+
+      const now = new Date().toISOString();
+
+      // Revert to approved status
+      await liveUpdate('payroll_periods', periodId, { 
+        status: 'approved', 
+        paid_at: null, 
+        updated_at: now 
+      });
+
+      // Reload data
+      await get().loadPayroll();
+
+      console.log(`[Payroll] Unarchived period ${periodId} - reverted to approved status`);
     },
   }));
 
