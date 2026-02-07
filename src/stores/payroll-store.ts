@@ -811,6 +811,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         paid_at: null,
         updated_at: now,
       });
+
+      // IMPORTANT: Refresh store state so UI becomes editable immediately
+      await get().loadPayroll();
     },
 
     markAsPaid: async (periodId) => {
