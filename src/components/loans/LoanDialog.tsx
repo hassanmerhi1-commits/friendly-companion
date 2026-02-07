@@ -258,7 +258,7 @@ export function LoanDialog({ open, onOpenChange, employeeId }: LoanDialogProps) 
                   <SelectValue placeholder={t.selectEmployee} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
                   {activeEmployees.map(emp => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName}
@@ -282,7 +282,7 @@ export function LoanDialog({ open, onOpenChange, employeeId }: LoanDialogProps) 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(selectedEmployeeId ? loans.filter(l => l.employeeId === selectedEmployeeId) : loans)
+                  {(selectedEmployeeId && selectedEmployeeId !== 'all' ? loans.filter(l => l.employeeId === selectedEmployeeId) : loans)
                     .slice(0, 20)
                     .map(loan => {
                       const emp = employees.find(e => e.id === loan.employeeId);
