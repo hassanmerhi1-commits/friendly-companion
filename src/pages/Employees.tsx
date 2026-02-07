@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -56,6 +57,7 @@ type SortField = 'name' | 'department' | 'branch' | 'salary' | 'hireDate';
 type SortOrder = 'asc' | 'desc';
 
 const Employees = () => {
+  const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { employees, deleteEmployee } = useEmployeeStore();
   const { branches: allBranches } = useBranchStore();
@@ -391,6 +393,10 @@ const Employees = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/employee-profile/${employee.id}`)}>
+                            <FolderOpen className="h-4 w-4 mr-2" />
+                            {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEdit(employee)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             {t.common.edit}
