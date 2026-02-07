@@ -4,8 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
-import { LanguageProvider } from "@/lib/i18n";
-import { useAuthStore } from "@/stores/auth-store";
+import { LanguageProvider, useLanguage } from "@/lib/i18n";
+import { useAuthStore, type Permission } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -80,6 +80,67 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Route that requires specific permission(s)
+function PermissionRoute({ 
+  children, 
+  requiredPermission 
+}: { 
+  children: React.ReactNode;
+  requiredPermission: Permission | Permission[];
+}) {
+  const { isAuthenticated, hasPermission, isLoaded, login } = useAuthStore();
+  const { language } = useLanguage();
+  
+  // Auto-login in development preview
+  useEffect(() => {
+    if (isDevelopmentPreview() && !isAuthenticated) {
+      login('admin', 'admin');
+    }
+  }, [isAuthenticated, login]);
+  
+  // In development preview, still enforce permissions (don't bypass)
+  // This allows testing permission system in preview
+  
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-muted-foreground">
+          {language === 'pt' ? 'A carregar...' : 'Loading...'}
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated && !isDevelopmentPreview()) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // Check permission(s)
+  const permissions = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
+  const hasAccess = permissions.some(p => hasPermission(p));
+  
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center p-8 max-w-md">
+          <div className="text-6xl mb-4">🔒</div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            {language === 'pt' ? 'Acesso Negado' : 'Access Denied'}
+          </h1>
+          <p className="text-muted-foreground mb-4">
+            {language === 'pt' 
+              ? 'Não tem permissão para aceder a esta página. Contacte o administrador.'
+              : 'You do not have permission to access this page. Contact the administrator.'}
+          </p>
+          <Navigate to="/" replace />
+        </div>
+      </div>
+    );
+  }
+  
+  return <>{children}</>;
+}
+
 const AppRoutes = () => {
   const { isAuthenticated } = useAuthStore();
   
@@ -88,22 +149,55 @@ const AppRoutes = () => {
       <Route path="/login" element={
         isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
       } />
+      {/* Dashboard - accessible to all authenticated users */}
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-      <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-      <Route path="/payroll" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/branches" element={<ProtectedRoute><Branches /></ProtectedRoute>} />
-      <Route path="/deductions" element={<ProtectedRoute><Deductions /></ProtectedRoute>} />
-      <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-      <Route path="/labor-law" element={<ProtectedRoute><LaborLaw /></ProtectedRoute>} />
-      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-      <Route path="/employee-cards" element={<ProtectedRoute><EmployeeCards /></ProtectedRoute>} />
-      <Route path="/hr-dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
-      <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
-      <Route path="/tax-simulator" element={<ProtectedRoute><TaxSimulator /></ProtectedRoute>} />
-      <Route path="/payroll-history" element={<ProtectedRoute><PayrollHistory /></ProtectedRoute>} />
-      <Route path="/employee-profile/:id" element={<ProtectedRoute><EmployeeProfile /></ProtectedRoute>} />
+      
+      {/* Permission-protected routes */}
+      <Route path="/employees" element={
+        <PermissionRoute requiredPermission="employees.view"><Employees /></PermissionRoute>
+      } />
+      <Route path="/employee-profile/:id" element={
+        <PermissionRoute requiredPermission="employees.view"><EmployeeProfile /></PermissionRoute>
+      } />
+      <Route path="/employee-cards" element={
+        <PermissionRoute requiredPermission="employees.view"><EmployeeCards /></PermissionRoute>
+      } />
+      <Route path="/payroll" element={
+        <PermissionRoute requiredPermission="payroll.view"><Payroll /></PermissionRoute>
+      } />
+      <Route path="/payroll-history" element={
+        <PermissionRoute requiredPermission="payroll.view"><PayrollHistory /></PermissionRoute>
+      } />
+      <Route path="/deductions" element={
+        <PermissionRoute requiredPermission="deductions.view"><Deductions /></PermissionRoute>
+      } />
+      <Route path="/branches" element={
+        <PermissionRoute requiredPermission="branches.view"><Branches /></PermissionRoute>
+      } />
+      <Route path="/attendance" element={
+        <PermissionRoute requiredPermission="attendance.view"><Attendance /></PermissionRoute>
+      } />
+      <Route path="/hr-dashboard" element={
+        <PermissionRoute requiredPermission="hr.view"><HRDashboard /></PermissionRoute>
+      } />
+      <Route path="/reports" element={
+        <PermissionRoute requiredPermission="reports.view"><Reports /></PermissionRoute>
+      } />
+      <Route path="/documents" element={
+        <PermissionRoute requiredPermission="documents.view"><Documents /></PermissionRoute>
+      } />
+      <Route path="/users" element={
+        <PermissionRoute requiredPermission="users.view"><UsersPage /></PermissionRoute>
+      } />
+      <Route path="/settings" element={
+        <PermissionRoute requiredPermission="settings.view"><Settings /></PermissionRoute>
+      } />
+      <Route path="/labor-law" element={
+        <PermissionRoute requiredPermission="laborlaw.view"><LaborLaw /></PermissionRoute>
+      } />
+      <Route path="/tax-simulator" element={
+        <PermissionRoute requiredPermission="payroll.view"><TaxSimulator /></PermissionRoute>
+      } />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

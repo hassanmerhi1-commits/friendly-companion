@@ -23,7 +23,7 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAuthStore, type Permission } from "@/stores/auth-store";
 import companyLogo from "@/assets/distri-good-logo.jpeg";
 import {
   DropdownMenu,
@@ -38,27 +38,40 @@ export function TopNavbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
-  const { currentUser, logout } = useAuthStore();
+  const { currentUser, logout, hasPermission } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // All navigation items in one array
-  const navigation = [
+  // Navigation items with required permissions
+  const allNavigation: Array<{
+    name: string;
+    href: string;
+    icon: any;
+    permission?: Permission;
+  }> = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-    { name: t.nav.employees, href: "/employees", icon: Users },
-    { name: t.nav.idCards, href: "/employee-cards", icon: CreditCard },
-    { name: t.nav.payroll, href: "/payroll", icon: DollarSign },
-    { name: t.nav.payrollHistory, href: "/payroll-history", icon: Archive },
-    { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: UserCheck },
-    { name: t.nav.attendance, href: "/attendance", icon: Clock },
-    { name: t.nav.deductions, href: "/deductions", icon: Wallet },
-    { name: t.nav.branches, href: "/branches", icon: MapPin },
-    { name: t.nav.laborLaw, href: "/labor-law", icon: Scale },
-    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Calculator },
-    { name: t.nav.documents, href: "/documents", icon: FileWarning },
-    { name: t.nav.reports, href: "/reports", icon: FileText },
-    { name: t.nav.settings, href: "/settings", icon: Settings },
-    ...(currentUser?.role === 'admin' ? [{ name: t.nav.users, href: "/users", icon: UserCog }] : []),
+    { name: t.nav.employees, href: "/employees", icon: Users, permission: 'employees.view' },
+    { name: t.nav.idCards, href: "/employee-cards", icon: CreditCard, permission: 'employees.view' },
+    { name: t.nav.payroll, href: "/payroll", icon: DollarSign, permission: 'payroll.view' },
+    { name: t.nav.payrollHistory, href: "/payroll-history", icon: Archive, permission: 'payroll.view' },
+    { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: UserCheck, permission: 'hr.view' },
+    { name: t.nav.attendance, href: "/attendance", icon: Clock, permission: 'attendance.view' },
+    { name: t.nav.deductions, href: "/deductions", icon: Wallet, permission: 'deductions.view' },
+    { name: t.nav.branches, href: "/branches", icon: MapPin, permission: 'branches.view' },
+    { name: t.nav.laborLaw, href: "/labor-law", icon: Scale, permission: 'laborlaw.view' },
+    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Calculator, permission: 'payroll.view' },
+    { name: t.nav.documents, href: "/documents", icon: FileWarning, permission: 'documents.view' },
+    { name: t.nav.reports, href: "/reports", icon: FileText, permission: 'reports.view' },
+    { name: t.nav.settings, href: "/settings", icon: Settings, permission: 'settings.view' },
+    { name: t.nav.users, href: "/users", icon: UserCog, permission: 'users.view' },
   ];
+
+  // Filter navigation based on user permissions
+  const navigation = allNavigation.filter(item => {
+    // Dashboard is always visible
+    if (!item.permission) return true;
+    // Check permission
+    return hasPermission(item.permission);
+  });
 
   const handleLogout = () => {
     logout();
