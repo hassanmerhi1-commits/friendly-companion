@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2 } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -24,6 +24,7 @@ import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialo
 import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { BatchReceiptPrinter } from "@/components/payroll/BatchReceiptPrinter";
 import { BankPaymentExport } from "@/components/payroll/BankPaymentExport";
+import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -31,7 +32,7 @@ import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
-  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
   const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
@@ -57,7 +58,11 @@ const Payroll = () => {
   const [batchReceiptOpen, setBatchReceiptOpen] = useState(false);
   const [bankExportOpen, setBankExportOpen] = useState(false);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
-
+  
+  // Password-protected action dialogs
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [unarchiveDialogOpen, setUnarchiveDialogOpen] = useState(false);
   const pendingAbsences = getPendingAbsences();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
@@ -732,48 +737,39 @@ const Payroll = () => {
              <div className="flex items-center gap-2">
                {currentPeriod?.status && getStatusBadge(currentPeriod.status)}
                
-               {/* Archive button - only show for approved (not yet paid/archived) */}
+               {/* Archive button - only show for approved (not yet paid/archived) - REQUIRES ADMIN PASSWORD */}
                {currentPeriod?.status === 'approved' && (
                  <Button
                    variant="accent"
                    size="sm"
-                   onClick={async () => {
-                     if (!currentPeriod) return;
-                     try {
-                       const result = await archivePeriod(currentPeriod.id, deductionStore, absenceStore);
-                       toast.success(
-                         language === 'pt' 
-                           ? `Mês arquivado! ${result.archivedDeductions} descontos removidos, ${result.installmentsCarried} prestações continuadas.`
-                           : `Month archived! ${result.archivedDeductions} deductions removed, ${result.installmentsCarried} installments carried.`
-                       );
-
-                        // After archiving, return to "Current" view so user can generate the next month
-                        setSelectedPeriodId('');
-                     } catch (error: any) {
-                       toast.error(error.message || (language === 'pt' ? 'Erro ao arquivar' : 'Error archiving'));
-                     }
-                   }}
+                   onClick={() => setArchiveDialogOpen(true)}
                  >
                    <Archive className="h-4 w-4 mr-2" />
                    {language === 'pt' ? 'Arquivar Mês' : 'Archive Month'}
                  </Button>
                )}
 
-               {/* Reopen button - only show for approved (not paid/archived) */}
+               {/* Reopen button - only show for approved (not paid/archived) - REQUIRES ADMIN PASSWORD */}
                {currentPeriod?.status === 'approved' && (
                  <Button
                    variant="outline"
                    size="sm"
-                   onClick={async () => {
-                     if (!currentPeriod) return;
-                     // Unapply all deductions linked to this period so they become pending again
-                     await unapplyDeductionsFromPayroll(currentPeriod.id);
-                     await reopenPeriod(currentPeriod.id);
-                     toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
-                   }}
+                   onClick={() => setReopenDialogOpen(true)}
                  >
                    <RotateCcw className="h-4 w-4 mr-2" />
                    {language === 'pt' ? 'Reabrir para editar' : 'Reopen to edit'}
+                 </Button>
+               )}
+
+               {/* Unarchive button - only show for paid/archived periods - REQUIRES ADMIN PASSWORD */}
+               {currentPeriod?.status === 'paid' && (
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={() => setUnarchiveDialogOpen(true)}
+                 >
+                   <Unlock className="h-4 w-4 mr-2" />
+                   {language === 'pt' ? 'Desarquivar' : 'Unarchive'}
                  </Button>
                )}
              </div>
@@ -867,6 +863,79 @@ const Payroll = () => {
         onOpenChange={setBankExportOpen}
         entries={currentEntries}
         periodLabel={periodLabel}
+      />
+
+      {/* Admin Password Protected Dialogs */}
+      
+      {/* Archive Period - requires admin password */}
+      <AdminPasswordDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        title={language === 'pt' ? 'Arquivar Período' : 'Archive Period'}
+        description={
+          language === 'pt'
+            ? `Tem a certeza que pretende arquivar ${periodLabel}? Esta acção fechará o mês e abrirá o próximo período para cálculo.`
+            : `Are you sure you want to archive ${periodLabel}? This will close the month and open the next period for calculation.`
+        }
+        warningMessage={
+          language === 'pt'
+            ? 'Após arquivar, os descontos serão processados e o próximo mês ficará disponível.'
+            : 'After archiving, deductions will be processed and the next month will become available.'
+        }
+        confirmText={language === 'pt' ? 'Arquivar' : 'Archive'}
+        variant="destructive"
+        onConfirm={async () => {
+          if (!currentPeriod) return;
+          const result = await archivePeriod(currentPeriod.id, deductionStore, absenceStore);
+          toast.success(
+            language === 'pt'
+              ? `Mês arquivado! ${result.archivedDeductions} descontos removidos, ${result.installmentsCarried} prestações continuadas.`
+              : `Month archived! ${result.archivedDeductions} deductions removed, ${result.installmentsCarried} installments carried.`
+          );
+          setSelectedPeriodId('');
+        }}
+      />
+
+      {/* Reopen Period - requires admin password */}
+      <AdminPasswordDialog
+        open={reopenDialogOpen}
+        onOpenChange={setReopenDialogOpen}
+        title={language === 'pt' ? 'Reabrir Período' : 'Reopen Period'}
+        description={
+          language === 'pt'
+            ? `Tem a certeza que pretende reabrir ${periodLabel} para edição?`
+            : `Are you sure you want to reopen ${periodLabel} for editing?`
+        }
+        confirmText={language === 'pt' ? 'Reabrir' : 'Reopen'}
+        onConfirm={async () => {
+          if (!currentPeriod) return;
+          await unapplyDeductionsFromPayroll(currentPeriod.id);
+          await reopenPeriod(currentPeriod.id);
+          toast.success(language === 'pt' ? 'Período reaberto para edição' : 'Period reopened for editing');
+        }}
+      />
+
+      {/* Unarchive Period - requires admin password */}
+      <AdminPasswordDialog
+        open={unarchiveDialogOpen}
+        onOpenChange={setUnarchiveDialogOpen}
+        title={language === 'pt' ? 'Desarquivar Período' : 'Unarchive Period'}
+        description={
+          language === 'pt'
+            ? `Tem a certeza que pretende desarquivar ${periodLabel}? O período voltará ao estado "Aprovado".`
+            : `Are you sure you want to unarchive ${periodLabel}? The period will return to "Approved" status.`
+        }
+        warningMessage={
+          language === 'pt'
+            ? 'Isto irá reverter o arquivamento. Poderá então reabrir para editar ou arquivar novamente.'
+            : 'This will revert the archiving. You can then reopen to edit or archive again.'
+        }
+        confirmText={language === 'pt' ? 'Desarquivar' : 'Unarchive'}
+        onConfirm={async () => {
+          if (!currentPeriod) return;
+          await unarchivePeriod(currentPeriod.id);
+          toast.success(language === 'pt' ? 'Período desarquivado com sucesso' : 'Period unarchived successfully');
+        }}
       />
     </TopNavLayout>
   );
