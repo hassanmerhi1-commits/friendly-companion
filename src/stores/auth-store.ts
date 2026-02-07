@@ -10,6 +10,8 @@ export type Permission =
   | 'payroll.calculate'
   | 'payroll.approve'
   | 'payroll.export'
+  | 'payroll.archive'
+  | 'payroll.reopen'
   | 'deductions.view'
   | 'deductions.create'
   | 'deductions.edit'
@@ -18,6 +20,21 @@ export type Permission =
   | 'branches.create'
   | 'branches.edit'
   | 'branches.delete'
+  | 'attendance.view'
+  | 'attendance.create'
+  | 'attendance.edit'
+  | 'attendance.delete'
+  | 'hr.view'
+  | 'hr.create'
+  | 'hr.edit'
+  | 'hr.delete'
+  | 'loans.view'
+  | 'loans.create'
+  | 'loans.edit'
+  | 'loans.delete'
+  | 'holidays.view'
+  | 'holidays.create'
+  | 'holidays.edit'
   | 'reports.view'
   | 'reports.export'
   | 'documents.view'
@@ -35,9 +52,13 @@ export type UserRole = 'admin' | 'manager' | 'hr' | 'accountant' | 'viewer';
 export const rolePermissions: Record<UserRole, Permission[]> = {
   admin: [
     'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
-    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export',
+    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export', 'payroll.archive', 'payroll.reopen',
     'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.delete',
     'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
+    'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.delete',
+    'hr.view', 'hr.create', 'hr.edit', 'hr.delete',
+    'loans.view', 'loans.create', 'loans.edit', 'loans.delete',
+    'holidays.view', 'holidays.create', 'holidays.edit',
     'reports.view', 'reports.export',
     'documents.view', 'documents.create',
     'laborlaw.view',
@@ -49,6 +70,10 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export',
     'deductions.view', 'deductions.create', 'deductions.edit',
     'branches.view',
+    'attendance.view', 'attendance.create', 'attendance.edit',
+    'hr.view', 'hr.create', 'hr.edit',
+    'loans.view', 'loans.create', 'loans.edit',
+    'holidays.view', 'holidays.create', 'holidays.edit',
     'reports.view', 'reports.export',
     'documents.view', 'documents.create',
     'laborlaw.view',
@@ -59,6 +84,10 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'payroll.view',
     'deductions.view', 'deductions.create',
     'branches.view',
+    'attendance.view', 'attendance.create', 'attendance.edit',
+    'hr.view', 'hr.create', 'hr.edit',
+    'loans.view', 'loans.create',
+    'holidays.view', 'holidays.create', 'holidays.edit',
     'reports.view',
     'documents.view', 'documents.create',
     'laborlaw.view',
@@ -67,6 +96,8 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'employees.view',
     'payroll.view', 'payroll.calculate', 'payroll.export',
     'deductions.view', 'deductions.create', 'deductions.edit',
+    'attendance.view',
+    'loans.view', 'loans.create', 'loans.edit',
     'reports.view', 'reports.export',
     'laborlaw.view',
   ],
@@ -75,6 +106,10 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'payroll.view',
     'deductions.view',
     'branches.view',
+    'attendance.view',
+    'hr.view',
+    'loans.view',
+    'holidays.view',
     'reports.view',
     'laborlaw.view',
   ],

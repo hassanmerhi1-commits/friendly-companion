@@ -38,6 +38,8 @@ export const PERMISSION_CATEGORIES = {
       { key: 'payroll.calculate' as Permission, labelPt: 'Calcular', labelEn: 'Calculate' },
       { key: 'payroll.approve' as Permission, labelPt: 'Aprovar', labelEn: 'Approve' },
       { key: 'payroll.export' as Permission, labelPt: 'Exportar', labelEn: 'Export' },
+      { key: 'payroll.archive' as Permission, labelPt: 'Arquivar', labelEn: 'Archive' },
+      { key: 'payroll.reopen' as Permission, labelPt: 'Reabrir', labelEn: 'Reopen' },
     ],
   },
   deducoes: {
@@ -58,6 +60,45 @@ export const PERMISSION_CATEGORIES = {
       { key: 'branches.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
       { key: 'branches.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
       { key: 'branches.delete' as Permission, labelPt: 'Eliminar', labelEn: 'Delete' },
+    ],
+  },
+  assiduidade: {
+    labelPt: 'Assiduidade',
+    labelEn: 'Attendance',
+    permissions: [
+      { key: 'attendance.view' as Permission, labelPt: 'Ver', labelEn: 'View' },
+      { key: 'attendance.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
+      { key: 'attendance.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
+      { key: 'attendance.delete' as Permission, labelPt: 'Eliminar', labelEn: 'Delete' },
+    ],
+  },
+  recursosHumanos: {
+    labelPt: 'Recursos Humanos',
+    labelEn: 'HR / Disciplinary',
+    permissions: [
+      { key: 'hr.view' as Permission, labelPt: 'Ver', labelEn: 'View' },
+      { key: 'hr.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
+      { key: 'hr.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
+      { key: 'hr.delete' as Permission, labelPt: 'Eliminar', labelEn: 'Delete' },
+    ],
+  },
+  emprestimos: {
+    labelPt: 'Empréstimos',
+    labelEn: 'Loans',
+    permissions: [
+      { key: 'loans.view' as Permission, labelPt: 'Ver', labelEn: 'View' },
+      { key: 'loans.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
+      { key: 'loans.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
+      { key: 'loans.delete' as Permission, labelPt: 'Eliminar', labelEn: 'Delete' },
+    ],
+  },
+  ferias: {
+    labelPt: 'Férias',
+    labelEn: 'Holidays',
+    permissions: [
+      { key: 'holidays.view' as Permission, labelPt: 'Ver', labelEn: 'View' },
+      { key: 'holidays.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
+      { key: 'holidays.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
     ],
   },
   relatorios: {
