@@ -4,34 +4,45 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FileText, Calendar, TrendingUp, Users, DollarSign, History } from "lucide-react";
+import { FileText, Calendar, TrendingUp, Users, DollarSign, History, Clock, Landmark, CreditCard, Building2, FileCheck } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useHolidayStore } from "@/stores/holiday-store";
+import { useLoanStore } from "@/stores/loan-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
 import { PrintablePayrollSheet } from "@/components/payroll/PrintablePayrollSheet";
 import { PrintableEmployeeReport } from "@/components/reports/PrintableEmployeeReport";
 import { PrintableCostAnalysis } from "@/components/reports/PrintableCostAnalysis";
 import { PrintableHolidayMap } from "@/components/reports/PrintableHolidayMap";
+import { PrintableINSSMap } from "@/components/reports/PrintableINSSMap";
+import { PrintableIRTMap } from "@/components/reports/PrintableIRTMap";
+import { PrintableHolidayReport } from "@/components/reports/PrintableHolidayReport";
+import { PrintableOvertimeReport } from "@/components/reports/PrintableOvertimeReport";
+import { PrintableLoanReport } from "@/components/reports/PrintableLoanReport";
+import { PrintableAnnualSummary } from "@/components/reports/PrintableAnnualSummary";
+import { PrintableBranchCostAnalysis } from "@/components/reports/PrintableBranchCostAnalysis";
+import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncomeDeclaration";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
-type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | null;
+type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | null;
 
 const Reports = () => {
   const { t, language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches: allBranches } = useBranchStore();
-  // Derive active branches from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
   const { records: holidayRecords, saveRecords } = useHolidayStore();
+  const { loans } = useLoanStore();
   const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('latest');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   const handleSaveHolidayRecords = (records: typeof holidayRecords) => {
     saveRecords(records);
@@ -39,6 +50,14 @@ const Reports = () => {
   };
 
   const selectedBranch = selectedBranchId !== 'all' ? branches.find(b => b.id === selectedBranchId) : undefined;
+  
+  // Get available years from periods
+  const availableYears = useMemo(() => {
+    const years = new Set(periods.map(p => p.year));
+    const currentYear = new Date().getFullYear();
+    years.add(currentYear);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [periods]);
   
   // Sort periods by date (newest first) for the dropdown
   const sortedPeriods = useMemo(() => {
@@ -93,22 +112,28 @@ const Reports = () => {
     : new Date().toLocaleDateString('pt-AO', { month: 'long', year: 'numeric' });
 
   const handleOpenReport = (type: ReportType) => {
-    if (type === 'salary' || type === 'cost') {
+    // Validate data availability based on report type
+    if (['salary', 'cost', 'inss', 'irt', 'overtime'].includes(type as string)) {
       if (filteredEntries.length === 0) {
         toast.error(language === 'pt' ? 'Nenhum processamento salarial encontrado para este período/filial.' : 'No payroll data found for this period/branch.');
         return;
       }
     }
-    if (type === 'employee' || type === 'holiday') {
+    if (['employee', 'holiday', 'ferias'].includes(type as string)) {
       if (filteredEmployees.length === 0) {
         toast.error(language === 'pt' ? 'Nenhum funcionário registado.' : 'No employees registered.');
         return;
       }
     }
+    if (type === 'income_declaration' && !selectedEmployeeId) {
+      toast.error(language === 'pt' ? 'Seleccione um funcionário primeiro.' : 'Select an employee first.');
+      return;
+    }
     setOpenReport(type);
   };
 
-  const reports = [
+  // Primary reports (existing)
+  const primaryReports = [
     { 
       id: "1", 
       type: 'salary' as ReportType,
@@ -147,12 +172,98 @@ const Reports = () => {
     },
   ];
 
+  // New fiscal/compliance reports
+  const fiscalReports = [
+    { 
+      id: "5", 
+      type: 'inss' as ReportType,
+      name: 'Mapa de INSS', 
+      description: 'Relatório mensal de contribuições para a Segurança Social', 
+      icon: Landmark, 
+      color: 'bg-orange-500',
+      available: filteredEntries.length > 0
+    },
+    { 
+      id: "6", 
+      type: 'irt' as ReportType,
+      name: 'Mapa de IRT', 
+      description: 'Mapa de retenção na fonte do Imposto sobre Rendimentos do Trabalho', 
+      icon: FileCheck, 
+      color: 'bg-red-500',
+      available: filteredEntries.length > 0
+    },
+  ];
+
+  // HR/Operational reports
+  const hrReports = [
+    { 
+      id: "7", 
+      type: 'ferias' as ReportType,
+      name: 'Relatório de Férias', 
+      description: 'Controlo de férias anuais, saldos e planeamento', 
+      icon: Calendar, 
+      color: 'bg-teal-500',
+      available: filteredEmployees.length > 0
+    },
+    { 
+      id: "8", 
+      type: 'overtime' as ReportType,
+      name: 'Relatório de Horas Extra', 
+      description: 'Detalhamento de horas extraordinárias por tipo', 
+      icon: Clock, 
+      color: 'bg-indigo-500',
+      available: filteredEntries.length > 0
+    },
+    { 
+      id: "9", 
+      type: 'loans' as ReportType,
+      name: 'Relatório de Empréstimos', 
+      description: 'Empréstimos e adiantamentos activos e histórico', 
+      icon: CreditCard, 
+      color: 'bg-pink-500',
+      available: true
+    },
+    { 
+      id: "10", 
+      type: 'branch_cost' as ReportType,
+      name: 'Análise de Custos por Filial', 
+      description: 'Distribuição de custos salariais por filial/localização', 
+      icon: Building2, 
+      color: 'bg-cyan-500',
+      available: filteredEntries.length > 0 && branches.length > 0
+    },
+  ];
+
+  // Annual/Tax reports
+  const annualReports = [
+    { 
+      id: "11", 
+      type: 'annual' as ReportType,
+      name: 'Resumo Anual', 
+      description: 'Resumo anual de remunerações de todos os funcionários', 
+      icon: History, 
+      color: 'bg-amber-500',
+      available: entries.length > 0
+    },
+    { 
+      id: "12", 
+      type: 'income_declaration' as ReportType,
+      name: 'Declaração de Rendimentos', 
+      description: 'Declaração anual de rendimentos individual para fins fiscais', 
+      icon: FileText, 
+      color: 'bg-slate-500',
+      available: employees.length > 0
+    },
+  ];
+
   const stats = {
     employees: filteredEmployees.length,
     activeEmployees: filteredEmployees.filter(e => e.status === 'active').length,
     branches: branches.length,
     payrollPeriods: periods.length
   };
+
+  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
   return (
     <TopNavLayout>
@@ -163,14 +274,14 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Period and Branch Selection */}
+      {/* Period, Branch, and Year Selection */}
       <div className="stat-card mb-6 animate-fade-in">
         <div className="flex flex-wrap gap-4 items-end">
           {/* Period/Date Selection */}
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[180px]">
             <Label className="text-sm font-medium mb-2 block flex items-center gap-2">
               <History className="h-4 w-4" />
-              {language === 'pt' ? 'Período / Histórico' : 'Period / History'}
+              {language === 'pt' ? 'Período' : 'Period'}
             </Label>
             <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
               <SelectTrigger>
@@ -192,9 +303,9 @@ const Reports = () => {
           </div>
           
           {/* Branch Selection */}
-          <div className="flex-1 min-w-[200px]">
+          <div className="flex-1 min-w-[180px]">
             <Label className="text-sm font-medium mb-2 block">
-              {language === 'pt' ? 'Seleccionar Filial' : 'Select Branch'}
+              {language === 'pt' ? 'Filial' : 'Branch'}
             </Label>
             <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
               <SelectTrigger>
@@ -206,7 +317,45 @@ const Reports = () => {
                 </SelectItem>
                 {branches.map((branch) => (
                   <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.code}) - {branch.city}
+                    {branch.name} ({branch.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Year Selection (for annual reports) */}
+          <div className="min-w-[120px]">
+            <Label className="text-sm font-medium mb-2 block">
+              {language === 'pt' ? 'Ano' : 'Year'}
+            </Label>
+            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Employee Selection (for income declaration) */}
+          <div className="flex-1 min-w-[200px]">
+            <Label className="text-sm font-medium mb-2 block">
+              {language === 'pt' ? 'Funcionário (Declaração)' : 'Employee (Declaration)'}
+            </Label>
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger>
+                <SelectValue placeholder={language === 'pt' ? 'Seleccionar funcionário' : 'Select employee'} />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -215,21 +364,19 @@ const Reports = () => {
           
           {/* Info display */}
           <div className="text-sm text-muted-foreground">
-            {selectedPeriod && (
-              <p><strong>{language === 'pt' ? 'Período' : 'Period'}:</strong> {periodLabel}</p>
-            )}
-            {selectedBranch && (
-              <p><strong>{language === 'pt' ? 'Filial' : 'Branch'}:</strong> {selectedBranch.name}, {selectedBranch.city}</p>
-            )}
-            <p className="text-xs mt-1">
-              {filteredEntries.length} {language === 'pt' ? 'registos encontrados' : 'records found'}
+            <p className="text-xs">
+              {filteredEntries.length} {language === 'pt' ? 'registos' : 'records'}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {reports.map((report, index) => (
+      {/* Primary Reports */}
+      <h2 className="text-lg font-semibold text-foreground mb-4">
+        {language === 'pt' ? 'Relatórios Principais' : 'Primary Reports'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {primaryReports.map((report, index) => (
           <div 
             key={report.id} 
             className={`stat-card animate-slide-up hover:shadow-lg cursor-pointer group transition-all duration-200 ${!report.available ? 'opacity-60' : ''}`}
@@ -238,34 +385,102 @@ const Reports = () => {
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${report.color} text-white group-hover:scale-110 transition-transform duration-200`}>
-                  <report.icon className="h-6 w-6" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${report.color} text-white group-hover:scale-110 transition-transform duration-200`}>
+                  <report.icon className="h-5 w-5" />
                 </div>
                 <div>
                   <h3 className="font-display font-semibold text-foreground group-hover:text-accent transition-colors">{report.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{report.description}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {report.available 
-                      ? (language === 'pt' ? 'Clique para imprimir' : 'Click to print')
-                      : (language === 'pt' ? 'Sem dados disponíveis' : 'No data available')
-                    }
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{report.description}</p>
                 </div>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                disabled={!report.available}
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 stat-card animate-slide-up" style={{ animationDelay: "200ms" }}>
+      {/* Fiscal/Compliance Reports */}
+      <h2 className="text-lg font-semibold text-foreground mb-4">
+        {language === 'pt' ? 'Relatórios Fiscais (INSS/IRT)' : 'Fiscal Reports (INSS/IRT)'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {fiscalReports.map((report, index) => (
+          <div 
+            key={report.id} 
+            className={`stat-card animate-slide-up hover:shadow-lg cursor-pointer group transition-all duration-200 ${!report.available ? 'opacity-60' : ''}`}
+            style={{ animationDelay: `${index * 50}ms` }}
+            onClick={() => handleOpenReport(report.type)}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${report.color} text-white group-hover:scale-110 transition-transform duration-200`}>
+                  <report.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-foreground group-hover:text-accent transition-colors">{report.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">{report.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* HR/Operational Reports */}
+      <h2 className="text-lg font-semibold text-foreground mb-4">
+        {language === 'pt' ? 'Relatórios de RH/Operacionais' : 'HR/Operational Reports'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {hrReports.map((report, index) => (
+          <div 
+            key={report.id} 
+            className={`stat-card animate-slide-up hover:shadow-lg cursor-pointer group transition-all duration-200 ${!report.available ? 'opacity-60' : ''}`}
+            style={{ animationDelay: `${index * 50}ms` }}
+            onClick={() => handleOpenReport(report.type)}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${report.color} text-white group-hover:scale-110 transition-transform duration-200`}>
+                  <report.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-foreground group-hover:text-accent transition-colors">{report.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">{report.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Annual/Tax Reports */}
+      <h2 className="text-lg font-semibold text-foreground mb-4">
+        {language === 'pt' ? 'Relatórios Anuais/Fiscais' : 'Annual/Tax Reports'}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        {annualReports.map((report, index) => (
+          <div 
+            key={report.id} 
+            className={`stat-card animate-slide-up hover:shadow-lg cursor-pointer group transition-all duration-200 ${!report.available ? 'opacity-60' : ''}`}
+            style={{ animationDelay: `${index * 50}ms` }}
+            onClick={() => handleOpenReport(report.type)}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${report.color} text-white group-hover:scale-110 transition-transform duration-200`}>
+                  <report.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-foreground group-hover:text-accent transition-colors">{report.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">{report.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Stats */}
+      <div className="stat-card animate-slide-up" style={{ animationDelay: "200ms" }}>
         <h2 className="font-display text-lg font-semibold text-foreground mb-4">{t.reports.quickStats}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -347,6 +562,149 @@ const Reports = () => {
             onSaveRecords={handleSaveHolidayRecords}
             onClose={() => setOpenReport(null)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* INSS Map Dialog */}
+      <Dialog open={openReport === 'inss'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Mapa de INSS</DialogTitle>
+          </DialogHeader>
+          <PrintableINSSMap
+            entries={filteredEntries}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* IRT Map Dialog */}
+      <Dialog open={openReport === 'irt'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Mapa de IRT</DialogTitle>
+          </DialogHeader>
+          <PrintableIRTMap
+            entries={filteredEntries}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Holiday Report Dialog */}
+      <Dialog open={openReport === 'ferias'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Relatório de Férias</DialogTitle>
+          </DialogHeader>
+          <PrintableHolidayReport
+            employees={filteredEmployees}
+            holidayRecords={holidayRecords}
+            year={selectedYear}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Overtime Report Dialog */}
+      <Dialog open={openReport === 'overtime'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Relatório de Horas Extra</DialogTitle>
+          </DialogHeader>
+          <PrintableOvertimeReport
+            entries={filteredEntries}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Loan Report Dialog */}
+      <Dialog open={openReport === 'loans'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Relatório de Empréstimos</DialogTitle>
+          </DialogHeader>
+          <PrintableLoanReport
+            employees={employees}
+            loans={loans}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Annual Summary Dialog */}
+      <Dialog open={openReport === 'annual'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Resumo Anual - {selectedYear}</DialogTitle>
+          </DialogHeader>
+          <PrintableAnnualSummary
+            employees={employees}
+            entries={entries}
+            periods={periods}
+            year={selectedYear}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            branch={selectedBranch}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Branch Cost Analysis Dialog */}
+      <Dialog open={openReport === 'branch_cost'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Análise de Custos por Filial</DialogTitle>
+          </DialogHeader>
+          <PrintableBranchCostAnalysis
+            entries={filteredEntries}
+            employees={employees}
+            branches={branches}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Income Declaration Dialog */}
+      <Dialog open={openReport === 'income_declaration'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Declaração de Rendimentos - {selectedYear}</DialogTitle>
+          </DialogHeader>
+          {selectedEmployee && (
+            <PrintableIncomeDeclaration
+              employee={selectedEmployee}
+              entries={entries}
+              periods={periods}
+              year={selectedYear}
+              companyName={settings.companyName}
+              companyNif={settings.nif}
+              onClose={() => setOpenReport(null)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </TopNavLayout>
