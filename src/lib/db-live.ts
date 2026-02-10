@@ -81,7 +81,7 @@ export function initMockData(): void {
   }
   
   // Ensure other tables exist
-  ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'users', 'settings'].forEach(table => {
+  ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'users', 'settings', 'disciplinary_records', 'terminations', 'salary_adjustments', 'loans', 'documents'].forEach(table => {
     if (!localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`)) {
       setMockData(table, []);
     }

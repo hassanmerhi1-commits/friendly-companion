@@ -41,7 +41,7 @@ const statusColors: Record<DisciplinaryStatus, string> = {
 
 export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   const { language } = useLanguage();
-  const { getRecordsByEmployee, loadRecords, isLoaded } = useDisciplinaryStore();
+  const { getRecordsByEmployee, loadRecords } = useDisciplinaryStore();
   const { employees } = useEmployeeStore();
   const { settings } = useSettingsStore();
   
