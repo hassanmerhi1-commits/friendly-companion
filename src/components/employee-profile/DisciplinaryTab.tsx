@@ -41,7 +41,7 @@ const statusColors: Record<DisciplinaryStatus, string> = {
 
 export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   const { language } = useLanguage();
-  const { getRecordsByEmployee, loadRecords, isLoaded } = useDisciplinaryStore();
+  const { getRecordsByEmployee, loadRecords } = useDisciplinaryStore();
   const { employees } = useEmployeeStore();
   const { settings } = useSettingsStore();
   
@@ -50,12 +50,10 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const historyPrintRef = useRef<HTMLDivElement>(null);
 
-  // Ensure disciplinary records are loaded
+  // Always reload disciplinary records when tab mounts to ensure fresh data
   useEffect(() => {
-    if (!isLoaded) {
-      loadRecords();
-    }
-  }, [isLoaded, loadRecords]);
+    loadRecords();
+  }, [loadRecords]);
 
   const employee = employees.find((e) => e.id === employeeId);
   const records = getRecordsByEmployee(employeeId);
