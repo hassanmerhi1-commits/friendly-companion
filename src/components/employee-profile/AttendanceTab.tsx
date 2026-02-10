@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,8 +22,14 @@ interface AttendanceTabProps {
 
 export function AttendanceTab({ employeeId }: AttendanceTabProps) {
   const { language } = useLanguage();
-  const { entries: bulkEntries } = useBulkAttendanceStore();
-  const { absences } = useAbsenceStore();
+  const { entries: bulkEntries, loadEntries } = useBulkAttendanceStore();
+  const { absences, loadAbsences } = useAbsenceStore();
+
+  // Force reload data on mount to get latest
+  useEffect(() => {
+    loadEntries();
+    loadAbsences();
+  }, [loadEntries, loadAbsences]);
 
   // Filter bulk entries for this employee (sorted by year/month descending)
   const employeeBulkEntries = useMemo(() => {
