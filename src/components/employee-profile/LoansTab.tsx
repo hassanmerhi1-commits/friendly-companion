@@ -35,7 +35,12 @@ const statusLabels: Record<LoanStatus, { pt: string; en: string }> = {
 
 export function LoansTab({ employeeId }: LoansTabProps) {
   const { language } = useLanguage();
-  const { loans } = useLoanStore();
+  const { loans, loadLoans } = useLoanStore();
+
+  // Force reload loans on mount to get latest data
+  useEffect(() => {
+    loadLoans();
+  }, [loadLoans]);
 
   // Filter loans for this employee
   const employeeLoans = useMemo(() => {
