@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { useReactToPrint } from 'react-to-print';
