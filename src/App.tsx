@@ -30,6 +30,7 @@ import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
 import { ProvinceSelector } from "@/components/ProvinceSelector";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { TourProvider } from "@/components/AppTour";
 import { FirstRunSetup } from "@/components/FirstRunSetup";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
@@ -416,7 +417,9 @@ function AppContent() {
   return (
     <HashRouter>
       <AppErrorBoundary>
-        <AppRoutes />
+        <TourProvider>
+          <AppRoutes />
+        </TourProvider>
       </AppErrorBoundary>
     </HashRouter>
   );

@@ -75,7 +75,6 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     },
 
     addOrUpdateRecord: async (record) => {
-      // Check if holiday already registered AND paid for this year
       const existingRecord = get().records.find(
         r => r.employeeId === record.employeeId && r.year === record.year
       );
@@ -85,6 +84,14 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
         return { 
           success: false, 
           error: 'Férias já pagas para este ano / Holiday already paid for this year' 
+        };
+      }
+      
+      // If holiday dates already registered for this year, block duplicate registration
+      if (existingRecord?.startDate && record.startDate && existingRecord.startDate !== record.startDate) {
+        return {
+          success: false,
+          error: `Férias já registadas para ${record.year} (${new Date(existingRecord.startDate).toLocaleDateString('pt-AO')} - ${new Date(existingRecord.endDate!).toLocaleDateString('pt-AO')}). Não é possível registar novamente. / Holiday already registered for ${record.year}. Cannot register again.`
         };
       }
       
@@ -110,9 +117,15 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
           r => r.employeeId === newRecord.employeeId && r.year === newRecord.year
         );
         
-        // If subsidy already paid, skip this record and add error
+        // If subsidy already paid, skip this record
         if (existingRecord?.subsidyPaidInMonth && newRecord.startDate) {
           errors.push(`Funcionário já tem férias pagas em ${newRecord.year}`);
+          continue;
+        }
+        
+        // If holiday dates already exist, block duplicate
+        if (existingRecord?.startDate && newRecord.startDate && existingRecord.startDate !== newRecord.startDate) {
+          errors.push(`Funcionário já tem férias registadas em ${newRecord.year} (${new Date(existingRecord.startDate).toLocaleDateString('pt-AO')})`);
           continue;
         }
         
