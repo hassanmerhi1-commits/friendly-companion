@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TourButton } from "@/components/AppTour";
 import { 
   LayoutDashboard, 
   Users, 
@@ -112,8 +113,8 @@ export function TopNavbar() {
         </nav>
 
         {/* Right side - User menu */}
-        <div className="flex items-center gap-3">
-          {/* User Dropdown */}
+        <div className="flex items-center gap-2">
+          <TourButton />
           {currentUser && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
