@@ -103,7 +103,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
   // Update entry
   const updateEntry = (employeeId: string, field: 'absenceDays' | 'delayHours', value: number) => {
     const newValue = Math.max(0, value); // Ensure non-negative
-    const maxValue = field === 'absenceDays' ? 30 : 240; // Max 30 days or 240 hours (30 days * 8 hours)
+    const maxValue = field === 'absenceDays' ? 26 : 208; // Max 26 working days or 208 hours (26 days * 8 hours)
     const clampedValue = Math.min(newValue, maxValue);
     
     setLocalEntries(prev => ({
@@ -221,8 +221,8 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
     totalDeduction: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
     formula: language === 'pt' ? 'Fórmula de Cálculo' : 'Calculation Formula',
     formulaDesc: language === 'pt' 
-      ? 'Salário Total (base + bónus) ÷ 30 dias = Taxa Diária | Taxa Diária ÷ 8 horas = Taxa Horária'
-      : 'Total Salary (base + bonuses) ÷ 30 days = Daily Rate | Daily Rate ÷ 8 hours = Hourly Rate',
+      ? 'Salário Total (base + bónus) ÷ 26 dias úteis = Taxa Diária | Taxa Diária ÷ 8 horas = Taxa Horária'
+      : 'Total Salary (base + bonuses) ÷ 26 working days = Daily Rate | Daily Rate ÷ 8 hours = Hourly Rate',
     unsavedChanges: language === 'pt' ? 'Alterações não guardadas' : 'Unsaved changes',
   };
 
@@ -350,7 +350,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                           <Input
                             type="number"
                             min={0}
-                            max={30}
+                            max={26}
                             value={entry.absenceDays || ''}
                             onChange={(e) => updateEntry(emp.id, 'absenceDays', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
@@ -361,7 +361,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                           <Input
                             type="number"
                             min={0}
-                            max={240}
+                            max={208}
                             step={0.5}
                             value={entry.delayHours || ''}
                             onChange={(e) => updateEntry(emp.id, 'delayHours', parseFloat(e.target.value) || 0)}

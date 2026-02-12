@@ -8,7 +8,7 @@ import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChan
  * These values are used to calculate deductions in payroll.
  * 
  * Deduction Formula (using FULL salary including bonuses):
- * - Daily Rate = (Base Salary + All Bonuses) / 30
+ * - Daily Rate = (Base Salary + All Bonuses) / 26 working days
  * - Hourly Rate = Daily Rate / 8
  * - Absence Deduction = Daily Rate × Absence Days
  * - Delay Deduction = Hourly Rate × Delay Hours
@@ -230,7 +230,7 @@ export function cleanupBulkAttendanceStoreSync() {
 /**
  * Calculate deduction using FULL salary (base + all bonuses)
  * Formula:
- * - Daily Rate = Full Monthly Salary / 30
+ * - Daily Rate = Full Monthly Salary / 26 working days
  * - Hourly Rate = Daily Rate / 8
  * - Absence Deduction = Daily Rate × Absence Days
  * - Delay Deduction = Hourly Rate × Delay Hours
@@ -246,7 +246,7 @@ export function calculateBulkAttendanceDeduction(
   delayDeduction: number;
   totalDeduction: number;
 } {
-  const dailyRate = fullMonthlySalary / 30;
+  const dailyRate = fullMonthlySalary / 26;
   const hourlyRate = dailyRate / 8;
   const absenceDeduction = dailyRate * absenceDays;
   const delayDeduction = hourlyRate * delayHours;
