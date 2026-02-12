@@ -462,10 +462,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === entryId);
       if (!entry) return;
 
-      const hasSubsidy = entry.thirteenthMonth > 0;
-      const baseSalary = entry.baseSalary;
-
-      const subsidyValue = hasSubsidy ? 0 : (baseSalary * 0.5 * monthsWorked) / 12;
+      // monthsWorked parameter is now used as a direct value override
+      // If monthsWorked is provided as a specific amount, use it directly
+      const subsidyValue = monthsWorked;
 
       const payrollResult = calculatePayroll({
         baseSalary: entry.baseSalary,
@@ -503,10 +502,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === entryId);
       if (!entry) return;
 
+      // This method now accepts the value directly via updateEntry flow
+      // Keep for backward compatibility - toggles between 0 and default 50%
       const hasSubsidy = entry.holidaySubsidy > 0;
       const baseSalary = entry.baseSalary;
-
-      // Prefer employee-specific configured value when available; fallback to 50% of base salary
       const defaultValue = (entry.employee as any)?.holidaySubsidy ?? baseSalary * 0.5;
       const subsidyValue = hasSubsidy ? 0 : defaultValue;
 
@@ -556,7 +555,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === entryId);
       if (!entry) return;
 
-      // Use NEW formula: Full Salary (base + all bonuses) / 30 days
+      // Use NEW formula: Full Salary (base + all bonuses) / 26 working days
       // This matches the bulk attendance calculation
       const fullMonthlySalary = 
         entry.baseSalary + 
@@ -566,7 +565,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         (entry.monthlyBonus || 0) + 
         (entry.holidaySubsidy || 0);
       
-      const dailyRate = fullMonthlySalary / 30;
+      const dailyRate = fullMonthlySalary / 26;
       const absenceDeduction = dailyRate * daysAbsent;
       
       const oldAbsenceDeduction = entry.absenceDeduction || 0;

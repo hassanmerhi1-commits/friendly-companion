@@ -270,6 +270,43 @@ const Payroll = () => {
     toggle13thMonth(entry.id, monthsWorked);
   };
 
+  const handleUpdate13thMonth = (entry: PayrollEntry, value: number) => {
+    toggle13thMonth(entry.id, value);
+  };
+
+  const handleUpdateHolidaySubsidy = async (entry: PayrollEntry, value: number) => {
+    // Recalculate the entire entry with the new holiday subsidy value
+    const { calculatePayroll } = await import('@/lib/angola-labor-law');
+    
+    const payrollResult = calculatePayroll({
+      baseSalary: entry.baseSalary,
+      mealAllowance: entry.mealAllowance,
+      transportAllowance: entry.transportAllowance,
+      otherAllowances: entry.otherAllowances,
+      familyAllowanceValue: entry.familyAllowance,
+      overtimeHoursNormal: entry.overtimeHoursNormal,
+      overtimeHoursNight: entry.overtimeHoursNight,
+      overtimeHoursHoliday: entry.overtimeHoursHoliday,
+      isRetired: entry.employee?.isRetired ?? false,
+      thirteenthMonthValue: entry.thirteenthMonth || 0,
+      holidaySubsidyValue: value,
+    });
+
+    const extraDeductions = (entry.loanDeduction || 0) + (entry.advanceDeduction || 0) + (entry.absenceDeduction || 0) + (entry.otherDeductions || 0);
+
+    await updateEntry(entry.id, {
+      ...payrollResult,
+      totalDeductions: payrollResult.totalDeductions + extraDeductions,
+      netSalary: payrollResult.netSalary - extraDeductions,
+    });
+    
+    // Reload to refresh UI
+    await usePayrollStore.getState().loadPayroll();
+    if (entry.payrollPeriodId) {
+      await usePayrollStore.getState().calculatePeriod(entry.payrollPeriodId);
+    }
+  };
+
   const handleToggleHolidaySubsidy = (entry: PayrollEntry) => {
     toggleHolidaySubsidy(entry.id);
   };
@@ -641,38 +678,68 @@ const Payroll = () => {
                         )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        {!isHistoricalView ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            defaultValue={entry.holidaySubsidy || ''}
+                            key={`holiday-${entry.id}-${entry.holidaySubsidy}`}
+                            onBlur={(e) => {
+                              const value = parseFloat(e.target.value) || 0;
+                              const minValue = Math.round(entry.baseSalary * 0.5);
+                              if (value > 0 && value < minValue) {
+                                toast.error(
+                                  language === 'pt'
+                                    ? `Mínimo legal: ${formatAOA(minValue)} (50% do salário base)`
+                                    : `Legal minimum: ${formatAOA(minValue)} (50% of base salary)`
+                                );
+                                return;
+                              }
+                              if (value !== entry.holidaySubsidy) {
+                                handleUpdateHolidaySubsidy(entry, value);
+                              }
+                            }}
+                            className="w-24 text-right font-mono text-sm h-7"
+                            placeholder={formatAOA(Math.round(entry.baseSalary * 0.5))}
+                            title={language === 'pt' 
+                              ? `Mínimo: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% do salário base)` 
+                              : `Minimum: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% of base salary)`}
+                          />
+                        ) : (
                           <span className="font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</span>
-                          {!isHistoricalView && (
-                            <Button 
-                              variant={entry.holidaySubsidy > 0 ? "default" : "outline"} 
-                              size="sm"
-                              onClick={() => handleToggleHolidaySubsidy(entry)}
-                              className="h-6 px-2 text-xs"
-                              title={language === 'pt' ? '50% do salário base' : '50% of base salary'}
-                            >
-                              {entry.holidaySubsidy > 0 ? '✓' : '+'}
-                            </Button>
-                          )}
-                        </div>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        {!isHistoricalView ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            defaultValue={entry.thirteenthMonth || ''}
+                            key={`natal-${entry.id}-${entry.thirteenthMonth}`}
+                            onBlur={(e) => {
+                              const value = parseFloat(e.target.value) || 0;
+                              const minValue = Math.round(entry.baseSalary * 0.5);
+                              if (value > 0 && value < minValue) {
+                                toast.error(
+                                  language === 'pt'
+                                    ? `Mínimo legal: ${formatAOA(minValue)} (50% do salário base)`
+                                    : `Legal minimum: ${formatAOA(minValue)} (50% of base salary)`
+                                );
+                                return;
+                              }
+                              if (value !== entry.thirteenthMonth) {
+                                handleUpdate13thMonth(entry, value);
+                              }
+                            }}
+                            className="w-24 text-right font-mono text-sm h-7"
+                            placeholder={formatAOA(Math.round(entry.baseSalary * 0.5))}
+                            title={language === 'pt' 
+                              ? `Mínimo: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% do salário base)` 
+                              : `Minimum: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% of base salary)`}
+                          />
+                        ) : (
                           <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
-                          {!isHistoricalView && (
-                            <Button 
-                              variant={entry.thirteenthMonth > 0 ? "default" : "outline"} 
-                              size="sm"
-                              onClick={() => handleToggle13thMonth(entry)}
-                              className="h-6 px-2 text-xs"
-                              title={language === 'pt' 
-                                ? `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} meses trabalhados` 
-                                : `${entry.employee?.hireDate ? getMonthsWorked(entry.employee.hireDate) : 12} months worked`}
-                            >
-                              {entry.thirteenthMonth > 0 ? '✓' : '+'}
-                            </Button>
-                          )}
-                        </div>
+                        )}
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
