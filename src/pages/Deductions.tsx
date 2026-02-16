@@ -126,9 +126,9 @@ export default function Deductions() {
     return `${monthNames[p.month - 1]} ${p.year}`;
   };
 
-  const pageTitle = language === 'pt' ? 'Descontos' : 'Deductions';
+  const pageTitle = language === 'pt' ? 'Deduções' : 'Deductions';
   const pageSubtitle = language === 'pt' 
-    ? 'Adiantamentos salariais, perdas no armazém e outros descontos' 
+    ? 'Adiantamentos salariais, perdas no armazém e outras deduções' 
     : 'Salary advances, warehouse losses and other deductions';
   const addDeductionLabel = language === 'pt' ? 'Novo Desconto' : 'New Deduction';
 

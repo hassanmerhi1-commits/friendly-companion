@@ -42,7 +42,7 @@
     "payrollHistory": "Histórico Folhas",
     "hrDashboard": "Painel RH",
     "attendance": "Presenças",
-    "deductions": "Descontos",
+    "deductions": "Deduções",
     "branches": "Filiais",
     "laborLaw": "Lei do Trabalho",
     "taxSimulator": "Simulador IRT",
@@ -197,7 +197,7 @@
     "branches": "Filiais",
     "payrollPeriods": "Períodos de Folha",
     "payrollEntries": "Registos de Folha",
-    "deductionsCount": "Descontos",
+    "deductionsCount": "Deduções",
     "lastBackup": "Último backup",
     "never": "Nunca"
   },

@@ -198,14 +198,14 @@ export const translations = {
       branches: 'Filiais',
       payrollPeriods: 'Períodos de Folha',
       payrollEntries: 'Registos de Folha',
-      deductionsCount: 'Descontos',
+      deductionsCount: 'Deduções',
       lastBackup: 'Último backup',
       never: 'Nunca',
     },
     
     // Deductions
     deductions: {
-      title: 'Descontos',
+      title: 'Deduções',
       subtitle: 'Gerir adiantamentos salariais e perdas no armazém',
       addDeduction: 'Adicionar Desconto',
       salaryAdvance: 'Adiantamento Salarial',
