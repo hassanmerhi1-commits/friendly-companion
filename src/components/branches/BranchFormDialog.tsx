@@ -24,11 +24,12 @@ const defaultFormData: BranchFormData = {
   address: '',
   phone: '',
   email: '',
+  pin: '',
   isHeadquarters: false,
 };
 
 export function BranchFormDialog({ open, onOpenChange, branch }: BranchFormDialogProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { addBranch, updateBranch } = useBranchStore();
   const [formData, setFormData] = useState<BranchFormData>(defaultFormData);
 
@@ -42,6 +43,7 @@ export function BranchFormDialog({ open, onOpenChange, branch }: BranchFormDialo
         address: branch.address,
         phone: branch.phone || '',
         email: branch.email || '',
+        pin: branch.pin || '',
         isHeadquarters: branch.isHeadquarters,
       });
     } else {
@@ -172,6 +174,20 @@ export function BranchFormDialog({ open, onOpenChange, branch }: BranchFormDialo
               onCheckedChange={(v) => setFormData(prev => ({ ...prev, isHeadquarters: v }))}
             />
             <Label>{t.branches.isHeadquarters}</Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'PIN de Acesso (Presenças Filial)' : 'Access PIN (Branch Attendance)'}</Label>
+            <Input
+              value={formData.pin || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+              placeholder="1234"
+              maxLength={6}
+              inputMode="numeric"
+            />
+            <p className="text-xs text-muted-foreground">
+              {language === 'pt' ? 'PIN de 4-6 dígitos para o chefe de filial marcar presenças' : '4-6 digit PIN for branch chief to mark attendance'}
+            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t">

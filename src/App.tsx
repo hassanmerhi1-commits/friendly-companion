@@ -51,7 +51,7 @@ import NotFound from "./pages/NotFound";
 import TaxSimulator from "./pages/TaxSimulator";
 import PayrollHistory from "./pages/PayrollHistory";
 import EmployeeProfile from "./pages/EmployeeProfile";
-
+import BranchAttendance from "./pages/BranchAttendance";
 const queryClient = new QueryClient();
 
 // Check if we're in development/preview mode (not Electron)
@@ -151,6 +151,8 @@ const AppRoutes = () => {
       <Route path="/login" element={
         isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
       } />
+      {/* Branch attendance - standalone, PIN-protected (no login required) */}
+      <Route path="/branch-attendance" element={<BranchAttendance />} />
       {/* Dashboard - accessible to all authenticated users */}
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       
