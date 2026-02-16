@@ -81,11 +81,30 @@ export function initMockData(): void {
   }
   
   // Ensure other tables exist
-  ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'users', 'settings', 'disciplinary_records', 'terminations', 'salary_adjustments', 'loans', 'documents'].forEach(table => {
+  ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'settings', 'disciplinary_records', 'terminations', 'salary_adjustments', 'loans', 'documents'].forEach(table => {
     if (!localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`)) {
       setMockData(table, []);
     }
   });
+
+  // Always ensure a default admin user exists in mock users table
+  const existingUsers = getMockData<any>('users');
+  const hasAdmin = existingUsers.some((u: any) => u.username === 'admin');
+  if (!hasAdmin) {
+    const defaultAdmin = {
+      id: 'admin-001',
+      username: 'admin',
+      password: 'admin',
+      name: 'Administrador',
+      role: 'admin',
+      is_active: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    existingUsers.push(defaultAdmin);
+    setMockData('users', existingUsers);
+    console.log('[DB-Live] Default admin user seeded in mock data');
+  }
 }
 
 // ============= PUSH-BASED SYNC SYSTEM =============
