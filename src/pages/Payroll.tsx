@@ -26,6 +26,7 @@ import { BatchReceiptPrinter } from "@/components/payroll/BatchReceiptPrinter";
 import { BankPaymentExport } from "@/components/payroll/BankPaymentExport";
 import { PrintableColaboradorSheet } from "@/components/payroll/PrintableColaboradorSheet";
 import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
+import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -68,6 +69,10 @@ const Payroll = () => {
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
   const [unarchiveDialogOpen, setUnarchiveDialogOpen] = useState(false);
+  
+  // Early payment dialog
+  const [earlyPaymentDialogOpen, setEarlyPaymentDialogOpen] = useState(false);
+  const [earlyPaymentEntry, setEarlyPaymentEntry] = useState<PayrollEntry | null>(null);
   const pendingAbsences = getPendingAbsences();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
@@ -843,18 +848,29 @@ const Payroll = () => {
                             size="sm" 
                             className="h-7 px-2 text-xs"
                             onClick={async () => {
-                              await updateEntry(entry.id, { paidEarly: !entry.paidEarly });
-                              await usePayrollStore.getState().loadPayroll();
-                              toast.success(
-                                entry.paidEarly
-                                  ? (language === 'pt' ? 'Pagamento antecipado removido' : 'Early payment removed')
-                                  : (language === 'pt' ? 'Marcado como pago antecipadamente' : 'Marked as paid early')
-                              );
+                              if (entry.paidEarly) {
+                                // Remove early payment flag directly
+                                await updateEntry(entry.id, { paidEarly: false });
+                                await usePayrollStore.getState().loadPayroll();
+                                toast.success(language === 'pt' ? 'Pagamento antecipado removido' : 'Early payment removed');
+                              } else {
+                                // Open early payment dialog with receipt
+                                setEarlyPaymentEntry(entry);
+                                setEarlyPaymentDialogOpen(true);
+                              }
                             }}
-                            title={language === 'pt' ? 'Marcar como pago antecipadamente (líquido = 0)' : 'Mark as paid early (net = 0)'}
+                            title={entry.paidEarly 
+                              ? (language === 'pt' ? 'Remover pagamento antecipado' : 'Remove early payment')
+                              : (language === 'pt' ? 'Marcar como pago antecipadamente' : 'Mark as paid early')
+                            }
                           >
                             <HandCoins className="h-3.5 w-3.5" />
                           </Button>
+                        )}
+                        {entry.paidEarly && isHistoricalView && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                            {language === 'pt' ? 'PA' : 'EP'}
+                          </span>
                         )}
                         <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
                           <Receipt className="h-4 w-4" />
@@ -1133,6 +1149,24 @@ const Payroll = () => {
           if (!currentPeriod) return;
           await unarchivePeriod(currentPeriod.id);
           toast.success(language === 'pt' ? 'Período desarquivado com sucesso' : 'Period unarchived successfully');
+        }}
+      />
+
+      {/* Early Payment Dialog */}
+      <EarlyPaymentDialog
+        open={earlyPaymentDialogOpen}
+        onOpenChange={setEarlyPaymentDialogOpen}
+        entry={earlyPaymentEntry}
+        employee={earlyPaymentEntry?.employee || null}
+        periodLabel={periodLabel}
+        companyName={settings.companyName}
+        companyNif={settings.nif}
+        onConfirm={async () => {
+          if (!earlyPaymentEntry) return;
+          await updateEntry(earlyPaymentEntry.id, { paidEarly: true });
+          await usePayrollStore.getState().loadPayroll();
+          toast.success(language === 'pt' ? 'Pagamento antecipado registado com sucesso' : 'Early payment registered successfully');
+          setEarlyPaymentEntry(null);
         }}
       />
     </TopNavLayout>
