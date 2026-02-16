@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -65,6 +65,7 @@ const Employees = () => {
   const branches = allBranches.filter(b => b.isActive);
   const [search, setSearch] = useState("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [formOpen, setFormOpen] = useState(false);
@@ -91,7 +92,13 @@ const Employees = () => {
       
       const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
       
-      return matchesSearch && matchesBranch;
+      const matchesStatus = statusFilter === 'all' 
+        ? true 
+        : statusFilter === 'terminated' 
+          ? emp.status === 'terminated'
+          : emp.status === 'active';
+      
+      return matchesSearch && matchesBranch && matchesStatus;
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -124,23 +131,24 @@ const Employees = () => {
   };
 
   function getStatusLabel(status: Employee["status"]): string {
-    const labels = {
+    const labels: Record<string, string> = {
       active: t.common.active,
       inactive: t.common.inactive,
       on_leave: t.common.onLeave,
-      terminated: t.common.inactive,
+      terminated: language === 'pt' ? 'Despedido' : 'Terminated',
     };
-    return labels[status];
+    return labels[status] || status;
   }
 
   function getContractLabel(contract: Employee["contractType"]): string {
-    const labels = {
+    const labels: Record<string, string> = {
       permanent: t.employees.permanent,
       fixed_term: t.employees.fixedTerm,
       part_time: t.employees.partTime,
       probation: t.employees.probation,
+      colaborador: language === 'pt' ? 'Colaborador' : 'Collaborator',
     };
-    return labels[contract];
+    return labels[contract] || contract;
   }
 
   const handleEdit = (emp: Employee) => {
@@ -229,6 +237,19 @@ const Employees = () => {
                 {branch.name} ({branch.city})
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        {/* Status Filter */}
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[200px]">
+            <Archive className="h-4 w-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">{language === 'pt' ? 'Activos' : 'Active'}</SelectItem>
+            <SelectItem value="terminated">{language === 'pt' ? 'Arquivados / Despedidos' : 'Archived / Terminated'}</SelectItem>
+            <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
           </SelectContent>
         </Select>
         
