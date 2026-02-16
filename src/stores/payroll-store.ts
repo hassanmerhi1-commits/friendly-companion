@@ -106,6 +106,7 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     position: row.employee_position || '',
     department: row.employee_department || '',
     branchId: row.branch_id || '',
+    contractType: row.contract_type || '',
   } as any : undefined;
 
   return {
@@ -156,6 +157,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     employee_position: e.employee?.position || null,
     employee_department: e.employee?.department || null,
     branch_id: e.employee?.branchId || null,
+    contract_type: e.employee?.contractType || null,
     base_salary: e.baseSalary,
     gross_salary: e.grossSalary,
     net_salary: e.netSalary,
@@ -367,6 +369,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             otherAllowances: emp.otherAllowances,
             familyAllowanceValue: emp.familyAllowance || 0,
             isRetired: emp.isRetired,
+            isColaborador: emp.contractType === 'colaborador',
             include13thMonth: false,
             includeHolidaySubsidy: shouldPayHolidaySubsidy,
             holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,

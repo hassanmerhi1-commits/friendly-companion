@@ -369,6 +369,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                       <SelectItem value="fixed_term">{t.employees.fixedTerm}</SelectItem>
                       <SelectItem value="part_time">{t.employees.partTime}</SelectItem>
                       <SelectItem value="probation">{t.employees.probation}</SelectItem>
+                      <SelectItem value="colaborador">{t.employees.colaborador}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

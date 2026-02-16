@@ -30,11 +30,13 @@ const Index = () => {
 
   // Only compute if user has permission
   const activeEmployees = canViewEmployees ? employees.filter(emp => emp.status === 'active') : [];
+  // Exclude colaboradores from dashboard salary stats
+  const regularActiveEmployees = activeEmployees.filter(emp => emp.contractType !== 'colaborador');
   const currentPeriod = canViewPayroll 
     ? (periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1])
     : null;
-  const employeeIdSet = new Set(employees.map(e => e.id));
-  const currentEntries = (canViewPayroll && currentPeriod) ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && employeeIdSet.has(e.employeeId)) : [];
+  const regularEmployeeIdSet = new Set(regularActiveEmployees.map(e => e.id));
+  const currentEntries = (canViewPayroll && currentPeriod) ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && regularEmployeeIdSet.has(e.employeeId)) : [];
   const totalPayroll = canViewPayroll ? currentEntries.reduce((sum, e) => sum + e.netSalary, 0) : 0;
   const paidEmployees = canViewPayroll ? currentEntries.filter(e => e.status === 'paid').length : 0;
   const pendingCount = canViewPayroll ? currentEntries.filter(e => e.status !== 'paid').length : 0;

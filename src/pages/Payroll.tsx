@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -24,6 +24,7 @@ import { OvertimeAbsenceDialog } from "@/components/payroll/OvertimeAbsenceDialo
 import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { BatchReceiptPrinter } from "@/components/payroll/BatchReceiptPrinter";
 import { BankPaymentExport } from "@/components/payroll/BankPaymentExport";
+import { PrintableColaboradorSheet } from "@/components/payroll/PrintableColaboradorSheet";
 import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
@@ -58,6 +59,10 @@ const Payroll = () => {
   const [batchReceiptOpen, setBatchReceiptOpen] = useState(false);
   const [bankExportOpen, setBankExportOpen] = useState(false);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  
+  // Colaborador sheet state
+  const [colaboradorBranchId, setColaboradorBranchId] = useState<string>('');
+  const [printColaboradorSheetOpen, setPrintColaboradorSheetOpen] = useState(false);
   
   // Password-protected action dialogs
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -165,9 +170,19 @@ const Payroll = () => {
     return await createPeriod(targetYear, targetMonth);
   };
 
-  // Filter entries by branch for payroll sheet
+  // Helper: check if an entry is for a colaborador
+  const isColaboradorEntry = (e: PayrollEntry) => {
+    const emp = e.employee || employees.find(emp => emp.id === e.employeeId);
+    return emp?.contractType === 'colaborador';
+  };
+
+  // Split entries: regular employees vs colaboradores
+  const regularEntries = currentEntries.filter(e => !isColaboradorEntry(e));
+  const colaboradorEntries = currentEntries.filter(e => isColaboradorEntry(e));
+
+  // Filter entries by branch for payroll sheet (REGULAR only)
   const payrollSheetEntries = selectedBranchId 
-    ? currentEntries
+    ? regularEntries
         .filter(e => {
           if (e.employee?.branchId === selectedBranchId) return true;
           const currentEmployee = employees.find(emp => emp.id === e.employeeId);
@@ -179,11 +194,28 @@ const Payroll = () => {
             ? { ...e, employee: { ...e.employee, ...currentEmployee } }
             : e;
         })
-    : currentEntries;
+    : regularEntries;
+
+  // Filter colaborador entries by branch
+  const colaboradorBranch = branches.find(b => b.id === colaboradorBranchId);
+  const colaboradorSheetEntries = colaboradorBranchId
+    ? colaboradorEntries
+        .filter(e => {
+          if (e.employee?.branchId === colaboradorBranchId) return true;
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee?.branchId === colaboradorBranchId;
+        })
+        .map(e => {
+          const currentEmployee = employees.find(emp => emp.id === e.employeeId);
+          return currentEmployee 
+            ? { ...e, employee: { ...e.employee, ...currentEmployee } }
+            : e;
+        })
+    : [];
 
   // Filter entries by branch for bonus sheet - check both entry.employee.branchId and current employee branchId
   const bonusSheetEntries = bonusBranchId 
-    ? currentEntries
+    ? regularEntries
         .filter(e => {
           // First check entry's employee branchId
           if (e.employee?.branchId === bonusBranchId) return true;
@@ -200,7 +232,7 @@ const Payroll = () => {
         })
     : [];
   
-  const totals = currentEntries.reduce((acc, e) => ({
+  const totals = regularEntries.reduce((acc, e) => ({
     gross: acc.gross + e.grossSalary,
     deductions: acc.deductions + e.totalDeductions,
     net: acc.net + e.netSalary,
@@ -288,6 +320,7 @@ const Payroll = () => {
       overtimeHoursNight: entry.overtimeHoursNight,
       overtimeHoursHoliday: entry.overtimeHoursHoliday,
       isRetired: entry.employee?.isRetired ?? false,
+      isColaborador: entry.employee?.contractType === 'colaborador',
       thirteenthMonthValue: entry.thirteenthMonth || 0,
       holidaySubsidyValue: value,
     });
@@ -588,9 +621,55 @@ const Payroll = () => {
         </div>
       </div>
 
+      {/* Colaboradores Sheet by Branch */}
+      {colaboradorEntries.length > 0 && (
+        <div className="stat-card mb-6 border-amber-500/30">
+          <div className="flex flex-wrap items-center gap-6">
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-amber-500" />
+              {language === 'pt' ? 'Folha de Colaboradores por Filial' : 'Collaborators Sheet by Branch'}
+            </h3>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+              {language === 'pt' ? 'Sem INSS / Sem IRT' : 'No INSS / No IRT'}
+            </span>
+            <div className="flex items-center gap-2">
+              <Label>{language === 'pt' ? 'Selecionar Filial:' : 'Select Branch:'}</Label>
+              <Select value={colaboradorBranchId} onValueChange={setColaboradorBranchId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder={language === 'pt' ? 'Escolher filial' : 'Choose branch'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name} ({branch.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              variant="accent" 
+              onClick={() => setPrintColaboradorSheetOpen(true)} 
+              disabled={!colaboradorBranchId || colaboradorSheetEntries.length === 0}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              {language === 'pt' ? 'Imprimir Folha Colaboradores' : 'Print Collaborators Sheet'}
+            </Button>
+            {colaboradorBranchId && (
+              <span className="text-sm text-muted-foreground">
+                {colaboradorSheetEntries.length} {language === 'pt' ? 'colaboradores' : 'collaborators'}
+              </span>
+            )}
+            <span className="text-sm text-muted-foreground">
+              ({colaboradorEntries.length} {language === 'pt' ? 'total colaboradores' : 'total collaborators'})
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Stats based on filtered entries when branch is selected */}
       {(() => {
-        const displayEntries = selectedBranchId ? payrollSheetEntries : currentEntries;
+        const displayEntries = selectedBranchId ? payrollSheetEntries : regularEntries;
         const displayTotals = displayEntries.reduce((acc, e) => ({
           gross: acc.gross + e.grossSalary,
           deductions: acc.deductions + e.totalDeductions,
@@ -607,7 +686,7 @@ const Payroll = () => {
         );
       })()}
 
-      {currentEntries.length > 0 && (
+      {regularEntries.length > 0 && (
         <div className="stat-card p-0 overflow-hidden mb-6">
           <div className="p-4 border-b border-border">
             <h2 className="font-semibold">{t.payroll.employeeDetails}</h2>
@@ -631,7 +710,7 @@ const Payroll = () => {
               </thead>
               <tbody className="divide-y divide-border">
                 {/* Show only entries for selected branch, or all if no branch selected */}
-                {(selectedBranchId ? payrollSheetEntries : currentEntries).map(entry => {
+                {(selectedBranchId ? payrollSheetEntries : regularEntries).map(entry => {
                   const totalOvertimeHours = (entry.overtimeHoursNormal || 0) + (entry.overtimeHoursNight || 0) + (entry.overtimeHoursHoliday || 0);
                   const totalOvertimeValue = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
                   return (
@@ -877,6 +956,27 @@ const Payroll = () => {
             branch={selectedBranch}
             warehouseName={warehouseName}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Printable Colaborador Sheet Dialog */}
+      <Dialog open={printColaboradorSheetOpen} onOpenChange={setPrintColaboradorSheetOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'pt' ? 'Folha de Colaboradores' : 'Collaborators Sheet'} - {colaboradorBranch?.name || ''}
+            </DialogTitle>
+          </DialogHeader>
+          {colaboradorBranch && (
+            <PrintableColaboradorSheet
+              entries={colaboradorSheetEntries}
+              periodLabel={periodLabel}
+              companyName={settings.companyName}
+              companyNif={settings.nif}
+              branch={colaboradorBranch}
+              warehouseName={warehouseName}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

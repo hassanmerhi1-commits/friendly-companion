@@ -794,6 +794,7 @@ function createNewDatabaseInternal(targetPath) {
         employee_position TEXT,
         employee_department TEXT,
         branch_id TEXT,
+        contract_type TEXT,
         base_salary REAL DEFAULT 0,
         gross_salary REAL DEFAULT 0,
         net_salary REAL DEFAULT 0,
@@ -1098,6 +1099,7 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'employee_position', "ALTER TABLE payroll_entries ADD COLUMN employee_position TEXT");
     addColumnIfMissing('payroll_entries', 'employee_department', "ALTER TABLE payroll_entries ADD COLUMN employee_department TEXT");
     addColumnIfMissing('payroll_entries', 'branch_id', "ALTER TABLE payroll_entries ADD COLUMN branch_id TEXT");
+    addColumnIfMissing('payroll_entries', 'contract_type', "ALTER TABLE payroll_entries ADD COLUMN contract_type TEXT");
 
     addColumnIfMissing('payroll_entries', 'base_salary', "ALTER TABLE payroll_entries ADD COLUMN base_salary REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'gross_salary', "ALTER TABLE payroll_entries ADD COLUMN gross_salary REAL DEFAULT 0");

@@ -436,6 +436,7 @@ export interface PayrollInput {
   overtimeHoursNight?: number;
   overtimeHoursHoliday?: number;
   isRetired?: boolean;
+  isColaborador?: boolean; // Colaboradores: no INSS, no IRT
 
   // Auto-calculated subsidies
   include13thMonth?: boolean;
@@ -490,6 +491,7 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
     overtimeHoursNight = 0,
     overtimeHoursHoliday = 0,
     isRetired = false,
+    isColaborador = false,
     include13thMonth = false,
     monthsWorkedThisYear = 12,
     includeHolidaySubsidy = false,
@@ -519,30 +521,42 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   // INSS Calculation
   // INSS base = Base + Transport + Meal + Natal (13º) + Abono + Overtime + Other
   // NOT including: Subsídio de Férias
+  // Colaboradores: NO INSS at all
   // =========================================================================
   const overtimeTotal = overtimeNormal + overtimeNight + overtimeHoliday;
-  const inssBase = baseSalary + transportAllowance + mealAllowance + thirteenthMonth + 
-                   familyAllowance + overtimeTotal + otherAllowances;
-  const { employeeContribution: inssEmployee, employerContribution: inssEmployer } = 
-    calculateINSS(inssBase, isRetired);
+  let inssEmployee = 0;
+  let inssEmployer = 0;
+  
+  if (!isColaborador) {
+    const inssBase = baseSalary + transportAllowance + mealAllowance + thirteenthMonth + 
+                     familyAllowance + overtimeTotal + otherAllowances;
+    const inssResult = calculateINSS(inssBase, isRetired);
+    inssEmployee = inssResult.employeeContribution;
+    inssEmployer = inssResult.employerContribution;
+  }
 
   // =========================================================================
   // IRT Calculation
   // Transport/Meal: Only EXCESS above 30,000 Kz is taxable
   // Férias and Natal: Fully taxable
   // NOT included: Abono de Família
+  // Colaboradores: NO IRT at all
   // =========================================================================
-  const taxableTransport = getIRTTaxableAllowance(transportAllowance);
-  const taxableMeal = getIRTTaxableAllowance(mealAllowance);
+  let irt = 0;
   
-  const irtTaxableGross = baseSalary + taxableTransport + taxableMeal +
-                          thirteenthMonth + holidaySubsidy + overtimeTotal + otherAllowances;
-  
-  // Rendimento Coletável = IRT Taxable Gross - INSS
-  const rendimentoColetavel = irtTaxableGross - inssEmployee;
-  
-  // Calculate IRT on the rendimento coletável
-  const irt = calculateIRT(rendimentoColetavel);
+  if (!isColaborador) {
+    const taxableTransport = getIRTTaxableAllowance(transportAllowance);
+    const taxableMeal = getIRTTaxableAllowance(mealAllowance);
+    
+    const irtTaxableGross = baseSalary + taxableTransport + taxableMeal +
+                            thirteenthMonth + holidaySubsidy + overtimeTotal + otherAllowances;
+    
+    // Rendimento Coletável = IRT Taxable Gross - INSS
+    const rendimentoColetavel = irtTaxableGross - inssEmployee;
+    
+    // Calculate IRT on the rendimento coletável
+    irt = calculateIRT(rendimentoColetavel);
+  }
 
   // Gross salary includes everything (for display purposes)
   const grossSalary = baseSalary + mealAllowance + transportAllowance + familyAllowance +
