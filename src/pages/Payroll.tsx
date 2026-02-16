@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -235,7 +235,7 @@ const Payroll = () => {
   const totals = regularEntries.reduce((acc, e) => ({
     gross: acc.gross + e.grossSalary,
     deductions: acc.deductions + e.totalDeductions,
-    net: acc.net + e.netSalary,
+    net: acc.net + (e.paidEarly ? 0 : e.netSalary),
   }), { gross: 0, deductions: 0, net: 0 });
 
   // Calculate months worked for an employee
@@ -673,7 +673,7 @@ const Payroll = () => {
         const displayTotals = displayEntries.reduce((acc, e) => ({
           gross: acc.gross + e.grossSalary,
           deductions: acc.deductions + e.totalDeductions,
-          net: acc.net + e.netSalary,
+          net: acc.net + (e.paidEarly ? 0 : e.netSalary),
         }), { gross: 0, deductions: 0, net: 0 });
         
         return (
@@ -823,8 +823,39 @@ const Payroll = () => {
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">{formatAOA(entry.netSalary)}</td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">
+                        {entry.paidEarly ? (
+                          <span className="flex items-center justify-end gap-1">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                              {language === 'pt' ? 'Pago Antecip.' : 'Paid Early'}
+                            </span>
+                            <span className="line-through text-muted-foreground">{formatAOA(entry.netSalary)}</span>
+                            <span>{formatAOA(0)}</span>
+                          </span>
+                        ) : (
+                          formatAOA(entry.netSalary)
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right flex items-center justify-end gap-1">
+                        {!isHistoricalView && (
+                          <Button 
+                            variant={entry.paidEarly ? "destructive" : "outline"} 
+                            size="sm" 
+                            className="h-7 px-2 text-xs"
+                            onClick={async () => {
+                              await updateEntry(entry.id, { paidEarly: !entry.paidEarly });
+                              await usePayrollStore.getState().loadPayroll();
+                              toast.success(
+                                entry.paidEarly
+                                  ? (language === 'pt' ? 'Pagamento antecipado removido' : 'Early payment removed')
+                                  : (language === 'pt' ? 'Marcado como pago antecipadamente' : 'Marked as paid early')
+                              );
+                            }}
+                            title={language === 'pt' ? 'Marcar como pago antecipadamente (líquido = 0)' : 'Mark as paid early (net = 0)'}
+                          >
+                            <HandCoins className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
                           <Receipt className="h-4 w-4" />
                         </Button>

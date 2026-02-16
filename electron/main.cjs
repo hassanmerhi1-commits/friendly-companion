@@ -1136,6 +1136,7 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'advance_deduction', "ALTER TABLE payroll_entries ADD COLUMN advance_deduction REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'other_deductions_amount', "ALTER TABLE payroll_entries ADD COLUMN other_deductions_amount REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'deduction_details', "ALTER TABLE payroll_entries ADD COLUMN deduction_details TEXT");
+    addColumnIfMissing('payroll_entries', 'paid_early', "ALTER TABLE payroll_entries ADD COLUMN paid_early INTEGER DEFAULT 0");
 
     addColumnIfMissing('payroll_entries', 'total_employer_cost', "ALTER TABLE payroll_entries ADD COLUMN total_employer_cost REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'status', "ALTER TABLE payroll_entries ADD COLUMN status TEXT DEFAULT 'draft'");
