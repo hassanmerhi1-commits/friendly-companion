@@ -1178,6 +1178,21 @@ function runMigrations() {
     // Add justified_absence_days column to bulk_attendance
     addColumnIfMissing('bulk_attendance', 'justified_absence_days', "ALTER TABLE bulk_attendance ADD COLUMN justified_absence_days REAL DEFAULT 0");
     
+    // Overtime payments table for daily overtime payment records
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS overtime_payments (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        branch_id TEXT,
+        branch_name TEXT,
+        entries TEXT,
+        total_amount REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Migration: Ensured overtime_payments table exists');
+    
     console.log('Database migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);
