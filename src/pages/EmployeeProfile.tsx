@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Printer } from 'lucide-react';
+import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Printer } from 'lucide-react';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
 import { ProfileHeader } from '@/components/employee-profile/ProfileHeader';
@@ -10,6 +10,7 @@ import { PayrollHistoryTab } from '@/components/employee-profile/PayrollHistoryT
 import { AttendanceTab } from '@/components/employee-profile/AttendanceTab';
 import { DisciplinaryTab } from '@/components/employee-profile/DisciplinaryTab';
 import { LoansTab } from '@/components/employee-profile/LoansTab';
+import { DeductionsTab } from '@/components/employee-profile/DeductionsTab';
 
 const EmployeeProfile = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,7 +52,7 @@ const EmployeeProfile = () => {
 
       {/* Tabs for different sections */}
       <Tabs defaultValue="payroll" className="mt-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
           <TabsTrigger value="payroll" className="gap-2">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">
@@ -76,6 +77,12 @@ const EmployeeProfile = () => {
               {language === 'pt' ? 'Empréstimos' : 'Loans'}
             </span>
           </TabsTrigger>
+          <TabsTrigger value="deductions" className="gap-2">
+            <Receipt className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {language === 'pt' ? 'Deduções' : 'Deductions'}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="payroll" className="mt-6">
@@ -92,6 +99,10 @@ const EmployeeProfile = () => {
 
         <TabsContent value="loans" className="mt-6">
           <LoansTab employeeId={employee.id} />
+        </TabsContent>
+
+        <TabsContent value="deductions" className="mt-6">
+          <DeductionsTab employeeId={employee.id} />
         </TabsContent>
       </Tabs>
     </TopNavLayout>
