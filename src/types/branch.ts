@@ -13,6 +13,7 @@ export interface Branch {
   phone?: string;
   email?: string;
   managerId?: string; // Employee ID of branch manager
+  pin?: string; // 4-6 digit PIN for branch attendance access
   isHeadquarters: boolean;
   isActive: boolean;
   createdAt: string;
@@ -28,6 +29,7 @@ export interface BranchFormData {
   phone?: string;
   email?: string;
   managerId?: string;
+  pin?: string;
   isHeadquarters: boolean;
 }
 

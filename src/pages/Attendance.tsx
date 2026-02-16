@@ -6,6 +6,7 @@ import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
+import { BranchAttendanceImport } from "@/components/attendance/BranchAttendanceImport";
 import { useLanguage } from "@/lib/i18n";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
@@ -48,9 +49,12 @@ export default function Attendance() {
   return (
     <TopNavLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t.title}</h1>
-          <p className="text-muted-foreground">{t.subtitle}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{t.title}</h1>
+            <p className="text-muted-foreground">{t.subtitle}</p>
+          </div>
+          <BranchAttendanceImport />
         </div>
 
         <Tabs defaultValue="bulk" className="space-y-4">
