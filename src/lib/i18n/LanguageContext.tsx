@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, ReactNode, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo } from 'react';
+import i18n from './config';
 import { LANGUAGES, isRTL, type Language } from './config';
 
 // Re-export types
@@ -13,7 +13,7 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   /** New i18next translate function - use translate('key.path') */
-  translate: ReturnType<typeof useTranslation>['t'];
+  translate: (key: string, options?: any) => string;
   /** Backward compatible translation object - use t.key.path */
   t: TranslationTree;
   isRTL: boolean;
@@ -40,16 +40,24 @@ function deepMerge(base: any, override: any): any {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const { t: translate, i18n: i18nInstance } = useTranslation();
-  const language = (i18nInstance.language || 'pt') as Language;
+  const [language, setLanguageState] = useState<Language>((i18n.language || 'pt') as Language);
+
+  // Listen for language changes
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      setLanguageState(lng as Language);
+    };
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => { i18n.off('languageChanged', handleLanguageChanged); };
+  }, []);
+
+  const translate = useCallback((key: string, options?: any) => i18n.t(key, options) as string, [language]);
 
   // IMPORTANT: Most components still use the object-based `t.*` API.
-  // Previously we only supported pt/en and forced es/fr/ar to fallback to English.
-  // This keeps the old API but sources it from the active i18next JSON resources.
   const tObj = useMemo(() => {
     const safeBundle = (lng: Language) => {
       try {
-        return i18nInstance.getResourceBundle(lng, 'translation') as any;
+        return i18n.getResourceBundle(lng, 'translation') as any;
       } catch {
         return {};
       }
@@ -58,25 +66,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const base = safeBundle('pt');
     const current = safeBundle(language);
     return deepMerge(base, current);
-  }, [i18nInstance, language]);
+  }, [language]);
 
   const setLanguage = (lang: Language) => {
-    i18nInstance.changeLanguage(lang);
+    i18n.changeLanguage(lang);
   };
 
   // Apply RTL direction on mount and language change
   useEffect(() => {
-    const currentLang = (i18nInstance.language || 'pt') as Language;
-    document.documentElement.lang = currentLang;
-    document.documentElement.dir = isRTL(currentLang) ? 'rtl' : 'ltr';
+    document.documentElement.lang = language;
+    document.documentElement.dir = isRTL(language) ? 'rtl' : 'ltr';
 
-    // Add/remove RTL class for CSS targeting
-    if (isRTL(currentLang)) {
+    if (isRTL(language)) {
       document.documentElement.classList.add('rtl');
     } else {
       document.documentElement.classList.remove('rtl');
     }
-  }, [i18nInstance.language]);
+  }, [language]);
 
   return (
     <LanguageContext.Provider

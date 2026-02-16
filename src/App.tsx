@@ -238,6 +238,7 @@ function AppContent() {
           const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
 
           await Promise.all([
+            loadUsers(),
             loadEmployees(),
             loadBranches(),
             loadPayroll(),
