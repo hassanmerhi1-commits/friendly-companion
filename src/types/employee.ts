@@ -2,7 +2,7 @@
  * Employee data types for PayrollAO
  */
 
-export type EmployeeStatus = 'active' | 'inactive' | 'on_leave' | 'terminated';
+export type EmployeeStatus = 'active' | 'inactive' | 'on_leave' | 'terminated' | 'pending_approval';
 export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'probation' | 'colaborador';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'mobile_money';
 

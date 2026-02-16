@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive, CheckCircle, XCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
 import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
@@ -59,7 +60,9 @@ type SortOrder = 'asc' | 'desc';
 const Employees = () => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
-  const { employees, deleteEmployee } = useEmployeeStore();
+  const { employees, deleteEmployee, approveEmployee, rejectEmployee } = useEmployeeStore();
+  const { hasPermission, currentUser } = useAuthStore();
+  const isAdmin = currentUser?.role === 'admin';
   const { branches: allBranches } = useBranchStore();
   // Derive active branches from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
@@ -96,7 +99,9 @@ const Employees = () => {
         ? true 
         : statusFilter === 'terminated' 
           ? emp.status === 'terminated'
-          : emp.status === 'active';
+          : statusFilter === 'pending'
+            ? emp.status === 'pending_approval'
+            : emp.status === 'active';
       
       return matchesSearch && matchesBranch && matchesStatus;
     })
@@ -136,6 +141,7 @@ const Employees = () => {
       inactive: t.common.inactive,
       on_leave: t.common.onLeave,
       terminated: language === 'pt' ? 'Despedido' : 'Terminated',
+      pending_approval: language === 'pt' ? 'Pendente' : 'Pending',
     };
     return labels[status] || status;
   }
@@ -178,6 +184,26 @@ const Employees = () => {
   const handleExport = () => {
     exportEmployeesToCSV(employees, language);
     toast.success(t.export.success);
+  };
+
+  const pendingCount = employees.filter(e => e.status === 'pending_approval').length;
+
+  const handleApprove = async (emp: Employee) => {
+    const result = await approveEmployee(emp.id);
+    if (result.success) {
+      toast.success(language === 'pt' ? `${emp.firstName} ${emp.lastName} aprovado com sucesso` : `${emp.firstName} ${emp.lastName} approved successfully`);
+    } else {
+      toast.error(result.error);
+    }
+  };
+
+  const handleReject = async (emp: Employee) => {
+    const result = await rejectEmployee(emp.id);
+    if (result.success) {
+      toast.success(language === 'pt' ? `${emp.firstName} ${emp.lastName} rejeitado` : `${emp.firstName} ${emp.lastName} rejected`);
+    } else {
+      toast.error(result.error);
+    }
   };
 
   const handlePrintCard = (emp: Employee) => {
@@ -248,6 +274,11 @@ const Employees = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">{language === 'pt' ? 'Activos' : 'Active'}</SelectItem>
+            {isAdmin && pendingCount > 0 && (
+              <SelectItem value="pending">
+                {language === 'pt' ? `Pendentes (${pendingCount})` : `Pending (${pendingCount})`}
+              </SelectItem>
+            )}
             <SelectItem value="terminated">{language === 'pt' ? 'Arquivados / Despedidos' : 'Archived / Terminated'}</SelectItem>
             <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
           </SelectContent>
@@ -401,12 +432,35 @@ const Employees = () => {
                         employee.status === "active" && "badge-paid",
                         employee.status === "inactive" && "badge-overdue",
                         employee.status === "on_leave" && "badge-pending",
-                        employee.status === "terminated" && "badge-overdue"
+                        employee.status === "terminated" && "badge-overdue",
+                        employee.status === "pending_approval" && "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                       )}>
                         {getStatusLabel(employee.status)}
                       </span>
                     </td>
                     <td className="px-2 py-3 text-right">
+                      {employee.status === 'pending_approval' && isAdmin ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            onClick={() => handleApprove(employee)}
+                            title={language === 'pt' ? 'Aprovar' : 'Approve'}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => handleReject(employee)}
+                            title={language === 'pt' ? 'Rejeitar' : 'Reject'}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -435,6 +489,7 @@ const Employees = () => {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      )}
                     </td>
                   </tr>
                 );

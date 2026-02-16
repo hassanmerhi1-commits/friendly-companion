@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 
 /**
@@ -21,8 +22,11 @@ interface EmployeeState {
   // Database operations
   getEmployee: (id: string) => Employee | undefined;
   getActiveEmployees: () => Employee[];
+  getPendingEmployees: () => Employee[];
   addEmployee: (data: EmployeeFormData) => Promise<{ success: boolean; employee?: Employee; error?: string }>;
   updateEmployee: (id: string, data: Partial<EmployeeFormData>) => Promise<{ success: boolean; error?: string }>;
+  approveEmployee: (id: string) => Promise<{ success: boolean; error?: string }>;
+  rejectEmployee: (id: string) => Promise<{ success: boolean; error?: string }>;
   deleteEmployee: (id: string) => Promise<void>;
   
   // Validation helpers
@@ -147,6 +151,10 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     return get().employees.filter((emp) => emp.status === 'active');
   },
   
+  getPendingEmployees: () => {
+    return get().employees.filter((emp) => emp.status === 'pending_approval');
+  },
+  
   addEmployee: async (data: EmployeeFormData) => {
     // Check for duplicate employee number
     if (data.employeeNumber) {
@@ -244,7 +252,11 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       contractType: data.contractType,
       hireDate: data.hireDate,
       contractEndDate: data.contractEndDate,
-      status: 'active',
+      status: (() => {
+        const currentUser = useAuthStore.getState().currentUser;
+        const isAdmin = currentUser?.role === 'admin';
+        return isAdmin ? 'active' : 'pending_approval';
+      })(),
       branchId: data.branchId,
       baseSalary: data.baseSalary,
       mealAllowance: data.mealAllowance,
@@ -389,6 +401,30 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     // Refresh from database to ensure consistency
     await get().loadEmployees();
     
+    return { success: true };
+  },
+  
+  approveEmployee: async (id: string) => {
+    const employee = get().employees.find(e => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    if (employee.status !== 'pending_approval') return { success: false, error: 'Funcionário não está pendente' };
+    
+    const success = await liveUpdate('employees', id, { 
+      status: 'active', 
+      updated_at: new Date().toISOString() 
+    });
+    if (!success) return { success: false, error: 'Erro ao aprovar no banco de dados' };
+    
+    await get().loadEmployees();
+    return { success: true };
+  },
+  
+  rejectEmployee: async (id: string) => {
+    const employee = get().employees.find(e => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    
+    await liveDelete('employees', id);
+    await get().loadEmployees();
     return { success: true };
   },
   
