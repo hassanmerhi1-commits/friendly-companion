@@ -4,19 +4,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Clock, AlertTriangle, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, AlertTriangle, TrendingUp, Printer, Banknote, Trash2 } from "lucide-react";
 import { useAttendanceStore } from "@/stores/attendance-store";
 import { useEmployeeStore } from "@/stores/employee-store";
+import { useOvertimePaymentStore } from "@/stores/overtime-payment-store";
+import { useBranchStore } from "@/stores/branch-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useLanguage } from "@/lib/i18n";
 import { LABOR_LAW, formatAOA, calculateHourlyRate, calculateOvertime } from "@/lib/angola-labor-law";
 import { format, subMonths } from "date-fns";
+import { OvertimePaymentDialog } from "./OvertimePaymentDialog";
+import { generateOvertimePaymentHtml } from "./PrintableOvertimePayment";
+import { printHtml } from "@/lib/print";
+import { toast } from "sonner";
 
 export function OvertimeTracker() {
   const { language } = useLanguage();
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   const { employees } = useEmployeeStore();
   const { getOvertimeSummary } = useAttendanceStore();
+  const { payments, deletePayment } = useOvertimePaymentStore();
+  const { branches } = useBranchStore();
+  const { settings } = useSettingsStore();
 
   const t = {
     title: language === 'pt' ? 'Horas Extraordinárias' : 'Overtime Tracking',
@@ -33,6 +45,9 @@ export function OvertimeTracker() {
     annualLimit: language === 'pt' ? 'Limite anual' : 'Annual limit',
     hours: language === 'pt' ? 'horas' : 'hours',
     noData: language === 'pt' ? 'Sem dados de horas extra' : 'No overtime data',
+    newPayment: language === 'pt' ? 'Pagamento Diário' : 'Daily Payment',
+    paymentHistory: language === 'pt' ? 'Histórico de Pagamentos' : 'Payment History',
+    noPayments: language === 'pt' ? 'Sem pagamentos registados' : 'No payments recorded',
     legalInfo: {
       title: language === 'pt' ? 'Informação Legal' : 'Legal Information',
       threshold30: language === 'pt' 
@@ -57,7 +72,6 @@ export function OvertimeTracker() {
     const summary = getOvertimeSummary(employee.id, month - 1, year);
     const hourlyRate = calculateHourlyRate(employee.baseSalary);
     
-    // Calculate estimated overtime value
     const normalValue = calculateOvertime(hourlyRate, summary.normalHours, 'normal', 0);
     const nightValue = calculateOvertime(hourlyRate, summary.nightHours, 'night');
     const holidayValue = calculateOvertime(hourlyRate, summary.holidayHours, 'holiday');
@@ -79,7 +93,9 @@ export function OvertimeTracker() {
     };
   }).filter(d => d.summary.totalHours > 0);
 
-  // Generate month options
+  // Filter payments for selected month
+  const monthPayments = payments.filter(p => p.date.startsWith(selectedMonth));
+
   const monthOptions = Array.from({ length: 12 }, (_, i) => {
     const date = subMonths(new Date(), i);
     return {
@@ -87,6 +103,22 @@ export function OvertimeTracker() {
       label: format(date, 'MMMM yyyy'),
     };
   });
+
+  const handleReprintPayment = async (paymentId: string) => {
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return;
+    const html = generateOvertimePaymentHtml({
+      payment,
+      companyName: settings.companyName,
+      companyNif: settings.nif,
+    });
+    await printHtml(html);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    await deletePayment(paymentId);
+    toast.success("Payment record deleted");
+  };
 
   return (
     <div className="space-y-6">
@@ -137,16 +169,22 @@ export function OvertimeTracker() {
               </CardTitle>
               <CardDescription>{t.description}</CardDescription>
             </div>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {monthOptions.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-3">
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setShowPaymentDialog(true)}>
+                <Banknote className="h-4 w-4 mr-2" />
+                {t.newPayment}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -225,6 +263,63 @@ export function OvertimeTracker() {
           )}
         </CardContent>
       </Card>
+
+      {/* Payment History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Banknote className="h-5 w-5" />
+            {t.paymentHistory}
+          </CardTitle>
+          <CardDescription>
+            {selectedMonth} — {monthPayments.length} payment(s)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {monthPayments.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">{t.noPayments}</div>
+          ) : (
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead className="text-center">Employees</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monthPayments.sort((a, b) => b.date.localeCompare(a.date)).map(payment => (
+                    <TableRow key={payment.id}>
+                      <TableCell>{new Date(payment.date).toLocaleDateString('pt-AO')}</TableCell>
+                      <TableCell>{payment.branchName}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary">{payment.entries.length}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatAOA(payment.totalAmount)}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReprintPayment(payment.id)}>
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeletePayment(payment.id)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payment Dialog */}
+      <OvertimePaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} />
     </div>
   );
 }

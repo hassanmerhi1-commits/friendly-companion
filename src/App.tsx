@@ -25,6 +25,7 @@ import { initAttendanceStoreSync } from "@/stores/attendance-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
 import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
+import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -234,9 +235,9 @@ function AppContent() {
           const { loadAttendance } = useAttendanceStore.getState();
           const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
           const { loadHRData } = useHRStore.getState();
+          const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
 
           await Promise.all([
-            loadUsers(),
             loadEmployees(),
             loadBranches(),
             loadPayroll(),
@@ -247,6 +248,7 @@ function AppContent() {
             loadAttendance(),
             loadBulkAttendance(),
             loadHRData(),
+            loadOvertimePayments(),
           ]);
           
           console.log('[App] Browser mode: stores loaded from mock data');
@@ -307,6 +309,7 @@ function AppContent() {
             initAttendanceStoreSync();
             initBulkAttendanceStoreSync();
             initHRStoreSync();
+            initOvertimePaymentSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
@@ -330,9 +333,9 @@ function AppContent() {
             const { loadAttendance } = useAttendanceStore.getState();
             const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
             const { loadHRData } = useHRStore.getState();
+            const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
 
             await Promise.all([
-              loadUsers(),
               loadEmployees(),
               loadBranches(),
               loadPayroll(),
@@ -343,6 +346,7 @@ function AppContent() {
               loadAttendance(),
               loadBulkAttendance(),
               loadHRData(),
+              loadOvertimePayments(),
             ]);
 
             console.log('[App] All stores loaded from database');
