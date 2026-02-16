@@ -252,6 +252,10 @@ function AppContent() {
             loadOvertimePayments(),
           ]);
           
+          // Auto-login as admin in development preview
+          const { login } = useAuthStore.getState();
+          login('admin', 'admin');
+          
           console.log('[App] Browser mode: stores loaded from mock data');
           return;
         }
