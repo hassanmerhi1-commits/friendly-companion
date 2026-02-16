@@ -77,6 +77,9 @@ export interface PayrollEntry {
   // Dependents for family allowance (deprecated - using familyAllowance value)
   dependents?: number;
   
+  // Early payment flag - employee received salary before month end
+  paidEarly?: boolean;
+  
   // Notes
   notes?: string;
   

@@ -101,7 +101,7 @@ export function PrintablePayrollSheet({
     absenceDeduction: acc.absenceDeduction + (e.absenceDeduction || 0),
     otherDeductions: acc.otherDeductions + (e.otherDeductions || 0),
     totalDeductions: acc.totalDeductions + e.totalDeductions,
-    netSalary: acc.netSalary + e.netSalary,
+    netSalary: acc.netSalary + (e.paidEarly ? 0 : e.netSalary),
     inssEmployer: acc.inssEmployer + e.inssEmployer,
     daysAbsent: acc.daysAbsent + (e.daysAbsent || 0),
   }), {
@@ -341,7 +341,7 @@ export function PrintablePayrollSheet({
                 <td style={{ fontSize: '7px', color: entry.advanceDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.advanceDeduction || 0)}</td>
                 <td style={{ fontSize: '7px' }}>{formatAOA(entry.otherDeductions || 0)}</td>
                 <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.totalDeductions)}</td>
-                <td className="net-salary" style={{ fontSize: '7px' }}>{formatAOA(entry.netSalary)}</td>
+                <td className="net-salary" style={{ fontSize: '7px' }}>{entry.paidEarly ? `(PA) ${formatAOA(0)}` : formatAOA(entry.netSalary)}</td>
                 <td style={{ width: '60px' }}></td>
               </tr>
             ))}
