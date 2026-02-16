@@ -143,6 +143,21 @@ export const useAlertsStore = create<AlertsState>()((set, get) => ({
         });
       }
       
+      // Pending employee approvals
+      const pendingEmployees = employees.filter(e => e.status === 'pending_approval');
+      if (pendingEmployees.length > 0) {
+        alerts.push({
+          id: 'pending-employees',
+          type: 'pending_approval',
+          severity: pendingEmployees.length > 3 ? 'warning' : 'info',
+          title: 'Funcionários Pendentes de Aprovação',
+          message: `${pendingEmployees.length} funcionário(s) aguardando autorização do administrador.`,
+          createdAt: now.toISOString(),
+          isRead: false,
+          isDismissed: false,
+        });
+      }
+      
       set({ alerts, isLoaded: true });
     } catch (error) {
       console.error('[Alerts] Error generating alerts:', error);
