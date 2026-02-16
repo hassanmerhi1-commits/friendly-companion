@@ -71,11 +71,19 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
         <div className="flex flex-col md:flex-row gap-6">
           {/* Avatar */}
           <div className="flex-shrink-0">
-            <div className="h-24 w-24 rounded-full bg-primary/20 flex items-center justify-center border-4 border-background shadow-lg">
-              <span className="text-3xl font-bold text-primary">
-                {employee.firstName[0]}
-                {employee.lastName[0]}
-              </span>
+            <div className="h-24 w-24 rounded-full bg-primary/20 flex items-center justify-center border-4 border-background shadow-lg overflow-hidden">
+              {employee.photoUrl ? (
+                <img 
+                  src={employee.photoUrl} 
+                  alt={`${employee.firstName} ${employee.lastName}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span className="text-3xl font-bold text-primary">
+                  {employee.firstName[0]}
+                  {employee.lastName[0]}
+                </span>
+              )}
             </div>
           </div>
 

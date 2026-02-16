@@ -51,11 +51,13 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
   const stats = useMemo(() => {
     const totalMonths = employeeBulkEntries.length;
     const totalAbsenceDays = employeeBulkEntries.reduce((sum, e) => sum + (e.absenceDays || 0), 0);
+    const totalJustifiedDays = employeeBulkEntries.reduce((sum, e) => sum + (e.justifiedAbsenceDays || 0), 0);
     const totalDelayHours = employeeBulkEntries.reduce((sum, e) => sum + (e.delayHours || 0), 0);
 
     return {
       totalMonths,
       totalAbsenceDays,
+      totalJustifiedDays,
       totalDelayHours,
     };
   }, [employeeBulkEntries]);
@@ -94,7 +96,7 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>
@@ -109,13 +111,27 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>
-              {language === 'pt' ? 'Total Dias de Falta' : 'Total Absence Days'}
+              {language === 'pt' ? 'Faltas Injustificadas' : 'Unjustified Absences'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-destructive" />
               <span className="text-2xl font-bold text-destructive">{stats.totalAbsenceDays}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>
+              {language === 'pt' ? 'Faltas Justificadas' : 'Justified Absences'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-primary" />
+              <span className="text-2xl font-bold text-primary">{stats.totalJustifiedDays}</span>
             </div>
           </CardContent>
         </Card>
@@ -208,7 +224,8 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Período' : 'Period'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Faltas (dias)' : 'Absences (days)'}</TableHead>
+                  <TableHead className="text-right">{language === 'pt' ? 'Faltas Injust.' : 'Unjust. Abs.'}</TableHead>
+                  <TableHead className="text-right">{language === 'pt' ? 'Faltas Just.' : 'Just. Abs.'}</TableHead>
                   <TableHead className="text-right">{language === 'pt' ? 'Atrasos (horas)' : 'Delays (hours)'}</TableHead>
                   <TableHead>{language === 'pt' ? 'Notas' : 'Notes'}</TableHead>
                 </TableRow>
@@ -229,6 +246,15 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
                           <CheckCircle className="h-3 w-3 mr-1" />
                           0
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(entry.justifiedAbsenceDays || 0) > 0 ? (
+                        <Badge variant="outline" className="bg-primary/10 text-primary">
+                          {entry.justifiedAbsenceDays}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">

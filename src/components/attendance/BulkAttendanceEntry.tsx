@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 interface LocalEntry {
   employeeId: string;
   absenceDays: number;
+  justifiedAbsenceDays: number;
   delayHours: number;
 }
 
@@ -56,6 +57,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
       initial[entry.employeeId] = {
         employeeId: entry.employeeId,
         absenceDays: entry.absenceDays,
+        justifiedAbsenceDays: entry.justifiedAbsenceDays || 0,
         delayHours: entry.delayHours,
       };
     });
@@ -97,13 +99,13 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
 
   // Get or initialize entry for employee
   const getEntry = (employeeId: string): LocalEntry => {
-    return localEntries[employeeId] || { employeeId, absenceDays: 0, delayHours: 0 };
+    return localEntries[employeeId] || { employeeId, absenceDays: 0, justifiedAbsenceDays: 0, delayHours: 0 };
   };
 
   // Update entry
-  const updateEntry = (employeeId: string, field: 'absenceDays' | 'delayHours', value: number) => {
+  const updateEntry = (employeeId: string, field: 'absenceDays' | 'justifiedAbsenceDays' | 'delayHours', value: number) => {
     const newValue = Math.max(0, value); // Ensure non-negative
-    const maxValue = field === 'absenceDays' ? 26 : 208; // Max 26 working days or 208 hours (26 days * 8 hours)
+    const maxValue = field === 'delayHours' ? 208 : 26; // Max 26 working days or 208 hours
     const clampedValue = Math.min(newValue, maxValue);
     
     setLocalEntries(prev => ({
@@ -129,7 +131,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
         const existingEntry = getEntriesForPeriod(month, year).find(e => e.employeeId === emp.id);
         
         // If entry has values > 0, save it
-        if (entry && (entry.absenceDays > 0 || entry.delayHours > 0)) {
+        if (entry && (entry.absenceDays > 0 || entry.justifiedAbsenceDays > 0 || entry.delayHours > 0)) {
           const fullSalary = getFullSalary(emp);
           const deduction = calculateBulkAttendanceDeduction(fullSalary, entry.absenceDays, entry.delayHours);
           
@@ -138,6 +140,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
             month,
             year,
             absenceDays: entry.absenceDays,
+            justifiedAbsenceDays: entry.justifiedAbsenceDays,
             delayHours: entry.delayHours,
             dailyRate: deduction.dailyRate,
             hourlyRate: deduction.hourlyRate,
@@ -147,7 +150,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
           });
         } 
         // If entry is now 0/0 but previously existed, mark for deletion
-        else if (existingEntry && (!entry || (entry.absenceDays === 0 && entry.delayHours === 0))) {
+        else if (existingEntry && (!entry || (entry.absenceDays === 0 && entry.justifiedAbsenceDays === 0 && entry.delayHours === 0))) {
           entriesToDelete.push(existingEntry.id);
         }
       }
@@ -209,7 +212,8 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
     employee: language === 'pt' ? 'Funcionário' : 'Employee',
     fullSalary: language === 'pt' ? 'Salário Total' : 'Full Salary',
     dailyRate: language === 'pt' ? 'Taxa Diária' : 'Daily Rate',
-    absenceDays: language === 'pt' ? 'Dias Ausência' : 'Absence Days',
+    absenceDays: language === 'pt' ? 'Faltas Injust.' : 'Unjust. Abs.',
+    justifiedAbsenceDays: language === 'pt' ? 'Faltas Just.' : 'Just. Abs.',
     delayHours: language === 'pt' ? 'Horas Atraso' : 'Delay Hours',
     deduction: language === 'pt' ? 'Desconto' : 'Deduction',
     save: language === 'pt' ? 'Guardar Todos' : 'Save All',
@@ -310,15 +314,16 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                   <TableHead className="w-[250px]">{t.employee}</TableHead>
                   <TableHead className="text-right">{t.fullSalary}</TableHead>
                   <TableHead className="text-right">{t.dailyRate}</TableHead>
-                  <TableHead className="text-center w-[100px]">{t.absenceDays}</TableHead>
-                  <TableHead className="text-center w-[100px]">{t.delayHours}</TableHead>
+                  <TableHead className="text-center w-[90px]">{t.absenceDays}</TableHead>
+                  <TableHead className="text-center w-[90px]">{t.justifiedAbsenceDays}</TableHead>
+                  <TableHead className="text-center w-[90px]">{t.delayHours}</TableHead>
                   <TableHead className="text-right">{t.deduction}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       {t.noEmployees}
                     </TableCell>
                   </TableRow>
@@ -353,6 +358,17 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                             max={26}
                             value={entry.absenceDays || ''}
                             onChange={(e) => updateEntry(emp.id, 'absenceDays', parseFloat(e.target.value) || 0)}
+                            className="w-20 text-center mx-auto"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={26}
+                            value={entry.justifiedAbsenceDays || ''}
+                            onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
                             placeholder="0"
                           />
