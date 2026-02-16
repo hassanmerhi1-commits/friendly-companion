@@ -3,7 +3,7 @@
  */
 
 export type EmployeeStatus = 'active' | 'inactive' | 'on_leave' | 'terminated';
-export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'probation';
+export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'probation' | 'colaborador';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'mobile_money';
 
 export interface EmployeeSkill {
