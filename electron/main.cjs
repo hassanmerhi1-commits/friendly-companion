@@ -1175,6 +1175,9 @@ function runMigrations() {
     `);
     console.log('Migration: Ensured bulk_attendance table exists');
     
+    // Add justified_absence_days column to bulk_attendance
+    addColumnIfMissing('bulk_attendance', 'justified_absence_days', "ALTER TABLE bulk_attendance ADD COLUMN justified_absence_days REAL DEFAULT 0");
+    
     console.log('Database migrations completed');
   } catch (error) {
     console.error('Error running migrations:', error);

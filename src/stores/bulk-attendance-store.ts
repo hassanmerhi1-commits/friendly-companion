@@ -20,6 +20,7 @@ export interface BulkAttendanceEntry {
   month: number;  // 1-12
   year: number;
   absenceDays: number;
+  justifiedAbsenceDays: number; // Justified absences - no salary deduction, recorded for history
   delayHours: number;
   // Computed values (stored for reference/audit)
   dailyRate: number;
@@ -56,6 +57,7 @@ function mapDbRowToEntry(row: any): BulkAttendanceEntry {
     month: row.month,
     year: row.year,
     absenceDays: row.absence_days || 0,
+    justifiedAbsenceDays: row.justified_absence_days || 0,
     delayHours: row.delay_hours || 0,
     dailyRate: row.daily_rate || 0,
     hourlyRate: row.hourly_rate || 0,
@@ -75,6 +77,7 @@ function mapEntryToDbRow(entry: BulkAttendanceEntry): Record<string, any> {
     month: entry.month,
     year: entry.year,
     absence_days: entry.absenceDays,
+    justified_absence_days: entry.justifiedAbsenceDays,
     delay_hours: entry.delayHours,
     daily_rate: entry.dailyRate,
     hourly_rate: entry.hourlyRate,
