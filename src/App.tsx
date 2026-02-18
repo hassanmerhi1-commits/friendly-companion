@@ -207,11 +207,18 @@ const AppRoutes = () => {
   );
 };
 
+// Detect if we're on the branch-attendance route (works with HashRouter)
+function isBranchAttendanceRoute(): boolean {
+  const hash = window.location.hash;
+  return hash === '#/branch-attendance' || hash.startsWith('#/branch-attendance?');
+}
+
 function AppContent() {
   const [deviceActivated, setDeviceActivated] = useState<boolean | null>(null);
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [needsFirstRunSetup, setNeedsFirstRunSetup] = useState(false);
+  const [isBranchRoute] = useState(() => isBranchAttendanceRoute());
 
   useEffect(() => {
       const initApp = async () => {
@@ -397,6 +404,19 @@ function AppContent() {
   }
 
   if (deviceActivated === null || provinceSelected === null) {
+    // Branch attendance route bypasses all guards
+    if (isBranchRoute) {
+      return (
+        <HashRouter>
+          <AppErrorBoundary>
+            <Routes>
+              <Route path="/branch-attendance" element={<BranchAttendance />} />
+              <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
+            </Routes>
+          </AppErrorBoundary>
+        </HashRouter>
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">A verificar...</div>
@@ -404,7 +424,7 @@ function AppContent() {
     );
   }
 
-  if (!deviceActivated) {
+  if (!deviceActivated && !isBranchRoute) {
     return (
       <DeviceActivation 
         onActivated={() => setDeviceActivated(true)} 
@@ -412,7 +432,7 @@ function AppContent() {
     );
   }
 
-  if (!provinceSelected) {
+  if (!provinceSelected && !isBranchRoute) {
     return (
       <ProvinceSelector 
         onProvinceSelected={() => {
