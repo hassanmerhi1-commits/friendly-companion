@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,8 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { useBranchStore } from '@/stores/branch-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
-import { Check, X, Download, Send, ArrowLeft, Lock, Building2, Calendar, Users } from 'lucide-react';
+import { Check, X, Download, Send, ArrowLeft, Lock, Building2, Calendar, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { liveInit, initSyncListener } from '@/lib/db-live';
+import { initBranchStoreSync } from '@/stores/branch-store';
+import { initEmployeeStoreSync } from '@/stores/employee-store';
 
 interface AttendanceEntry {
   employeeId: string;
@@ -30,8 +33,35 @@ type Step = 'pin' | 'attendance' | 'summary';
 
 export default function BranchAttendance() {
   const { language } = useLanguage();
-  const { branches } = useBranchStore();
-  const { employees } = useEmployeeStore();
+  const { branches, isLoaded: branchesLoaded, loadBranches } = useBranchStore();
+  const { employees, isLoaded: employeesLoaded, loadEmployees } = useEmployeeStore();
+  const [selfInitialized, setSelfInitialized] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  // Self-initialize: load stores if they haven't been loaded yet (standalone mode)
+  useEffect(() => {
+    const init = async () => {
+      if (branchesLoaded && employeesLoaded) {
+        setSelfInitialized(true);
+        return;
+      }
+      try {
+        // Try to init database (will work in Electron, gracefully fail in browser)
+        await liveInit();
+        initSyncListener();
+        initBranchStoreSync();
+        initEmployeeStoreSync();
+        await Promise.all([loadBranches(), loadEmployees()]);
+        setSelfInitialized(true);
+      } catch (error) {
+        console.error('[BranchAttendance] Init error:', error);
+        // Even if DB init fails, mark as initialized so UI shows "no branches" message
+        setSelfInitialized(true);
+        setInitError('Erro ao conectar à base de dados');
+      }
+    };
+    init();
+  }, []);
 
   const [step, setStep] = useState<Step>('pin');
   const [selectedBranchId, setSelectedBranchId] = useState('');
@@ -40,14 +70,43 @@ export default function BranchAttendance() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
 
-  const activeBranches = branches.filter(b => b.isActive && b.pin);
-
-  const selectedBranch = branches.find(b => b.id === selectedBranchId);
-
+  const activeBranches = useMemo(() => branches.filter(b => b.isActive && b.pin), [branches]);
+  const selectedBranch = useMemo(() => branches.find(b => b.id === selectedBranchId), [branches, selectedBranchId]);
   const branchEmployees = useMemo(() => {
     if (!selectedBranchId) return [];
     return employees.filter(e => e.branchId === selectedBranchId && e.status === 'active');
   }, [selectedBranchId, employees]);
+
+  // Loading state while self-initializing
+  if (!selfInitialized) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+          <CardContent className="pt-6 flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">
+              {language === 'pt' ? 'A carregar dados...' : 'Loading data...'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-sm">
+          <CardContent className="pt-6 space-y-4 text-center">
+            <p className="text-destructive font-medium">{initError}</p>
+            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+              {language === 'pt' ? 'Tentar novamente' : 'Try again'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const t = {
     title: language === 'pt' ? 'Presenças da Filial' : 'Branch Attendance',
