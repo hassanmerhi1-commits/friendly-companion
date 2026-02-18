@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useBranchStore } from '@/stores/branch-store';
+import { useEmployeeStore } from '@/stores/employee-store';
 import { BranchFormDialog } from '@/components/branches/BranchFormDialog';
 import { useLanguage } from '@/lib/i18n';
-import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
   const { branches, deleteBranch } = useBranchStore();
+  const { employees } = useEmployeeStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
@@ -34,7 +36,47 @@ export default function Branches() {
     toast.success(language === 'pt' ? 'Filial desactivada' : 'Branch deactivated');
   };
 
-  // Group branches by province
+  const handleExportBranchPackage = (branch: Branch) => {
+    const branchEmployees = employees
+      .filter(e => e.branchId === branch.id && e.status === 'active')
+      .map(e => ({
+        id: e.id,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        employeeNumber: e.employeeNumber,
+        position: e.position,
+        department: e.department,
+      }));
+
+    const pkg = {
+      type: 'branch_package',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      branch: {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        province: branch.province,
+        city: branch.city,
+        pin: branch.pin,
+      },
+      employees: branchEmployees,
+    };
+
+    const json = JSON.stringify(pkg, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `filial-${branch.code}-pacote.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(language === 'pt' 
+      ? `Pacote exportado: ${branch.name} (${branchEmployees.length} funcionários)` 
+      : `Package exported: ${branch.name} (${branchEmployees.length} employees)`);
+  };
+
+
   const branchesByProvince = activeBranches.reduce((acc, branch) => {
     if (!acc[branch.province]) acc[branch.province] = [];
     acc[branch.province].push(branch);
@@ -164,6 +206,14 @@ export default function Branches() {
                       )}
                     </div>
                     <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleExportBranchPackage(branch)}
+                        title={language === 'pt' ? 'Exportar pacote para filial' : 'Export branch package'}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
                         <Edit className="h-4 w-4" />
                       </Button>

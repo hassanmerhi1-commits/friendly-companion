@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useBranchStore } from '@/stores/branch-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
-import { Check, X, Download, Send, ArrowLeft, Lock, Building2, Calendar, Users, Loader2 } from 'lucide-react';
+import { Check, X, Download, Send, ArrowLeft, Lock, Building2, Calendar, Users, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { liveInit, initSyncListener } from '@/lib/db-live';
 import { initBranchStoreSync } from '@/stores/branch-store';
@@ -29,6 +29,27 @@ export interface BranchAttendanceData {
   submittedBy: string;
 }
 
+// Imported branch package shape
+interface BranchPackage {
+  type: 'branch_package';
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+    province: string;
+    city: string;
+    pin: string;
+  };
+  employees: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    employeeNumber: string;
+    position?: string;
+    department?: string;
+  }>;
+}
+
 type Step = 'pin' | 'attendance' | 'summary';
 
 export default function BranchAttendance() {
@@ -37,6 +58,13 @@ export default function BranchAttendance() {
   const { employees, isLoaded: employeesLoaded, loadEmployees } = useEmployeeStore();
   const [selfInitialized, setSelfInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [importedPackage, setImportedPackage] = useState<BranchPackage | null>(() => {
+    // Check localStorage for previously imported package
+    try {
+      const saved = localStorage.getItem('branch_attendance_package');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
 
   // Self-initialize: load stores if they haven't been loaded yet (standalone mode)
   useEffect(() => {
@@ -46,7 +74,6 @@ export default function BranchAttendance() {
         return;
       }
       try {
-        // Try to init database (will work in Electron, gracefully fail in browser)
         await liveInit();
         initSyncListener();
         initBranchStoreSync();
@@ -55,9 +82,8 @@ export default function BranchAttendance() {
         setSelfInitialized(true);
       } catch (error) {
         console.error('[BranchAttendance] Init error:', error);
-        // Even if DB init fails, mark as initialized so UI shows "no branches" message
+        // Even if DB init fails, mark as initialized — user can import package
         setSelfInitialized(true);
-        setInitError('Erro ao conectar à base de dados');
       }
     };
     init();
@@ -70,12 +96,69 @@ export default function BranchAttendance() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
 
-  const activeBranches = useMemo(() => branches.filter(b => b.isActive && b.pin), [branches]);
-  const selectedBranch = useMemo(() => branches.find(b => b.id === selectedBranchId), [branches, selectedBranchId]);
+  // Merge DB branches with imported package
+  const activeBranches = useMemo(() => {
+    const dbBranches = branches.filter(b => b.isActive && b.pin);
+    if (importedPackage && !dbBranches.find(b => b.id === importedPackage.branch.id)) {
+      // Add imported branch as a virtual branch
+      dbBranches.push({
+        id: importedPackage.branch.id,
+        name: importedPackage.branch.name,
+        code: importedPackage.branch.code,
+        province: importedPackage.branch.province,
+        city: importedPackage.branch.city,
+        pin: importedPackage.branch.pin,
+        isActive: true,
+        isHeadquarters: false,
+        address: '',
+        createdAt: '',
+        updatedAt: '',
+      });
+    }
+    return dbBranches;
+  }, [branches, importedPackage]);
+
+  const selectedBranch = useMemo(() => activeBranches.find(b => b.id === selectedBranchId), [activeBranches, selectedBranchId]);
+  
   const branchEmployees = useMemo(() => {
     if (!selectedBranchId) return [];
+    // Check imported package first
+    if (importedPackage && importedPackage.branch.id === selectedBranchId) {
+      return importedPackage.employees.map(e => ({
+        ...e,
+        branchId: selectedBranchId,
+        status: 'active' as const,
+      }));
+    }
     return employees.filter(e => e.branchId === selectedBranchId && e.status === 'active');
-  }, [selectedBranchId, employees]);
+  }, [selectedBranchId, employees, importedPackage]);
+
+  // Handle file import
+  const handleImportPackage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const pkg = JSON.parse(e.target?.result as string) as BranchPackage;
+        if (pkg.type !== 'branch_package' || !pkg.branch || !pkg.employees) {
+          toast.error(language === 'pt' ? 'Ficheiro inválido' : 'Invalid file');
+          return;
+        }
+        setImportedPackage(pkg);
+        localStorage.setItem('branch_attendance_package', JSON.stringify(pkg));
+        setInitError(null);
+        toast.success(language === 'pt' 
+          ? `Filial carregada: ${pkg.branch.name} (${pkg.employees.length} funcionários)` 
+          : `Branch loaded: ${pkg.branch.name} (${pkg.employees.length} employees)`);
+      } catch {
+        toast.error(language === 'pt' ? 'Erro ao ler ficheiro' : 'Error reading file');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be re-imported
+    event.target.value = '';
+  };
 
   // Loading state while self-initializing
   if (!selfInitialized) {
@@ -93,20 +176,7 @@ export default function BranchAttendance() {
     );
   }
 
-  if (initError) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardContent className="pt-6 space-y-4 text-center">
-            <p className="text-destructive font-medium">{initError}</p>
-            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-              {language === 'pt' ? 'Tentar novamente' : 'Try again'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // No early return for initError — show import option instead in PIN screen
 
   const t = {
     title: language === 'pt' ? 'Presenças da Filial' : 'Branch Attendance',
@@ -137,17 +207,16 @@ export default function BranchAttendance() {
 
   const handlePinSubmit = () => {
     if (!selectedBranchId) return;
-    const branch = branches.find(b => b.id === selectedBranchId);
+    const branch = activeBranches.find(b => b.id === selectedBranchId);
     if (!branch || !branch.pin) return;
 
     if (pinInput === branch.pin) {
       setPinError('');
-      // Initialize entries for all branch employees
       const initialEntries: AttendanceEntry[] = branchEmployees.map(emp => ({
         employeeId: emp.id,
         employeeName: `${emp.firstName} ${emp.lastName}`,
         employeeNumber: emp.employeeNumber,
-        status: 'present',
+        status: 'present' as const,
       }));
       setEntries(initialEntries);
       setStep('attendance');
@@ -231,6 +300,28 @@ export default function BranchAttendance() {
             <CardTitle className="text-xl">{t.title}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Import button - always visible */}
+            <div className="space-y-2">
+              <label htmlFor="import-package" className="w-full cursor-pointer">
+                <div className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors text-sm text-muted-foreground">
+                  <Upload className="h-4 w-4" />
+                  {language === 'pt' ? 'Importar Pacote da Filial' : 'Import Branch Package'}
+                </div>
+              </label>
+              <input
+                id="import-package"
+                type="file"
+                accept=".json"
+                onChange={handleImportPackage}
+                className="hidden"
+              />
+              {importedPackage && (
+                <p className="text-xs text-center text-muted-foreground">
+                  ✓ {importedPackage.branch.name} ({importedPackage.employees.length} {language === 'pt' ? 'funcionários' : 'employees'})
+                </p>
+              )}
+            </div>
+
             {activeBranches.length === 0 ? (
               <p className="text-center text-muted-foreground text-sm">{t.noBranches}</p>
             ) : (
