@@ -3,12 +3,14 @@ import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useBranchStore } from '@/stores/branch-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { BranchFormDialog } from '@/components/branches/BranchFormDialog';
 import { useLanguage } from '@/lib/i18n';
-import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download, QrCode, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Branch } from '@/types/branch';
 
 export default function Branches() {
@@ -17,6 +19,13 @@ export default function Branches() {
   const { employees } = useEmployeeStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [qrBranch, setQrBranch] = useState<Branch | null>(null);
+
+  // Build the attendance URL for a branch
+  const getAttendanceUrl = () => {
+    const origin = window.location.origin;
+    return `${origin}/#/branch-attendance`;
+  };
 
   // Derive active branches from subscribed state - this ensures re-render on changes
   const activeBranches = branches.filter(b => b.isActive);
@@ -209,6 +218,14 @@ export default function Branches() {
                       <Button 
                         variant="ghost" 
                         size="sm" 
+                        onClick={() => setQrBranch(branch)}
+                        title={language === 'pt' ? 'QR Code para presenças' : 'Attendance QR Code'}
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
                         onClick={() => handleExportBranchPackage(branch)}
                         title={language === 'pt' ? 'Exportar pacote para filial' : 'Export branch package'}
                       >
@@ -232,6 +249,42 @@ export default function Branches() {
             </div>
           </div>
         ))}
+
+        {/* QR Code Dialog */}
+        <Dialog open={!!qrBranch} onOpenChange={(open) => !open && setQrBranch(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-center">
+                {qrBranch?.name}
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                {language === 'pt' 
+                  ? 'O chefe de filial pode digitalizar este QR code para abrir a página de presenças no telemóvel'
+                  : 'Branch chief can scan this QR code to open the attendance page on their phone'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="bg-white p-4 rounded-xl">
+                <QRCodeSVG value={getAttendanceUrl()} size={220} />
+              </div>
+              <p className="text-xs text-muted-foreground text-center break-all max-w-[280px]">
+                {getAttendanceUrl()}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  navigator.clipboard.writeText(getAttendanceUrl());
+                  toast.success(language === 'pt' ? 'Link copiado!' : 'Link copied!');
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                {language === 'pt' ? 'Copiar Link' : 'Copy Link'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TopNavLayout>
   );
