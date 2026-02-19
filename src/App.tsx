@@ -208,24 +208,18 @@ const AppRoutes = () => {
 };
 
 // Detect if we're on the branch-attendance route
-// Check BOTH hash and pathname because mobile QR scanners often strip the # from URLs
+// BULLETPROOF: Check the full URL because QR scanners handle #/hash/query differently
 function isBranchAttendanceRoute(): boolean {
-  const hash = window.location.hash;
-  const pathname = window.location.pathname;
+  const href = window.location.href;
   const search = window.location.search;
   
-  // Hash-based: /#/branch-attendance or /#/branch-attendance?d=...
-  if (hash === '#/branch-attendance' || hash.startsWith('#/branch-attendance?')) {
+  // Check if 'branch-attendance' appears anywhere in the URL (hash, path, etc.)
+  if (href.includes('branch-attendance')) {
     return true;
   }
   
-  // Path-based (QR scanner stripped the #): /branch-attendance or /branch-attendance?d=...
-  if (pathname === '/branch-attendance' || pathname.endsWith('/branch-attendance')) {
-    return true;
-  }
-  
-  // Query param fallback: /?d=... (data param present at root)
-  if (search.includes('d=') && !hash.includes('/')) {
+  // Check for the ba= marker (added to QR URLs as reliable fallback)
+  if (search.includes('ba=1') || href.includes('ba=1')) {
     return true;
   }
   
@@ -240,16 +234,29 @@ function AppContent() {
   const [isBranchRoute] = useState(() => {
     const detected = isBranchAttendanceRoute();
     
-    // If branch route detected via pathname (QR scanner stripped #), fix the URL
-    // so HashRouter can handle it properly
-    if (detected && !window.location.hash.includes('/branch-attendance')) {
-      const dataParam = new URLSearchParams(window.location.search).get('d');
+    if (detected) {
+      // Extract the 'd' parameter from wherever it might be
+      let dataParam: string | null = null;
+      
+      // Try search params first
+      dataParam = new URLSearchParams(window.location.search).get('d');
+      
+      // Try hash params
+      if (!dataParam) {
+        const hash = window.location.hash;
+        const hashQ = hash.indexOf('?');
+        if (hashQ !== -1) {
+          dataParam = new URLSearchParams(hash.substring(hashQ)).get('d');
+        }
+      }
+      
+      // Ensure HashRouter gets the right hash
       const newHash = dataParam 
         ? `#/branch-attendance?d=${dataParam}` 
         : '#/branch-attendance';
-      window.location.hash = newHash;
-      // Also clean up the pathname-based search params
-      if (window.location.search) {
+      
+      // Only update if hash doesn't already have branch-attendance
+      if (!window.location.hash.includes('branch-attendance')) {
         window.history.replaceState(null, '', window.location.pathname + newHash);
       }
     }

@@ -43,7 +43,8 @@ export default function Branches() {
     };
 
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    return `https://bright-spark-gleam.lovable.app/#/branch-attendance?d=${encoded}`;
+    // ba=1 is a reliable marker that survives QR scanner URL manipulation
+    return `https://bright-spark-gleam.lovable.app/?ba=1#/branch-attendance?d=${encoded}`;
   };
 
   // Derive active branches from subscribed state - this ensures re-render on changes
