@@ -741,6 +741,7 @@ function createNewDatabaseInternal(targetPath) {
         phone TEXT,
         email TEXT,
         manager_id TEXT,
+        pin TEXT,
         is_headquarters INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -999,6 +1000,7 @@ function runMigrations() {
     addColumnIfMissing('branches', 'manager_id', "ALTER TABLE branches ADD COLUMN manager_id TEXT");
     addColumnIfMissing('branches', 'is_headquarters', "ALTER TABLE branches ADD COLUMN is_headquarters INTEGER DEFAULT 0");
     addColumnIfMissing('branches', 'is_active', "ALTER TABLE branches ADD COLUMN is_active INTEGER DEFAULT 1");
+    addColumnIfMissing('branches', 'pin', "ALTER TABLE branches ADD COLUMN pin TEXT");
     
     // Deduction columns
     addColumnIfMissing('deductions', 'employee_id', "ALTER TABLE deductions ADD COLUMN employee_id TEXT");
