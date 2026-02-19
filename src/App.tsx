@@ -375,6 +375,20 @@ function AppContent() {
   }, []);
 
   // Show first run setup if IP file is not configured
+  // Branch attendance route bypasses ALL guards (activation, province, first-run, errors)
+  if (isBranchRoute) {
+    return (
+      <HashRouter>
+        <AppErrorBoundary>
+          <Routes>
+            <Route path="/branch-attendance" element={<BranchAttendance />} />
+            <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
+          </Routes>
+        </AppErrorBoundary>
+      </HashRouter>
+    );
+  }
+
   if (needsFirstRunSetup) {
     return (
       <FirstRunSetup 
@@ -404,19 +418,6 @@ function AppContent() {
   }
 
   if (deviceActivated === null || provinceSelected === null) {
-    // Branch attendance route bypasses all guards
-    if (isBranchRoute) {
-      return (
-        <HashRouter>
-          <AppErrorBoundary>
-            <Routes>
-              <Route path="/branch-attendance" element={<BranchAttendance />} />
-              <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
-            </Routes>
-          </AppErrorBoundary>
-        </HashRouter>
-      );
-    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">A verificar...</div>
