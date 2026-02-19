@@ -3,14 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useBranchStore } from '@/stores/branch-store';
-import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
 import { Check, X, Download, Send, ArrowLeft, Lock, Building2, Calendar, Users, Loader2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { liveInit, initSyncListener } from '@/lib/db-live';
-import { initBranchStoreSync } from '@/stores/branch-store';
-import { initEmployeeStoreSync } from '@/stores/employee-store';
 
 interface AttendanceEntry {
   employeeId: string;
@@ -29,7 +24,13 @@ export interface BranchAttendanceData {
   submittedBy: string;
 }
 
-// Imported branch package shape
+// Decoded from QR URL
+interface QRData {
+  b: { i: string; n: string; c: string; p: string };
+  e: Array<{ i: string; f: string; l: string; n: string }>;
+}
+
+// Imported branch package shape (legacy support)
 interface BranchPackage {
   type: 'branch_package';
   branch: {
@@ -52,42 +53,36 @@ interface BranchPackage {
 
 type Step = 'pin' | 'attendance' | 'summary';
 
+// Parse QR data from URL hash params
+function parseQRData(): QRData | null {
+  try {
+    const hash = window.location.hash; // e.g. #/branch-attendance?d=...
+    const qIndex = hash.indexOf('?');
+    if (qIndex === -1) return null;
+    const params = new URLSearchParams(hash.substring(qIndex));
+    const encoded = params.get('d');
+    if (!encoded) return null;
+    const json = decodeURIComponent(escape(atob(encoded)));
+    return JSON.parse(json);
+  } catch (e) {
+    console.error('[BranchAttendance] Error parsing QR data:', e);
+    return null;
+  }
+}
+
 export default function BranchAttendance() {
   const { language } = useLanguage();
-  const { branches, isLoaded: branchesLoaded, loadBranches } = useBranchStore();
-  const { employees, isLoaded: employeesLoaded, loadEmployees } = useEmployeeStore();
-  const [selfInitialized, setSelfInitialized] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
+
+  // Parse data from QR URL (primary method - no database needed!)
+  const [qrData] = useState<QRData | null>(() => parseQRData());
+  
+  // Legacy: imported package from localStorage
   const [importedPackage, setImportedPackage] = useState<BranchPackage | null>(() => {
-    // Check localStorage for previously imported package
     try {
       const saved = localStorage.getItem('branch_attendance_package');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
-
-  // Self-initialize: load stores if they haven't been loaded yet (standalone mode)
-  useEffect(() => {
-    const init = async () => {
-      if (branchesLoaded && employeesLoaded) {
-        setSelfInitialized(true);
-        return;
-      }
-      try {
-        await liveInit();
-        initSyncListener();
-        initBranchStoreSync();
-        initEmployeeStoreSync();
-        await Promise.all([loadBranches(), loadEmployees()]);
-        setSelfInitialized(true);
-      } catch (error) {
-        console.error('[BranchAttendance] Init error:', error);
-        // Even if DB init fails, mark as initialized — user can import package
-        setSelfInitialized(true);
-      }
-    };
-    init();
-  }, []);
 
   const [step, setStep] = useState<Step>('pin');
   const [selectedBranchId, setSelectedBranchId] = useState('');
@@ -96,42 +91,68 @@ export default function BranchAttendance() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [entries, setEntries] = useState<AttendanceEntry[]>([]);
 
-  // Merge DB branches with imported package
+  // Build branch list from QR data or imported package (NO database needed)
   const activeBranches = useMemo(() => {
-    const dbBranches = branches.filter(b => b.isActive && b.pin);
-    if (importedPackage && !dbBranches.find(b => b.id === importedPackage.branch.id)) {
-      // Add imported branch as a virtual branch
-      dbBranches.push({
+    const result: Array<{ id: string; name: string; code: string; pin: string; city?: string }> = [];
+    
+    // QR data takes priority
+    if (qrData?.b) {
+      result.push({
+        id: qrData.b.i,
+        name: qrData.b.n,
+        code: qrData.b.c,
+        pin: qrData.b.p,
+      });
+    }
+    
+    // Legacy: imported package
+    if (importedPackage && !result.find(b => b.id === importedPackage.branch.id)) {
+      result.push({
         id: importedPackage.branch.id,
         name: importedPackage.branch.name,
         code: importedPackage.branch.code,
-        province: importedPackage.branch.province,
-        city: importedPackage.branch.city,
         pin: importedPackage.branch.pin,
-        isActive: true,
-        isHeadquarters: false,
-        address: '',
-        createdAt: '',
-        updatedAt: '',
+        city: importedPackage.branch.city,
       });
     }
-    return dbBranches;
-  }, [branches, importedPackage]);
+    
+    return result;
+  }, [qrData, importedPackage]);
+
+  // Auto-select branch if only one (from QR)
+  useEffect(() => {
+    if (activeBranches.length === 1 && !selectedBranchId) {
+      setSelectedBranchId(activeBranches[0].id);
+    }
+  }, [activeBranches, selectedBranchId]);
 
   const selectedBranch = useMemo(() => activeBranches.find(b => b.id === selectedBranchId), [activeBranches, selectedBranchId]);
   
   const branchEmployees = useMemo(() => {
     if (!selectedBranchId) return [];
-    // Check imported package first
-    if (importedPackage && importedPackage.branch.id === selectedBranchId) {
-      return importedPackage.employees.map(e => ({
-        ...e,
-        branchId: selectedBranchId,
-        status: 'active' as const,
+    
+    // From QR data
+    if (qrData && qrData.b.i === selectedBranchId) {
+      return qrData.e.map(e => ({
+        id: e.i,
+        firstName: e.f,
+        lastName: e.l,
+        employeeNumber: e.n,
       }));
     }
-    return employees.filter(e => e.branchId === selectedBranchId && e.status === 'active');
-  }, [selectedBranchId, employees, importedPackage]);
+    
+    // From imported package
+    if (importedPackage && importedPackage.branch.id === selectedBranchId) {
+      return importedPackage.employees.map(e => ({
+        id: e.id,
+        firstName: e.firstName,
+        lastName: e.lastName,
+        employeeNumber: e.employeeNumber,
+      }));
+    }
+    
+    return [];
+  }, [selectedBranchId, qrData, importedPackage]);
 
   // Handle file import
   const handleImportPackage = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,7 +168,6 @@ export default function BranchAttendance() {
         }
         setImportedPackage(pkg);
         localStorage.setItem('branch_attendance_package', JSON.stringify(pkg));
-        setInitError(null);
         toast.success(language === 'pt' 
           ? `Filial carregada: ${pkg.branch.name} (${pkg.employees.length} funcionários)` 
           : `Branch loaded: ${pkg.branch.name} (${pkg.employees.length} employees)`);
@@ -156,27 +176,10 @@ export default function BranchAttendance() {
       }
     };
     reader.readAsText(file);
-    // Reset input so same file can be re-imported
     event.target.value = '';
   };
 
-  // Loading state while self-initializing
-  if (!selfInitialized) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardContent className="pt-6 flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
-              {language === 'pt' ? 'A carregar dados...' : 'Loading data...'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // No early return for initError — show import option instead in PIN screen
+  // No loading screen needed — data comes from URL, not database
 
   const t = {
     title: language === 'pt' ? 'Presenças da Filial' : 'Branch Attendance',
@@ -340,7 +343,7 @@ export default function BranchAttendance() {
                         }`}
                       >
                         <div className="font-medium">{branch.name}</div>
-                        <div className="text-xs text-muted-foreground">{branch.code} • {branch.city}</div>
+                        <div className="text-xs text-muted-foreground">{branch.code}{branch.city ? ` • ${branch.city}` : ''}</div>
                       </button>
                     ))}
                   </div>

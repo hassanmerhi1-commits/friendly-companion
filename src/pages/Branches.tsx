@@ -21,9 +21,29 @@ export default function Branches() {
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
 
-  // Build the attendance URL for a branch — always use published URL so it works without login
-  const getAttendanceUrl = () => {
-    return 'https://bright-spark-gleam.lovable.app/#/branch-attendance';
+  // Build the attendance URL for a branch — encode all data in URL so phone needs no database
+  const getAttendanceUrl = (branch: Branch) => {
+    const branchEmployees = employees
+      .filter(e => e.branchId === branch.id && e.status === 'active')
+      .map(e => ({
+        i: e.id,
+        f: e.firstName,
+        l: e.lastName,
+        n: e.employeeNumber,
+      }));
+
+    const payload = {
+      b: {
+        i: branch.id,
+        n: branch.name,
+        c: branch.code,
+        p: branch.pin || '',
+      },
+      e: branchEmployees,
+    };
+
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return `https://bright-spark-gleam.lovable.app/#/branch-attendance?d=${encoded}`;
   };
 
   // Derive active branches from subscribed state - this ensures re-render on changes
@@ -264,18 +284,20 @@ export default function Branches() {
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-4">
               <div className="bg-white p-4 rounded-xl">
-                <QRCodeSVG value={getAttendanceUrl()} size={220} />
+                {qrBranch && <QRCodeSVG value={getAttendanceUrl(qrBranch)} size={220} level="L" />}
               </div>
-              <p className="text-xs text-muted-foreground text-center break-all max-w-[280px]">
-                {getAttendanceUrl()}
+              <p className="text-xs text-muted-foreground text-center max-w-[280px]">
+                {qrBranch?.name} - {employees.filter(e => e.branchId === qrBranch?.id && e.status === 'active').length} {language === 'pt' ? 'funcionários' : 'employees'}
               </p>
               <Button 
                 variant="outline" 
                 size="sm"
                 className="gap-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(getAttendanceUrl());
-                  toast.success(language === 'pt' ? 'Link copiado!' : 'Link copied!');
+                  if (qrBranch) {
+                    navigator.clipboard.writeText(getAttendanceUrl(qrBranch));
+                    toast.success(language === 'pt' ? 'Link copiado!' : 'Link copied!');
+                  }
                 }}
               >
                 <Copy className="h-4 w-4" />
