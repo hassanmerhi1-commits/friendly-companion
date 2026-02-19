@@ -21,10 +21,9 @@ export default function Branches() {
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
 
-  // Build the attendance URL for a branch
+  // Build the attendance URL for a branch — always use published URL so it works without login
   const getAttendanceUrl = () => {
-    const origin = window.location.origin;
-    return `${origin}/#/branch-attendance`;
+    return 'https://bright-spark-gleam.lovable.app/#/branch-attendance';
   };
 
   // Derive active branches from subscribed state - this ensures re-render on changes
