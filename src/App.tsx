@@ -266,6 +266,15 @@ function AppContent() {
 
   useEffect(() => {
       const initApp = async () => {
+        // Branch attendance route needs NO initialization at all
+        // It works 100% standalone from QR data encoded in the URL
+        if (isBranchRoute) {
+          console.log('[App] Branch attendance route detected - skipping all initialization');
+          setDeviceActivated(true);
+          setProvinceSelected(true);
+          return;
+        }
+
         // Bypass activation and province checks in development preview mode
         // but still load data from mock storage
         if (isDevelopmentPreview()) {
