@@ -54,12 +54,11 @@ import EmployeeProfile from "./pages/EmployeeProfile";
 import BranchAttendance from "./pages/BranchAttendance";
 const queryClient = new QueryClient();
 
-// Check if we're in development/preview mode (not Electron)
+// Check if we're running in browser (not Electron) - includes dev preview AND published web
 const isDevelopmentPreview = () => {
   const isElectron = typeof window !== 'undefined' && 
     (window as any).electronAPI?.isElectron === true;
-  const isDev = import.meta.env.DEV;
-  return !isElectron && isDev;
+  return !isElectron;
 };
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
