@@ -52,7 +52,7 @@ import TaxSimulator from "./pages/TaxSimulator";
 import PayrollHistory from "./pages/PayrollHistory";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import BranchAttendance from "./pages/BranchAttendance";
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
 // Check if we're in browser mode (not Electron) - works for both dev and published
 const isDevelopmentPreview = () => {
