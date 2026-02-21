@@ -52,13 +52,14 @@ import TaxSimulator from "./pages/TaxSimulator";
 import PayrollHistory from "./pages/PayrollHistory";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import BranchAttendance from "./pages/BranchAttendance";
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
+const queryClient = new QueryClient();
 
-// Check if we're in browser mode (not Electron) - works for both dev and published
+// Check if we're in development/preview mode (not Electron)
 const isDevelopmentPreview = () => {
   const isElectron = typeof window !== 'undefined' && 
     (window as any).electronAPI?.isElectron === true;
-  return !isElectron;
+  const isDev = import.meta.env.DEV;
+  return !isElectron && isDev;
 };
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -207,18 +208,24 @@ const AppRoutes = () => {
 };
 
 // Detect if we're on the branch-attendance route
-// BULLETPROOF: Check the full URL because QR scanners handle #/hash/query differently
+// Check BOTH hash and pathname because mobile QR scanners often strip the # from URLs
 function isBranchAttendanceRoute(): boolean {
-  const href = window.location.href;
+  const hash = window.location.hash;
+  const pathname = window.location.pathname;
   const search = window.location.search;
   
-  // Check if 'branch-attendance' appears anywhere in the URL (hash, path, etc.)
-  if (href.includes('branch-attendance')) {
+  // Hash-based: /#/branch-attendance or /#/branch-attendance?d=...
+  if (hash === '#/branch-attendance' || hash.startsWith('#/branch-attendance?')) {
     return true;
   }
   
-  // Check for the ba= marker (added to QR URLs as reliable fallback)
-  if (search.includes('ba=1') || href.includes('ba=1')) {
+  // Path-based (QR scanner stripped the #): /branch-attendance or /branch-attendance?d=...
+  if (pathname === '/branch-attendance' || pathname.endsWith('/branch-attendance')) {
+    return true;
+  }
+  
+  // Query param fallback: /?d=... (data param present at root)
+  if (search.includes('d=') && !hash.includes('/')) {
     return true;
   }
   
@@ -233,29 +240,16 @@ function AppContent() {
   const [isBranchRoute] = useState(() => {
     const detected = isBranchAttendanceRoute();
     
-    if (detected) {
-      // Extract the 'd' parameter from wherever it might be
-      let dataParam: string | null = null;
-      
-      // Try search params first
-      dataParam = new URLSearchParams(window.location.search).get('d');
-      
-      // Try hash params
-      if (!dataParam) {
-        const hash = window.location.hash;
-        const hashQ = hash.indexOf('?');
-        if (hashQ !== -1) {
-          dataParam = new URLSearchParams(hash.substring(hashQ)).get('d');
-        }
-      }
-      
-      // Ensure HashRouter gets the right hash
+    // If branch route detected via pathname (QR scanner stripped #), fix the URL
+    // so HashRouter can handle it properly
+    if (detected && !window.location.hash.includes('/branch-attendance')) {
+      const dataParam = new URLSearchParams(window.location.search).get('d');
       const newHash = dataParam 
         ? `#/branch-attendance?d=${dataParam}` 
         : '#/branch-attendance';
-      
-      // Only update if hash doesn't already have branch-attendance
-      if (!window.location.hash.includes('branch-attendance')) {
+      window.location.hash = newHash;
+      // Also clean up the pathname-based search params
+      if (window.location.search) {
         window.history.replaceState(null, '', window.location.pathname + newHash);
       }
     }
@@ -265,15 +259,6 @@ function AppContent() {
 
   useEffect(() => {
       const initApp = async () => {
-        // Branch attendance route needs NO initialization at all
-        // It works 100% standalone from QR data encoded in the URL
-        if (isBranchRoute) {
-          console.log('[App] Branch attendance route detected - skipping all initialization');
-          setDeviceActivated(true);
-          setProvinceSelected(true);
-          return;
-        }
-
         // Bypass activation and province checks in development preview mode
         // but still load data from mock storage
         if (isDevelopmentPreview()) {
@@ -284,45 +269,37 @@ function AppContent() {
             localStorage.setItem('payroll_selected_province', 'Luanda');
           }
           
-          // Initialize mock data layer
-          const { initMockData } = await import('@/lib/db-live');
-          initMockData();
-          
-          // Load stores from mock localStorage data - wrapped in try-catch
-          // to NEVER show the DB error in browser mode
-          try {
-            const { loadUsers } = useAuthStore.getState();
-            const { loadEmployees } = useEmployeeStore.getState();
-            const { loadBranches } = useBranchStore.getState();
-            const { loadPayroll } = usePayrollStore.getState();
-            const { loadDeductions } = useDeductionStore.getState();
-            const { loadAbsences } = useAbsenceStore.getState();
-            const { loadHolidays } = useHolidayStore.getState();
-            const { loadSettings } = useSettingsStore.getState();
-            const { loadAttendance } = useAttendanceStore.getState();
-            const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
-            const { loadHRData } = useHRStore.getState();
-            const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+          // Load stores from mock localStorage data
+          const { loadUsers } = useAuthStore.getState();
+          const { loadEmployees } = useEmployeeStore.getState();
+          const { loadBranches } = useBranchStore.getState();
+          const { loadPayroll } = usePayrollStore.getState();
+          const { loadDeductions } = useDeductionStore.getState();
+          const { loadAbsences } = useAbsenceStore.getState();
+          const { loadHolidays } = useHolidayStore.getState();
+          const { loadSettings } = useSettingsStore.getState();
+          const { loadAttendance } = useAttendanceStore.getState();
+          const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
+          const { loadHRData } = useHRStore.getState();
+          const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
 
-            await Promise.all([
-              loadUsers(),
-              loadEmployees(),
-              loadBranches(),
-              loadPayroll(),
-              loadDeductions(),
-              loadAbsences(),
-              loadHolidays(),
-              loadSettings(),
-              loadAttendance(),
-              loadBulkAttendance(),
-              loadHRData(),
-              loadOvertimePayments(),
-            ]);
-            
-            console.log('[App] Browser mode: stores loaded from mock data');
-          } catch (e) {
-            console.warn('[App] Browser mode: error loading stores (non-fatal):', e);
-          }
+          await Promise.all([
+            loadUsers(),
+            loadEmployees(),
+            loadBranches(),
+            loadPayroll(),
+            loadDeductions(),
+            loadAbsences(),
+            loadHolidays(),
+            loadSettings(),
+            loadAttendance(),
+            loadBulkAttendance(),
+            loadHRData(),
+            loadOvertimePayments(),
+          ]);
+          
+          
+          console.log('[App] Browser mode: stores loaded from mock data');
           return;
         }
 
@@ -438,22 +415,14 @@ function AppContent() {
   // Branch attendance route bypasses ALL guards (activation, province, first-run, errors)
   if (isBranchRoute) {
     return (
-      <QueryClientProvider client={queryClient}>
-        <LanguageProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <HashRouter>
-              <AppErrorBoundary>
-                <Routes>
-                  <Route path="/branch-attendance" element={<BranchAttendance />} />
-                  <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
-                </Routes>
-              </AppErrorBoundary>
-            </HashRouter>
-          </TooltipProvider>
-        </LanguageProvider>
-      </QueryClientProvider>
+      <HashRouter>
+        <AppErrorBoundary>
+          <Routes>
+            <Route path="/branch-attendance" element={<BranchAttendance />} />
+            <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
+          </Routes>
+        </AppErrorBoundary>
+      </HashRouter>
     );
   }
 

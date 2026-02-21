@@ -4,8 +4,15 @@ import "./index.css";
 import { initElectronStorage, isElectron } from "./lib/electron-storage";
 import { initMockData } from "./lib/db-live";
 
-// Initialize mock data for browser preview testing
+// Only register PWA service worker when NOT in Electron
 if (!isElectron()) {
+  import("virtual:pwa-register").then(({ registerSW }) => {
+    registerSW({
+      immediate: true,
+    });
+  });
+  
+  // Initialize mock data for browser preview testing
   initMockData();
 }
 

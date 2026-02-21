@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Payroll" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-    <!-- manifest removed - PWA handled by Electron -->
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- Open Graph -->
     <meta property="og:title" content="Payroll Management System" />
@@ -29,25 +29,6 @@
 
   <body>
     <div id="root"></div>
-    <!-- Kill old PWA service worker and caches -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        // Register the self-destructing service worker to replace the old cached one
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
-        // Also try unregistering directly
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var reg of registrations) {
-            reg.unregister();
-          }
-        });
-        // Clear all caches
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            for (var name of names) { caches.delete(name); }
-          });
-        }
-      }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -11,14 +11,12 @@ import { useLanguage } from '@/lib/i18n';
 import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download, QrCode, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
-import { useAuthStore } from '@/stores/auth-store';
 import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
   const { branches, deleteBranch } = useBranchStore();
   const { employees } = useEmployeeStore();
-  const { hasPermission } = useAuthStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [qrBranch, setQrBranch] = useState<Branch | null>(null);
@@ -45,8 +43,7 @@ export default function Branches() {
     };
 
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    // ba=1 is a reliable marker that survives QR scanner URL manipulation
-    return `https://bright-spark-gleam.lovable.app/?ba=1#/branch-attendance?d=${encoded}`;
+    return `https://bright-spark-gleam.lovable.app/#/branch-attendance?d=${encoded}`;
   };
 
   // Derive active branches from subscribed state - this ensures re-render on changes
@@ -131,12 +128,10 @@ export default function Branches() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          {hasPermission('branches.create') && (
-            <Button className="gap-2" onClick={handleAddNew}>
-              <Plus className="h-4 w-4" />
-              {addBranchLabel}
-            </Button>
-          )}
+          <Button className="gap-2" onClick={handleAddNew}>
+            <Plus className="h-4 w-4" />
+            {addBranchLabel}
+          </Button>
           
           <BranchFormDialog
             open={isDialogOpen}
@@ -255,21 +250,17 @@ export default function Branches() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      {hasPermission('branches.edit') && (
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {hasPermission('branches.delete') && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => handleDelete(branch.id)}
-                          disabled={branch.isHeadquarters}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleDelete(branch.id)}
+                        disabled={branch.isHeadquarters}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

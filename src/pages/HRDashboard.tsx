@@ -40,7 +40,7 @@ import {
   Plus
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
-import { useAuthStore } from "@/stores/auth-store";
+
 export default function HRDashboard() {
   const { language } = useLanguage();
   const { employees } = useEmployeeStore();
@@ -48,7 +48,6 @@ export default function HRDashboard() {
   const { branches } = useBranchStore();
   const { loadHRData, salaryAdjustments } = useHRStore();
   const { records: disciplinaryRecords, loadRecords: loadDisciplinaryRecords, getActiveRecordsByEmployee } = useDisciplinaryStore();
-  const { hasPermission } = useAuthStore();
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [terminationDate, setTerminationDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -477,17 +476,16 @@ export default function HRDashboard() {
                         </div>
                       </div>
 
-                      {hasPermission('hr.edit') && (
-                        <Button 
-                          className="w-full" 
-                          size="lg"
-                          onClick={() => setShowTerminationDialog(true)}
-                        >
-                          <CheckCircle className="h-5 w-5 mr-2" />
-                          {language === 'pt' ? 'Processar Rescisão' : 'Process Termination'}
-                          <ArrowRight className="h-5 w-5 ml-2" />
-                        </Button>
-                      )}
+                      {/* Process Termination Button */}
+                      <Button 
+                        className="w-full" 
+                        size="lg"
+                        onClick={() => setShowTerminationDialog(true)}
+                      >
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        {language === 'pt' ? 'Processar Rescisão' : 'Process Termination'}
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </Button>
 
                       <div className="text-xs text-muted-foreground text-center">
                         {language === 'pt' 
@@ -521,12 +519,10 @@ export default function HRDashboard() {
                       : 'Warnings, suspensions and disciplinary processes'}
                   </CardDescription>
                 </div>
-                {hasPermission('hr.create') && (
-                  <Button onClick={() => setShowDisciplinaryDialog(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {language === 'pt' ? 'Novo Registo' : 'New Record'}
-                  </Button>
-                )}
+                <Button onClick={() => setShowDisciplinaryDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {language === 'pt' ? 'Novo Registo' : 'New Record'}
+                </Button>
               </CardHeader>
               <CardContent>
                 <DisciplinaryRecordsList />

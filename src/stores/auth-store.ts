@@ -208,16 +208,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     console.log(`[Auth] ← SYNC: Received ${rows.length} users from server`);
     if (rows.length > 0) {
       const users = rows.map(mapDbRowToUser);
-      // CRITICAL: Also update currentUser if they're in the updated list
-      const currentUser = get().currentUser;
-      const updatedCurrentUser = currentUser 
-        ? users.find(u => u.id === currentUser.id) || null
-        : null;
-      set({ 
-        users, 
-        isLoaded: true,
-        ...(updatedCurrentUser ? { currentUser: updatedCurrentUser } : {}),
-      });
+      set({ users, isLoaded: true });
     } else {
       // If no users from server, keep default admin locally
       set({ isLoaded: true });
@@ -235,16 +226,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         const rows = await liveGetAll<any>('users');
         if (rows.length > 0) {
           const users = rows.map(mapDbRowToUser);
-          // Update currentUser if logged in
-          const currentUser = get().currentUser;
-          const updatedCurrentUser = currentUser 
-            ? users.find(u => u.id === currentUser.id) || null
-            : null;
-          set({ 
-            users, 
-            isLoaded: true,
-            ...(updatedCurrentUser ? { currentUser: updatedCurrentUser } : {}),
-          });
+          set({ users, isLoaded: true });
           console.log('[Auth] Loaded', users.length, 'users from database');
         } else {
           // No users in database - create default admin
@@ -350,14 +332,6 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       if (!success) {
         return { success: false, error: 'Erro ao actualizar no banco de dados' };
       }
-      
-      // Immediately update local state including currentUser if it's the same user
-      const updatedUsers = get().users.map(u => u.id === id ? updatedUser : u);
-      const loggedInUser = get().currentUser;
-      set({ 
-        users: updatedUsers,
-        ...(loggedInUser?.id === id ? { currentUser: updatedUser } : {}),
-      });
       
       return { success: true };
     },

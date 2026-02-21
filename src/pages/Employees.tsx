@@ -233,12 +233,10 @@ const Employees = () => {
             <FileDown className="h-4 w-4 mr-2" />
             {t.export.excel}
           </Button>
-          {hasPermission('employees.create') && (
-            <Button variant="accent" size="lg" onClick={handleAdd}>
-              <UserPlus className="h-5 w-5 mr-2" />
-              {t.employees.addEmployee}
-            </Button>
-          )}
+          <Button variant="accent" size="lg" onClick={handleAdd}>
+            <UserPlus className="h-5 w-5 mr-2" />
+            {t.employees.addEmployee}
+          </Button>
         </div>
       </div>
 
@@ -474,25 +472,21 @@ const Employees = () => {
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
                           </DropdownMenuItem>
-                          {hasPermission('employees.edit') && (
-                            <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                              <Pencil className="h-4 w-4 mr-2" />
-                              {t.common.edit}
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            {t.common.edit}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
-                          {hasPermission('employees.delete') && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteClick(employee)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {t.common.delete}
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteClick(employee)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {t.common.delete}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                       )}
