@@ -29,6 +29,27 @@
 
   <body>
     <div id="root"></div>
+    <!-- Force unregister any cached PWA service workers -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var reg of registrations) {
+            reg.unregister().then(function() {
+              console.log('[PWA] Service worker unregistered');
+            });
+          }
+        });
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (var name of names) {
+              caches.delete(name);
+              console.log('[PWA] Cache deleted:', name);
+            }
+          });
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
