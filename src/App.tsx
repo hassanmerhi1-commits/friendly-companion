@@ -284,37 +284,45 @@ function AppContent() {
             localStorage.setItem('payroll_selected_province', 'Luanda');
           }
           
-          // Load stores from mock localStorage data
-          const { loadUsers } = useAuthStore.getState();
-          const { loadEmployees } = useEmployeeStore.getState();
-          const { loadBranches } = useBranchStore.getState();
-          const { loadPayroll } = usePayrollStore.getState();
-          const { loadDeductions } = useDeductionStore.getState();
-          const { loadAbsences } = useAbsenceStore.getState();
-          const { loadHolidays } = useHolidayStore.getState();
-          const { loadSettings } = useSettingsStore.getState();
-          const { loadAttendance } = useAttendanceStore.getState();
-          const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
-          const { loadHRData } = useHRStore.getState();
-          const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+          // Initialize mock data layer
+          const { initMockData } = await import('@/lib/db-live');
+          initMockData();
+          
+          // Load stores from mock localStorage data - wrapped in try-catch
+          // to NEVER show the DB error in browser mode
+          try {
+            const { loadUsers } = useAuthStore.getState();
+            const { loadEmployees } = useEmployeeStore.getState();
+            const { loadBranches } = useBranchStore.getState();
+            const { loadPayroll } = usePayrollStore.getState();
+            const { loadDeductions } = useDeductionStore.getState();
+            const { loadAbsences } = useAbsenceStore.getState();
+            const { loadHolidays } = useHolidayStore.getState();
+            const { loadSettings } = useSettingsStore.getState();
+            const { loadAttendance } = useAttendanceStore.getState();
+            const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
+            const { loadHRData } = useHRStore.getState();
+            const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
 
-          await Promise.all([
-            loadUsers(),
-            loadEmployees(),
-            loadBranches(),
-            loadPayroll(),
-            loadDeductions(),
-            loadAbsences(),
-            loadHolidays(),
-            loadSettings(),
-            loadAttendance(),
-            loadBulkAttendance(),
-            loadHRData(),
-            loadOvertimePayments(),
-          ]);
-          
-          
-          console.log('[App] Browser mode: stores loaded from mock data');
+            await Promise.all([
+              loadUsers(),
+              loadEmployees(),
+              loadBranches(),
+              loadPayroll(),
+              loadDeductions(),
+              loadAbsences(),
+              loadHolidays(),
+              loadSettings(),
+              loadAttendance(),
+              loadBulkAttendance(),
+              loadHRData(),
+              loadOvertimePayments(),
+            ]);
+            
+            console.log('[App] Browser mode: stores loaded from mock data');
+          } catch (e) {
+            console.warn('[App] Browser mode: error loading stores (non-fatal):', e);
+          }
           return;
         }
 
@@ -430,14 +438,22 @@ function AppContent() {
   // Branch attendance route bypasses ALL guards (activation, province, first-run, errors)
   if (isBranchRoute) {
     return (
-      <HashRouter>
-        <AppErrorBoundary>
-          <Routes>
-            <Route path="/branch-attendance" element={<BranchAttendance />} />
-            <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
-          </Routes>
-        </AppErrorBoundary>
-      </HashRouter>
+      <QueryClientProvider client={queryClient}>
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <HashRouter>
+              <AppErrorBoundary>
+                <Routes>
+                  <Route path="/branch-attendance" element={<BranchAttendance />} />
+                  <Route path="*" element={<Navigate to="/branch-attendance" replace />} />
+                </Routes>
+              </AppErrorBoundary>
+            </HashRouter>
+          </TooltipProvider>
+        </LanguageProvider>
+      </QueryClientProvider>
     );
   }
 
