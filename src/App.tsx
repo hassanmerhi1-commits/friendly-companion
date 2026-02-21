@@ -207,29 +207,10 @@ const AppRoutes = () => {
   );
 };
 
-// Detect if we're on the branch-attendance route
-// Check BOTH hash and pathname because mobile QR scanners often strip the # from URLs
+// Detect if we're on the branch-attendance route (works with HashRouter)
 function isBranchAttendanceRoute(): boolean {
   const hash = window.location.hash;
-  const pathname = window.location.pathname;
-  const search = window.location.search;
-  
-  // Hash-based: /#/branch-attendance or /#/branch-attendance?d=...
-  if (hash === '#/branch-attendance' || hash.startsWith('#/branch-attendance?')) {
-    return true;
-  }
-  
-  // Path-based (QR scanner stripped the #): /branch-attendance or /branch-attendance?d=...
-  if (pathname === '/branch-attendance' || pathname.endsWith('/branch-attendance')) {
-    return true;
-  }
-  
-  // Query param fallback: /?d=... (data param present at root)
-  if (search.includes('d=') && !hash.includes('/')) {
-    return true;
-  }
-  
-  return false;
+  return hash === '#/branch-attendance' || hash.startsWith('#/branch-attendance?');
 }
 
 function AppContent() {
@@ -237,25 +218,7 @@ function AppContent() {
   const [provinceSelected, setProvinceSelected] = useState<boolean | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
   const [needsFirstRunSetup, setNeedsFirstRunSetup] = useState(false);
-  const [isBranchRoute] = useState(() => {
-    const detected = isBranchAttendanceRoute();
-    
-    // If branch route detected via pathname (QR scanner stripped #), fix the URL
-    // so HashRouter can handle it properly
-    if (detected && !window.location.hash.includes('/branch-attendance')) {
-      const dataParam = new URLSearchParams(window.location.search).get('d');
-      const newHash = dataParam 
-        ? `#/branch-attendance?d=${dataParam}` 
-        : '#/branch-attendance';
-      window.location.hash = newHash;
-      // Also clean up the pathname-based search params
-      if (window.location.search) {
-        window.history.replaceState(null, '', window.location.pathname + newHash);
-      }
-    }
-    
-    return detected;
-  });
+  const [isBranchRoute] = useState(() => isBranchAttendanceRoute());
 
   useEffect(() => {
       const initApp = async () => {

@@ -53,26 +53,14 @@ interface BranchPackage {
 
 type Step = 'pin' | 'attendance' | 'summary';
 
-// Parse QR data from URL — checks BOTH hash params and regular query params
-// because mobile QR scanners often strip the # from URLs
+// Parse QR data from URL hash params
 function parseQRData(): QRData | null {
   try {
-    let encoded: string | null = null;
-    
-    // Try 1: Hash-based URL (normal): /#/branch-attendance?d=...
-    const hash = window.location.hash;
-    const hashQ = hash.indexOf('?');
-    if (hashQ !== -1) {
-      const hashParams = new URLSearchParams(hash.substring(hashQ));
-      encoded = hashParams.get('d');
-    }
-    
-    // Try 2: Path-based URL (QR scanner stripped #): /branch-attendance?d=...
-    if (!encoded) {
-      const searchParams = new URLSearchParams(window.location.search);
-      encoded = searchParams.get('d');
-    }
-    
+    const hash = window.location.hash; // e.g. #/branch-attendance?d=...
+    const qIndex = hash.indexOf('?');
+    if (qIndex === -1) return null;
+    const params = new URLSearchParams(hash.substring(qIndex));
+    const encoded = params.get('d');
     if (!encoded) return null;
     const json = decodeURIComponent(escape(atob(encoded)));
     return JSON.parse(json);
