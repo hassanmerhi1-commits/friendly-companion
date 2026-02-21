@@ -17,11 +17,13 @@ import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
 import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
   const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
+  const { hasPermission } = useAuthStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -254,13 +256,14 @@ export default function Deductions() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={resetForm}>
-                <Plus className="h-4 w-4" />
-                {addDeductionLabel}
-              </Button>
-            </DialogTrigger>
+          {hasPermission('deductions.create') && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={resetForm}>
+                  <Plus className="h-4 w-4" />
+                  {addDeductionLabel}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{addDeductionLabel}</DialogTitle>
@@ -271,6 +274,7 @@ export default function Deductions() {
               </Button>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Stats */}
@@ -426,22 +430,26 @@ export default function Deductions() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleEditClick(deduction)}
-                            title={language === 'pt' ? 'Editar' : 'Edit'}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleDelete(deduction)}
-                            title={language === 'pt' ? 'Apagar' : 'Delete'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {hasPermission('deductions.edit') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleEditClick(deduction)}
+                              title={language === 'pt' ? 'Editar' : 'Edit'}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {hasPermission('deductions.delete') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleDelete(deduction)}
+                              title={language === 'pt' ? 'Apagar' : 'Delete'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

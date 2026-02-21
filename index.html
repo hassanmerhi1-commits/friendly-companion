@@ -29,23 +29,21 @@
 
   <body>
     <div id="root"></div>
-    <!-- Force unregister any cached PWA service workers -->
+    <!-- Kill old PWA service worker and caches -->
     <script>
       if ('serviceWorker' in navigator) {
+        // Register the self-destructing service worker to replace the old cached one
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
+        // Also try unregistering directly
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           for (var reg of registrations) {
-            reg.unregister().then(function() {
-              console.log('[PWA] Service worker unregistered');
-            });
+            reg.unregister();
           }
         });
         // Clear all caches
         if ('caches' in window) {
           caches.keys().then(function(names) {
-            for (var name of names) {
-              caches.delete(name);
-              console.log('[PWA] Cache deleted:', name);
-            }
+            for (var name of names) { caches.delete(name); }
           });
         }
       }

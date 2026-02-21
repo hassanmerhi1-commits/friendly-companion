@@ -9,6 +9,7 @@ import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
+import { useAuthStore } from "@/stores/auth-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useDeductionStore } from "@/stores/deduction-store";
@@ -36,6 +37,7 @@ const Payroll = () => {
   const { t, language } = useLanguage();
   const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
+  const { hasPermission } = useAuthStore();
   const deductionStore = useDeductionStore();
   const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
   const { branches: allBranches } = useBranchStore();
@@ -252,6 +254,10 @@ const Payroll = () => {
   };
 
   const handleCalculate = async () => {
+    if (!hasPermission('payroll.calculate')) {
+      toast.error(language === 'pt' ? 'Sem permissão para calcular folha' : 'No permission to calculate payroll');
+      return;
+    }
     if (activeEmployees.length === 0) {
       toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
       return;
