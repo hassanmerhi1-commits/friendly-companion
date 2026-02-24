@@ -135,13 +135,30 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     ws['!cols'] = [
       { wch: 5 },   // Nº
       { wch: 15 },  // Nº Funcionário
-      { wch: 35 },  // Nome Completo
-      { wch: 30 },  // Banco
+      { wch: 30 },  // Nome Completo
+      { wch: 18 },  // Departamento
+      { wch: 14 },  // Salário Base
+      { wch: 14 },  // Sub. Alimentação
+      { wch: 14 },  // Sub. Transporte
+      { wch: 14 },  // Abono Familiar
+      { wch: 14 },  // Outros Subsídios
+      { wch: 12 },  // Horas Extra
+      { wch: 12 },  // Sub. Férias
+      { wch: 12 },  // Sub. Natal
+      { wch: 14 },  // Total Bruto
+      { wch: 12 },  // IRT
+      { wch: 12 },  // INSS
+      { wch: 10 },  // Faltas
+      { wch: 12 },  // Empréstimo
+      { wch: 12 },  // Adiantamento
+      { wch: 14 },  // Outros Descontos
+      { wch: 14 },  // Salário Líquido
+      { wch: 12 },  // Bónus
+      { wch: 16 },  // Total a Transferir
+      { wch: 25 },  // Banco
       { wch: 20 },  // Nº Conta
-      { wch: 35 },  // IBAN
-      { wch: 18 },  // Valor
-      { wch: 20 },  // Referência
-      { wch: 20 },  // Departamento
+      { wch: 30 },  // IBAN
+      { wch: 18 },  // Referência
     ];
 
     // Add header with company info
