@@ -62,31 +62,70 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       return (entry.netSalary || 0) + (entry.monthlyBonus || 0);
     };
 
-    const exportData = bankableEntries.map((entry, index) => ({
-      'Nº': index + 1,
-      'Nº Funcionário': entry.employee?.employeeNumber || '',
-      'Nome Completo': `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
-      'Banco': entry.employee?.bankName || '',
-      'Nº Conta': entry.employee?.bankAccountNumber || '',
-      'IBAN': entry.employee?.iban || '',
-      'Valor (AOA)': getTransferAmount(entry),
-      'Referência': paymentReference,
-      'Departamento': entry.employee?.department || '',
-    }));
+    const exportData = bankableEntries.map((entry, index) => {
+      const overtimeTotal = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+      return {
+        'Nº': index + 1,
+        'Nº Funcionário': entry.employee?.employeeNumber || '',
+        'Nome Completo': `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
+        'Departamento': entry.employee?.department || '',
+        'Salário Base': entry.baseSalary || 0,
+        'Sub. Alimentação': entry.mealAllowance || 0,
+        'Sub. Transporte': entry.transportAllowance || 0,
+        'Abono Familiar': entry.familyAllowance || 0,
+        'Outros Subsídios': entry.otherAllowances || 0,
+        'Horas Extra': overtimeTotal,
+        'Sub. Férias': entry.holidaySubsidy || 0,
+        'Sub. Natal': entry.thirteenthMonth || 0,
+        'Total Bruto': entry.grossSalary || 0,
+        'IRT': entry.irt || 0,
+        'INSS': entry.inssEmployee || 0,
+        'Faltas': entry.absenceDeduction || 0,
+        'Empréstimo': entry.loanDeduction || 0,
+        'Adiantamento': entry.advanceDeduction || 0,
+        'Outros Descontos': entry.otherDeductions || 0,
+        'Salário Líquido': entry.netSalary || 0,
+        'Bónus': entry.monthlyBonus || 0,
+        'Total a Transferir': getTransferAmount(entry),
+        'Banco': entry.employee?.bankName || '',
+        'Nº Conta': entry.employee?.bankAccountNumber || '',
+        'IBAN': entry.employee?.iban || '',
+        'Referência': paymentReference,
+      };
+    });
 
     // Add totals row
+    const sumField = (field: string) => bankableEntries.reduce((sum, e: any) => sum + ((e as any)[field] || 0), 0);
     const totalTransfer = bankableEntries.reduce((sum, e) => sum + getTransferAmount(e), 0);
-    exportData.push({
+    const totalsRow: any = {
       'Nº': '',
       'Nº Funcionário': '',
       'Nome Completo': 'TOTAL',
+      'Departamento': '',
+      'Salário Base': bankableEntries.reduce((s, e) => s + (e.baseSalary || 0), 0),
+      'Sub. Alimentação': bankableEntries.reduce((s, e) => s + (e.mealAllowance || 0), 0),
+      'Sub. Transporte': bankableEntries.reduce((s, e) => s + (e.transportAllowance || 0), 0),
+      'Abono Familiar': bankableEntries.reduce((s, e) => s + (e.familyAllowance || 0), 0),
+      'Outros Subsídios': bankableEntries.reduce((s, e) => s + (e.otherAllowances || 0), 0),
+      'Horas Extra': bankableEntries.reduce((s, e) => s + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0), 0),
+      'Sub. Férias': bankableEntries.reduce((s, e) => s + (e.holidaySubsidy || 0), 0),
+      'Sub. Natal': bankableEntries.reduce((s, e) => s + (e.thirteenthMonth || 0), 0),
+      'Total Bruto': bankableEntries.reduce((s, e) => s + (e.grossSalary || 0), 0),
+      'IRT': bankableEntries.reduce((s, e) => s + (e.irt || 0), 0),
+      'INSS': bankableEntries.reduce((s, e) => s + (e.inssEmployee || 0), 0),
+      'Faltas': bankableEntries.reduce((s, e) => s + (e.absenceDeduction || 0), 0),
+      'Empréstimo': bankableEntries.reduce((s, e) => s + (e.loanDeduction || 0), 0),
+      'Adiantamento': bankableEntries.reduce((s, e) => s + (e.advanceDeduction || 0), 0),
+      'Outros Descontos': bankableEntries.reduce((s, e) => s + (e.otherDeductions || 0), 0),
+      'Salário Líquido': bankableEntries.reduce((s, e) => s + (e.netSalary || 0), 0),
+      'Bónus': bankableEntries.reduce((s, e) => s + (e.monthlyBonus || 0), 0),
+      'Total a Transferir': totalTransfer,
       'Banco': '',
       'Nº Conta': '',
       'IBAN': '',
-      'Valor (AOA)': totalTransfer,
       'Referência': '',
-      'Departamento': '',
-    } as any);
+    };
+    exportData.push(totalsRow);
 
     // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
