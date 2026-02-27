@@ -301,13 +301,14 @@ export default function Deductions() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={resetForm}>
-                <Plus className="h-4 w-4" />
-                {addDeductionLabel}
-              </Button>
-            </DialogTrigger>
+          {hasPermission('deductions.create') && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={resetForm}>
+                  <Plus className="h-4 w-4" />
+                  {addDeductionLabel}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{addDeductionLabel}</DialogTitle>
