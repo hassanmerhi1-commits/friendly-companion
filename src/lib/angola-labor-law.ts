@@ -555,8 +555,6 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   
   // Calculate IRT on the rendimento coletável
   irt = calculateIRT(rendimentoColetavel);
-  
-  console.log('[Payroll Debug] isColaborador:', isColaborador, 'baseSalary:', baseSalary, 'irtTaxableGross:', irtTaxableGross, 'inssEmployee:', inssEmployee, 'rendimentoColetavel:', rendimentoColetavel, 'irt:', irt);
 
   // Gross salary includes everything (for display purposes)
   const grossSalary = baseSalary + mealAllowance + transportAllowance + familyAllowance +
