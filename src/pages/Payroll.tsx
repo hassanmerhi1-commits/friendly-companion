@@ -356,6 +356,10 @@ const Payroll = () => {
   };
 
   const handleExport = () => {
+    if (!hasPermission('payroll.export')) {
+      toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
+      return;
+    }
     const monthName = language === 'pt' 
       ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][new Date().getMonth()]
       : ['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()];
