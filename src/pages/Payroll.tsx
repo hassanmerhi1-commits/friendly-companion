@@ -649,7 +649,7 @@ const Payroll = () => {
               {language === 'pt' ? 'Folha de Colaboradores por Filial' : 'Collaborators Sheet by Branch'}
             </h3>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-              {language === 'pt' ? 'Sem INSS / Sem IRT' : 'No INSS / No IRT'}
+              {language === 'pt' ? 'Sem INSS / Com IRT' : 'No INSS / With IRT'}
             </span>
             <div className="flex items-center gap-2">
               <Label>{language === 'pt' ? 'Selecionar Filial:' : 'Select Branch:'}</Label>
