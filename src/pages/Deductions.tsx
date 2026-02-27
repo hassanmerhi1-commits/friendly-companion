@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +10,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
@@ -28,6 +31,7 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
     type: 'salary_advance',
@@ -141,23 +145,55 @@ export default function Deductions() {
     { value: 'other', icon: Wallet },
   ];
 
-  // Inline form fields to avoid re-creating function component on every render
+  const activeEmployees = useMemo(() => employees.filter(e => e.status === 'active'), [employees]);
+  const selectedEmployee = activeEmployees.find(e => e.id === formData.employeeId);
+
+  // Inline form fields
   const deductionFormFields = (
     <div className="grid gap-4 py-4">
+      {/* Searchable Employee Combobox */}
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Funcionário *' : 'Employee *'}</Label>
-        <Select 
-          value={formData.employeeId} 
-          onValueChange={(v) => setFormData(prev => ({ ...prev, employeeId: v }))}
-          disabled={!!editingDeduction}
-        >
-          <SelectTrigger><SelectValue placeholder={language === 'pt' ? 'Seleccione' : 'Select'} /></SelectTrigger>
-          <SelectContent>
-            {employees.filter(e => e.status === 'active').map((e) => (
-              <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={employeeSearchOpen}
+              className="w-full justify-between font-normal"
+              disabled={!!editingDeduction}
+            >
+              {selectedEmployee
+                ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}`
+                : (language === 'pt' ? 'Pesquisar funcionário...' : 'Search employee...')}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" align="start">
+            <Command>
+              <CommandInput placeholder={language === 'pt' ? 'Pesquisar por nome...' : 'Search by name...'} />
+              <CommandList>
+                <CommandEmpty>{language === 'pt' ? 'Nenhum funcionário encontrado.' : 'No employee found.'}</CommandEmpty>
+                <CommandGroup>
+                  {activeEmployees.map((emp) => (
+                    <CommandItem
+                      key={emp.id}
+                      value={`${emp.firstName} ${emp.lastName}`}
+                      onSelect={() => {
+                        setFormData(prev => ({ ...prev, employeeId: emp.id }));
+                        setEmployeeSearchOpen(false);
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", formData.employeeId === emp.id ? "opacity-100" : "opacity-0")} />
+                      {emp.firstName} {emp.lastName}
+                      {emp.department && <span className="ml-auto text-xs text-muted-foreground">{emp.department}</span>}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
@@ -194,22 +230,19 @@ export default function Deductions() {
         </div>
       </div>
       
-      {/* Installments - available for ALL deduction types */}
+      {/* Flexible Installments - free numeric input */}
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
-        <Select 
-          value={String(formData.installments)} 
-          onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
-        >
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-              <SelectItem key={n} value={String(n)}>
-                {n}x {n === 1 ? (language === 'pt' ? '(pagamento único)' : '(single payment)') : ''}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Input
+          type="number"
+          min={1}
+          value={formData.installments}
+          onChange={(e) => setFormData(prev => ({ ...prev, installments: Math.max(1, Number(e.target.value)) }))}
+          placeholder={language === 'pt' ? 'Ex: 1, 6, 24...' : 'E.g.: 1, 6, 24...'}
+        />
+        {formData.installments === 1 && (
+          <p className="text-xs text-muted-foreground">{language === 'pt' ? 'Pagamento único' : 'Single payment'}</p>
+        )}
       </div>
 
       {/* Show calculated monthly amount */}
