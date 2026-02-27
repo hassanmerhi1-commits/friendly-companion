@@ -52,16 +52,28 @@ export default function Branches() {
   const activeBranches = branches.filter(b => b.isActive);
 
   const handleAddNew = () => {
+    if (!hasPermission('branches.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para criar filiais' : 'No permission to create branches');
+      return;
+    }
     setEditingBranch(null);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (branch: Branch) => {
+    if (!hasPermission('branches.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar filiais' : 'No permission to edit branches');
+      return;
+    }
     setEditingBranch(branch);
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    if (!hasPermission('branches.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar filiais' : 'No permission to delete branches');
+      return;
+    }
     await deleteBranch(id);
     toast.success(language === 'pt' ? 'Filial desactivada' : 'Branch deactivated');
   };
