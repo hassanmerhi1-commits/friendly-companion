@@ -540,23 +540,21 @@ export function calculatePayroll(input: PayrollInput): PayrollResult {
   // Transport/Meal: Only EXCESS above 30,000 Kz is taxable
   // Férias and Natal: Fully taxable
   // NOT included: Abono de Família
-  // Colaboradores: NO IRT at all
+  // Colaboradores: IRT APPLIES (they earn taxable income)
   // =========================================================================
   let irt = 0;
   
-  if (!isColaborador) {
-    const taxableTransport = getIRTTaxableAllowance(transportAllowance);
-    const taxableMeal = getIRTTaxableAllowance(mealAllowance);
-    
-    const irtTaxableGross = baseSalary + taxableTransport + taxableMeal +
-                            thirteenthMonth + holidaySubsidy + overtimeTotal + otherAllowances;
-    
-    // Rendimento Coletável = IRT Taxable Gross - INSS
-    const rendimentoColetavel = irtTaxableGross - inssEmployee;
-    
-    // Calculate IRT on the rendimento coletável
-    irt = calculateIRT(rendimentoColetavel);
-  }
+  const taxableTransport = getIRTTaxableAllowance(transportAllowance);
+  const taxableMeal = getIRTTaxableAllowance(mealAllowance);
+  
+  const irtTaxableGross = baseSalary + taxableTransport + taxableMeal +
+                          thirteenthMonth + holidaySubsidy + overtimeTotal + otherAllowances;
+  
+  // Rendimento Coletável = IRT Taxable Gross - INSS (colaboradores have 0 INSS)
+  const rendimentoColetavel = irtTaxableGross - inssEmployee;
+  
+  // Calculate IRT on the rendimento coletável
+  irt = calculateIRT(rendimentoColetavel);
 
   // Gross salary includes everything (for display purposes)
   const grossSalary = baseSalary + mealAllowance + transportAllowance + familyAllowance +
