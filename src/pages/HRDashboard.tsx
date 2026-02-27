@@ -40,9 +40,12 @@ import {
   Plus
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
+import { useAuthStore } from "@/stores/auth-store";
+import { toast } from "sonner";
 
 export default function HRDashboard() {
   const { language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
