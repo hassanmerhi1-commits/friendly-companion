@@ -64,6 +64,10 @@ export default function Deductions() {
   };
 
   const handleAddDeduction = () => {
+    if (!hasPermission('deductions.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
+      return;
+    }
     if (!formData.employeeId || !formData.totalAmount || !formData.description) {
       toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
       return;
