@@ -3,6 +3,7 @@ import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payrol
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { useEmployeeStore } from '@/stores/employee-store';
 
 
 interface PayrollState {
