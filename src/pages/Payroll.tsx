@@ -30,6 +30,7 @@ import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/auth-store";
 import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
