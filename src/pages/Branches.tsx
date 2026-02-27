@@ -16,6 +16,7 @@ import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { branches, deleteBranch } = useBranchStore();
   const { employees } = useEmployeeStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
