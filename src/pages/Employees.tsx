@@ -158,16 +158,28 @@ const Employees = () => {
   }
 
   const handleEdit = (emp: Employee) => {
+    if (!hasPermission('employees.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar funcionários' : 'No permission to edit employees');
+      return;
+    }
     setSelectedEmployee(emp);
     setFormOpen(true);
   };
 
   const handleAdd = () => {
+    if (!hasPermission('employees.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para adicionar funcionários' : 'No permission to add employees');
+      return;
+    }
     setSelectedEmployee(null);
     setFormOpen(true);
   };
 
   const handleDeleteClick = (emp: Employee) => {
+    if (!hasPermission('employees.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar funcionários' : 'No permission to delete employees');
+      return;
+    }
     setEmployeeToDelete(emp);
     setDeleteDialogOpen(true);
   };
