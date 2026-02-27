@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +10,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
