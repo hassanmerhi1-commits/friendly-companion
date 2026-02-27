@@ -529,10 +529,12 @@ export default function HRDashboard() {
                       : 'Warnings, suspensions and disciplinary processes'}
                   </CardDescription>
                 </div>
-                <Button onClick={() => setShowDisciplinaryDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {language === 'pt' ? 'Novo Registo' : 'New Record'}
-                </Button>
+                {hasPermission('hr.create') && (
+                  <Button onClick={() => setShowDisciplinaryDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {language === 'pt' ? 'Novo Registo' : 'New Record'}
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 <DisciplinaryRecordsList />

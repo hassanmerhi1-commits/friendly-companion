@@ -378,6 +378,10 @@ const Payroll = () => {
   };
 
   const handleApprove = async () => {
+    if (!hasPermission('payroll.approve')) {
+      toast.error(language === 'pt' ? 'Sem permissão para aprovar folha' : 'No permission to approve payroll');
+      return;
+    }
     if (!currentPeriod) return;
 
     // First approve period (history)

@@ -266,17 +266,21 @@ export default function Branches() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleDelete(branch.id)}
-                        disabled={branch.isHeadquarters}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {hasPermission('branches.edit') && (
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {hasPermission('branches.delete') && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(branch.id)}
+                          disabled={branch.isHeadquarters}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

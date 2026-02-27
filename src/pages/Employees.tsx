@@ -490,21 +490,25 @@ const Employees = () => {
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            {t.common.edit}
-                          </DropdownMenuItem>
+                          {hasPermission('employees.edit') && (
+                            <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              {t.common.edit}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteClick(employee)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t.common.delete}
-                          </DropdownMenuItem>
+                          {hasPermission('employees.delete') && (
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteClick(employee)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t.common.delete}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                       )}
