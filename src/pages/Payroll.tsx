@@ -254,6 +254,10 @@ const Payroll = () => {
   };
 
   const handleCalculate = async () => {
+    if (!hasPermission('payroll.calculate')) {
+      toast.error(language === 'pt' ? 'Sem permissão para calcular folha' : 'No permission to calculate payroll');
+      return;
+    }
     if (activeEmployees.length === 0) {
       toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
       return;
