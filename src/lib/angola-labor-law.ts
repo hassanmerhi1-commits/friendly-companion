@@ -436,7 +436,7 @@ export interface PayrollInput {
   overtimeHoursNight?: number;
   overtimeHoursHoliday?: number;
   isRetired?: boolean;
-  isColaborador?: boolean; // Colaboradores: no INSS, no IRT
+  isColaborador?: boolean; // Colaboradores: no INSS, but IRT applies
 
   // Auto-calculated subsidies
   include13thMonth?: boolean;
