@@ -123,6 +123,10 @@ export default function Deductions() {
   };
 
   const handleDelete = (deduction: Deduction) => {
+    if (!hasPermission('deductions.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar deduções' : 'No permission to delete deductions');
+      return;
+    }
     deleteDeduction(deduction.id);
     toast.success(language === 'pt' ? 'Desconto removido' : 'Deduction removed');
   };
