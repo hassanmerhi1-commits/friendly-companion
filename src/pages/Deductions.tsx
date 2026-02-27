@@ -21,6 +21,7 @@ import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduct
 import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
