@@ -317,8 +317,9 @@ export default function Deductions() {
               <Button onClick={handleAddDeduction} className="w-full">
                 {addDeductionLabel}
               </Button>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Stats */}
