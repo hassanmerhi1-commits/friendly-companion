@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth-store';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
