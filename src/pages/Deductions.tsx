@@ -31,6 +31,7 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
     type: 'salary_advance',
