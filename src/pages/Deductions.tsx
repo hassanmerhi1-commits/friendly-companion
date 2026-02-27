@@ -79,6 +79,10 @@ export default function Deductions() {
   };
 
   const handleEditClick = (deduction: Deduction) => {
+    if (!hasPermission('deductions.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar deduções' : 'No permission to edit deductions');
+      return;
+    }
     setEditingDeduction(deduction);
     setFormData({
       employeeId: deduction.employeeId,
