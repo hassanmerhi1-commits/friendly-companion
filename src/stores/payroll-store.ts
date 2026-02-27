@@ -3,6 +3,7 @@ import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payrol
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { useEmployeeStore } from '@/stores/employee-store';
 
 
 interface PayrollState {
@@ -645,6 +646,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const entry = get().entries.find((e) => e.id === id);
       if (!entry) return;
 
+      const emp = entry.employee || useEmployeeStore.getState().employees.find(e => e.id === entry.employeeId);
       const payrollResult = calculatePayroll({
         baseSalary: entry.baseSalary,
         mealAllowance: entry.mealAllowance,
@@ -654,7 +656,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         overtimeHoursNormal: entry.overtimeHoursNormal,
         overtimeHoursNight: entry.overtimeHoursNight,
         overtimeHoursHoliday: entry.overtimeHoursHoliday,
-        isRetired: entry.employee?.isRetired ?? false,
+        isRetired: emp?.isRetired ?? false,
+        isColaborador: emp?.contractType === 'colaborador',
         thirteenthMonthValue: entry.thirteenthMonth || 0,
         holidaySubsidyValue: entry.holidaySubsidy || 0,
       });
@@ -681,6 +684,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         const period = get().getPeriod(entry.payrollPeriodId);
         // Only recalculate draft periods (not approved or paid)
         if (period && period.status === 'draft') {
+          const emp = entry.employee || useEmployeeStore.getState().employees.find(e => e.id === entry.employeeId);
           const payrollResult = calculatePayroll({
             baseSalary: entry.baseSalary,
             mealAllowance: entry.mealAllowance,
@@ -690,7 +694,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             overtimeHoursNormal: entry.overtimeHoursNormal,
             overtimeHoursNight: entry.overtimeHoursNight,
             overtimeHoursHoliday: entry.overtimeHoursHoliday,
-            isRetired: entry.employee?.isRetired ?? false,
+            isRetired: emp?.isRetired ?? false,
+            isColaborador: emp?.contractType === 'colaborador',
             thirteenthMonthValue: entry.thirteenthMonth || 0,
             holidaySubsidyValue: entry.holidaySubsidy || 0,
           });
