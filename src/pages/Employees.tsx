@@ -158,16 +158,28 @@ const Employees = () => {
   }
 
   const handleEdit = (emp: Employee) => {
+    if (!hasPermission('employees.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar funcionários' : 'No permission to edit employees');
+      return;
+    }
     setSelectedEmployee(emp);
     setFormOpen(true);
   };
 
   const handleAdd = () => {
+    if (!hasPermission('employees.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para adicionar funcionários' : 'No permission to add employees');
+      return;
+    }
     setSelectedEmployee(null);
     setFormOpen(true);
   };
 
   const handleDeleteClick = (emp: Employee) => {
+    if (!hasPermission('employees.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar funcionários' : 'No permission to delete employees');
+      return;
+    }
     setEmployeeToDelete(emp);
     setDeleteDialogOpen(true);
   };
@@ -182,6 +194,10 @@ const Employees = () => {
   };
 
   const handleExport = () => {
+    if (!hasPermission('reports.export')) {
+      toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
+      return;
+    }
     exportEmployeesToCSV(employees, language);
     toast.success(t.export.success);
   };
@@ -233,10 +249,12 @@ const Employees = () => {
             <FileDown className="h-4 w-4 mr-2" />
             {t.export.excel}
           </Button>
-          <Button variant="accent" size="lg" onClick={handleAdd}>
-            <UserPlus className="h-5 w-5 mr-2" />
-            {t.employees.addEmployee}
-          </Button>
+          {hasPermission('employees.create') && (
+            <Button variant="accent" size="lg" onClick={handleAdd}>
+              <UserPlus className="h-5 w-5 mr-2" />
+              {t.employees.addEmployee}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -472,21 +490,25 @@ const Employees = () => {
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            {t.common.edit}
-                          </DropdownMenuItem>
+                          {hasPermission('employees.edit') && (
+                            <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              {t.common.edit}
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handlePrintCard(employee)}>
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteClick(employee)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t.common.delete}
-                          </DropdownMenuItem>
+                          {hasPermission('employees.delete') && (
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteClick(employee)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t.common.delete}
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                       )}

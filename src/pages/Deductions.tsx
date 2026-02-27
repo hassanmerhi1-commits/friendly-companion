@@ -21,9 +21,11 @@ import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduct
 import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
@@ -62,6 +64,10 @@ export default function Deductions() {
   };
 
   const handleAddDeduction = () => {
+    if (!hasPermission('deductions.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
+      return;
+    }
     if (!formData.employeeId || !formData.totalAmount || !formData.description) {
       toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
       return;
@@ -73,6 +79,10 @@ export default function Deductions() {
   };
 
   const handleEditClick = (deduction: Deduction) => {
+    if (!hasPermission('deductions.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar deduções' : 'No permission to edit deductions');
+      return;
+    }
     setEditingDeduction(deduction);
     setFormData({
       employeeId: deduction.employeeId,
@@ -113,6 +123,10 @@ export default function Deductions() {
   };
 
   const handleDelete = (deduction: Deduction) => {
+    if (!hasPermission('deductions.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar deduções' : 'No permission to delete deductions');
+      return;
+    }
     deleteDeduction(deduction.id);
     toast.success(language === 'pt' ? 'Desconto removido' : 'Deduction removed');
   };
@@ -287,13 +301,14 @@ export default function Deductions() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" onClick={resetForm}>
-                <Plus className="h-4 w-4" />
-                {addDeductionLabel}
-              </Button>
-            </DialogTrigger>
+          {hasPermission('deductions.create') && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" onClick={resetForm}>
+                  <Plus className="h-4 w-4" />
+                  {addDeductionLabel}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{addDeductionLabel}</DialogTitle>
@@ -302,8 +317,9 @@ export default function Deductions() {
               <Button onClick={handleAddDeduction} className="w-full">
                 {addDeductionLabel}
               </Button>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Stats */}
@@ -459,22 +475,26 @@ export default function Deductions() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleEditClick(deduction)}
-                            title={language === 'pt' ? 'Editar' : 'Edit'}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleDelete(deduction)}
-                            title={language === 'pt' ? 'Apagar' : 'Delete'}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {hasPermission('deductions.edit') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleEditClick(deduction)}
+                              title={language === 'pt' ? 'Editar' : 'Edit'}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {hasPermission('deductions.delete') && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleDelete(deduction)}
+                              title={language === 'pt' ? 'Apagar' : 'Delete'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

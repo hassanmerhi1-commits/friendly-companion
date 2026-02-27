@@ -30,10 +30,12 @@ import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
+import { useAuthStore } from "@/stores/auth-store";
 import type { PayrollEntry } from "@/types/payroll";
 
 const Payroll = () => {
   const { t, language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
@@ -252,6 +254,10 @@ const Payroll = () => {
   };
 
   const handleCalculate = async () => {
+    if (!hasPermission('payroll.calculate')) {
+      toast.error(language === 'pt' ? 'Sem permissão para calcular folha' : 'No permission to calculate payroll');
+      return;
+    }
     if (activeEmployees.length === 0) {
       toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
       return;
@@ -350,6 +356,10 @@ const Payroll = () => {
   };
 
   const handleExport = () => {
+    if (!hasPermission('payroll.export')) {
+      toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
+      return;
+    }
     const monthName = language === 'pt' 
       ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][new Date().getMonth()]
       : ['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()];
@@ -368,6 +378,10 @@ const Payroll = () => {
   };
 
   const handleApprove = async () => {
+    if (!hasPermission('payroll.approve')) {
+      toast.error(language === 'pt' ? 'Sem permissão para aprovar folha' : 'No permission to approve payroll');
+      return;
+    }
     if (!currentPeriod) return;
 
     // First approve period (history)

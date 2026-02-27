@@ -11,10 +11,12 @@ import { useLanguage } from '@/lib/i18n';
 import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download, QrCode, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Branch } from '@/types/branch';
 
 export default function Branches() {
   const { t, language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { branches, deleteBranch } = useBranchStore();
   const { employees } = useEmployeeStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -50,16 +52,28 @@ export default function Branches() {
   const activeBranches = branches.filter(b => b.isActive);
 
   const handleAddNew = () => {
+    if (!hasPermission('branches.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para criar filiais' : 'No permission to create branches');
+      return;
+    }
     setEditingBranch(null);
     setIsDialogOpen(true);
   };
 
   const handleEdit = (branch: Branch) => {
+    if (!hasPermission('branches.edit')) {
+      toast.error(language === 'pt' ? 'Sem permissão para editar filiais' : 'No permission to edit branches');
+      return;
+    }
     setEditingBranch(branch);
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    if (!hasPermission('branches.delete')) {
+      toast.error(language === 'pt' ? 'Sem permissão para eliminar filiais' : 'No permission to delete branches');
+      return;
+    }
     await deleteBranch(id);
     toast.success(language === 'pt' ? 'Filial desactivada' : 'Branch deactivated');
   };
@@ -128,10 +142,12 @@ export default function Branches() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Button className="gap-2" onClick={handleAddNew}>
-            <Plus className="h-4 w-4" />
-            {addBranchLabel}
-          </Button>
+          {hasPermission('branches.create') && (
+            <Button className="gap-2" onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              {addBranchLabel}
+            </Button>
+          )}
           
           <BranchFormDialog
             open={isDialogOpen}
@@ -250,17 +266,21 @@ export default function Branches() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleDelete(branch.id)}
-                        disabled={branch.isHeadquarters}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {hasPermission('branches.edit') && (
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(branch)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {hasPermission('branches.delete') && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(branch.id)}
+                          disabled={branch.isHeadquarters}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

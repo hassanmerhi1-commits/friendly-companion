@@ -40,9 +40,12 @@ import {
   Plus
 } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
+import { useAuthStore } from "@/stores/auth-store";
+import { toast } from "sonner";
 
 export default function HRDashboard() {
   const { language } = useLanguage();
+  const { hasPermission } = useAuthStore();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
@@ -480,7 +483,14 @@ export default function HRDashboard() {
                       <Button 
                         className="w-full" 
                         size="lg"
-                        onClick={() => setShowTerminationDialog(true)}
+                        onClick={() => {
+                          if (!hasPermission('hr.edit')) {
+                            toast.error(language === 'pt' ? 'Sem permissão para processar rescisões' : 'No permission to process terminations');
+                            return;
+                          }
+                          setShowTerminationDialog(true);
+                        }}
+                        disabled={!hasPermission('hr.edit')}
                       >
                         <CheckCircle className="h-5 w-5 mr-2" />
                         {language === 'pt' ? 'Processar Rescisão' : 'Process Termination'}
@@ -519,10 +529,12 @@ export default function HRDashboard() {
                       : 'Warnings, suspensions and disciplinary processes'}
                   </CardDescription>
                 </div>
-                <Button onClick={() => setShowDisciplinaryDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {language === 'pt' ? 'Novo Registo' : 'New Record'}
-                </Button>
+                {hasPermission('hr.create') && (
+                  <Button onClick={() => setShowDisciplinaryDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {language === 'pt' ? 'Novo Registo' : 'New Record'}
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 <DisciplinaryRecordsList />
