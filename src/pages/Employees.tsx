@@ -249,10 +249,12 @@ const Employees = () => {
             <FileDown className="h-4 w-4 mr-2" />
             {t.export.excel}
           </Button>
-          <Button variant="accent" size="lg" onClick={handleAdd}>
-            <UserPlus className="h-5 w-5 mr-2" />
-            {t.employees.addEmployee}
-          </Button>
+          {hasPermission('employees.create') && (
+            <Button variant="accent" size="lg" onClick={handleAdd}>
+              <UserPlus className="h-5 w-5 mr-2" />
+              {t.employees.addEmployee}
+            </Button>
+          )}
         </div>
       </div>
 
