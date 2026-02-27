@@ -142,10 +142,12 @@ export default function Branches() {
             <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
-          <Button className="gap-2" onClick={handleAddNew}>
-            <Plus className="h-4 w-4" />
-            {addBranchLabel}
-          </Button>
+          {hasPermission('branches.create') && (
+            <Button className="gap-2" onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              {addBranchLabel}
+            </Button>
+          )}
           
           <BranchFormDialog
             open={isDialogOpen}
