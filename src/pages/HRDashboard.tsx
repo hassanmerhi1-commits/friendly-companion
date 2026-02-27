@@ -483,7 +483,14 @@ export default function HRDashboard() {
                       <Button 
                         className="w-full" 
                         size="lg"
-                        onClick={() => setShowTerminationDialog(true)}
+                        onClick={() => {
+                          if (!hasPermission('hr.edit')) {
+                            toast.error(language === 'pt' ? 'Sem permissão para processar rescisões' : 'No permission to process terminations');
+                            return;
+                          }
+                          setShowTerminationDialog(true);
+                        }}
+                        disabled={!hasPermission('hr.edit')}
                       >
                         <CheckCircle className="h-5 w-5 mr-2" />
                         {language === 'pt' ? 'Processar Rescisão' : 'Process Termination'}
