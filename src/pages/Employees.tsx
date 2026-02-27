@@ -194,6 +194,10 @@ const Employees = () => {
   };
 
   const handleExport = () => {
+    if (!hasPermission('reports.export')) {
+      toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
+      return;
+    }
     exportEmployeesToCSV(employees, language);
     toast.success(t.export.success);
   };
