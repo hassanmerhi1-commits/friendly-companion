@@ -11,6 +11,7 @@ import { useLanguage } from '@/lib/i18n';
 import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, Crown, Download, QrCode, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuthStore } from '@/stores/auth-store';
 import type { Branch } from '@/types/branch';
 
 export default function Branches() {
