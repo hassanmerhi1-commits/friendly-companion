@@ -1,6 +1,6 @@
 /**
  * Bank Payment Export Component
- * Generates properly formatted XLSX file with employee bank details and net salaries
+ * Generates professionally formatted XLSX file with exceljs
  */
 
 import { useState } from 'react';
@@ -14,7 +14,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { Download, Building2, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { PayrollEntry } from '@/types/payroll';
 
 interface BankPaymentExportProps {
@@ -33,19 +33,17 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
 
   const activeBranches = branches.filter(b => b.isActive);
 
-  // Filter entries by branch
   const filteredEntries = selectedBranchId === 'all' 
     ? entries 
     : entries.filter(e => e.employee?.branchId === selectedBranchId);
 
-  // Only include employees with bank details
   const bankableEntries = filteredEntries.filter(e => 
     e.employee && 
     e.employee.paymentMethod === 'bank_transfer' && 
     (e.employee.bankAccountNumber || e.employee.iban)
   );
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (bankableEntries.length === 0) {
       toast.error(
         language === 'pt' 
@@ -55,125 +53,215 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       return;
     }
 
-    // Prepare data for export
     const getTransferAmount = (entry: PayrollEntry) => {
-      // IMPORTANT: monthlyBonus is paid but not part of the taxed netSalary calculation.
-      // For bank transfers we must include the full amount to be paid.
       return (entry.netSalary || 0) + (entry.monthlyBonus || 0);
     };
 
-    const exportData = bankableEntries.map((entry, index) => {
-      const overtimeTotal = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
-      return {
-        'Nº': index + 1,
-        'Nº Funcionário': entry.employee?.employeeNumber || '',
-        'Nome Completo': `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
-        'Departamento': entry.employee?.department || '',
-        'Salário Base': entry.baseSalary || 0,
-        'Sub. Alimentação': entry.mealAllowance || 0,
-        'Sub. Transporte': entry.transportAllowance || 0,
-        'Abono Familiar': entry.familyAllowance || 0,
-        'Outros Subsídios': entry.otherAllowances || 0,
-        'Horas Extra': overtimeTotal,
-        'Sub. Férias': entry.holidaySubsidy || 0,
-        'Sub. Natal': entry.thirteenthMonth || 0,
-        'Total Bruto': entry.grossSalary || 0,
-        'IRT': entry.irt || 0,
-        'INSS': entry.inssEmployee || 0,
-        'Faltas': entry.absenceDeduction || 0,
-        'Empréstimo': entry.loanDeduction || 0,
-        'Adiantamento': entry.advanceDeduction || 0,
-        'Outros Descontos': entry.otherDeductions || 0,
-        'Salário Líquido': entry.netSalary || 0,
-        'Bónus': entry.monthlyBonus || 0,
-        'Total a Transferir': getTransferAmount(entry),
-        'Banco': entry.employee?.bankName || '',
-        'Nº Conta': entry.employee?.bankAccountNumber || '',
-        'IBAN': entry.employee?.iban || '',
-        'Referência': paymentReference,
-      };
-    });
-
-    // Add totals row
-    const sumField = (field: string) => bankableEntries.reduce((sum, e: any) => sum + ((e as any)[field] || 0), 0);
-    const totalTransfer = bankableEntries.reduce((sum, e) => sum + getTransferAmount(e), 0);
-    const totalsRow: any = {
-      'Nº': '',
-      'Nº Funcionário': '',
-      'Nome Completo': 'TOTAL',
-      'Departamento': '',
-      'Salário Base': bankableEntries.reduce((s, e) => s + (e.baseSalary || 0), 0),
-      'Sub. Alimentação': bankableEntries.reduce((s, e) => s + (e.mealAllowance || 0), 0),
-      'Sub. Transporte': bankableEntries.reduce((s, e) => s + (e.transportAllowance || 0), 0),
-      'Abono Familiar': bankableEntries.reduce((s, e) => s + (e.familyAllowance || 0), 0),
-      'Outros Subsídios': bankableEntries.reduce((s, e) => s + (e.otherAllowances || 0), 0),
-      'Horas Extra': bankableEntries.reduce((s, e) => s + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0), 0),
-      'Sub. Férias': bankableEntries.reduce((s, e) => s + (e.holidaySubsidy || 0), 0),
-      'Sub. Natal': bankableEntries.reduce((s, e) => s + (e.thirteenthMonth || 0), 0),
-      'Total Bruto': bankableEntries.reduce((s, e) => s + (e.grossSalary || 0), 0),
-      'IRT': bankableEntries.reduce((s, e) => s + (e.irt || 0), 0),
-      'INSS': bankableEntries.reduce((s, e) => s + (e.inssEmployee || 0), 0),
-      'Faltas': bankableEntries.reduce((s, e) => s + (e.absenceDeduction || 0), 0),
-      'Empréstimo': bankableEntries.reduce((s, e) => s + (e.loanDeduction || 0), 0),
-      'Adiantamento': bankableEntries.reduce((s, e) => s + (e.advanceDeduction || 0), 0),
-      'Outros Descontos': bankableEntries.reduce((s, e) => s + (e.otherDeductions || 0), 0),
-      'Salário Líquido': bankableEntries.reduce((s, e) => s + (e.netSalary || 0), 0),
-      'Bónus': bankableEntries.reduce((s, e) => s + (e.monthlyBonus || 0), 0),
-      'Total a Transferir': totalTransfer,
-      'Banco': '',
-      'Nº Conta': '',
-      'IBAN': '',
-      'Referência': '',
-    };
-    exportData.push(totalsRow);
-
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(exportData);
-
-    // Set column widths for proper formatting
-    ws['!cols'] = [
-      { wch: 5 },   // Nº
-      { wch: 15 },  // Nº Funcionário
-      { wch: 30 },  // Nome Completo
-      { wch: 18 },  // Departamento
-      { wch: 14 },  // Salário Base
-      { wch: 14 },  // Sub. Alimentação
-      { wch: 14 },  // Sub. Transporte
-      { wch: 14 },  // Abono Familiar
-      { wch: 14 },  // Outros Subsídios
-      { wch: 12 },  // Horas Extra
-      { wch: 12 },  // Sub. Férias
-      { wch: 12 },  // Sub. Natal
-      { wch: 14 },  // Total Bruto
-      { wch: 12 },  // IRT
-      { wch: 12 },  // INSS
-      { wch: 10 },  // Faltas
-      { wch: 12 },  // Empréstimo
-      { wch: 12 },  // Adiantamento
-      { wch: 14 },  // Outros Descontos
-      { wch: 14 },  // Salário Líquido
-      { wch: 12 },  // Bónus
-      { wch: 16 },  // Total a Transferir
-      { wch: 25 },  // Banco
-      { wch: 20 },  // Nº Conta
-      { wch: 30 },  // IBAN
-      { wch: 18 },  // Referência
-    ];
-
-    // Add header with company info
     const branchName = selectedBranchId === 'all' 
       ? (language === 'pt' ? 'Todas as Filiais' : 'All Branches')
       : activeBranches.find(b => b.id === selectedBranchId)?.name || '';
 
-    // Create worksheet
-    XLSX.utils.book_append_sheet(wb, ws, 'Pagamentos');
+    // Create workbook
+    const wb = new ExcelJS.Workbook();
+    wb.creator = settings.companyName || 'PayrollAO';
+    wb.created = new Date();
 
-    // Generate filename
-    const filename = `pagamentos-bancarios-${periodLabel.replace(/\s/g, '-')}.xlsx`;
+    const ws = wb.addWorksheet('Pagamentos', {
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+    });
 
-    // Download
-    XLSX.writeFile(wb, filename);
+    // ── Column definitions ──
+    const columns = [
+      { header: 'Nº', key: 'num', width: 6 },
+      { header: 'Nº Func.', key: 'empNum', width: 12 },
+      { header: 'Nome Completo', key: 'name', width: 30 },
+      { header: 'Departamento', key: 'dept', width: 18 },
+      { header: 'Salário Base', key: 'base', width: 15 },
+      { header: 'Sub. Alimentação', key: 'meal', width: 15 },
+      { header: 'Sub. Transporte', key: 'transport', width: 15 },
+      { header: 'Abono Familiar', key: 'family', width: 15 },
+      { header: 'Outros Sub.', key: 'otherAllow', width: 14 },
+      { header: 'Horas Extra', key: 'overtime', width: 13 },
+      { header: 'Sub. Férias', key: 'holiday', width: 13 },
+      { header: 'Sub. Natal', key: 'xmas', width: 13 },
+      { header: 'Total Bruto', key: 'gross', width: 15 },
+      { header: 'IRT', key: 'irt', width: 13 },
+      { header: 'INSS', key: 'inss', width: 13 },
+      { header: 'Faltas', key: 'absences', width: 12 },
+      { header: 'Empréstimo', key: 'loan', width: 13 },
+      { header: 'Adiantamento', key: 'advance', width: 13 },
+      { header: 'Outros Desc.', key: 'otherDed', width: 14 },
+      { header: 'Sal. Líquido', key: 'net', width: 15 },
+      { header: 'Bónus', key: 'bonus', width: 13 },
+      { header: 'Total Transferir', key: 'total', width: 16 },
+      { header: 'Banco', key: 'bank', width: 22 },
+      { header: 'Nº Conta', key: 'account', width: 20 },
+      { header: 'IBAN', key: 'iban', width: 30 },
+      { header: 'Referência', key: 'ref', width: 18 },
+    ];
+    ws.columns = columns;
+
+    // ── Title rows ──
+    const totalCols = columns.length;
+
+    // Row 1: Company name
+    ws.insertRow(1, []);
+    ws.mergeCells(1, 1, 1, totalCols);
+    const titleCell = ws.getCell('A1');
+    titleCell.value = settings.companyName || 'Empresa';
+    titleCell.font = { bold: true, size: 14 };
+    titleCell.alignment = { horizontal: 'center' };
+
+    // Row 2: Report info
+    ws.insertRow(2, []);
+    ws.mergeCells(2, 1, 2, totalCols);
+    const subtitleCell = ws.getCell('A2');
+    subtitleCell.value = `${language === 'pt' ? 'Ficheiro de Pagamento Bancário' : 'Bank Payment File'} — ${periodLabel} — ${branchName}`;
+    subtitleCell.font = { bold: true, size: 11, color: { argb: '555555' } };
+    subtitleCell.alignment = { horizontal: 'center' };
+
+    // Row 3: empty spacer
+    ws.insertRow(3, []);
+
+    // Row 4 is now the header row (shifted by 3 inserted rows)
+    const headerRowNum = 4;
+    const headerRow = ws.getRow(headerRowNum);
+
+    // Style constants
+    const thinBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+
+    const currencyFormat = '#,##0.00';
+
+    // Currency column indices (1-based, after 3 inserted rows the data columns stay the same)
+    const currencyCols = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+
+    // ── Style header row ──
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2B579A' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
+    });
+    headerRow.height = 28;
+
+    // ── Data rows ──
+    bankableEntries.forEach((entry, index) => {
+      const overtimeTotal = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+      const row = ws.addRow({
+        num: index + 1,
+        empNum: entry.employee?.employeeNumber || '',
+        name: `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
+        dept: entry.employee?.department || '',
+        base: entry.baseSalary || 0,
+        meal: entry.mealAllowance || 0,
+        transport: entry.transportAllowance || 0,
+        family: entry.familyAllowance || 0,
+        otherAllow: entry.otherAllowances || 0,
+        overtime: overtimeTotal,
+        holiday: entry.holidaySubsidy || 0,
+        xmas: entry.thirteenthMonth || 0,
+        gross: entry.grossSalary || 0,
+        irt: entry.irt || 0,
+        inss: entry.inssEmployee || 0,
+        absences: entry.absenceDeduction || 0,
+        loan: entry.loanDeduction || 0,
+        advance: entry.advanceDeduction || 0,
+        otherDed: entry.otherDeductions || 0,
+        net: entry.netSalary || 0,
+        bonus: entry.monthlyBonus || 0,
+        total: getTransferAmount(entry),
+        bank: entry.employee?.bankName || '',
+        account: entry.employee?.bankAccountNumber || '',
+        iban: entry.employee?.iban || '',
+        ref: paymentReference,
+      });
+
+      // Style each cell in data row
+      row.eachCell((cell, colNumber) => {
+        cell.border = thinBorder;
+        cell.alignment = { vertical: 'middle' };
+        if (currencyCols.includes(colNumber)) {
+          cell.numFmt = currencyFormat;
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+      });
+
+      // Alternate row shading
+      if (index % 2 === 1) {
+        row.eachCell((cell) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F6FA' } };
+        });
+      }
+    });
+
+    // ── Totals row ──
+    const sumCol = (key: string) => bankableEntries.reduce((s, e: any) => {
+      if (key === 'overtime') return s + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0);
+      if (key === 'total') return s + (e.netSalary || 0) + (e.monthlyBonus || 0);
+      return s + (e[key] || 0);
+    }, 0);
+
+    const totalsRow = ws.addRow({
+      num: '',
+      empNum: '',
+      name: 'TOTAL',
+      dept: '',
+      base: sumCol('baseSalary'),
+      meal: sumCol('mealAllowance'),
+      transport: sumCol('transportAllowance'),
+      family: sumCol('familyAllowance'),
+      otherAllow: sumCol('otherAllowances'),
+      overtime: sumCol('overtime'),
+      holiday: sumCol('holidaySubsidy'),
+      xmas: sumCol('thirteenthMonth'),
+      gross: sumCol('grossSalary'),
+      irt: sumCol('irt'),
+      inss: sumCol('inssEmployee'),
+      absences: sumCol('absenceDeduction'),
+      loan: sumCol('loanDeduction'),
+      advance: sumCol('advanceDeduction'),
+      otherDed: sumCol('otherDeductions'),
+      net: sumCol('netSalary'),
+      bonus: sumCol('monthlyBonus'),
+      total: sumCol('total'),
+      bank: '',
+      account: '',
+      iban: '',
+      ref: '',
+    });
+
+    totalsRow.eachCell((cell, colNumber) => {
+      cell.font = { bold: true, size: 10 };
+      cell.border = {
+        top: { style: 'double' },
+        left: { style: 'thin' },
+        bottom: { style: 'double' },
+        right: { style: 'thin' },
+      };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'D9E2F3' } };
+      if (currencyCols.includes(colNumber)) {
+        cell.numFmt = currencyFormat;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      }
+    });
+
+    // ── Freeze header row ──
+    ws.views = [{ state: 'frozen', ySplit: headerRowNum, xSplit: 3 }];
+
+    // ── Generate and download ──
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pagamentos-bancarios-${periodLabel.replace(/\s/g, '-')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
 
     toast.success(
       language === 'pt' 
@@ -199,7 +287,6 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Period info */}
           <div className="p-3 rounded-lg bg-muted">
             <p className="text-sm font-medium">{language === 'pt' ? 'Período:' : 'Period:'} {periodLabel}</p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -209,16 +296,13 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
             </p>
           </div>
 
-          {/* Branch filter */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               {language === 'pt' ? 'Filtrar por Filial' : 'Filter by Branch'}
             </Label>
             <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
                   {language === 'pt' ? 'Todas as Filiais' : 'All Branches'}
@@ -232,7 +316,6 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
             </Select>
           </div>
 
-          {/* Payment reference */}
           <div className="space-y-2">
             <Label>{language === 'pt' ? 'Referência de Pagamento' : 'Payment Reference'}</Label>
             <Input 
@@ -247,7 +330,6 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
             </p>
           </div>
 
-          {/* Summary */}
           <div className="p-3 rounded-lg border">
             <h4 className="font-medium text-sm mb-2">
               {language === 'pt' ? 'Resumo da Exportação' : 'Export Summary'}
@@ -266,13 +348,13 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
                   {language === 'pt' ? 'Total a transferir:' : 'Total to transfer:'}
                 </span>
               </div>
-               <div className="font-medium text-right">
-                 {bankableEntries.reduce((sum, e) => sum + (e.netSalary || 0) + (e.monthlyBonus || 0), 0).toLocaleString('pt-AO', { 
-                   style: 'currency', 
-                   currency: 'AOA',
-                   minimumFractionDigits: 2 
-                 })}
-               </div>
+              <div className="font-medium text-right">
+                {bankableEntries.reduce((sum, e) => sum + (e.netSalary || 0) + (e.monthlyBonus || 0), 0).toLocaleString('pt-AO', { 
+                  style: 'currency', 
+                  currency: 'AOA',
+                  minimumFractionDigits: 2 
+                })}
+              </div>
             </div>
             {filteredEntries.length > bankableEntries.length && (
               <p className="text-xs text-amber-600 mt-2">
