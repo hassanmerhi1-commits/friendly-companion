@@ -683,6 +683,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         const period = get().getPeriod(entry.payrollPeriodId);
         // Only recalculate draft periods (not approved or paid)
         if (period && period.status === 'draft') {
+          const emp = entry.employee || useEmployeeStore.getState().employees.find(e => e.id === entry.employeeId);
           const payrollResult = calculatePayroll({
             baseSalary: entry.baseSalary,
             mealAllowance: entry.mealAllowance,
@@ -692,7 +693,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             overtimeHoursNormal: entry.overtimeHoursNormal,
             overtimeHoursNight: entry.overtimeHoursNight,
             overtimeHoursHoliday: entry.overtimeHoursHoliday,
-            isRetired: entry.employee?.isRetired ?? false,
+            isRetired: emp?.isRetired ?? false,
+            isColaborador: emp?.contractType === 'colaborador',
             thirteenthMonthValue: entry.thirteenthMonth || 0,
             holidaySubsidyValue: entry.holidaySubsidy || 0,
           });
