@@ -84,7 +84,7 @@ const TaxSimulator = () => {
   // Net salary
   const netSalary = grossSalary - inssEmployee - irt;
 
-  // Find current IRT bracket (current table - exempt up to 100,000)
+  // Find current IRT bracket (current table - exempt up to 150,000)
   const currentBracket = IRT_BRACKETS.find(
     b => rendimentoColetavel >= b.min && rendimentoColetavel <= b.max
   );
@@ -424,7 +424,7 @@ const TaxSimulator = () => {
 
                 <div className="p-3 bg-primary/5 rounded-lg space-y-2 border border-primary/20">
                   <h4 className="font-medium text-foreground">Cálculo IRT - {escalaoIndex}º Escalão</h4>
-                  {currentBracket && rendimentoColetavel > 100_000 ? (
+                  {currentBracket && rendimentoColetavel > 150_000 ? (
                     <div className="text-muted-foreground space-y-1">
                       <div className="flex justify-between">
                         <span>Parcela Fixa</span>
@@ -445,7 +445,7 @@ const TaxSimulator = () => {
                     </div>
                   ) : (
                     <div className="text-success font-medium">
-                      Isento de IRT (até 100.000 Kz)
+                      Isento de IRT (até 150.000 Kz)
                     </div>
                   )}
                 </div>

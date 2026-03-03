@@ -39,20 +39,20 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // Formula: IRT = Parcela Fixa + (Rendimento Coletável - Excesso de) × Taxa
 // Rendimento Coletável = IRT Taxable Gross - INSS
 //
-// TABLE SOURCE: "Tabela do IRT" (MAUBE Consultoria e Auditoria)
-// Escalão | De (Kz)     | Até (Kz)      | Parcela Fixa | Taxa   | Excesso de
-// 1º      | 0           | 100.000       | 0            | Isento | -
-// 2º      | 100.001     | 150.000       | 0            | 13%    | 100.001
-// 3º      | 150.001     | 200.000       | 12.500       | 16%    | 150.001
-// 4º      | 200.001     | 300.000       | 31.250       | 18%    | 200.001
-// 5º      | 300.001     | 500.000       | 49.259       | 19%    | 300.001
-// 6º      | 500.001     | 1.000.000     | 87.250       | 20%    | 500.001
-// 7º      | 1.000.001   | 1.500.000     | 187.249      | 21%    | 1.000.001
-// 8º      | 1.500.001   | 2.000.000     | 292.249      | 22%    | 1.500.001
-// 9º      | 2.000.001   | 2.500.000     | 402.249      | 23%    | 2.000.001
-// 10º     | 2.500.001   | 5.000.000     | 517.249      | 24%    | 2.500.001
-// 11º     | 5.000.001   | 10.000.000    | 1.117.249    | 24.5%  | 5.000.001
-// 12º     | 10.000.001  | ∞             | 2.342.248    | 25%    | 10.000.001
+// TABLE SOURCE: Diário da República, 30 de Dezembro de 2025
+// ANEXO I - Artigo 21.º n.º 3 - Tabela do IRT (Rendimento Isento de Pagamento de IRT)
+// Escalão | Acima de (Kz) | Até (Kz)      | Parcela Fixa | Taxa   | Excesso de
+// 1º      | 0             | 150.000       | 0            | Isento | -
+// 2º      | 150.000       | 200.000       | 12.500       | 16%    | 150.000
+// 3º      | 200.000       | 300.000       | 31.250       | 18%    | 200.000
+// 4º      | 300.000       | 500.000       | 49.250       | 19%    | 300.000
+// 5º      | 500.000       | 1.000.000     | 87.250       | 20%    | 500.000
+// 6º      | 1.000.000     | 1.500.000     | 187.250      | 21%    | 1.000.000
+// 7º      | 1.500.000     | 2.000.000     | 292.250      | 22%    | 1.500.000
+// 8º      | 2.000.000     | 2.500.000     | 402.250      | 23%    | 2.000.000
+// 9º      | 2.500.000     | 5.000.000     | 517.250      | 24%    | 2.500.000
+// 10º     | 5.000.000     | 10.000.000    | 1.117.250    | 24.5%  | 5.000.000
+// 11º     | 10.000.000    | ∞             | 2.342.250    | 25%    | 10.000.000
 // 
 // IRT INCLUSIONS:
 // - Salário Base: Fully taxable
@@ -64,18 +64,17 @@ export const IRT_ALLOWANCE_EXEMPTION = 30_000; // 30,000 Kz
 // IRT EXCLUSIONS:
 // - Abono de Família: Fully exempt from IRT
 export const IRT_BRACKETS: IRTBracket[] = [
-  { min: 0, max: 100_000, rate: 0, fixedAmount: 0, excessOver: 0 },
-  { min: 100_001, max: 150_000, rate: 0.13, fixedAmount: 0, excessOver: 100_001 },
-  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500, excessOver: 150_001 },
-  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250, excessOver: 200_001 },
-  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_259, excessOver: 300_001 },
-  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250, excessOver: 500_001 },
-  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_249, excessOver: 1_000_001 },
-  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_249, excessOver: 1_500_001 },
-  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_249, excessOver: 2_000_001 },
-  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_249, excessOver: 2_500_001 },
-  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_249, excessOver: 5_000_001 },
-  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_248, excessOver: 10_000_001 },
+  { min: 0, max: 150_000, rate: 0, fixedAmount: 0, excessOver: 0 },
+  { min: 150_001, max: 200_000, rate: 0.16, fixedAmount: 12_500, excessOver: 150_000 },
+  { min: 200_001, max: 300_000, rate: 0.18, fixedAmount: 31_250, excessOver: 200_000 },
+  { min: 300_001, max: 500_000, rate: 0.19, fixedAmount: 49_250, excessOver: 300_000 },
+  { min: 500_001, max: 1_000_000, rate: 0.20, fixedAmount: 87_250, excessOver: 500_000 },
+  { min: 1_000_001, max: 1_500_000, rate: 0.21, fixedAmount: 187_250, excessOver: 1_000_000 },
+  { min: 1_500_001, max: 2_000_000, rate: 0.22, fixedAmount: 292_250, excessOver: 1_500_000 },
+  { min: 2_000_001, max: 2_500_000, rate: 0.23, fixedAmount: 402_250, excessOver: 2_000_000 },
+  { min: 2_500_001, max: 5_000_000, rate: 0.24, fixedAmount: 517_250, excessOver: 2_500_000 },
+  { min: 5_000_001, max: 10_000_000, rate: 0.245, fixedAmount: 1_117_250, excessOver: 5_000_000 },
+  { min: 10_000_001, max: Infinity, rate: 0.25, fixedAmount: 2_342_250, excessOver: 10_000_000 },
 ];
 
 // ============================================================================
@@ -220,8 +219,8 @@ export const NATIONAL_HOLIDAYS = [
  * - First 30,000 Kz of Transporte
  */
 export function calculateIRT(taxableIncome: number): number {
-  // Salaries up to 100,000 AOA are exempt (1º Escalão)
-  if (taxableIncome <= 100_000) {
+  // Salaries up to 150,000 AOA are exempt (1º Escalão - Diário da República 30/12/2025)
+  if (taxableIncome <= 150_000) {
     return 0;
   }
 
