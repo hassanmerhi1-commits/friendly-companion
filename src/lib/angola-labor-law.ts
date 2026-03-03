@@ -219,8 +219,8 @@ export const NATIONAL_HOLIDAYS = [
  * - First 30,000 Kz of Transporte
  */
 export function calculateIRT(taxableIncome: number): number {
-  // Salaries up to 100,000 AOA are exempt (1º Escalão)
-  if (taxableIncome <= 100_000) {
+  // Salaries up to 150,000 AOA are exempt (1º Escalão - Diário da República 30/12/2025)
+  if (taxableIncome <= 150_000) {
     return 0;
   }
 

@@ -445,7 +445,7 @@ const TaxSimulator = () => {
                     </div>
                   ) : (
                     <div className="text-success font-medium">
-                      Isento de IRT (até 100.000 Kz)
+                      Isento de IRT (até 150.000 Kz)
                     </div>
                   )}
                 </div>
