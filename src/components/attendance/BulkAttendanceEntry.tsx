@@ -373,6 +373,7 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                             onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
                             placeholder="0"
+                            disabled={readOnly}
                           />
                         </TableCell>
                         <TableCell>
