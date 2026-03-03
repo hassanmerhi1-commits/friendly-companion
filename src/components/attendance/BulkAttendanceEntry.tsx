@@ -24,9 +24,10 @@ interface BulkAttendanceEntryProps {
   month: number;
   year: number;
   periodId?: string;
+  readOnly?: boolean;
 }
 
-export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEntryProps) {
+export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }: BulkAttendanceEntryProps) {
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
