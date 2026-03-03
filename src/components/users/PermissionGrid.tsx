@@ -70,6 +70,7 @@ export const PERMISSION_CATEGORIES = {
       { key: 'attendance.create' as Permission, labelPt: 'Criar', labelEn: 'Create' },
       { key: 'attendance.edit' as Permission, labelPt: 'Editar', labelEn: 'Edit' },
       { key: 'attendance.delete' as Permission, labelPt: 'Eliminar', labelEn: 'Delete' },
+      { key: 'attendance.edit_past' as Permission, labelPt: 'Editar Meses Anteriores', labelEn: 'Edit Past Months' },
     ],
   },
   recursosHumanos: {

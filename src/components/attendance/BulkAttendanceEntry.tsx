@@ -24,9 +24,10 @@ interface BulkAttendanceEntryProps {
   month: number;
   year: number;
   periodId?: string;
+  readOnly?: boolean;
 }
 
-export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEntryProps) {
+export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }: BulkAttendanceEntryProps) {
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
@@ -360,6 +361,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                             onChange={(e) => updateEntry(emp.id, 'absenceDays', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
                             placeholder="0"
+                            disabled={readOnly}
                           />
                         </TableCell>
                         <TableCell>
@@ -371,6 +373,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                             onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
                             placeholder="0"
+                            disabled={readOnly}
                           />
                         </TableCell>
                         <TableCell>
@@ -383,6 +386,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
                             onChange={(e) => updateEntry(emp.id, 'delayHours', parseFloat(e.target.value) || 0)}
                             className="w-20 text-center mx-auto"
                             placeholder="0"
+                            disabled={readOnly}
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -440,7 +444,7 @@ export function BulkAttendanceEntry({ month, year, periodId }: BulkAttendanceEnt
             <div className="ml-auto">
               <Button 
                 onClick={handleSave} 
-                disabled={isSaving || !hasChanges}
+                disabled={isSaving || !hasChanges || readOnly}
                 className="gap-2"
               >
                 {isSaving ? (

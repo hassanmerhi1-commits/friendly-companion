@@ -24,6 +24,7 @@ export type Permission =
   | 'attendance.create'
   | 'attendance.edit'
   | 'attendance.delete'
+  | 'attendance.edit_past'
   | 'hr.view'
   | 'hr.create'
   | 'hr.edit'
@@ -55,7 +56,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export', 'payroll.archive', 'payroll.reopen',
     'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.delete',
     'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
-    'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.delete',
+    'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.delete', 'attendance.edit_past',
     'hr.view', 'hr.create', 'hr.edit', 'hr.delete',
     'loans.view', 'loans.create', 'loans.edit', 'loans.delete',
     'holidays.view', 'holidays.create', 'holidays.edit',
