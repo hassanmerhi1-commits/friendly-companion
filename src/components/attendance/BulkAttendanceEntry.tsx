@@ -444,7 +444,7 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
             <div className="ml-auto">
               <Button 
                 onClick={handleSave} 
-                disabled={isSaving || !hasChanges}
+                disabled={isSaving || !hasChanges || readOnly}
                 className="gap-2"
               >
                 {isSaving ? (
