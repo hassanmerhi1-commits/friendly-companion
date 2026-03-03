@@ -24,7 +24,7 @@ export default function Attendance() {
   const { records } = useAttendanceStore();
   const { entries: bulkEntries } = useBulkAttendanceStore();
   const { periods } = usePayrollStore();
-  const { hasPermission } = useAuthStore();
+  const { hasPermission, currentUser } = useAuthStore();
 
   const pendingAbsences = getPendingAbsences().length;
   const todayRecords = records.filter(r => 
