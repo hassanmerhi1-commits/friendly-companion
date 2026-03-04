@@ -54,18 +54,21 @@ export function PrintableColaboradorSheet({
     mealAllowance: language === 'pt' ? 'Sub. Alimentação' : 'Meal Allow.',
     transportAllowance: language === 'pt' ? 'Sub. Transporte' : 'Transport Allow.',
     familyAllowance: language === 'pt' ? 'Abono Familiar' : 'Family Allow.',
+    holidaySubsidy: language === 'pt' ? 'Sub. Férias' : 'Holiday Sub.',
+    christmasBonus: language === 'pt' ? 'Sub. Natal' : '13th Month',
     grossSalary: language === 'pt' ? 'Salário Bruto' : 'Gross Salary',
     absenceDeduction: language === 'pt' ? 'Desc. Faltas' : 'Absence Ded.',
     loanDeduction: language === 'pt' ? 'Empréstimos' : 'Loans',
+    irt: 'IRT',
     totalDeductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
     netSalary: language === 'pt' ? 'Salário Líquido' : 'Net Salary',
     signature: language === 'pt' ? 'Assinatura' : 'Signature',
     totals: language === 'pt' ? 'TOTAIS' : 'TOTALS',
     print: language === 'pt' ? 'Imprimir Folha' : 'Print Sheet',
-    noTax: language === 'pt' ? 'Sem INSS / Sem IRT' : 'No INSS / No IRT',
+    noInssWithIrt: language === 'pt' ? 'Sem INSS / Com IRT' : 'No INSS / With IRT',
     legalNote: language === 'pt'
-      ? 'Colaboradores externos - Sem descontos de INSS e IRT'
-      : 'External collaborators - No INSS or IRT deductions',
+      ? 'Colaboradores externos - Sem descontos de INSS / Com IRT'
+      : 'External collaborators - No INSS deductions / With IRT',
     preparedBy: language === 'pt' ? 'Elaborado por' : 'Prepared by',
     approvedBy: language === 'pt' ? 'Aprovado por' : 'Approved by',
     date: language === 'pt' ? 'Data' : 'Date',
@@ -77,15 +80,19 @@ export function PrintableColaboradorSheet({
     mealAllowance: acc.mealAllowance + e.mealAllowance,
     transportAllowance: acc.transportAllowance + e.transportAllowance,
     familyAllowance: acc.familyAllowance + (e.familyAllowance || 0),
+    holidaySubsidy: acc.holidaySubsidy + (e.holidaySubsidy || 0),
+    christmasBonus: acc.christmasBonus + (e.thirteenthMonth || 0),
     grossSalary: acc.grossSalary + e.grossSalary,
     absenceDeduction: acc.absenceDeduction + (e.absenceDeduction || 0),
     loanDeduction: acc.loanDeduction + (e.loanDeduction || 0),
+    irt: acc.irt + (e.irt || 0),
     totalDeductions: acc.totalDeductions + e.totalDeductions,
     netSalary: acc.netSalary + e.netSalary,
     daysAbsent: acc.daysAbsent + (e.daysAbsent || 0),
   }), {
     baseSalary: 0, mealAllowance: 0, transportAllowance: 0, familyAllowance: 0,
-    grossSalary: 0, absenceDeduction: 0, loanDeduction: 0, totalDeductions: 0,
+    holidaySubsidy: 0, christmasBonus: 0,
+    grossSalary: 0, absenceDeduction: 0, loanDeduction: 0, irt: 0, totalDeductions: 0,
     netSalary: 0, daysAbsent: 0,
   });
 
@@ -106,25 +113,27 @@ export function PrintableColaboradorSheet({
         <title>${t.title} - ${periodLabel}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 8px; padding: 10px; }
+          body { font-family: Arial, sans-serif; font-size: 7px; padding: 10px; }
           .header { display: flex; align-items: center; margin-bottom: 15px; gap: 15px; }
           .logo { width: 60px; height: auto; }
           .header-info { flex: 1; text-align: center; }
           .company-name { font-size: 12px; font-weight: bold; }
           .document-title { font-size: 11px; font-weight: bold; margin: 8px 0; text-transform: uppercase; color: #e67e22; }
           .period { font-size: 9px; margin-bottom: 8px; }
-          .no-tax-badge { background: #e67e22; color: white; padding: 2px 8px; border-radius: 3px; font-size: 8px; display: inline-block; margin-top: 4px; }
+          .no-tax-badge { background: #2980b9; color: white; padding: 2px 8px; border-radius: 3px; font-size: 8px; display: inline-block; margin-top: 4px; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-          th, td { border: 1px solid #333; padding: 3px 4px; text-align: right; font-size: 8px; }
-          th { background: #e67e22; color: white; font-weight: bold; text-align: center; font-size: 7px; text-transform: uppercase; }
+          th, td { border: 1px solid #333; padding: 2px 3px; text-align: right; font-size: 7px; }
+          th { background: #e67e22; color: white; font-weight: bold; text-align: center; font-size: 6px; text-transform: uppercase; }
           td:first-child { text-align: center; }
           td:nth-child(2) { text-align: left; }
           .totals-row { background: #f0e0c0; font-weight: bold; }
           .net-salary { background: #d0f0d0; font-weight: bold; }
+          .subsidy-col { background: #fff8e1; }
+          .irt-col { background: #fce4ec; }
           .footer { display: flex; justify-content: space-between; margin-top: 30px; }
           .signature-box { width: 180px; text-align: center; font-size: 8px; }
           .signature-line { border-top: 1px solid #000; margin-top: 35px; padding-top: 4px; }
-          .legal-note { font-size: 7px; font-style: italic; margin-top: 15px; text-align: center; color: #e67e22; }
+          .legal-note { font-size: 7px; font-style: italic; margin-top: 15px; text-align: center; color: #2980b9; }
           @media print {
             body { padding: 8px; }
             @page { size: landscape; margin: 8mm; }
@@ -137,7 +146,7 @@ export function PrintableColaboradorSheet({
       </html>
     `;
 
-    await printHtml(htmlContent, { width: 1000, height: 700 });
+    await printHtml(htmlContent, { width: 1100, height: 700 });
   };
 
   return (
@@ -165,7 +174,7 @@ export function PrintableColaboradorSheet({
             )}
             <div className="document-title">{t.title}</div>
             <div className="period">{t.period}: {periodLabel}</div>
-            <div className="no-tax-badge">{t.noTax}</div>
+            <div className="no-tax-badge">{t.noInssWithIrt}</div>
           </div>
         </div>
 
@@ -173,17 +182,20 @@ export function PrintableColaboradorSheet({
         <table>
           <thead>
             <tr>
-              <th style={{ width: '20px' }}>Nº</th>
-              <th style={{ width: '140px' }}>{t.employee}</th>
+              <th style={{ width: '18px' }}>Nº</th>
+              <th style={{ width: '120px' }}>{t.employee}</th>
               <th>{t.position}</th>
               <th>{t.baseSalary}</th>
               <th>{t.mealAllowance}</th>
               <th>{t.transportAllowance}</th>
               <th>{t.familyAllowance}</th>
+              <th className="subsidy-col">{t.holidaySubsidy}</th>
+              <th className="subsidy-col">{t.christmasBonus}</th>
               <th>{t.grossSalary}</th>
               <th>{t.daysAbsent}</th>
               <th>{t.absenceDeduction}</th>
               <th>{t.loanDeduction}</th>
+              <th className="irt-col">{t.irt}</th>
               <th>{t.totalDeductions}</th>
               <th className="net-salary">{t.netSalary}</th>
               <th>{t.signature}</th>
@@ -196,18 +208,21 @@ export function PrintableColaboradorSheet({
                 <tr key={entry.id}>
                   <td style={{ textAlign: 'center' }}>{idx + 1}</td>
                   <td style={{ textAlign: 'left' }}>{fullName}</td>
-                  <td style={{ textAlign: 'left', fontSize: '7px' }}>{entry.employee?.position || ''}</td>
+                  <td style={{ textAlign: 'left', fontSize: '6px' }}>{entry.employee?.position || ''}</td>
                   <td>{formatAOA(entry.baseSalary)}</td>
                   <td>{formatAOA(entry.mealAllowance)}</td>
                   <td>{formatAOA(entry.transportAllowance)}</td>
                   <td>{formatAOA(entry.familyAllowance || 0)}</td>
+                  <td className="subsidy-col">{formatAOA(entry.holidaySubsidy || 0)}</td>
+                  <td className="subsidy-col">{formatAOA(entry.thirteenthMonth || 0)}</td>
                   <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.grossSalary)}</td>
                   <td style={{ textAlign: 'center' }}>{entry.daysAbsent || 0}</td>
                   <td style={{ color: (entry.absenceDeduction || 0) > 0 ? '#c0392b' : 'inherit' }}>{formatAOA(entry.absenceDeduction || 0)}</td>
                   <td style={{ color: (entry.loanDeduction || 0) > 0 ? '#c0392b' : 'inherit' }}>{formatAOA(entry.loanDeduction || 0)}</td>
+                  <td className="irt-col" style={{ color: (entry.irt || 0) > 0 ? '#c0392b' : 'inherit' }}>{formatAOA(entry.irt || 0)}</td>
                   <td style={{ fontWeight: 'bold' }}>{formatAOA(entry.totalDeductions)}</td>
                   <td className="net-salary">{formatAOA(entry.netSalary)}</td>
-                  <td style={{ width: '70px' }}></td>
+                  <td style={{ width: '60px' }}></td>
                 </tr>
               );
             })}
@@ -217,10 +232,13 @@ export function PrintableColaboradorSheet({
               <td>{formatAOA(totals.mealAllowance)}</td>
               <td>{formatAOA(totals.transportAllowance)}</td>
               <td>{formatAOA(totals.familyAllowance)}</td>
+              <td className="subsidy-col">{formatAOA(totals.holidaySubsidy)}</td>
+              <td className="subsidy-col">{formatAOA(totals.christmasBonus)}</td>
               <td>{formatAOA(totals.grossSalary)}</td>
               <td style={{ textAlign: 'center' }}>{totals.daysAbsent}</td>
               <td>{formatAOA(totals.absenceDeduction)}</td>
               <td>{formatAOA(totals.loanDeduction)}</td>
+              <td className="irt-col">{formatAOA(totals.irt)}</td>
               <td>{formatAOA(totals.totalDeductions)}</td>
               <td className="net-salary">{formatAOA(totals.netSalary)}</td>
               <td></td>
