@@ -184,10 +184,10 @@ const Payroll = () => {
   };
 
   // Split entries: regular employees vs colaboradores
-  const regularEntries = currentEntries.filter(e => !isColaboradorEntry(e));
+  const regularEntries = currentEntries; // Include all employees (regular + colaboradores) in main table
   const colaboradorEntries = currentEntries.filter(e => isColaboradorEntry(e));
 
-  // Filter entries by branch for payroll sheet (REGULAR only)
+  // Filter entries by branch for payroll sheet (ALL employees)
   const payrollSheetEntries = selectedBranchId 
     ? regularEntries
         .filter(e => {
