@@ -195,6 +195,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     status: e.status,
     created_at: e.createdAt,
     updated_at: e.updatedAt,
+  };
 }
 
 export const usePayrollStore = create<PayrollState>()((set, get) => ({
