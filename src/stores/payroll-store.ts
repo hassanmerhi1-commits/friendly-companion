@@ -118,7 +118,7 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     baseSalary: row.base_salary || 0,
     mealAllowance: row.subsidy_alimentacao || 0,
     transportAllowance: row.subsidy_transporte || 0,
-    otherAllowances: 0,
+    otherAllowances: row.other_allowances || 0,
     familyAllowance: row.family_allowance || 0,
     monthlyBonus: row.monthly_bonus || 0,
     overtimeNormal: row.overtime_normal || row.overtime_amount || 0,
