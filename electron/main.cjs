@@ -806,9 +806,9 @@ function createNewDatabaseInternal(targetPath) {
         total_bonuses REAL DEFAULT 0,
         subsidy_alimentacao REAL DEFAULT 0,
         subsidy_transporte REAL DEFAULT 0,
+        other_allowances REAL DEFAULT 0,
         subsidy_ferias REAL DEFAULT 0,
         subsidy_natal REAL DEFAULT 0,
-        overtime_hours REAL DEFAULT 0,
         overtime_amount REAL DEFAULT 0,
         absence_days INTEGER DEFAULT 0,
         absence_deduction REAL DEFAULT 0,
@@ -1115,6 +1115,7 @@ function runMigrations() {
 
     addColumnIfMissing('payroll_entries', 'subsidy_alimentacao', "ALTER TABLE payroll_entries ADD COLUMN subsidy_alimentacao REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_transporte', "ALTER TABLE payroll_entries ADD COLUMN subsidy_transporte REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'other_allowances', "ALTER TABLE payroll_entries ADD COLUMN other_allowances REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_ferias', "ALTER TABLE payroll_entries ADD COLUMN subsidy_ferias REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_natal', "ALTER TABLE payroll_entries ADD COLUMN subsidy_natal REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'family_allowance', "ALTER TABLE payroll_entries ADD COLUMN family_allowance REAL DEFAULT 0");
@@ -1122,7 +1123,6 @@ function runMigrations() {
 
     // Overtime (legacy totals + detailed breakdown used by the app)
     addColumnIfMissing('payroll_entries', 'overtime_hours', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours REAL DEFAULT 0");
-    addColumnIfMissing('payroll_entries', 'overtime_amount', "ALTER TABLE payroll_entries ADD COLUMN overtime_amount REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'overtime_hours_normal', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_normal REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'overtime_hours_night', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_night REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'overtime_hours_holiday', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours_holiday REAL DEFAULT 0");
