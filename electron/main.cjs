@@ -1115,10 +1115,10 @@ function runMigrations() {
 
     addColumnIfMissing('payroll_entries', 'subsidy_alimentacao', "ALTER TABLE payroll_entries ADD COLUMN subsidy_alimentacao REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_transporte', "ALTER TABLE payroll_entries ADD COLUMN subsidy_transporte REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'other_allowances', "ALTER TABLE payroll_entries ADD COLUMN other_allowances REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_ferias', "ALTER TABLE payroll_entries ADD COLUMN subsidy_ferias REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'subsidy_natal', "ALTER TABLE payroll_entries ADD COLUMN subsidy_natal REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'family_allowance', "ALTER TABLE payroll_entries ADD COLUMN family_allowance REAL DEFAULT 0");
-    addColumnIfMissing('payroll_entries', 'monthly_bonus', "ALTER TABLE payroll_entries ADD COLUMN monthly_bonus REAL DEFAULT 0");
 
     // Overtime (legacy totals + detailed breakdown used by the app)
     addColumnIfMissing('payroll_entries', 'overtime_hours', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours REAL DEFAULT 0");
