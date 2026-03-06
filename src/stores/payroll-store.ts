@@ -190,9 +190,9 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     other_deductions_amount: e.otherDeductions,
     deduction_details: e.deductionDetails || null,
     total_employer_cost: e.totalEmployerCost,
+    paid_early: e.paidEarly ? 1 : 0,
     notes: e.notes || null,
     status: e.status,
-    created_at: e.createdAt,
     updated_at: e.updatedAt,
   };
 }
