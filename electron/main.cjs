@@ -880,6 +880,136 @@ function createNewDatabaseInternal(targetPath) {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS disciplinary_records (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT DEFAULT 'pendente',
+        date TEXT,
+        description TEXT,
+        duration INTEGER,
+        created_by TEXT,
+        resolution TEXT,
+        resolution_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS terminations (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        termination_date TEXT,
+        reason TEXT,
+        reason_details TEXT,
+        years_of_service REAL DEFAULT 0,
+        final_base_salary REAL DEFAULT 0,
+        severance_pay REAL DEFAULT 0,
+        proportional_leave REAL DEFAULT 0,
+        proportional_13th REAL DEFAULT 0,
+        proportional_holiday_subsidy REAL DEFAULT 0,
+        notice_period_days INTEGER DEFAULT 0,
+        notice_compensation REAL DEFAULT 0,
+        unused_leave_days INTEGER DEFAULT 0,
+        unused_leave_compensation REAL DEFAULT 0,
+        total_package REAL DEFAULT 0,
+        processed_by TEXT,
+        processed_at TEXT,
+        letter_generated INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS salary_adjustments (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        type TEXT,
+        effective_date TEXT,
+        previous_salary REAL DEFAULT 0,
+        new_salary REAL DEFAULT 0,
+        change_amount REAL DEFAULT 0,
+        change_percent REAL DEFAULT 0,
+        reason TEXT,
+        previous_position TEXT,
+        new_position TEXT,
+        status TEXT DEFAULT 'pending',
+        requested_by TEXT,
+        requested_at TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        rejected_by TEXT,
+        rejected_at TEXT,
+        rejection_reason TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS loans (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT,
+        amount REAL DEFAULT 0,
+        remaining_amount REAL DEFAULT 0,
+        monthly_deduction REAL DEFAULT 0,
+        installments INTEGER DEFAULT 1,
+        paid_installments INTEGER DEFAULT 0,
+        reason TEXT,
+        approved_by TEXT,
+        approved_at TEXT,
+        status TEXT DEFAULT 'active',
+        start_date TEXT,
+        end_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS loan_payments (
+        id TEXT PRIMARY KEY,
+        loan_id TEXT NOT NULL,
+        amount REAL DEFAULT 0,
+        payroll_period_id TEXT,
+        paid_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS attendance (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        clock_in TEXT,
+        clock_out TEXT,
+        status TEXT DEFAULT 'absent',
+        scheduled_start TEXT DEFAULT '08:00',
+        scheduled_end TEXT DEFAULT '17:00',
+        break_duration_minutes INTEGER DEFAULT 60,
+        late_minutes INTEGER DEFAULT 0,
+        early_leave_minutes INTEGER DEFAULT 0,
+        worked_minutes INTEGER DEFAULT 0,
+        overtime_minutes INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        timestamp TEXT,
+        action TEXT,
+        user_id TEXT,
+        user_name TEXT,
+        entity_type TEXT,
+        entity_id TEXT,
+        period_id TEXT,
+        employee_id TEXT,
+        previous_value TEXT,
+        new_value TEXT,
+        description TEXT,
+        correction_reason TEXT,
+        correction_reference TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
       INSERT INTO users (id, username, password, name, role, is_active) 
       VALUES ('admin-001', 'admin', 'admin', 'Administrador', 'admin', 1);
     `);
