@@ -18,7 +18,7 @@ import { useEmployeeStore } from '@/stores/employee-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -33,6 +33,9 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
@@ -43,9 +46,22 @@ export default function Deductions() {
     installments: 1,
   });
 
-  const filteredDeductions = filterType === 'all' 
-    ? deductions 
-    : deductions.filter(d => d.type === filterType);
+  const filteredDeductions = useMemo(() => {
+    let result = deductions;
+    if (filterType !== 'all') result = result.filter(d => d.type === filterType);
+    if (filterStatus === 'pending') result = result.filter(d => !d.isFullyPaid);
+    if (filterStatus === 'paid') result = result.filter(d => d.isFullyPaid);
+    if (filterEmployee !== 'all') result = result.filter(d => d.employeeId === filterEmployee);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(d => {
+        const emp = employees.find(e => e.id === d.employeeId);
+        const empName = emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase() : '';
+        return empName.includes(q) || d.description.toLowerCase().includes(q);
+      });
+    }
+    return result;
+  }, [deductions, filterType, filterStatus, filterEmployee, searchQuery, employees]);
 
   const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
