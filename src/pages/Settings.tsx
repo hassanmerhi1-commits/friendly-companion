@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw, ImagePlus, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
 import { usePayrollStore } from "@/stores/payroll-store";
