@@ -37,24 +37,8 @@ export function BatchReceiptPrinter({
   
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [isPrinting, setIsPrinting] = useState(false);
-  const [logoBase64, setLogoBase64] = useState<string>('');
-
-  // Load logo as base64
-  useState(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  });
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
 
   // Filter entries by branch
   const filteredEntries = selectedBranchId === 'all' 

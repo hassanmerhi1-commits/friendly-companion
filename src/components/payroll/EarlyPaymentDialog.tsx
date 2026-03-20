@@ -38,23 +38,8 @@ export function EarlyPaymentDialog({
   const [reason, setReason] = useState('');
   const [authorizedBy, setAuthorizedBy] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [logoBase64, setLogoBase64] = useState('');
-
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  }, []);
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
 
   if (!entry || !employee) return null;
 

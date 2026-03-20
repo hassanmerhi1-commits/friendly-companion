@@ -27,23 +27,8 @@ export function PrintableEmployeeReport({
 }: PrintableEmployeeReportProps) {
   const { language } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
-  const [logoBase64, setLogoBase64] = useState<string>('');
-
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  }, []);
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
 
   const t = {
     title: language === 'pt' ? 'RELATÓRIO DE FUNCIONÁRIOS' : 'EMPLOYEE REPORT',

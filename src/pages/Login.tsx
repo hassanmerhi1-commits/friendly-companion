@@ -142,11 +142,18 @@ export function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img
-              src={companyLogo}
-              alt="Company Logo"
-              className="h-20 object-contain"
-            />
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company Logo"
+                className="h-20 object-contain"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Building2 className="h-10 w-10 text-primary" />
+                <span className="text-2xl font-display font-bold text-foreground">PayrollAO</span>
+              </div>
+            )}
           </div>
           <CardTitle className="text-2xl font-display">
             {language === 'pt' ? 'Sistema de Folha Salarial' : 'Payroll System'}

@@ -27,24 +27,8 @@ export function PrintablePayrollSheet({
 }: PrintablePayrollSheetProps) {
   const { language } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
-  const [logoBase64, setLogoBase64] = useState<string>('');
-
-  // Convert logo to base64 for print window
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  }, []);
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
 
   const t = {
     title: language === 'pt' ? 'FOLHA SALARIAL' : 'PAYROLL SHEET',
