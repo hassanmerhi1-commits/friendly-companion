@@ -9,6 +9,10 @@ export interface CompanySettings {
   city: string;
   province: string;
   municipality: string;
+  phone: string;
+  phone2: string;
+  email: string;
+  website: string;
   bank: string;
   iban: string;
   payday: number;
