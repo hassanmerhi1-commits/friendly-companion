@@ -96,10 +96,7 @@ export function TopNavbar() {
             />
           ) : (
             <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-primary" />
-              </div>
-              <span className="font-display font-bold text-sm text-foreground">PayrollAO</span>
+              <img src={payrollaoLogo} alt="PayrollAO" className="h-9 w-auto object-contain" />
             </div>
           )}
         </Link>
