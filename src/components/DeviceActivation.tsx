@@ -7,7 +7,6 @@ import { Shield, Lock, AlertTriangle } from 'lucide-react';
 import { validateMasterPassword, activateDevice } from '@/lib/device-security';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
 
 interface DeviceActivationProps {
   onActivated: () => void;
