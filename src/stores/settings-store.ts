@@ -56,6 +56,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         for (const row of rows) { settingsMap[row.key] = row.value; }
         const loaded: CompanySettings = {
           companyName: settingsMap.companyName || defaultSettings.companyName,
+          companyLogo: settingsMap.companyLogo || '',
           nif: settingsMap.nif || defaultSettings.nif,
           address: settingsMap.address || defaultSettings.address,
           city: settingsMap.city || defaultSettings.city,
