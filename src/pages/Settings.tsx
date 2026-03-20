@@ -58,7 +58,9 @@ const Settings = () => {
   };
 
   const handleChange = (field: string, value: string | number | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    const updated = { ...formData, [field]: value };
+    setFormData(updated);
+    updateSettings({ [field]: value });
   };
 
   const handleSave = () => {
