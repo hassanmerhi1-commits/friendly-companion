@@ -292,9 +292,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       // Extended type to track deduction IDs temporarily
       type EntryWithDeductionIds = PayrollEntry & { _deductionIds?: string[] };
       
-      const newEntries: EntryWithDeductionIds[] = employees
-        .filter((emp) => emp.status === 'active')
-        .map((emp) => {
+      // Build entries sequentially to properly await async deduction updates
+      const newEntries: EntryWithDeductionIds[] = [];
+      
+      for (const emp of employees.filter((e) => e.status === 'active')) {
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
 
@@ -324,9 +325,6 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
           // Calculate deductions if deduction store is provided
-          // Include:
-          // - pending deductions that are NOT fully paid (!isFullyPaid)
-          // - deductions already applied to THIS period (so reopening/recalculating keeps them)
           let loanDeduction = 0;
           let advanceDeduction = 0;
           let otherDeductions = 0;
@@ -343,22 +341,22 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               const isForThisPeriod = d.payrollPeriodId === periodId;
               const isPending = !d.isApplied;
               
-              // AUTO-CARRY: If deduction is applied to a DIFFERENT period that's already
-              // approved/paid, treat it as available for this period.
-              // This fixes the bug where installments only deduct in the first month
-              // unless the user explicitly archives.
+              // AUTO-CARRY: If deduction is applied to a DIFFERENT period,
+              // handle it based on that period's status:
+              // - Approved/Paid: increment installment count (previous month was processed)
+              // - Draft/Calculated: just release it (previous month was regenerated/abandoned)
               let isAutoCarry = false;
               if (d.isApplied && d.payrollPeriodId && d.payrollPeriodId !== periodId) {
                 const oldPeriod = allPeriods.find(p => p.id === d.payrollPeriodId);
+                
                 if (oldPeriod && (oldPeriod.status === 'approved' || oldPeriod.status === 'paid')) {
+                  // Previous period was finalized — count as paid installment
                   isAutoCarry = true;
-                  // Auto-increment installment tracking (what archive would have done)
                   const newInstallmentsPaid = (d.installmentsPaid || 0) + 1;
                   const newRemaining = d.totalAmount - (newInstallmentsPaid * d.amount);
                   const isNowFullyPaid = newInstallmentsPaid >= d.installments || newRemaining <= 0;
                   
-                  // Update the deduction in DB - reset for new period
-                  deductionStore.updateDeduction(d.id, {
+                  await deductionStore.updateDeduction(d.id, {
                     installmentsPaid: newInstallmentsPaid,
                     remainingAmount: Math.max(0, newRemaining),
                     isFullyPaid: isNowFullyPaid,
@@ -368,9 +366,18 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                   
                   if (isNowFullyPaid) {
                     console.log(`[Payroll] Auto-carry: Deduction ${d.id} fully paid after ${newInstallmentsPaid} installments`);
-                    continue; // Don't include - it's now fully paid
+                    continue;
                   }
                   console.log(`[Payroll] Auto-carry: Deduction ${d.id} ${newInstallmentsPaid}/${d.installments} paid, carrying to ${periodId}`);
+                } else {
+                  // Previous period is still draft/calculated — just release the deduction
+                  // so it can be picked up by the current period (no installment increment)
+                  isAutoCarry = true;
+                  await deductionStore.updateDeduction(d.id, {
+                    isApplied: false,
+                    payrollPeriodId: undefined,
+                  });
+                  console.log(`[Payroll] Released deduction ${d.id} from draft period ${d.payrollPeriodId} for current period ${periodId}`);
                 }
               }
               
@@ -379,8 +386,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // Basic time filter for pending deductions (don't pull future-dated items)
               if (isPending && !isAutoCarry && period.endDate && d.date && d.date > period.endDate) continue;
 
-              // FIX: d.amount is ALREADY the monthly installment amount (totalAmount / installments)
-              // No need to divide again!
+              // d.amount is ALREADY the monthly installment amount (totalAmount / installments)
               const amount = d.amount;
 
               if (d.type === 'loan') {
@@ -395,7 +401,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 type: d.type,
                 description: d.description,
                 amount,
-                deductionId: d.id, // Track which deduction this came from
+                deductionId: d.id,
               });
             }
           }
@@ -417,7 +423,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
           const now = new Date().toISOString();
 
-            return {
+          newEntries.push({
               id: `entry-${periodId}-${emp.id}`,
               payrollPeriodId: periodId,
               employeeId: emp.id,
@@ -426,7 +432,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               netSalary: payrollResult.netSalary - totalExtraDeductions,
               totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
               monthlyBonus: emp.monthlyBonus || 0,
-              absenceDeduction: totalAbsenceDeduction, // Includes absence days + delay hours deduction
+              absenceDeduction: totalAbsenceDeduction,
               loanDeduction,
               advanceDeduction,
               daysAbsent: absenceDays,
@@ -438,10 +444,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               status: 'draft' as const,
               createdAt: now,
               updatedAt: now,
-              // Store deduction IDs for linking after save
               _deductionIds: deductionBreakdown.map(db => db.deductionId),
-            };
-        });
+          });
+      }
 
       console.log('[Payroll] New entries to create:', newEntries.length);
 
