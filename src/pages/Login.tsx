@@ -314,7 +314,7 @@ export function LoginPage() {
                 </div>
               ) : (
                 <Select
-                  value={selectedCompanyId}
+                  value={selectedCompanyId === '__new__' ? '' : selectedCompanyId}
                   onValueChange={handleCompanyChange}
                 >
                   <SelectTrigger id="company">
