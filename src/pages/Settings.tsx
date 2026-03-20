@@ -486,6 +486,23 @@ const Settings = () => {
                 />
               </div>
             </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="accent"
+                onClick={handleSave}
+                disabled={!isDirty || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    A guardar...
+                  </>
+                ) : (
+                  t.settings.saveChanges || 'Guardar alterações'
+                )}
+              </Button>
+            </div>
           </div>
 
           <div className="stat-card animate-slide-up" style={{ animationDelay: "50ms" }}>
