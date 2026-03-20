@@ -27,14 +27,15 @@ interface SettingsStore {
 }
 
 const defaultSettings: CompanySettings = {
-  companyName: 'DISTRI-GOOD, LDA',
-  nif: '5402155682',
-  address: 'Estrada de Catete, Bairro Villa Nova n 320 B Viana',
-  city: 'Viana',
-  province: 'Luanda',
-  municipality: 'Viana',
-  bank: 'Banco Angolano de Investimentos',
-  iban: 'AO06 0000 0000 0000 0000 0000 0',
+  companyName: '',
+  companyLogo: '',
+  nif: '',
+  address: '',
+  city: '',
+  province: '',
+  municipality: '',
+  bank: '',
+  iban: '',
   payday: 27,
   currency: 'AOA (Kwanza)',
   emailPaymentProcessed: true,
