@@ -25,6 +25,7 @@ import { Building2 } from 'lucide-react';
 export function LoginPage() {
   const { t, language } = useLanguage();
   const { login, users, addUser, updateUser } = useAuthStore();
+  const companyLogo = useCompanyLogo();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
