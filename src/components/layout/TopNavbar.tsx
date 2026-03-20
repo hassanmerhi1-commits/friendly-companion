@@ -42,6 +42,7 @@ export function TopNavbar() {
   const { t, language } = useLanguage();
   const { currentUser, logout, hasPermission } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const companyLogo = useCompanyLogo();
 
   // Navigation items with required permissions
   const allNavigation: Array<{
