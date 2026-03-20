@@ -33,6 +33,7 @@ const Settings = () => {
   const [isRecalculating, setIsRecalculating] = useState(false);
   const currentProvince = getSelectedProvince();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoaded) {
