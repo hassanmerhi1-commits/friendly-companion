@@ -31,6 +31,8 @@ const Settings = () => {
   const [formData, setFormData] = useState(settings);
   const [stats, setStats] = useState(getBackupStats());
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const currentProvince = getSelectedProvince();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +42,11 @@ const Settings = () => {
       loadPayroll();
     }
   }, [isLoaded, loadPayroll]);
+
+  useEffect(() => {
+    setFormData(settings);
+    setIsDirty(false);
+  }, [settings]);
 
   useEffect(() => {
     setStats(getBackupStats());
@@ -58,14 +65,21 @@ const Settings = () => {
   };
 
   const handleChange = (field: string, value: string | number | boolean) => {
-    const updated = { ...formData, [field]: value };
-    setFormData(updated);
-    updateSettings({ [field]: value });
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
   };
 
-  const handleSave = () => {
-    updateSettings(formData);
-    toast.success(t.settings.changesSaved || "Alterações guardadas com sucesso!");
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await updateSettings(formData);
+      setIsDirty(false);
+      toast.success(t.settings.changesSaved || "Alterações guardadas com sucesso!");
+    } catch {
+      toast.error("Erro ao guardar alterações.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleExport = () => {
