@@ -25,7 +25,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useAuthStore, type Permission } from "@/stores/auth-store";
-import companyLogo from "@/assets/distri-good-logo.jpeg";
+import { useCompanyLogo } from "@/hooks/use-company-logo";
+import { Building2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
