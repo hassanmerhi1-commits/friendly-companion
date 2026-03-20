@@ -100,7 +100,9 @@ function getCompanyDb(companyId) {
     return null;
   }
   
-  const fullPath = path.join(INSTALL_DIR, company.dbFile);
+  const fullPath = path.isAbsolute(company.dbFile)
+    ? company.dbFile
+    : path.join(INSTALL_DIR, company.dbFile);
   if (!fs.existsSync(fullPath)) {
     console.error('[Companies] Database file not found:', fullPath);
     return null;
@@ -153,15 +155,47 @@ function createCompany(name) {
 
 function ensureCompaniesRegistry() {
   const companies = loadCompaniesRegistry();
-  if (companies.length === 0 && dbPath) {
-    // Auto-register existing database as first company
-    const dbFile = path.basename(dbPath);
-    const company = { id: 'company-default', name: 'Empresa Principal', dbFile };
-    saveCompaniesRegistry([company]);
-    companyDatabases.set('company-default', { db, path: dbPath, name: company.name });
-    console.log('[Companies] Auto-registered existing database as default company');
-    return [company];
+
+  if (!dbPath) return companies;
+
+  const activeServerPath = path.normalize(dbPath);
+  const hasSamePath = (candidatePath) => {
+    if (!candidatePath) return false;
+    const resolved = path.isAbsolute(candidatePath)
+      ? candidatePath
+      : path.join(INSTALL_DIR, candidatePath);
+    return path.normalize(resolved) === activeServerPath;
+  };
+
+  let changed = false;
+  let defaultCompany = companies.find(c => c.id === 'company-default');
+
+  if (!defaultCompany) {
+    defaultCompany = {
+      id: 'company-default',
+      name: 'Empresa Principal',
+      dbFile: dbPath,
+    };
+    companies.unshift(defaultCompany);
+    changed = true;
+    console.log('[Companies] Created Empresa Principal linked to active server database');
+  } else {
+    // CRITICAL: Always bind Empresa Principal to the functional server DB from IP config
+    if (!hasSamePath(defaultCompany.dbFile) || defaultCompany.name !== 'Empresa Principal') {
+      defaultCompany.dbFile = dbPath;
+      defaultCompany.name = 'Empresa Principal';
+      changed = true;
+      console.log('[Companies] Rebound Empresa Principal to active server database:', dbPath);
+    }
   }
+
+  // Keep opened DB mapped to company-default for fast access and consistency
+  companyDatabases.set('company-default', { db, path: dbPath, name: 'Empresa Principal' });
+
+  if (changed || companies.length === 0) {
+    saveCompaniesRegistry(companies);
+  }
+
   return companies;
 }
 
