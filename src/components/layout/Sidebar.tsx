@@ -28,6 +28,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { currentUser, logout } = useAuthStore();
+  const companyLogo = useCompanyLogo();
 
   const navigation = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
