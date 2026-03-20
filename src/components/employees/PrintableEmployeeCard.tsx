@@ -14,6 +14,7 @@ export const PrintableEmployeeCard = forwardRef<HTMLDivElement, PrintableEmploye
   ({ employee }, ref) => {
     const { settings } = useSettingsStore();
     const { getBranch } = useBranchStore();
+    const companyLogo = useCompanyLogo();
     const branch = employee.branchId ? getBranch(employee.branchId) : null;
 
     const contractTypeLabels: Record<string, string> = {
