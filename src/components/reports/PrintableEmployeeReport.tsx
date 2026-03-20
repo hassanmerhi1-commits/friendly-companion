@@ -6,7 +6,7 @@ import { formatAOA } from '@/lib/angola-labor-law';
 import { printHtml } from '@/lib/print';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 interface PrintableEmployeeReportProps {
   employees: Employee[];

@@ -11,7 +11,7 @@ import { printHtml } from '@/lib/print';
 import { Printer, HandCoins } from 'lucide-react';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 interface EarlyPaymentDialogProps {
   open: boolean;

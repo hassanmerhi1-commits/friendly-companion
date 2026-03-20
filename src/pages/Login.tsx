@@ -19,7 +19,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { validateMasterPassword } from '@/lib/device-security';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
+import { Building2 } from 'lucide-react';
 
 export function LoginPage() {
   const { t, language } = useLanguage();

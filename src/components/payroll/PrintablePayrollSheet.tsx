@@ -6,7 +6,7 @@ import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 interface PrintablePayrollSheetProps {
   entries: PayrollEntry[];

@@ -9,7 +9,7 @@ import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import { Printer, Info } from 'lucide-react';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 interface SalaryReceiptProps {
   entry: PayrollEntry;
