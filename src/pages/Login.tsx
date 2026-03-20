@@ -136,6 +136,8 @@ export function LoginPage() {
 
   const handleCompanyChange = async (value: string) => {
     if (value === '__new__') {
+      // Reset to previous selection so Select doesn't hold '__new__'
+      setSelectedCompanyId(prev => prev);
       setNewCompanyOpen(true);
       return;
     }
@@ -312,7 +314,7 @@ export function LoginPage() {
                 </div>
               ) : (
                 <Select
-                  value={selectedCompanyId}
+                  value={selectedCompanyId === '__new__' ? '' : selectedCompanyId}
                   onValueChange={handleCompanyChange}
                 >
                   <SelectTrigger id="company">
