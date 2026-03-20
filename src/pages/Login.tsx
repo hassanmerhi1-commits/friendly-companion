@@ -136,6 +136,8 @@ export function LoginPage() {
 
   const handleCompanyChange = async (value: string) => {
     if (value === '__new__') {
+      // Reset to previous selection so Select doesn't hold '__new__'
+      setSelectedCompanyId(prev => prev);
       setNewCompanyOpen(true);
       return;
     }
