@@ -182,6 +182,7 @@ const Settings = () => {
     try {
       const base64 = await compressImage(file);
       setFormData(prev => ({ ...prev, companyLogo: base64 }));
+      setIsDirty(true);
       toast.success('Logotipo carregado! Clique em "Guardar" para aplicar.');
     } catch {
       toast.error('Erro ao processar a imagem.');
@@ -191,6 +192,7 @@ const Settings = () => {
 
   const handleRemoveLogo = () => {
     setFormData(prev => ({ ...prev, companyLogo: '' }));
+    setIsDirty(true);
     toast.info('Logotipo removido. Clique em "Guardar" para aplicar.');
   };
 
