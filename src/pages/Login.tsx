@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
+import payrollaoLogo from '@/assets/payrollao-logo-preview.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,6 +130,17 @@ export function LoginPage() {
       if (!success) {
         throw new Error('set_active_company_failed');
       }
+
+      // Reset settings store to defaults before loading — prevents stale data from previous company
+      useSettingsStore.setState({
+        settings: {
+          companyName: '', companyLogo: '', nif: '', address: '', city: '',
+          province: '', municipality: '', phone: '', phone2: '', email: '',
+          website: '', bank: '', iban: '', payday: 27, currency: 'AOA (Kwanza)',
+          emailPaymentProcessed: true, monthEndReminder: true, holidayAlerts: false, newEmployees: true,
+        },
+        isLoaded: false,
+      });
 
       await Promise.all([loadUsers(), loadSettings()]);
       localStorage.setItem('payroll_last_company_id', companyId);
@@ -296,8 +308,7 @@ export function LoginPage() {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <Building2 className="h-10 w-10 text-primary" />
-                <span className="text-2xl font-display font-bold text-foreground">PayrollAO</span>
+                <img src={payrollaoLogo} alt="PayrollAO" className="h-16 w-auto object-contain" />
               </div>
             )}
           </div>

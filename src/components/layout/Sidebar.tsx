@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCompanyLogo } from "@/hooks/use-company-logo";
-import { Building2 } from "lucide-react";
+import payrollaoLogo from "@/assets/payrollao-logo-preview.png";
 
 export function Sidebar() {
   const location = useLocation();
@@ -73,10 +73,7 @@ export function Sidebar() {
             />
           ) : (
             <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-primary" />
-              </div>
-              <span className="font-display font-bold text-foreground">PayrollAO</span>
+              <img src={payrollaoLogo} alt="PayrollAO" className="h-10 w-auto object-contain" />
             </div>
           )}
         </div>
