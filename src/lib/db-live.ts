@@ -116,7 +116,8 @@ export async function liveListCompanies(): Promise<Array<{ id: string; name: str
       const data = localStorage.getItem('payroll_mock_companies');
       if (data) return JSON.parse(data);
     } catch {}
-    return [{ id: 'mock-company', name: 'Empresa Demo', dbFile: 'mock.db' }];
+    // Return empty list in browser preview so user can test "Add New Company" flow
+    return [];
   }
   
   try {
