@@ -334,16 +334,50 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
           if (deductionStore) {
             const all = deductionStore.getDeductionsByEmployee(emp.id) || [];
+            const allPeriods = get().periods;
+            
             for (const d of all) {
               // Skip fully paid deductions
               if (d.isFullyPaid) continue;
               
               const isForThisPeriod = d.payrollPeriodId === periodId;
               const isPending = !d.isApplied;
-              if (!isForThisPeriod && !isPending) continue;
+              
+              // AUTO-CARRY: If deduction is applied to a DIFFERENT period that's already
+              // approved/paid, treat it as available for this period.
+              // This fixes the bug where installments only deduct in the first month
+              // unless the user explicitly archives.
+              let isAutoCarry = false;
+              if (d.isApplied && d.payrollPeriodId && d.payrollPeriodId !== periodId) {
+                const oldPeriod = allPeriods.find(p => p.id === d.payrollPeriodId);
+                if (oldPeriod && (oldPeriod.status === 'approved' || oldPeriod.status === 'paid')) {
+                  isAutoCarry = true;
+                  // Auto-increment installment tracking (what archive would have done)
+                  const newInstallmentsPaid = (d.installmentsPaid || 0) + 1;
+                  const newRemaining = d.totalAmount - (newInstallmentsPaid * d.amount);
+                  const isNowFullyPaid = newInstallmentsPaid >= d.installments || newRemaining <= 0;
+                  
+                  // Update the deduction in DB - reset for new period
+                  deductionStore.updateDeduction(d.id, {
+                    installmentsPaid: newInstallmentsPaid,
+                    remainingAmount: Math.max(0, newRemaining),
+                    isFullyPaid: isNowFullyPaid,
+                    isApplied: false,
+                    payrollPeriodId: undefined,
+                  });
+                  
+                  if (isNowFullyPaid) {
+                    console.log(`[Payroll] Auto-carry: Deduction ${d.id} fully paid after ${newInstallmentsPaid} installments`);
+                    continue; // Don't include - it's now fully paid
+                  }
+                  console.log(`[Payroll] Auto-carry: Deduction ${d.id} ${newInstallmentsPaid}/${d.installments} paid, carrying to ${periodId}`);
+                }
+              }
+              
+              if (!isForThisPeriod && !isPending && !isAutoCarry) continue;
 
               // Basic time filter for pending deductions (don't pull future-dated items)
-              if (isPending && period.endDate && d.date && d.date > period.endDate) continue;
+              if (isPending && !isAutoCarry && period.endDate && d.date && d.date > period.endDate) continue;
 
               // FIX: d.amount is ALREADY the monthly installment amount (totalAmount / installments)
               // No need to divide again!
