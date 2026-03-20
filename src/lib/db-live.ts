@@ -34,6 +34,40 @@ function isElectron(): boolean {
 
 // ============= MOCK STORAGE (for browser preview testing) =============
 const MOCK_STORAGE_PREFIX = 'payroll_mock_';
+const MOCK_COMPANIES_KEY = 'payroll_mock_companies';
+const LEGACY_COMPANY_ID = 'legacy';
+
+const LEGACY_MOCK_TABLES = [
+  'employees',
+  'holidays',
+  'branches',
+  'deductions',
+  'payroll_periods',
+  'payroll_entries',
+  'absences',
+  'users',
+  'settings',
+  'disciplinary_records',
+  'terminations',
+  'salary_adjustments',
+  'loans',
+  'documents',
+  'attendance',
+] as const;
+
+function migrateLegacyMockDataToCompany(companyId: string): void {
+  const targetPrefix = `${MOCK_STORAGE_PREFIX}${companyId}_`;
+
+  for (const table of LEGACY_MOCK_TABLES) {
+    const legacyKey = `${MOCK_STORAGE_PREFIX}${table}`;
+    const targetKey = `${targetPrefix}${table}`;
+    const legacyData = localStorage.getItem(legacyKey);
+
+    if (legacyData && !localStorage.getItem(targetKey)) {
+      localStorage.setItem(targetKey, legacyData);
+    }
+  }
+}
 
 function getMockData<T>(table: string): T[] {
   try {
@@ -113,11 +147,27 @@ export async function liveListCompanies(): Promise<Array<{ id: string; name: str
   if (!isElectron()) {
     // Mock: return companies from localStorage
     try {
-      const data = localStorage.getItem('payroll_mock_companies');
-      if (data) return JSON.parse(data);
-    } catch {}
-    // Return empty list in browser preview so user can test "Add New Company" flow
-    return [];
+      const data = localStorage.getItem(MOCK_COMPANIES_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fall through to recreate default company registry
+    }
+
+    // Guarantee at least one company in preview mode and migrate legacy single-db mock data
+    const defaultCompany = {
+      id: LEGACY_COMPANY_ID,
+      name: 'Empresa Principal',
+      dbFile: 'legacy-preview.db',
+    };
+
+    migrateLegacyMockDataToCompany(defaultCompany.id);
+    localStorage.setItem(MOCK_COMPANIES_KEY, JSON.stringify([defaultCompany]));
+    return [defaultCompany];
   }
   
   try {
@@ -134,7 +184,7 @@ export async function liveCreateCompany(name: string): Promise<{ success: boolea
     const companies = await liveListCompanies();
     const newCompany = { id: `mock-${Date.now()}`, name, dbFile: `mock-${name}.db` };
     companies.push(newCompany);
-    localStorage.setItem('payroll_mock_companies', JSON.stringify(companies));
+    localStorage.setItem(MOCK_COMPANIES_KEY, JSON.stringify(companies));
     return { success: true, company: newCompany };
   }
   
