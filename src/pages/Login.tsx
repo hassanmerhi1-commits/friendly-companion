@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,34 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import { validateMasterPassword } from '@/lib/device-security';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { useCompanyLogo } from '@/hooks/use-company-logo';
-import { Building2 } from 'lucide-react';
+import { Building2, Plus, Loader2 } from 'lucide-react';
+import { liveListCompanies, liveCreateCompany, liveSetActiveCompany } from '@/lib/db-live';
+
+interface Company {
+  id: string;
+  name: string;
+  dbFile: string;
+}
 
 export function LoginPage() {
   const { t, language } = useLanguage();
@@ -31,6 +53,18 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Company selection
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [companiesLoading, setCompaniesLoading] = useState(true);
+  const [companyReady, setCompanyReady] = useState(false);
+
+  // New company dialog
+  const [newCompanyOpen, setNewCompanyOpen] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyLoading, setNewCompanyLoading] = useState(false);
+
+  // Recovery dialog
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [masterPassword, setMasterPassword] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -55,8 +89,109 @@ export function LoginPage() {
     [language],
   );
 
+  // Load companies on mount
+  useEffect(() => {
+    loadCompanies();
+  }, []);
+
+  const loadCompanies = async () => {
+    setCompaniesLoading(true);
+    try {
+      const list = await liveListCompanies();
+      setCompanies(list);
+      // Auto-select if only one company
+      if (list.length === 1) {
+        setSelectedCompanyId(list[0].id);
+        await selectCompany(list[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+    } finally {
+      setCompaniesLoading(false);
+    }
+  };
+
+  const selectCompany = async (companyId: string) => {
+    setCompanyReady(false);
+    setSelectedCompanyId(companyId);
+    try {
+      const success = await liveSetActiveCompany(companyId);
+      if (success) {
+        setCompanyReady(true);
+      } else {
+        toast.error(
+          language === 'pt'
+            ? 'Erro ao seleccionar empresa'
+            : 'Error selecting company'
+        );
+      }
+    } catch (err) {
+      toast.error(
+        language === 'pt'
+          ? 'Erro ao conectar à base de dados da empresa'
+          : 'Error connecting to company database'
+      );
+    }
+  };
+
+  const handleCompanyChange = async (value: string) => {
+    if (value === '__new__') {
+      setNewCompanyOpen(true);
+      return;
+    }
+    await selectCompany(value);
+  };
+
+  const handleCreateCompany = async () => {
+    if (!newCompanyName.trim()) {
+      toast.error(
+        language === 'pt'
+          ? 'Introduza o nome da empresa'
+          : 'Enter company name'
+      );
+      return;
+    }
+
+    setNewCompanyLoading(true);
+    try {
+      const result = await liveCreateCompany(newCompanyName.trim());
+      if (result.success && result.company) {
+        toast.success(
+          language === 'pt'
+            ? `Empresa "${result.company.name}" criada com sucesso`
+            : `Company "${result.company.name}" created successfully`
+        );
+        setNewCompanyOpen(false);
+        setNewCompanyName('');
+        // Refresh list and select new company
+        await loadCompanies();
+        await selectCompany(result.company.id);
+      } else {
+        toast.error(result.error || 'Failed to create company');
+      }
+    } catch (err) {
+      toast.error(
+        language === 'pt'
+          ? 'Erro ao criar empresa'
+          : 'Error creating company'
+      );
+    } finally {
+      setNewCompanyLoading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!selectedCompanyId || !companyReady) {
+      toast.error(
+        language === 'pt'
+          ? 'Seleccione uma empresa primeiro'
+          : 'Select a company first'
+      );
+      return;
+    }
+
     setLoading(true);
 
     const result = login(username, password);
@@ -137,6 +272,8 @@ export function LoginPage() {
     }
   };
 
+  const selectedCompanyName = companies.find(c => c.id === selectedCompanyId)?.name;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -161,6 +298,57 @@ export function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Company selector */}
+            <div className="space-y-2">
+              <Label htmlFor="company">
+                {language === 'pt' ? 'Empresa' : 'Company'}
+              </Label>
+              {companiesLoading ? (
+                <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/30">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {language === 'pt' ? 'A carregar empresas...' : 'Loading companies...'}
+                  </span>
+                </div>
+              ) : (
+                <Select
+                  value={selectedCompanyId}
+                  onValueChange={handleCompanyChange}
+                >
+                  <SelectTrigger id="company">
+                    <SelectValue
+                      placeholder={
+                        language === 'pt'
+                          ? 'Seleccione a empresa'
+                          : 'Select company'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          {company.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new__">
+                      <div className="flex items-center gap-2 text-primary">
+                        <Plus className="h-4 w-4" />
+                        {language === 'pt' ? 'Nova Empresa' : 'New Company'}
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCompanyId && companyReady && (
+                <p className="text-xs text-green-600">
+                  ✓ {selectedCompanyName}
+                </p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="username">
                 {language === 'pt' ? 'Utilizador' : 'Username'}
@@ -172,6 +360,7 @@ export function LoginPage() {
                 placeholder={language === 'pt' ? 'Digite o utilizador' : 'Enter username'}
                 required
                 autoComplete="username"
+                disabled={!companyReady}
               />
             </div>
 
@@ -187,10 +376,11 @@ export function LoginPage() {
                 placeholder={language === 'pt' ? 'Digite a palavra-passe' : 'Enter password'}
                 required
                 autoComplete="current-password"
+                disabled={!companyReady}
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || !companyReady}>
               {loading
                 ? language === 'pt'
                   ? 'A entrar...'
@@ -311,6 +501,72 @@ export function LoginPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* New Company Dialog */}
+      <Dialog open={newCompanyOpen} onOpenChange={setNewCompanyOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'pt' ? 'Nova Empresa' : 'New Company'}
+            </DialogTitle>
+            <DialogDescription>
+              {language === 'pt'
+                ? 'Crie uma nova empresa com a sua própria base de dados isolada.'
+                : 'Create a new company with its own isolated database.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newCompanyName">
+                {language === 'pt' ? 'Nome da Empresa' : 'Company Name'}
+              </Label>
+              <Input
+                id="newCompanyName"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                placeholder={language === 'pt' ? 'Ex: Merson Lda' : 'e.g. Merson Ltd'}
+                autoComplete="off"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateCompany();
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setNewCompanyOpen(false);
+                setNewCompanyName('');
+              }}
+              disabled={newCompanyLoading}
+            >
+              {language === 'pt' ? 'Cancelar' : 'Cancel'}
+            </Button>
+            <Button
+              onClick={handleCreateCompany}
+              disabled={newCompanyLoading || !newCompanyName.trim()}
+            >
+              {newCompanyLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {language === 'pt' ? 'A criar...' : 'Creating...'}
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {language === 'pt' ? 'Criar Empresa' : 'Create Company'}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
