@@ -116,6 +116,68 @@ const Settings = () => {
     }
   };
 
+  const compressImage = useCallback((file: File, maxSize = 200 * 1024): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          // Max dimensions 400x400 for logo
+          const maxDim = 400;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = (height / width) * maxDim;
+              width = maxDim;
+            } else {
+              width = (width / height) * maxDim;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, width, height);
+          let quality = 0.8;
+          let result = canvas.toDataURL('image/jpeg', quality);
+          // Reduce quality until under maxSize
+          while (result.length > maxSize && quality > 0.1) {
+            quality -= 0.1;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(result);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um ficheiro de imagem (JPG, PNG, etc.)');
+      return;
+    }
+    try {
+      const base64 = await compressImage(file);
+      setFormData(prev => ({ ...prev, companyLogo: base64 }));
+      toast.success('Logotipo carregado! Clique em "Guardar" para aplicar.');
+    } catch {
+      toast.error('Erro ao processar a imagem.');
+    }
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData(prev => ({ ...prev, companyLogo: '' }));
+    toast.info('Logotipo removido. Clique em "Guardar" para aplicar.');
+  };
+
   return (
     <TopNavLayout>
       <div className="mb-8 animate-fade-in">
