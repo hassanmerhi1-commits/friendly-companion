@@ -3,6 +3,7 @@ import { liveGetAll, liveInsert, onTableSync, onDataChange } from '@/lib/db-live
 
 export interface CompanySettings {
   companyName: string;
+  companyLogo: string;
   nif: string;
   address: string;
   city: string;
