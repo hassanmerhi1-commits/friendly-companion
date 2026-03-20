@@ -6,9 +6,25 @@
  * - Clients receive rows directly and update stores - NO refetch needed
  * - Zero round-trips after initial connection
  * 
+ * MULTI-COMPANY SUPPORT:
+ * - activeCompanyId is included in all database operations
+ * - Sync events are filtered by companyId
+ * 
  * MOCK MODE (Browser Preview):
  * - Uses localStorage when not in Electron for testing UI flows
  */
+
+// ============= ACTIVE COMPANY =============
+let activeCompanyId: string | null = null;
+
+export function setActiveCompanyId(id: string | null) {
+  activeCompanyId = id;
+  console.log('[DB-Live] Active company set to:', id);
+}
+
+export function getActiveCompanyId(): string | null {
+  return activeCompanyId;
+}
 
 // Check if running in Electron
 function isElectron(): boolean {
@@ -21,7 +37,8 @@ const MOCK_STORAGE_PREFIX = 'payroll_mock_';
 
 function getMockData<T>(table: string): T[] {
   try {
-    const data = localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`);
+    const prefix = activeCompanyId ? `${MOCK_STORAGE_PREFIX}${activeCompanyId}_` : MOCK_STORAGE_PREFIX;
+    const data = localStorage.getItem(`${prefix}${table}`);
     return data ? JSON.parse(data) : [];
   } catch {
     return [];
@@ -29,7 +46,8 @@ function getMockData<T>(table: string): T[] {
 }
 
 function setMockData(table: string, data: any[]): void {
-  localStorage.setItem(`${MOCK_STORAGE_PREFIX}${table}`, JSON.stringify(data));
+  const prefix = activeCompanyId ? `${MOCK_STORAGE_PREFIX}${activeCompanyId}_` : MOCK_STORAGE_PREFIX;
+  localStorage.setItem(`${prefix}${table}`, JSON.stringify(data));
   // Notify listeners about the change
   notifyTableSync(table, data);
 }
@@ -82,10 +100,63 @@ export function initMockData(): void {
   
   // Ensure other tables exist
   ['holidays', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'absences', 'users', 'settings', 'disciplinary_records', 'terminations', 'salary_adjustments', 'loans', 'documents'].forEach(table => {
-    if (!localStorage.getItem(`${MOCK_STORAGE_PREFIX}${table}`)) {
+    const prefix = activeCompanyId ? `${MOCK_STORAGE_PREFIX}${activeCompanyId}_` : MOCK_STORAGE_PREFIX;
+    if (!localStorage.getItem(`${prefix}${table}`)) {
       setMockData(table, []);
     }
   });
+}
+
+// ============= COMPANY MANAGEMENT =============
+
+export async function liveListCompanies(): Promise<Array<{ id: string; name: string; dbFile: string }>> {
+  if (!isElectron()) {
+    // Mock: return companies from localStorage
+    try {
+      const data = localStorage.getItem('payroll_mock_companies');
+      if (data) return JSON.parse(data);
+    } catch {}
+    return [{ id: 'mock-company', name: 'Empresa Demo', dbFile: 'mock.db' }];
+  }
+  
+  try {
+    return await (window as any).electronAPI.company.list();
+  } catch (error) {
+    console.error('[DB-Live] Error listing companies:', error);
+    return [];
+  }
+}
+
+export async function liveCreateCompany(name: string): Promise<{ success: boolean; company?: any; error?: string }> {
+  if (!isElectron()) {
+    // Mock: add to localStorage
+    const companies = await liveListCompanies();
+    const newCompany = { id: `mock-${Date.now()}`, name, dbFile: `mock-${name}.db` };
+    companies.push(newCompany);
+    localStorage.setItem('payroll_mock_companies', JSON.stringify(companies));
+    return { success: true, company: newCompany };
+  }
+  
+  try {
+    return await (window as any).electronAPI.company.create(name);
+  } catch (error) {
+    console.error('[DB-Live] Error creating company:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function liveSetActiveCompany(companyId: string): Promise<boolean> {
+  setActiveCompanyId(companyId);
+  
+  if (!isElectron()) return true;
+  
+  try {
+    const result = await (window as any).electronAPI.company.setActive(companyId);
+    return result?.success === true;
+  } catch (error) {
+    console.error('[DB-Live] Error setting active company:', error);
+    return false;
+  }
 }
 
 // ============= PUSH-BASED SYNC SYSTEM =============
@@ -150,7 +221,12 @@ export function initSyncListener() {
   
   // PRIMARY: Listen for full table data (TRUE PUSH)
   if (api?.onDatabaseSync) {
-    api.onDatabaseSync((data: { table: string; rows: any[] }) => {
+    api.onDatabaseSync((data: { table: string; rows: any[]; companyId?: string }) => {
+      // Filter: only apply data for the active company
+      if (data.companyId && activeCompanyId && data.companyId !== activeCompanyId) {
+        console.log(`[DB-Live] ← SYNC ignored: ${data.table} (company=${data.companyId}, active=${activeCompanyId})`);
+        return;
+      }
       console.log(`[DB-Live] ← SYNC: ${data.table} (${data.rows?.length || 0} rows)`);
       notifyTableSync(data.table, data.rows || []);
     });
@@ -191,7 +267,7 @@ export async function liveGetAll<T>(table: string): Promise<T[]> {
   }
   
   try {
-    const result = await (window as any).electronAPI.db.getAll(table);
+    const result = await (window as any).electronAPI.db.getAll(table, activeCompanyId);
     return result || [];
   } catch (error) {
     console.error(`[DB-Live] Error getting all from ${table}:`, error);
@@ -207,7 +283,7 @@ export async function liveGetById<T>(table: string, id: string): Promise<T | nul
   }
   
   try {
-    const result = await (window as any).electronAPI.db.getById(table, id);
+    const result = await (window as any).electronAPI.db.getById(table, id, activeCompanyId);
     return result || null;
   } catch (error) {
     console.error(`[DB-Live] Error getting ${id} from ${table}:`, error);
@@ -221,7 +297,7 @@ export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]
   }
   
   try {
-    const result = await (window as any).electronAPI.db.query(sql, params);
+    const result = await (window as any).electronAPI.db.query(sql, params, activeCompanyId);
     return Array.isArray(result) ? result : [];
   } catch (error) {
     console.error(`[DB-Live] Error executing query:`, error);
@@ -252,7 +328,7 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
   }
   
   try {
-    const result = await (window as any).electronAPI.db.insert(table, data);
+    const result = await (window as any).electronAPI.db.insert(table, data, activeCompanyId);
     if (result?.success !== true) {
       console.error(`[DB-Live] Insert failed for ${table}:`, result?.error || result);
     }
@@ -280,7 +356,7 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
   }
   
   try {
-    const result = await (window as any).electronAPI.db.update(table, id, data);
+    const result = await (window as any).electronAPI.db.update(table, id, data, activeCompanyId);
     if (result?.success !== true) {
       console.error(`[DB-Live] Update failed for ${table} id=${id}:`, result?.error || result);
     }
@@ -306,7 +382,7 @@ export async function liveDelete(table: string, id: string): Promise<boolean> {
   }
   
   try {
-    const result = await (window as any).electronAPI.db.delete(table, id);
+    const result = await (window as any).electronAPI.db.delete(table, id, activeCompanyId);
     if (result?.success !== true) {
       console.error(`[DB-Live] Delete failed for ${table} id=${id}:`, result?.error || result);
     }

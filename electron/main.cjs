@@ -27,6 +27,7 @@ const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
 const WS_PORT = 4545;
+const COMPANIES_FILE_PATH = path.join(INSTALL_DIR, 'companies.json');
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
@@ -59,6 +60,121 @@ let wsClient = null;
 let wsReconnectTimer = null;
 let wsConnectingPromise = null;
 const WS_RECONNECT_DELAY = 3000;
+const companyDatabases = new Map(); // companyId -> { db, path, name }
+const wsClientCompanies = new WeakMap(); // ws client -> companyId
+
+// ============= COMPANY REGISTRY =============
+function loadCompaniesRegistry() {
+  try {
+    if (fs.existsSync(COMPANIES_FILE_PATH)) {
+      return JSON.parse(fs.readFileSync(COMPANIES_FILE_PATH, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('[Companies] Error loading registry:', e);
+  }
+  return [];
+}
+
+function saveCompaniesRegistry(companies) {
+  try {
+    fs.writeFileSync(COMPANIES_FILE_PATH, JSON.stringify(companies, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('[Companies] Error saving registry:', e);
+    return false;
+  }
+}
+
+function getCompanyDb(companyId) {
+  if (!companyId) return db;
+  
+  // Check if already open
+  const entry = companyDatabases.get(companyId);
+  if (entry?.db) return entry.db;
+  
+  // Try to open from registry
+  const companies = loadCompaniesRegistry();
+  const company = companies.find(c => c.id === companyId);
+  if (!company) {
+    console.error('[Companies] Company not found:', companyId);
+    return null;
+  }
+  
+  const fullPath = path.join(INSTALL_DIR, company.dbFile);
+  if (!fs.existsSync(fullPath)) {
+    console.error('[Companies] Database file not found:', fullPath);
+    return null;
+  }
+  
+  try {
+    const companyDb = openDatabase(fullPath);
+    runMigrationsOn(companyDb);
+    companyDatabases.set(companyId, { db: companyDb, path: fullPath, name: company.name });
+    console.log(`[Companies] Opened database for ${company.name}: ${fullPath}`);
+    return companyDb;
+  } catch (e) {
+    console.error('[Companies] Error opening database:', e);
+    return null;
+  }
+}
+
+function createCompany(name) {
+  try {
+    const companies = loadCompaniesRegistry();
+    const id = 'company-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    const safeName = name.replace(/[^a-zA-Z0-9_\-\s]/g, '').replace(/\s+/g, '_').toLowerCase();
+    const dbFile = `payroll-${safeName}.db`;
+    const fullPath = path.join(INSTALL_DIR, dbFile);
+    
+    if (fs.existsSync(fullPath)) {
+      return { success: false, error: 'Já existe uma base de dados com este nome' };
+    }
+    
+    // Create the database with full schema
+    const result = createNewDatabaseInternal(fullPath);
+    if (!result.success) return result;
+    
+    // Open and run migrations
+    const companyDb = openDatabase(fullPath);
+    runMigrationsOn(companyDb);
+    companyDatabases.set(id, { db: companyDb, path: fullPath, name });
+    
+    // Add to registry
+    companies.push({ id, name, dbFile });
+    saveCompaniesRegistry(companies);
+    
+    console.log(`[Companies] Created new company: ${name} (${dbFile})`);
+    return { success: true, company: { id, name, dbFile } };
+  } catch (e) {
+    console.error('[Companies] Error creating company:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+function ensureCompaniesRegistry() {
+  const companies = loadCompaniesRegistry();
+  if (companies.length === 0 && dbPath) {
+    // Auto-register existing database as first company
+    const dbFile = path.basename(dbPath);
+    const company = { id: 'company-default', name: 'Empresa Principal', dbFile };
+    saveCompaniesRegistry([company]);
+    companyDatabases.set('company-default', { db, path: dbPath, name: company.name });
+    console.log('[Companies] Auto-registered existing database as default company');
+    return [company];
+  }
+  return companies;
+}
+
+// Helper to run migrations on a specific database without changing global db
+function runMigrationsOn(targetDb) {
+  const originalDb = db;
+  db = targetDb;
+  try {
+    runMigrations();
+  } finally {
+    db = originalDb;
+  }
+}
 
 // ============= IP FILE PARSING =============
 function parseIPFile() {
@@ -137,22 +253,45 @@ function startWebSocketServer() {
       const clientIP = req.socket.remoteAddress;
       console.log(`[WS] Client connected from ${clientIP}`);
 
-      // Send initial data to newly connected client (TRUE PUSH on connect)
-      const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance'];
-      for (const table of tables) {
-        try {
-          const rows = dbGetAll(table);
-          ws.send(JSON.stringify({ type: 'db-sync', table, rows }));
-          console.log(`[WS] → Sent initial ${table}: ${rows.length} rows to ${clientIP}`);
-        } catch (e) {
-          console.error(`[WS] Error sending initial ${table}:`, e);
-        }
-      }
+      // No initial sync - client must send 'setCompany' first to receive data
 
       ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
-          console.log(`[WS] ← ${msg.action}(${msg.table || ''}) from ${clientIP}`);
+          console.log(`[WS] ← ${msg.action}(${msg.table || ''}) companyId=${msg.companyId || 'none'} from ${clientIP}`);
+          
+          // Handle company-specific actions
+          if (msg.action === 'listCompanies') {
+            const companies = ensureCompaniesRegistry();
+            ws.send(JSON.stringify({ success: true, data: companies, requestId: msg.requestId }));
+            return;
+          }
+          
+          if (msg.action === 'createCompany') {
+            const result = createCompany(msg.name);
+            ws.send(JSON.stringify({ ...result, requestId: msg.requestId }));
+            return;
+          }
+          
+          if (msg.action === 'setCompany') {
+            wsClientCompanies.set(ws, msg.companyId);
+            // Send initial data for this company
+            const targetDb = getCompanyDb(msg.companyId);
+            if (targetDb) {
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance'];
+              for (const table of tables) {
+                try {
+                  const rows = dbGetAll(table, targetDb);
+                  ws.send(JSON.stringify({ type: 'db-sync', table, rows, companyId: msg.companyId }));
+                  console.log(`[WS] → Sent initial ${table}: ${rows.length} rows (${msg.companyId}) to ${clientIP}`);
+                } catch (e) {
+                  console.error(`[WS] Error sending initial ${table}:`, e);
+                }
+              }
+            }
+            ws.send(JSON.stringify({ success: true, requestId: msg.requestId }));
+            return;
+          }
           
           const response = handleDBRequest(msg);
           ws.send(JSON.stringify({ ...response, requestId: msg.requestId }));
@@ -184,36 +323,41 @@ function startWebSocketServer() {
 }
 
 // Broadcast full table data to all clients (TRUE PUSH-BASED SYNC)
-function broadcastTableData(table) {
-  const rows = dbGetAll(table);
-  const message = JSON.stringify({ type: 'db-sync', table, rows });
+function broadcastTableData(table, companyId = null, targetDb = null) {
+  const database = targetDb || db;
+  const rows = dbGetAll(table, database);
+  const message = JSON.stringify({ type: 'db-sync', table, rows, companyId });
   
-  console.log(`[WS] → Broadcasting ${table}: ${rows.length} rows to ${wss?.clients?.size || 0} clients + local`);
+  console.log(`[WS] → Broadcasting ${table}: ${rows.length} rows (company=${companyId || 'default'}) to ${wss?.clients?.size || 0} clients + local`);
   
-  // Send to all WebSocket clients
+  // Send to WebSocket clients that belong to the same company
   if (wss) {
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
+        const clientCompany = wsClientCompanies.get(client);
+        // Send if: no company filter, or client matches, or client hasn't set company yet
+        if (!companyId || !clientCompany || clientCompany === companyId) {
+          client.send(message);
+        }
       }
     });
   }
 
   // Also notify local renderer with full data
-  mainWindow?.webContents.send('payroll:sync', { table, rows });
+  mainWindow?.webContents.send('payroll:sync', { table, rows, companyId });
 }
 
 // Legacy notification function (kept for 'all' table broadcast on import)
-function broadcastUpdate(table, action, id) {
+function broadcastUpdate(table, action, id, companyId = null, targetDb = null) {
   if (table === 'all') {
     // Full import - broadcast all tables
     const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents'];
-    tables.forEach(t => broadcastTableData(t));
+    tables.forEach(t => broadcastTableData(t, companyId, targetDb));
     return;
   }
   
   // Normal update - broadcast full table data
-  broadcastTableData(table);
+  broadcastTableData(table, companyId, targetDb);
 }
 
 // ============= WEBSOCKET CLIENT (CLIENT MODE) =============
@@ -401,7 +545,12 @@ async function sendToServer(request) {
 
 // ============= DATABASE REQUEST HANDLER (SERVER ONLY) =============
 function handleDBRequest(request) {
-  const { action, table, id, data, sql, params } = request;
+  const { action, table, id, data, sql, params, companyId } = request;
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  
+  if (!targetDb && companyId) {
+    return { success: false, error: `Company database not found: ${companyId}` };
+  }
   
   try {
     switch (action) {
@@ -409,32 +558,32 @@ function handleDBRequest(request) {
         return { success: true, message: 'pong', isServer: true };
         
       case 'getAll':
-        return { success: true, data: dbGetAll(table) };
+        return { success: true, data: dbGetAll(table, targetDb) };
         
       case 'getById':
-        return { success: true, data: dbGetById(table, id) };
+        return { success: true, data: dbGetById(table, id, targetDb) };
         
       case 'insert':
-        return dbInsert(table, data);
+        return dbInsert(table, data, targetDb, companyId);
         
       case 'update':
-        return dbUpdate(table, id, data);
+        return dbUpdate(table, id, data, targetDb, companyId);
         
       case 'delete':
-        return dbDelete(table, id);
+        return dbDelete(table, id, targetDb, companyId);
         
       case 'query':
-        const result = dbQuery(sql, params || []);
+        const result = dbQuery(sql, params || [], targetDb);
         if (Array.isArray(result)) {
           return { success: true, data: result };
         }
         return result;
         
       case 'export':
-        return { success: true, data: dbExportAll() };
+        return { success: true, data: dbExportAll(targetDb) };
         
       case 'import':
-        return dbImportAll(data);
+        return dbImportAll(data, targetDb, companyId);
         
       default:
         return { success: false, error: `Unknown action: ${action}` };
@@ -461,10 +610,11 @@ function openDatabase(filePath) {
   }
 }
 
-function dbGetAll(table) {
+function dbGetAll(table, targetDb = null) {
   try {
-    if (!db) return [];
-    const rows = db.prepare(`SELECT * FROM ${table}`).all();
+    const database = targetDb || db;
+    if (!database) return [];
+    const rows = database.prepare(`SELECT * FROM ${table}`).all();
     console.log(`[DB] getAll(${table}): ${rows.length} rows`);
     return rows;
   } catch (error) {
@@ -473,31 +623,33 @@ function dbGetAll(table) {
   }
 }
 
-function dbGetById(table, id) {
+function dbGetById(table, id, targetDb = null) {
   try {
-    if (!db) return null;
-    return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+    const database = targetDb || db;
+    if (!database) return null;
+    return database.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
   } catch (error) {
     console.error(`[DB] Error getting ${id} from ${table}:`, error);
     return null;
   }
 }
 
-function dbInsert(table, data) {
+function dbInsert(table, data, targetDb = null, companyId = null) {
   try {
-    if (!db) return { success: false, error: 'Database not connected' };
+    const database = targetDb || db;
+    if (!database) return { success: false, error: 'Database not connected' };
     
     const keys = Object.keys(data);
     const values = Object.values(data);
     const placeholders = keys.map(() => '?').join(', ');
     
-    const stmt = db.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`);
+    const stmt = database.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`);
     const result = stmt.run(...values);
     
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    database.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Inserted into ${table}, changes: ${result.changes}`);
-    broadcastUpdate(table, 'insert', data.id);
+    broadcastUpdate(table, 'insert', data.id, companyId, database);
     
     return { success: true, changes: result.changes };
   } catch (error) {
@@ -506,20 +658,21 @@ function dbInsert(table, data) {
   }
 }
 
-function dbUpdate(table, id, data) {
+function dbUpdate(table, id, data, targetDb = null, companyId = null) {
   try {
-    if (!db) return { success: false, error: 'Database not connected' };
+    const database = targetDb || db;
+    if (!database) return { success: false, error: 'Database not connected' };
     
     const updates = Object.keys(data).map(key => `${key} = ?`).join(', ');
     const values = [...Object.values(data), id];
     
-    const stmt = db.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
+    const stmt = database.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
     const result = stmt.run(...values);
     
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    database.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Updated ${table} id=${id}, changes: ${result.changes}`);
-    broadcastUpdate(table, 'update', id);
+    broadcastUpdate(table, 'update', id, companyId, database);
     
     return { success: true, changes: result.changes };
   } catch (error) {
@@ -528,17 +681,18 @@ function dbUpdate(table, id, data) {
   }
 }
 
-function dbDelete(table, id) {
+function dbDelete(table, id, targetDb = null, companyId = null) {
   try {
-    if (!db) return { success: false, error: 'Database not connected' };
+    const database = targetDb || db;
+    if (!database) return { success: false, error: 'Database not connected' };
     
-    const stmt = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+    const stmt = database.prepare(`DELETE FROM ${table} WHERE id = ?`);
     const result = stmt.run(id);
     
-    db.pragma('wal_checkpoint(TRUNCATE)');
+    database.pragma('wal_checkpoint(TRUNCATE)');
     
     console.log(`[DB] Deleted from ${table} id=${id}, changes: ${result.changes}`);
-    broadcastUpdate(table, 'delete', id);
+    broadcastUpdate(table, 'delete', id, companyId, database);
     
     return { success: true, changes: result.changes };
   } catch (error) {
@@ -547,10 +701,11 @@ function dbDelete(table, id) {
   }
 }
 
-function dbQuery(sql, params = []) {
+function dbQuery(sql, params = [], targetDb = null) {
   try {
-    if (!db) return { success: false, error: 'Database not connected' };
-    const stmt = db.prepare(sql);
+    const database = targetDb || db;
+    if (!database) return { success: false, error: 'Database not connected' };
+    const stmt = database.prepare(sql);
     if (sql.trim().toUpperCase().startsWith('SELECT')) {
       return stmt.all(...params);
     } else {
@@ -562,20 +717,21 @@ function dbQuery(sql, params = []) {
   }
 }
 
-function dbExportAll() {
+function dbExportAll(targetDb = null) {
   try {
-    if (!db) return null;
+    const database = targetDb || db;
+    if (!database) return null;
     return {
-      employees: dbGetAll('employees'),
-      branches: dbGetAll('branches'),
-      deductions: dbGetAll('deductions'),
-      payroll_periods: dbGetAll('payroll_periods'),
-      payroll_entries: dbGetAll('payroll_entries'),
-      holidays: dbGetAll('holidays'),
-      absences: dbGetAll('absences'),
-      users: dbGetAll('users'),
-      settings: dbGetAll('settings'),
-      documents: dbGetAll('documents'),
+      employees: dbGetAll('employees', database),
+      branches: dbGetAll('branches', database),
+      deductions: dbGetAll('deductions', database),
+      payroll_periods: dbGetAll('payroll_periods', database),
+      payroll_entries: dbGetAll('payroll_entries', database),
+      holidays: dbGetAll('holidays', database),
+      absences: dbGetAll('absences', database),
+      users: dbGetAll('users', database),
+      settings: dbGetAll('settings', database),
+      documents: dbGetAll('documents', database),
       exportedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -584,34 +740,35 @@ function dbExportAll() {
   }
 }
 
-function dbImportAll(data) {
+function dbImportAll(data, targetDb = null, companyId = null) {
   try {
-    if (!db) return { success: false, error: 'Database not connected' };
+    const database = targetDb || db;
+    if (!database) return { success: false, error: 'Database not connected' };
     
     const tables = [
       'employees', 'branches', 'deductions', 'payroll_periods',
       'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents',
     ];
 
-    db.exec('BEGIN TRANSACTION');
+    database.exec('BEGIN TRANSACTION');
 
     for (const table of tables) {
       if (data[table] && Array.isArray(data[table])) {
-        db.exec(`DELETE FROM ${table}`);
+        database.exec(`DELETE FROM ${table}`);
         for (const row of data[table]) {
           const keys = Object.keys(row);
           const values = Object.values(row);
           const placeholders = keys.map(() => '?').join(', ');
-          db.prepare(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+          database.prepare(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
         }
       }
     }
 
-    db.exec('COMMIT');
-    broadcastUpdate('all', 'import', null);
+    database.exec('COMMIT');
+    broadcastUpdate('all', 'import', null, companyId, database);
     return { success: true };
   } catch (error) {
-    try { db.exec('ROLLBACK'); } catch (e) {}
+    try { (targetDb || db).exec('ROLLBACK'); } catch (e) {}
     console.error('[DB] Error importing data:', error);
     return { success: false, error: error.message };
   }
@@ -663,6 +820,10 @@ function initDatabase() {
 
     db = openDatabase(dbPath);
     runMigrations();
+    
+    // Initialize companies registry (auto-registers existing db as first company)
+    ensureCompaniesRegistry();
+    
     startWebSocketServer();
     
     console.log('SERVER MODE: Connected to database at:', dbPath);
@@ -1591,6 +1752,47 @@ ipcMain.handle('ipfile:read', () => readIPFile());
 ipcMain.handle('ipfile:write', (event, content) => writeIPFile(content));
 ipcMain.handle('ipfile:parse', () => parseIPFile());
 
+// ============= COMPANY IPC HANDLERS =============
+ipcMain.handle('company:list', async () => {
+  if (!isServerMode && serverAddress) {
+    try {
+      const response = await sendToServer({ action: 'listCompanies' });
+      return response.data || [];
+    } catch (err) {
+      console.error('[Client] company:list FAILED:', err.message);
+      return [];
+    }
+  }
+  return ensureCompaniesRegistry();
+});
+
+ipcMain.handle('company:create', async (event, name) => {
+  if (!isServerMode && serverAddress) {
+    try {
+      return await sendToServer({ action: 'createCompany', name });
+    } catch (err) {
+      console.error('[Client] company:create FAILED:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+  return createCompany(name);
+});
+
+ipcMain.handle('company:setActive', async (event, companyId) => {
+  if (!isServerMode && serverAddress) {
+    try {
+      // Tell server which company this client is using
+      return await sendToServer({ action: 'setCompany', companyId });
+    } catch (err) {
+      console.error('[Client] company:setActive FAILED:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+  // Server mode - just ensure the db is opened
+  const targetDb = getCompanyDb(companyId);
+  return { success: !!targetDb };
+});
+
 ipcMain.handle('db:getStatus', async () => {
   const ipConfig = parseIPFile();
   
@@ -1624,12 +1826,12 @@ ipcMain.handle('db:getStatus', async () => {
 ipcMain.handle('db:create', () => createNewDatabase());
 ipcMain.handle('db:init', () => initDatabase());
 
-// Database operations - route via WebSocket if client mode
-ipcMain.handle('db:getAll', async (event, table) => {
+// Database operations - route via WebSocket if client mode, with companyId support
+ipcMain.handle('db:getAll', async (event, table, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      console.log(`[Client] getAll(${table}) -> server`);
-      const response = await sendToServer({ action: 'getAll', table });
+      console.log(`[Client] getAll(${table}, company=${companyId || 'none'}) -> server`);
+      const response = await sendToServer({ action: 'getAll', table, companyId });
       console.log(`[Client] getAll(${table}) <- ${(response.data || []).length} rows`);
       return response.data || [];
     } catch (err) {
@@ -1637,95 +1839,103 @@ ipcMain.handle('db:getAll', async (event, table) => {
       return [];
     }
   }
-  return dbGetAll(table);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbGetAll(table, targetDb);
 });
 
-ipcMain.handle('db:getById', async (event, table, id) => {
+ipcMain.handle('db:getById', async (event, table, id, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      const response = await sendToServer({ action: 'getById', table, id });
+      const response = await sendToServer({ action: 'getById', table, id, companyId });
       return response.data || null;
     } catch (err) {
       console.error(`[Client] getById FAILED:`, err.message);
       return null;
     }
   }
-  return dbGetById(table, id);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbGetById(table, id, targetDb);
 });
 
-ipcMain.handle('db:insert', async (event, table, data) => {
+ipcMain.handle('db:insert', async (event, table, data, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      console.log(`[Client] insert(${table}) -> server`);
-      return await sendToServer({ action: 'insert', table, data });
+      console.log(`[Client] insert(${table}, company=${companyId || 'none'}) -> server`);
+      return await sendToServer({ action: 'insert', table, data, companyId });
     } catch (err) {
       console.error(`[Client] insert FAILED:`, err.message);
       return { success: false, error: err.message };
     }
   }
-  return dbInsert(table, data);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbInsert(table, data, targetDb, companyId);
 });
 
-ipcMain.handle('db:update', async (event, table, id, data) => {
+ipcMain.handle('db:update', async (event, table, id, data, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      console.log(`[Client] update(${table}, ${id}) -> server`);
-      return await sendToServer({ action: 'update', table, id, data });
+      console.log(`[Client] update(${table}, ${id}, company=${companyId || 'none'}) -> server`);
+      return await sendToServer({ action: 'update', table, id, data, companyId });
     } catch (err) {
       console.error(`[Client] update FAILED:`, err.message);
       return { success: false, error: err.message };
     }
   }
-  return dbUpdate(table, id, data);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbUpdate(table, id, data, targetDb, companyId);
 });
 
-ipcMain.handle('db:delete', async (event, table, id) => {
+ipcMain.handle('db:delete', async (event, table, id, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      console.log(`[Client] delete(${table}, ${id}) -> server`);
-      return await sendToServer({ action: 'delete', table, id });
+      console.log(`[Client] delete(${table}, ${id}, company=${companyId || 'none'}) -> server`);
+      return await sendToServer({ action: 'delete', table, id, companyId });
     } catch (err) {
       console.error(`[Client] delete FAILED:`, err.message);
       return { success: false, error: err.message };
     }
   }
-  return dbDelete(table, id);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbDelete(table, id, targetDb, companyId);
 });
 
-ipcMain.handle('db:query', async (event, sql, params) => {
+ipcMain.handle('db:query', async (event, sql, params, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      const response = await sendToServer({ action: 'query', sql, params });
+      const response = await sendToServer({ action: 'query', sql, params, companyId });
       return response.data || [];
     } catch (err) {
       console.error(`[Client] query FAILED:`, err.message);
       return [];
     }
   }
-  return dbQuery(sql, params);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbQuery(sql, params, targetDb);
 });
 
-ipcMain.handle('db:export', async () => {
+ipcMain.handle('db:export', async (event, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      const response = await sendToServer({ action: 'export' });
+      const response = await sendToServer({ action: 'export', companyId });
       return response.data;
     } catch (err) {
       return null;
     }
   }
-  return dbExportAll();
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbExportAll(targetDb);
 });
 
-ipcMain.handle('db:import', async (event, data) => {
+ipcMain.handle('db:import', async (event, data, companyId) => {
   if (!isServerMode && serverAddress) {
     try {
-      return await sendToServer({ action: 'import', data });
+      return await sendToServer({ action: 'import', data, companyId });
     } catch (err) {
       return { success: false, error: err.message };
     }
   }
-  return dbImportAll(data);
+  const targetDb = companyId ? getCompanyDb(companyId) : db;
+  return dbImportAll(data, targetDb, companyId);
 });
 
 ipcMain.handle('db:testConnection', async () => {
@@ -1976,7 +2186,15 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Cleanup
+  // Cleanup - close all company databases
+  companyDatabases.forEach((entry, companyId) => {
+    try {
+      if (entry.db) entry.db.close();
+      console.log(`[Companies] Closed database for ${entry.name || companyId}`);
+    } catch (e) {}
+  });
+  companyDatabases.clear();
+  
   if (db) {
     try { db.close(); } catch (e) {}
     db = null;

@@ -1,9 +1,8 @@
 /**
- * Electron Storage - Dolly Style
+ * Electron Storage - Multi-Company Support
  * 
- * Simple: Just check if we're in Electron. That's it.
- * The database path comes from the IP file, handled by main.cjs.
- * No automatic syncing, no file creation, no complexity.
+ * Checks if we're in Electron and provides type definitions
+ * for the IPC bridge including company management APIs.
  */
 
 // Type definitions for Electron API exposed via preload
@@ -14,14 +13,20 @@ declare global {
         getStatus: () => Promise<any>;
         create: () => Promise<any>;
         init: () => Promise<any>;
-        getAll: (table: string) => Promise<any[]>;
-        getById: (table: string, id: string) => Promise<any>;
-        insert: (table: string, data: any) => Promise<any>;
-        update: (table: string, id: string, data: any) => Promise<any>;
-        delete: (table: string, id: string) => Promise<any>;
-        query: (sql: string, params?: any[]) => Promise<any>;
-        export: () => Promise<any>;
-        import: (data: any) => Promise<any>;
+        getAll: (table: string, companyId?: string) => Promise<any[]>;
+        getById: (table: string, id: string, companyId?: string) => Promise<any>;
+        insert: (table: string, data: any, companyId?: string) => Promise<any>;
+        update: (table: string, id: string, data: any, companyId?: string) => Promise<any>;
+        delete: (table: string, id: string, companyId?: string) => Promise<any>;
+        query: (sql: string, params?: any[], companyId?: string) => Promise<any>;
+        export: (companyId?: string) => Promise<any>;
+        import: (data: any, companyId?: string) => Promise<any>;
+        testConnection: () => Promise<any>;
+      };
+      company: {
+        list: () => Promise<Array<{ id: string; name: string; dbFile: string }>>;
+        create: (name: string) => Promise<{ success: boolean; company?: { id: string; name: string; dbFile: string }; error?: string }>;
+        setActive: (companyId: string) => Promise<{ success: boolean; error?: string }>;
       };
       ipfile: {
         read: () => Promise<string | null>;
@@ -61,5 +66,5 @@ export async function initElectronStorage(): Promise<void> {
     console.log('[App] Running in browser mode');
     return;
   }
-  console.log('[Electron] Ready - database path from IP file');
+  console.log('[Electron] Ready - multi-company database support');
 }
