@@ -19,11 +19,13 @@ import { useAuthStore } from '@/stores/auth-store';
 import { validateMasterPassword } from '@/lib/device-security';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
+import { Building2 } from 'lucide-react';
 
 export function LoginPage() {
   const { t, language } = useLanguage();
   const { login, users, addUser, updateUser } = useAuthStore();
+  const companyLogo = useCompanyLogo();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -140,11 +142,18 @@ export function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img
-              src={companyLogo}
-              alt="Company Logo"
-              className="h-20 object-contain"
-            />
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company Logo"
+                className="h-20 object-contain"
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <Building2 className="h-10 w-10 text-primary" />
+                <span className="text-2xl font-display font-bold text-foreground">PayrollAO</span>
+              </div>
+            )}
           </div>
           <CardTitle className="text-2xl font-display">
             {language === 'pt' ? 'Sistema de Folha Salarial' : 'Payroll System'}

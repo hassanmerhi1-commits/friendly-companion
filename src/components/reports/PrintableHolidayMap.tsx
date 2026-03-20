@@ -10,7 +10,7 @@ import { printHtml } from '@/lib/print';
 import { toast } from 'sonner';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 export interface HolidayRecord {
   employeeId: string;
@@ -47,23 +47,8 @@ export function PrintableHolidayMap({
   const printRef = useRef<HTMLDivElement>(null);
   const [editableRecords, setEditableRecords] = useState<HolidayRecord[]>(holidayRecords);
   const [selectedYear, setSelectedYear] = useState(year);
-  const [logoBase64, setLogoBase64] = useState<string>('');
-
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  }, []);
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
 
   const t = {
     title: language === 'pt' ? 'MAPA DE FÉRIAS' : 'HOLIDAY MAP',

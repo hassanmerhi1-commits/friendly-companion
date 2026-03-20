@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 interface PrintableEmployeeCardProps {
   employee: Employee;
@@ -14,6 +14,7 @@ export const PrintableEmployeeCard = forwardRef<HTMLDivElement, PrintableEmploye
   ({ employee }, ref) => {
     const { settings } = useSettingsStore();
     const { getBranch } = useBranchStore();
+    const companyLogo = useCompanyLogo();
     const branch = employee.branchId ? getBranch(employee.branchId) : null;
 
     const contractTypeLabels: Record<string, string> = {

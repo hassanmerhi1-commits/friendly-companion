@@ -16,7 +16,7 @@ import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
-import companyLogo from '@/assets/distri-good-logo.jpeg';
+import { useCompanyLogo } from '@/hooks/use-company-logo';
 
 type DocumentType = 'advertencia' | 'ferias' | 'disciplinar' | 'suspensao' | 'contrato';
 
@@ -92,24 +92,8 @@ const Documents = () => {
   });
   const [previewOpen, setPreviewOpen] = useState(false);
   const contractPrintRef = useRef<HTMLDivElement>(null);
-  const [logoBase64, setLogoBase64] = useState<string>('');
-
-  // Convert logo to base64 for print window
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        setLogoBase64(canvas.toDataURL('image/jpeg'));
-      }
-    };
-    img.src = companyLogo;
-  }, []);
+  const companyLogo = useCompanyLogo();
+  const logoBase64 = companyLogo || '';
   const t = {
     title: language === 'pt' ? 'Documentos Disciplinares' : 'Disciplinary Documents',
     subtitle: language === 'pt' ? 'Gerar documentos oficiais para gestão de recursos humanos' : 'Generate official HR management documents',

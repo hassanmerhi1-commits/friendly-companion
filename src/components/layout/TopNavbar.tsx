@@ -25,7 +25,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useAuthStore, type Permission } from "@/stores/auth-store";
-import companyLogo from "@/assets/distri-good-logo.jpeg";
+import { useCompanyLogo } from "@/hooks/use-company-logo";
+import { Building2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,7 @@ export function TopNavbar() {
   const { t, language } = useLanguage();
   const { currentUser, logout, hasPermission } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const companyLogo = useCompanyLogo();
 
   // Navigation items with required permissions
   const allNavigation: Array<{
@@ -86,11 +88,20 @@ export function TopNavbar() {
       <div className="flex h-14 items-center justify-between px-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 shrink-0">
-          <img 
-            src={companyLogo} 
-            alt="Company Logo" 
-            className="h-9 w-auto object-contain"
-          />
+          {companyLogo ? (
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              className="h-9 w-auto object-contain"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <span className="font-display font-bold text-sm text-foreground">PayrollAO</span>
+            </div>
+          )}
         </Link>
 
         {/* Desktop Navigation - All items inline */}

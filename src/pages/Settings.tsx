@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw, ImagePlus, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useSettingsStore } from "@/stores/settings-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -33,6 +33,7 @@ const Settings = () => {
   const [isRecalculating, setIsRecalculating] = useState(false);
   const currentProvince = getSelectedProvince();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -113,6 +114,68 @@ const Settings = () => {
       clearProvinceSelection();
       window.location.reload();
     }
+  };
+
+  const compressImage = useCallback((file: File, maxSize = 200 * 1024): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          // Max dimensions 400x400 for logo
+          const maxDim = 400;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = (height / width) * maxDim;
+              width = maxDim;
+            } else {
+              width = (width / height) * maxDim;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d')!;
+          ctx.drawImage(img, 0, 0, width, height);
+          let quality = 0.8;
+          let result = canvas.toDataURL('image/jpeg', quality);
+          // Reduce quality until under maxSize
+          while (result.length > maxSize && quality > 0.1) {
+            quality -= 0.1;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(result);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um ficheiro de imagem (JPG, PNG, etc.)');
+      return;
+    }
+    try {
+      const base64 = await compressImage(file);
+      setFormData(prev => ({ ...prev, companyLogo: base64 }));
+      toast.success('Logotipo carregado! Clique em "Guardar" para aplicar.');
+    } catch {
+      toast.error('Erro ao processar a imagem.');
+    }
+    if (logoInputRef.current) logoInputRef.current.value = '';
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData(prev => ({ ...prev, companyLogo: '' }));
+    toast.info('Logotipo removido. Clique em "Guardar" para aplicar.');
   };
 
   return (
@@ -282,6 +345,52 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">{t.settings.basicData}</p>
               </div>
             </div>
+
+            {/* Company Logo Upload */}
+            <div className="mb-6 flex flex-col items-center gap-3 p-4 bg-muted/50 rounded-lg border-2 border-dashed border-border">
+              {formData.companyLogo ? (
+                <img 
+                  src={formData.companyLogo} 
+                  alt="Logotipo da Empresa" 
+                  className="h-24 max-w-[200px] object-contain rounded"
+                />
+              ) : (
+                <div className="h-24 w-24 flex items-center justify-center bg-muted rounded-lg">
+                  <Building2 className="h-10 w-10 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <ImagePlus className="h-4 w-4 mr-2" />
+                  {formData.companyLogo ? 'Alterar Logotipo' : 'Carregar Logotipo'}
+                </Button>
+                {formData.companyLogo && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleRemoveLogo}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <p className="text-xs text-muted-foreground">JPG, PNG — max 400x400px</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.settings.companyName}</Label>
