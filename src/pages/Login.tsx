@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { validateMasterPassword } from '@/lib/device-security';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -46,7 +47,8 @@ interface Company {
 
 export function LoginPage() {
   const { t, language } = useLanguage();
-  const { login, users, addUser, updateUser } = useAuthStore();
+  const { login, users, addUser, updateUser, loadUsers } = useAuthStore();
+  const loadSettings = useSettingsStore((state) => state.loadSettings);
   const companyLogo = useCompanyLogo();
 
   const [username, setUsername] = useState('');
@@ -99,13 +101,20 @@ export function LoginPage() {
     try {
       const list = await liveListCompanies();
       setCompanies(list);
-      // Auto-select if only one company
-      if (list.length === 1) {
-        setSelectedCompanyId(list[0].id);
-        await selectCompany(list[0].id);
+
+      const lastCompanyId = localStorage.getItem('payroll_last_company_id');
+      const shouldRestoreLast = !!lastCompanyId && list.some((c) => c.id === lastCompanyId);
+
+      // Auto-select when there is only one company OR we have a valid last company
+      if (list.length === 1 || shouldRestoreLast) {
+        await selectCompany(shouldRestoreLast ? (lastCompanyId as string) : list[0].id);
+      } else {
+        setSelectedCompanyId('');
+        setCompanyReady(false);
       }
     } catch (err) {
       console.error('Failed to load companies:', err);
+      setCompanyReady(false);
     } finally {
       setCompaniesLoading(false);
     }
@@ -114,18 +123,18 @@ export function LoginPage() {
   const selectCompany = async (companyId: string) => {
     setCompanyReady(false);
     setSelectedCompanyId(companyId);
+
     try {
       const success = await liveSetActiveCompany(companyId);
-      if (success) {
-        setCompanyReady(true);
-      } else {
-        toast.error(
-          language === 'pt'
-            ? 'Erro ao seleccionar empresa'
-            : 'Error selecting company'
-        );
+      if (!success) {
+        throw new Error('set_active_company_failed');
       }
+
+      await Promise.all([loadUsers(), loadSettings()]);
+      localStorage.setItem('payroll_last_company_id', companyId);
+      setCompanyReady(true);
     } catch (err) {
+      setCompanyReady(false);
       toast.error(
         language === 'pt'
           ? 'Erro ao conectar à base de dados da empresa'
@@ -136,8 +145,6 @@ export function LoginPage() {
 
   const handleCompanyChange = async (value: string) => {
     if (value === '__new__') {
-      // Reset to previous selection so Select doesn't hold '__new__'
-      setSelectedCompanyId(prev => prev);
       setNewCompanyOpen(true);
       return;
     }
