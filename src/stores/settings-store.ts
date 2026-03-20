@@ -9,6 +9,10 @@ export interface CompanySettings {
   city: string;
   province: string;
   municipality: string;
+  phone: string;
+  phone2: string;
+  email: string;
+  website: string;
   bank: string;
   iban: string;
   payday: number;
@@ -34,6 +38,10 @@ const defaultSettings: CompanySettings = {
   city: '',
   province: '',
   municipality: '',
+  phone: '',
+  phone2: '',
+  email: '',
+  website: '',
   bank: '',
   iban: '',
   payday: 27,
@@ -62,6 +70,10 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
           city: settingsMap.city || defaultSettings.city,
           province: settingsMap.province || defaultSettings.province,
           municipality: settingsMap.municipality || defaultSettings.municipality,
+          phone: settingsMap.phone || '',
+          phone2: settingsMap.phone2 || '',
+          email: settingsMap.email || '',
+          website: settingsMap.website || '',
           bank: settingsMap.bank || defaultSettings.bank,
           iban: settingsMap.iban || defaultSettings.iban,
           payday: parseInt(settingsMap.payday, 10) || defaultSettings.payday,
@@ -110,6 +122,10 @@ export function initSettingsStoreSync() {
       city: settingsMap.city || '',
       province: settingsMap.province || '',
       municipality: settingsMap.municipality || '',
+      phone: settingsMap.phone || '',
+      phone2: settingsMap.phone2 || '',
+      email: settingsMap.email || '',
+      website: settingsMap.website || '',
       bank: settingsMap.bank || '',
       iban: settingsMap.iban || '',
       payday: parseInt(settingsMap.payday, 10) || 27,
