@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
+import payrollaoLogo from '@/assets/payrollao-logo-preview.png';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
