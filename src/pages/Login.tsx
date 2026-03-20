@@ -343,7 +343,7 @@ export function LoginPage() {
                 </Select>
               )}
               {selectedCompanyId && companyReady && (
-                <p className="text-xs text-green-600">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
                   ✓ {selectedCompanyName}
                 </p>
               )}
