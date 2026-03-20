@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useAuthStore, type Permission } from "@/stores/auth-store";
 import { useCompanyLogo } from "@/hooks/use-company-logo";
-import { Building2 } from "lucide-react";
+import payrollaoLogo from "@/assets/payrollao-logo-preview.png";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -297,8 +297,7 @@ export function LoginPage() {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <Building2 className="h-10 w-10 text-primary" />
-                <span className="text-2xl font-display font-bold text-foreground">PayrollAO</span>
+                <img src={payrollaoLogo} alt="PayrollAO" className="h-16 w-auto object-contain" />
               </div>
             )}
           </div>
