@@ -65,11 +65,20 @@ export function Sidebar() {
       <div className="flex h-full flex-col">
         {/* Logo */}
         <div className="flex h-20 items-center gap-3 px-4 border-b border-sidebar-border">
-          <img 
-            src={companyLogo} 
-            alt="Company Logo" 
-            className="h-12 w-auto object-contain"
-          />
+          {companyLogo ? (
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              className="h-12 w-auto object-contain"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-primary" />
+              </div>
+              <span className="font-display font-bold text-foreground">PayrollAO</span>
+            </div>
+          )}
         </div>
 
         {/* User Info */}

@@ -88,11 +88,20 @@ export function TopNavbar() {
       <div className="flex h-14 items-center justify-between px-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 shrink-0">
-          <img 
-            src={companyLogo} 
-            alt="Company Logo" 
-            className="h-9 w-auto object-contain"
-          />
+          {companyLogo ? (
+            <img 
+              src={companyLogo} 
+              alt="Company Logo" 
+              className="h-9 w-auto object-contain"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <span className="font-display font-bold text-sm text-foreground">PayrollAO</span>
+            </div>
+          )}
         </Link>
 
         {/* Desktop Navigation - All items inline */}

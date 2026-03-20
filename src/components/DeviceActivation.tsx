@@ -69,11 +69,9 @@ export function DeviceActivation({ onActivated }: DeviceActivationProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img 
-              src={companyLogo} 
-              alt="Company Logo" 
-              className="h-16 object-contain"
-            />
+            <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
           </div>
           <div className="flex justify-center">
             <div className="p-3 bg-destructive/10 rounded-full">
