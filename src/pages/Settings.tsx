@@ -434,6 +434,39 @@ const Settings = () => {
                   onChange={(e) => handleChange("province", e.target.value)} 
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Input 
+                  value={formData.phone || ''} 
+                  onChange={(e) => handleChange("phone", e.target.value)}
+                  placeholder="ex: 924 121 312"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone 2</Label>
+                <Input 
+                  value={formData.phone2 || ''} 
+                  onChange={(e) => handleChange("phone2", e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input 
+                  type="email"
+                  value={formData.email || ''} 
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  placeholder="ex: info@empresa.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Website</Label>
+                <Input 
+                  value={formData.website || ''} 
+                  onChange={(e) => handleChange("website", e.target.value)}
+                  placeholder="ex: www.empresa.com"
+                />
+              </div>
             </div>
           </div>
 
