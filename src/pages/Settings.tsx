@@ -345,6 +345,52 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">{t.settings.basicData}</p>
               </div>
             </div>
+
+            {/* Company Logo Upload */}
+            <div className="mb-6 flex flex-col items-center gap-3 p-4 bg-muted/50 rounded-lg border-2 border-dashed border-border">
+              {formData.companyLogo ? (
+                <img 
+                  src={formData.companyLogo} 
+                  alt="Logotipo da Empresa" 
+                  className="h-24 max-w-[200px] object-contain rounded"
+                />
+              ) : (
+                <div className="h-24 w-24 flex items-center justify-center bg-muted rounded-lg">
+                  <Building2 className="h-10 w-10 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <ImagePlus className="h-4 w-4 mr-2" />
+                  {formData.companyLogo ? 'Alterar Logotipo' : 'Carregar Logotipo'}
+                </Button>
+                {formData.companyLogo && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleRemoveLogo}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <p className="text-xs text-muted-foreground">JPG, PNG — max 400x400px</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.settings.companyName}</Label>
