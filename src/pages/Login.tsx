@@ -131,6 +131,17 @@ export function LoginPage() {
         throw new Error('set_active_company_failed');
       }
 
+      // Reset settings store to defaults before loading — prevents stale data from previous company
+      useSettingsStore.setState({
+        settings: {
+          companyName: '', companyLogo: '', nif: '', address: '', city: '',
+          province: '', municipality: '', phone: '', phone2: '', email: '',
+          website: '', bank: '', iban: '', payday: 27, currency: 'AOA (Kwanza)',
+          emailPaymentProcessed: true, monthEndReminder: true, holidayAlerts: false, newEmployees: true,
+        },
+        isLoaded: false,
+      });
+
       await Promise.all([loadUsers(), loadSettings()]);
       localStorage.setItem('payroll_last_company_id', companyId);
       setCompanyReady(true);
