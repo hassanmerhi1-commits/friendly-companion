@@ -69,6 +69,18 @@ function migrateLegacyMockDataToCompany(companyId: string): void {
   }
 }
 
+function getPrimaryPreviewCompanyId(
+  companies: Array<{ id: string; name: string; dbFile: string }>
+): string | null {
+  if (!Array.isArray(companies) || companies.length === 0) return null;
+  return (
+    companies.find((company) => company.id === 'company-default')?.id ||
+    companies.find((company) => company.id === LEGACY_COMPANY_ID)?.id ||
+    companies.find((company) => company.name === 'Empresa Principal')?.id ||
+    companies[0].id
+  );
+}
+
 function getMockData<T>(table: string): T[] {
   try {
     const prefix = activeCompanyId ? `${MOCK_STORAGE_PREFIX}${activeCompanyId}_` : MOCK_STORAGE_PREFIX;
@@ -151,6 +163,12 @@ export async function liveListCompanies(): Promise<Array<{ id: string; name: str
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // CRITICAL: preserve pre-multi-company data by migrating legacy keys
+          // into the primary company namespace even when registry already exists.
+          const primaryCompanyId = getPrimaryPreviewCompanyId(parsed);
+          if (primaryCompanyId) {
+            migrateLegacyMockDataToCompany(primaryCompanyId);
+          }
           return parsed;
         }
       }
