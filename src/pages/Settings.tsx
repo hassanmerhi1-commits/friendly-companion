@@ -629,8 +629,21 @@ const Settings = () => {
             <CheckForUpdatesButton />
           </div>
 
-          <Button variant="accent" size="lg" className="w-full" onClick={handleSave}>
-            {t.settings.saveChanges}
+          <Button
+            variant="accent"
+            size="lg"
+            className="w-full"
+            onClick={handleSave}
+            disabled={!isDirty || isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                A guardar...
+              </>
+            ) : (
+              t.settings.saveChanges
+            )}
           </Button>
         </div>
       </div>
