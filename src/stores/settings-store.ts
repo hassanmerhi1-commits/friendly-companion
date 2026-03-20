@@ -103,7 +103,8 @@ export function initSettingsStoreSync() {
     const settingsMap: Record<string, string> = {};
     for (const row of rows) { settingsMap[row.key] = row.value; }
     const loaded = {
-      companyName: settingsMap.companyName || 'DISTRI-GOOD, LDA',
+      companyName: settingsMap.companyName || '',
+      companyLogo: settingsMap.companyLogo || '',
       nif: settingsMap.nif || '',
       address: settingsMap.address || '',
       city: settingsMap.city || '',
