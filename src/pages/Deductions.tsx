@@ -39,6 +39,7 @@ export default function Deductions() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
