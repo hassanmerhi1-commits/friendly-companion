@@ -32,9 +32,12 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
+  const { currentUser } = useAuthStore();
   const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries, deleteEntry } = useBulkAttendanceStore();
   
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  // Auto-set branch filter based on user's assigned branch
+  const userBranchId = currentUser?.branchId;
+  const [selectedBranch, setSelectedBranch] = useState<string>(userBranchId || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [localEntries, setLocalEntries] = useState<Record<string, LocalEntry>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +45,9 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   
   const branches = getActiveBranches();
   const activeEmployees = getActiveEmployees();
+  
+  // If user has a branch assigned, lock the filter
+  const isBranchLocked = !!userBranchId && currentUser?.role !== 'admin';
 
   // Load saved entries when component mounts or month/year changes
   useEffect(() => {
