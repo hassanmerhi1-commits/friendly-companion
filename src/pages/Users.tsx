@@ -37,6 +37,8 @@ const roleIcons: Record<UserRole, React.ReactNode> = {
 const UsersPage = () => {
   const { t, language } = useLanguage();
   const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useAuthStore();
+  const { branches: allBranches } = useBranchStore();
+  const activeBranches = allBranches.filter(b => b.isActive);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<AppUser | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
