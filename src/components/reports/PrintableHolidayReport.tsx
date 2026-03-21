@@ -32,6 +32,7 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
   onClose,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const { getHolidayStatus } = useHolidayStore();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -52,6 +53,9 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
     const now = new Date();
     const yearsWorked = Math.floor((now.getTime() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     
+    // Use centralized status logic
+    const status = getHolidayStatus(emp.id, year);
+    
     return {
       employee: emp,
       record,
@@ -63,13 +67,14 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
       endDate: record?.endDate,
       subsidyPaid: !!record?.subsidyPaidInMonth,
       subsidyMonth: record?.subsidyPaidInMonth,
+      status,
     };
   });
 
   // Group by status
-  const scheduled = employeeHolidays.filter(e => e.startDate && !e.endDate);
-  const completed = employeeHolidays.filter(e => e.endDate);
-  const pending = employeeHolidays.filter(e => !e.startDate);
+  const gozado = employeeHolidays.filter(e => e.status === 'gozado');
+  const pago = employeeHolidays.filter(e => e.status === 'pago');
+  const pendente = employeeHolidays.filter(e => e.status === 'pendente');
 
   // Totals
   const totalEntitled = employeeHolidays.reduce((sum, e) => sum + e.daysEntitled, 0);
