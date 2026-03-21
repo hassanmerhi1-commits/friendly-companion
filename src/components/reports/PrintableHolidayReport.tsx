@@ -173,7 +173,13 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
                   {item.subsidyPaid ? `✓ (${item.subsidyMonth}/${year})` : '-'}
                 </td>
                 <td className="border border-black p-1 text-center">
-                  {item.endDate ? '✓ Gozadas' : item.startDate ? '⏳ Agendadas' : '○ Pendente'}
+                  {item.status === 'gozado' ? (
+                    <span style={{ color: '#27ae60', fontWeight: 'bold' }}>✓ Gozado</span>
+                  ) : item.status === 'pago' ? (
+                    <span style={{ color: '#2980b9', fontWeight: 'bold' }}>💰 Pago</span>
+                  ) : (
+                    <span style={{ color: '#e67e22' }}>○ Pendente</span>
+                  )}
                 </td>
               </tr>
             ))}
