@@ -189,47 +189,47 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
         {/* Status Summary */}
         <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
           <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Férias Agendadas ({scheduled.length})</h4>
-            {scheduled.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
+            <h4 className="font-bold mb-2" style={{ color: '#e67e22' }}>Pendentes ({pendente.length})</h4>
+            {pendente.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
             ) : (
               <ul className="space-y-1">
-                {scheduled.slice(0, 5).map(e => (
-                  <li key={e.employee.id}>
-                    {e.employee.firstName} {e.employee.lastName} - {formatDate(e.startDate)}
-                  </li>
-                ))}
-                {scheduled.length > 5 && <li>... e mais {scheduled.length - 5}</li>}
-              </ul>
-            )}
-          </div>
-          <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Férias Gozadas ({completed.length})</h4>
-            {completed.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
-            ) : (
-              <ul className="space-y-1">
-                {completed.slice(0, 5).map(e => (
-                  <li key={e.employee.id}>
-                    {e.employee.firstName} {e.employee.lastName} - {e.daysUsed} dias
-                  </li>
-                ))}
-                {completed.length > 5 && <li>... e mais {completed.length - 5}</li>}
-              </ul>
-            )}
-          </div>
-          <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Pendentes de Agendar ({pending.length})</h4>
-            {pending.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
-            ) : (
-              <ul className="space-y-1">
-                {pending.slice(0, 5).map(e => (
+                {pendente.slice(0, 5).map(e => (
                   <li key={e.employee.id}>
                     {e.employee.firstName} {e.employee.lastName}
                   </li>
                 ))}
-                {pending.length > 5 && <li>... e mais {pending.length - 5}</li>}
+                {pendente.length > 5 && <li>... e mais {pendente.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#2980b9' }}>Subsídio Pago ({pago.length})</h4>
+            {pago.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {pago.slice(0, 5).map(e => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName} - {e.subsidyMonth}/{year}
+                  </li>
+                ))}
+                {pago.length > 5 && <li>... e mais {pago.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#27ae60' }}>Gozado ({gozado.length})</h4>
+            {gozado.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {gozado.slice(0, 5).map(e => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName} - {e.daysUsed} dias
+                  </li>
+                ))}
+                {gozado.length > 5 && <li>... e mais {gozado.length - 5}</li>}
               </ul>
             )}
           </div>
