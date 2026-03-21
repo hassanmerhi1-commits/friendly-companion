@@ -388,17 +388,34 @@ export function PrintableHolidayMap({
                   </div>
                 </td>
                 <td>
-                  {emp.isPaid ? (
-                    <Badge variant="default" className="text-xs bg-green-600 print:bg-green-600">
-                      <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
-                      {t.holidayPaid}
-                    </Badge>
-                  ) : emp.startDate ? (
-                    <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
-                      <AlertTriangle className="h-3 w-3 mr-1 print:hidden" />
-                      {t.holidayRegistered}
-                    </Badge>
-                  ) : null}
+                  {(() => {
+                    const status = getHolidayStatus(emp.id, selectedYear);
+                    if (status === 'gozado') {
+                      return (
+                        <Badge variant="default" className="text-xs bg-green-600 print:bg-green-600">
+                          <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
+                          Gozado
+                        </Badge>
+                      );
+                    } else if (status === 'pago') {
+                      return (
+                        <Badge variant="default" className="text-xs bg-blue-600 print:bg-blue-600">
+                          <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
+                          {t.holidayPaid}
+                        </Badge>
+                      );
+                    } else if (emp.startDate) {
+                      return (
+                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                          <AlertTriangle className="h-3 w-3 mr-1 print:hidden" />
+                          {t.holidayRegistered}
+                        </Badge>
+                      );
+                    }
+                    return (
+                      <span className="text-xs text-muted-foreground">Pendente</span>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}
