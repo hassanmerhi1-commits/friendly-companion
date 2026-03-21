@@ -56,6 +56,12 @@ export default function Deductions() {
     if (filterStatus === 'pending') result = result.filter(d => !d.isFullyPaid);
     if (filterStatus === 'paid') result = result.filter(d => d.isFullyPaid);
     if (filterEmployee !== 'all') result = result.filter(d => d.employeeId === filterEmployee);
+    if (filterBranch !== 'all') {
+      result = result.filter(d => {
+        const emp = employees.find(e => e.id === d.employeeId);
+        return emp?.branchId === filterBranch;
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(d => {
@@ -65,7 +71,7 @@ export default function Deductions() {
       });
     }
     return result;
-  }, [deductions, filterType, filterStatus, filterEmployee, searchQuery, employees]);
+  }, [deductions, filterType, filterStatus, filterEmployee, filterBranch, searchQuery, employees]);
 
   const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
