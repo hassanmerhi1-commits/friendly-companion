@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Printer } from 'lucide-react';
+import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Umbrella } from 'lucide-react';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
 import { ProfileHeader } from '@/components/employee-profile/ProfileHeader';
@@ -11,6 +11,7 @@ import { AttendanceTab } from '@/components/employee-profile/AttendanceTab';
 import { DisciplinaryTab } from '@/components/employee-profile/DisciplinaryTab';
 import { LoansTab } from '@/components/employee-profile/LoansTab';
 import { DeductionsTab } from '@/components/employee-profile/DeductionsTab';
+import { HolidaysTab } from '@/components/employee-profile/HolidaysTab';
 
 const EmployeeProfile = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +53,7 @@ const EmployeeProfile = () => {
 
       {/* Tabs for different sections */}
       <Tabs defaultValue="payroll" className="mt-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
           <TabsTrigger value="payroll" className="gap-2">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">
@@ -63,6 +64,12 @@ const EmployeeProfile = () => {
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">
               {language === 'pt' ? 'Assiduidade' : 'Attendance'}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="holidays" className="gap-2">
+            <Umbrella className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {language === 'pt' ? 'Férias' : 'Holidays'}
             </span>
           </TabsTrigger>
           <TabsTrigger value="disciplinary" className="gap-2">
@@ -91,6 +98,10 @@ const EmployeeProfile = () => {
 
         <TabsContent value="attendance" className="mt-6">
           <AttendanceTab employeeId={employee.id} />
+        </TabsContent>
+
+        <TabsContent value="holidays" className="mt-6">
+          <HolidaysTab employeeId={employee.id} />
         </TabsContent>
 
         <TabsContent value="disciplinary" className="mt-6">
