@@ -225,6 +225,15 @@ const UsersPage = () => {
                     : (language === 'pt' ? 'Inativo' : 'Inactive')
                   }
                 </Badge>
+                {user.branchId && (() => {
+                  const branch = activeBranches.find(b => b.id === user.branchId);
+                  return branch ? (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {branch.name}
+                    </Badge>
+                  ) : null;
+                })()}
               </div>
             </CardContent>
           </Card>
