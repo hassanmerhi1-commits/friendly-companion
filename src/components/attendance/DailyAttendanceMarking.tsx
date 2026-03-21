@@ -49,14 +49,16 @@ export function DailyAttendanceMarking({ readOnly = false }: DailyAttendanceMark
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
   // Can only edit today and yesterday (unless admin)
+  // Daily marking has its own date logic — ignore parent readOnly
+  // Admin can edit any day; others can edit today and yesterday
   const canEdit = useMemo(() => {
-    if (readOnly) return false;
     if (currentUser?.role === 'admin') return true;
     const today = startOfDay(new Date());
     const yesterday = startOfDay(subDays(today, 1));
     const sel = startOfDay(selectedDate);
+    // Any authenticated user (including shop users) can mark today/yesterday
     return sel >= yesterday && sel <= today;
-  }, [selectedDate, currentUser, readOnly]);
+  }, [selectedDate, currentUser]);
 
   // Prevent selecting future dates
   const isFutureDate = isAfter(startOfDay(selectedDate), startOfDay(new Date()));

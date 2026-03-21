@@ -200,7 +200,7 @@ export default function Attendance() {
           </TabsList>
 
           <TabsContent value="daily" className="space-y-4">
-            <DailyAttendanceMarking readOnly={isPeriodArchived && !isCurrentPeriod} />
+            <DailyAttendanceMarking />
           </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4">
