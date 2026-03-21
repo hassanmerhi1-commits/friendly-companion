@@ -456,8 +456,21 @@ export default function Deductions() {
               </SelectContent>
             </Select>
 
-            {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterEmployee !== 'all') && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus('all'); setFilterEmployee('all'); }}>
+            {/* Branch filter */}
+            <Select value={filterBranch} onValueChange={setFilterBranch}>
+              <SelectTrigger className="w-[160px] h-8 text-sm">
+                <SelectValue placeholder={language === 'pt' ? 'Filial' : 'Branch'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todas filiais' : 'All branches'}</SelectItem>
+                {activeBranches.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterEmployee !== 'all' || filterBranch !== 'all') && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus('all'); setFilterEmployee('all'); setFilterBranch('all'); }}>
                 {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
               </Button>
             )}
