@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Printer } from 'lucide-react';
+import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Umbrella } from 'lucide-react';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
 import { ProfileHeader } from '@/components/employee-profile/ProfileHeader';
@@ -11,6 +11,7 @@ import { AttendanceTab } from '@/components/employee-profile/AttendanceTab';
 import { DisciplinaryTab } from '@/components/employee-profile/DisciplinaryTab';
 import { LoansTab } from '@/components/employee-profile/LoansTab';
 import { DeductionsTab } from '@/components/employee-profile/DeductionsTab';
+import { HolidaysTab } from '@/components/employee-profile/HolidaysTab';
 
 const EmployeeProfile = () => {
   const { id } = useParams<{ id: string }>();
