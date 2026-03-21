@@ -9,13 +9,14 @@ import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
 import { BranchAttendanceImport } from "@/components/attendance/BranchAttendanceImport";
+import { DailyAttendanceMarking } from "@/components/attendance/DailyAttendanceMarking";
 import { useLanguage } from "@/lib/i18n";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
 import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Attendance() {
@@ -97,6 +98,7 @@ export default function Attendance() {
     overtime: language === 'pt' ? 'Horas Extra' : 'Overtime',
     calendar: language === 'pt' ? 'Calendário' : 'Calendar',
     bulkEntry: language === 'pt' ? 'Ausências/Atrasos' : 'Absences/Delays',
+    dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
   };
 
@@ -151,6 +153,10 @@ export default function Attendance() {
 
         <Tabs defaultValue="bulk" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="daily" className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              {t.dailyMarking}
+            </TabsTrigger>
             <TabsTrigger value="bulk" className="flex items-center gap-2">
               <UserMinus className="h-4 w-4" />
               {t.bulkEntry}
@@ -187,6 +193,10 @@ export default function Attendance() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="daily" className="space-y-4">
+            <DailyAttendanceMarking readOnly={isPeriodArchived && !isCurrentPeriod} />
+          </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4">
             <BulkAttendanceEntry 

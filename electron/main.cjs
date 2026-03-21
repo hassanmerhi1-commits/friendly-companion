@@ -312,7 +312,7 @@ function startWebSocketServer() {
             // Send initial data for this company
             const targetDb = getCompanyDb(msg.companyId);
             if (targetDb) {
-              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance'];
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
               for (const table of tables) {
                 try {
                   const rows = dbGetAll(table, targetDb);
@@ -1505,6 +1505,24 @@ function runMigrations() {
     
     // Add justified_absence_days column to bulk_attendance
     addColumnIfMissing('bulk_attendance', 'justified_absence_days', "ALTER TABLE bulk_attendance ADD COLUMN justified_absence_days REAL DEFAULT 0");
+    
+    // Daily attendance marking table (for shop/branch daily marking)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_attendance (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'present',
+        delay_hours REAL DEFAULT 0,
+        notes TEXT,
+        marked_by TEXT,
+        branch_id TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(employee_id, date)
+      );
+    `);
+    console.log('Migration: Ensured daily_attendance table exists');
     
     // Overtime payments table for daily overtime payment records
     db.exec(`

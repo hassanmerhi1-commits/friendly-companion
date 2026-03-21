@@ -26,6 +26,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
+import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -320,6 +321,7 @@ function AppContent() {
             initBulkAttendanceStoreSync();
             initHRStoreSync();
             initOvertimePaymentSync();
+            initDailyAttendanceSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
@@ -344,6 +346,7 @@ function AppContent() {
             const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
             const { loadHRData } = useHRStore.getState();
             const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+            const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
 
             await Promise.all([
               loadUsers(),
@@ -358,6 +361,7 @@ function AppContent() {
               loadBulkAttendance(),
               loadHRData(),
               loadOvertimePayments(),
+              loadDailyAttendance(),
             ]);
 
             console.log('[App] All stores loaded from database');
