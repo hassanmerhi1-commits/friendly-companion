@@ -15,6 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { useBranchStore } from '@/stores/branch-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
@@ -29,6 +30,8 @@ export default function Deductions() {
   const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
+  const { branches: allBranches } = useBranchStore();
+  const activeBranches = allBranches.filter(b => b.isActive);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
@@ -36,6 +39,7 @@ export default function Deductions() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
@@ -52,6 +56,12 @@ export default function Deductions() {
     if (filterStatus === 'pending') result = result.filter(d => !d.isFullyPaid);
     if (filterStatus === 'paid') result = result.filter(d => d.isFullyPaid);
     if (filterEmployee !== 'all') result = result.filter(d => d.employeeId === filterEmployee);
+    if (filterBranch !== 'all') {
+      result = result.filter(d => {
+        const emp = employees.find(e => e.id === d.employeeId);
+        return emp?.branchId === filterBranch;
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(d => {
@@ -61,7 +71,7 @@ export default function Deductions() {
       });
     }
     return result;
-  }, [deductions, filterType, filterStatus, filterEmployee, searchQuery, employees]);
+  }, [deductions, filterType, filterStatus, filterEmployee, filterBranch, searchQuery, employees]);
 
   const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
@@ -446,8 +456,21 @@ export default function Deductions() {
               </SelectContent>
             </Select>
 
-            {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterEmployee !== 'all') && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus('all'); setFilterEmployee('all'); }}>
+            {/* Branch filter */}
+            <Select value={filterBranch} onValueChange={setFilterBranch}>
+              <SelectTrigger className="w-[160px] h-8 text-sm">
+                <SelectValue placeholder={language === 'pt' ? 'Filial' : 'Branch'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todas filiais' : 'All branches'}</SelectItem>
+                {activeBranches.map(branch => (
+                  <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterEmployee !== 'all' || filterBranch !== 'all') && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus('all'); setFilterEmployee('all'); setFilterBranch('all'); }}>
                 {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
               </Button>
             )}
