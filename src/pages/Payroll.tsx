@@ -45,7 +45,7 @@ const Payroll = () => {
   const branches = allBranches.filter(b => b.isActive);
   const activeEmployees = employees.filter(emp => emp.status === 'active');
   const { settings } = useSettingsStore();
-  const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
+  const { records: holidayRecords, markSubsidyPaid, isSubsidyPaid, autoDetectPaidSubsidies } = useHolidayStore();
   const absenceStore = useAbsenceStore();
   const bulkAttendanceStore = useBulkAttendanceStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = absenceStore;
