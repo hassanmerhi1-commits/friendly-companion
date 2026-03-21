@@ -53,7 +53,7 @@ const EmployeeProfile = () => {
 
       {/* Tabs for different sections */}
       <Tabs defaultValue="payroll" className="mt-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
           <TabsTrigger value="payroll" className="gap-2">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">
@@ -64,6 +64,12 @@ const EmployeeProfile = () => {
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">
               {language === 'pt' ? 'Assiduidade' : 'Attendance'}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="holidays" className="gap-2">
+            <Umbrella className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {language === 'pt' ? 'Férias' : 'Holidays'}
             </span>
           </TabsTrigger>
           <TabsTrigger value="disciplinary" className="gap-2">
