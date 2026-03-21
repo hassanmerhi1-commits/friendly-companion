@@ -8,10 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n';
 import { useAuthStore, type AppUser, type UserRole, roleLabels, rolePermissions, type Permission } from '@/stores/auth-store';
+import { useBranchStore } from '@/stores/branch-store';
 import { PermissionGrid } from '@/components/users/PermissionGrid';
-import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye, Key } from 'lucide-react';
+import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye, Key, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
