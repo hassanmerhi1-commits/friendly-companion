@@ -194,6 +194,7 @@ function mapUserToDbRow(user: AppUser): Record<string, any> {
     password: user.password,
     name: user.name,
     role: user.role,
+    branch_id: user.branchId || null,
     custom_permissions: user.customPermissions ? JSON.stringify(user.customPermissions) : null,
     is_active: user.isActive ? 1 : 0,
     created_at: user.createdAt,
