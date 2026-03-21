@@ -5,6 +5,7 @@ import { useReactToPrint } from 'react-to-print';
 import type { Employee } from '@/types/employee';
 import type { HolidayRecord } from '@/stores/holiday-store';
 import type { Branch } from '@/types/branch';
+import { useHolidayStore } from '@/stores/holiday-store';
 
 interface PrintableHolidayReportProps {
   employees: Employee[];
