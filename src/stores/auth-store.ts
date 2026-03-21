@@ -179,6 +179,7 @@ function mapDbRowToUser(row: any): AppUser {
     password: row.password,
     name: row.name || '',
     role: row.role || 'viewer',
+    branchId: row.branch_id || undefined,
     customPermissions: row.custom_permissions ? JSON.parse(row.custom_permissions) : undefined,
     isActive: row.is_active === 1,
     createdAt: row.created_at || '',
