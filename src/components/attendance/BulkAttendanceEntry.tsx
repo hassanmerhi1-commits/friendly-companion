@@ -10,6 +10,7 @@ import { Save, Calculator, Users, AlertTriangle, Search, Loader2 } from 'lucide-
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary, type BulkAttendanceEntry as BulkEntry } from '@/stores/bulk-attendance-store';
 import { toast } from 'sonner';
 
