@@ -30,6 +30,8 @@ export default function Deductions() {
   const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
+  const { branches: allBranches } = useBranchStore();
+  const activeBranches = allBranches.filter(b => b.isActive);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
