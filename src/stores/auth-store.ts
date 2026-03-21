@@ -130,6 +130,7 @@ export interface AppUser {
   password: string;
   name: string;
   role: UserRole;
+  branchId?: string;
   customPermissions?: Permission[];
   isActive: boolean;
   createdAt: string;
