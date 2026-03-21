@@ -43,7 +43,7 @@ export function PrintableHolidayMap({
   onClose,
 }: PrintableHolidayMapProps) {
   const { language } = useLanguage();
-  const { canRegisterHoliday, isSubsidyPaid } = useHolidayStore();
+  const { canRegisterHoliday, isSubsidyPaid, getHolidayStatus } = useHolidayStore();
   const printRef = useRef<HTMLDivElement>(null);
   const [editableRecords, setEditableRecords] = useState<HolidayRecord[]>(holidayRecords);
   const [selectedYear, setSelectedYear] = useState(year);
