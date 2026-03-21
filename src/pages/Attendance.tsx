@@ -153,6 +153,10 @@ export default function Attendance() {
 
         <Tabs defaultValue="bulk" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="daily" className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              {t.dailyMarking}
+            </TabsTrigger>
             <TabsTrigger value="bulk" className="flex items-center gap-2">
               <UserMinus className="h-4 w-4" />
               {t.bulkEntry}
@@ -189,6 +193,10 @@ export default function Attendance() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="daily" className="space-y-4">
+            <DailyAttendanceMarking readOnly={isPeriodArchived && !isCurrentPeriod} />
+          </TabsContent>
 
           <TabsContent value="bulk" className="space-y-4">
             <BulkAttendanceEntry 
