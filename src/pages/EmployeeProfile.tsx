@@ -100,6 +100,10 @@ const EmployeeProfile = () => {
           <AttendanceTab employeeId={employee.id} />
         </TabsContent>
 
+        <TabsContent value="holidays" className="mt-6">
+          <HolidaysTab employeeId={employee.id} />
+        </TabsContent>
+
         <TabsContent value="disciplinary" className="mt-6">
           <DisciplinaryTab employeeId={employee.id} />
         </TabsContent>
