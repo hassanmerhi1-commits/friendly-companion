@@ -187,6 +187,68 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
       
       return { allowed: true };
     },
+    
+    // Get holiday status: pendente (no subsidy paid) → pago (subsidy paid) → gozado (subsidy paid AND dates passed)
+    getHolidayStatus: (employeeId, year) => {
+      const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
+      
+      if (!record?.subsidyPaidInMonth) {
+        return 'pendente';
+      }
+      
+      // Subsidy is paid — check if holiday dates have passed
+      if (record.endDate) {
+        const endDate = new Date(record.endDate);
+        const today = new Date();
+        if (endDate < today) {
+          return 'gozado';
+        }
+      }
+      
+      return 'pago';
+    },
+    
+    // Auto-detect subsidies already paid from payroll history
+    autoDetectPaidSubsidies: async (payrollEntries, periods) => {
+      let detected = 0;
+      const records = get().records;
+      
+      for (const entry of payrollEntries) {
+        if (entry.holidaySubsidy <= 0) continue;
+        
+        const period = periods.find(p => p.id === entry.payrollPeriodId);
+        if (!period) continue;
+        if (period.status !== 'approved' && period.status !== 'paid') continue;
+        
+        // The subsidy paid in this period covers the holiday for the year
+        // (subsidy is paid month before holiday, so it could be same year or next year)
+        const subsidyYear = period.year;
+        
+        // Check if already marked
+        const existing = records.find(r => r.employeeId === entry.employeeId && r.year === subsidyYear);
+        if (existing?.subsidyPaidInMonth) continue;
+        
+        // Mark as paid
+        await liveInsert('holidays', mapHolidayToDbRow({
+          employeeId: entry.employeeId,
+          year: subsidyYear,
+          daysUsed: existing?.daysUsed || 0,
+          startDate: existing?.startDate,
+          endDate: existing?.endDate,
+          holidayMonth: existing?.holidayMonth,
+          subsidyPaidInMonth: period.month,
+          subsidyPaidInYear: period.year,
+        }));
+        detected++;
+      }
+      
+      if (detected > 0) {
+        await get().loadHolidays();
+        console.log(`[Holidays] Auto-detected ${detected} paid subsidies from payroll history`);
+      }
+      
+      return detected;
+    },
   }));
 
 // Subscribe to PUSH data from server (TRUE SYNC - no refetch)
