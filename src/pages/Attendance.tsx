@@ -152,47 +152,51 @@ export default function Attendance() {
           </div>
         )}
 
-        <Tabs defaultValue="bulk" className="space-y-4">
+        <Tabs defaultValue={isShopUser ? "daily" : "bulk"} className="space-y-4">
           <TabsList>
             <TabsTrigger value="daily" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
               {t.dailyMarking}
             </TabsTrigger>
-            <TabsTrigger value="bulk" className="flex items-center gap-2">
-              <UserMinus className="h-4 w-4" />
-              {t.bulkEntry}
-              {selectedMonthEntries > 0 && (
-                <Badge variant="destructive" className="ml-1">
-                  {selectedMonthEntries}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="clock" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              {t.clockInOut}
-              {todayRecords > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {todayRecords}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="records" className="flex items-center gap-2">
-              <List className="h-4 w-4" />
-              {t.records}
-            </TabsTrigger>
-            <TabsTrigger value="overtime" className="flex items-center gap-2">
-              <Timer className="h-4 w-4" />
-              {t.overtime}
-            </TabsTrigger>
-            <TabsTrigger value="calendar" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {t.calendar}
-              {pendingAbsences > 0 && (
-                <Badge variant="destructive" className="ml-1">
-                  {pendingAbsences}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {!isShopUser && (
+              <>
+                <TabsTrigger value="bulk" className="flex items-center gap-2">
+                  <UserMinus className="h-4 w-4" />
+                  {t.bulkEntry}
+                  {selectedMonthEntries > 0 && (
+                    <Badge variant="destructive" className="ml-1">
+                      {selectedMonthEntries}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="clock" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  {t.clockInOut}
+                  {todayRecords > 0 && (
+                    <Badge variant="secondary" className="ml-1">
+                      {todayRecords}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="records" className="flex items-center gap-2">
+                  <List className="h-4 w-4" />
+                  {t.records}
+                </TabsTrigger>
+                <TabsTrigger value="overtime" className="flex items-center gap-2">
+                  <Timer className="h-4 w-4" />
+                  {t.overtime}
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  {t.calendar}
+                  {pendingAbsences > 0 && (
+                    <Badge variant="destructive" className="ml-1">
+                      {pendingAbsences}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           <TabsContent value="daily" className="space-y-4">
