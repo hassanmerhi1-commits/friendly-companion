@@ -17,10 +17,6 @@ import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFull
 import { format, addDays, subDays, isToday, isAfter, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
 
-interface DailyAttendanceMarkingProps {
-  readOnly?: boolean;
-}
-
 interface LocalMark {
   employeeId: string;
   status: DailyStatus;
