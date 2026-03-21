@@ -79,6 +79,7 @@ const UsersPage = () => {
         password: '',
         name: user.name,
         role: user.role,
+        branchId: user.branchId || '',
         isActive: user.isActive,
         customPermissions: user.customPermissions || rolePermissions[user.role] || [],
         useCustomPermissions: hasCustom,
