@@ -98,6 +98,7 @@ export default function Attendance() {
     overtime: language === 'pt' ? 'Horas Extra' : 'Overtime',
     calendar: language === 'pt' ? 'Calendário' : 'Calendar',
     bulkEntry: language === 'pt' ? 'Ausências/Atrasos' : 'Absences/Delays',
+    dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
   };
 
