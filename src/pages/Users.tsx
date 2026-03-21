@@ -291,6 +291,35 @@ const UsersPage = () => {
                   />
                   <Label>{language === 'pt' ? 'Ativo' : 'Active'}</Label>
                 </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    {language === 'pt' ? 'Filial Associada' : 'Assigned Branch'}
+                  </Label>
+                  <Select
+                    value={formData.branchId || 'none'}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, branchId: v === 'none' ? '' : v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'pt' ? 'Todas as filiais (admin)' : 'All branches (admin)'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        {language === 'pt' ? 'Todas as filiais (sem restrição)' : 'All branches (unrestricted)'}
+                      </SelectItem>
+                      {activeBranches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name} ({branch.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'pt' 
+                      ? 'Se definido, o utilizador só verá funcionários desta filial'
+                      : 'If set, user will only see employees from this branch'}
+                  </p>
+                </div>
               </TabsContent>
 
               <TabsContent value="permissions" className="space-y-4 mt-4">
