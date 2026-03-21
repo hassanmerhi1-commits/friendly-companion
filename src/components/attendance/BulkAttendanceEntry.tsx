@@ -286,12 +286,12 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <div className="flex-1">
               <Label>{t.branch}</Label>
-              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={isBranchLocked}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.allBranches}</SelectItem>
+                  {!isBranchLocked && <SelectItem value="all">{t.allBranches}</SelectItem>}
                   {branches.map(branch => (
                     <SelectItem key={branch.id} value={branch.id}>
                       {branch.name}
