@@ -49,6 +49,24 @@ const Payroll = () => {
   const absenceStore = useAbsenceStore();
   const bulkAttendanceStore = useBulkAttendanceStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = absenceStore;
+  
+  // Auto-detect paid subsidies from payroll history (runs once)
+  const autoDetectRan = useRef(false);
+  useEffect(() => {
+    if (autoDetectRan.current || entries.length === 0 || periods.length === 0) return;
+    autoDetectRan.current = true;
+    autoDetectPaidSubsidies(
+      entries.map(e => ({ employeeId: e.employeeId, holidaySubsidy: e.holidaySubsidy, payrollPeriodId: e.payrollPeriodId })),
+      periods.map(p => ({ id: p.id, year: p.year, month: p.month, status: p.status }))
+    ).then(count => {
+      if (count > 0) {
+        toast.info(language === 'pt' 
+          ? `${count} subsídio(s) de férias detectado(s) automaticamente` 
+          : `${count} holiday subsid(ies) auto-detected`);
+      }
+    });
+  }, [entries, periods]);
+  
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
