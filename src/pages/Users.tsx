@@ -128,6 +128,7 @@ const UsersPage = () => {
         password: formData.password,
         name: formData.name,
         role: formData.role,
+        branchId: formData.branchId || undefined,
         isActive: formData.isActive,
         customPermissions: formData.useCustomPermissions ? formData.customPermissions : undefined,
       });
