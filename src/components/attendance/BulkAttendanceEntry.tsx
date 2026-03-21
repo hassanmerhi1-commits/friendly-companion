@@ -10,6 +10,7 @@ import { Save, Calculator, Users, AlertTriangle, Search, Loader2 } from 'lucide-
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary, type BulkAttendanceEntry as BulkEntry } from '@/stores/bulk-attendance-store';
 import { toast } from 'sonner';
 
@@ -31,9 +32,12 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
+  const { currentUser } = useAuthStore();
   const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries, deleteEntry } = useBulkAttendanceStore();
   
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  // Auto-set branch filter based on user's assigned branch
+  const userBranchId = currentUser?.branchId;
+  const [selectedBranch, setSelectedBranch] = useState<string>(userBranchId || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [localEntries, setLocalEntries] = useState<Record<string, LocalEntry>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -41,6 +45,9 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   
   const branches = getActiveBranches();
   const activeEmployees = getActiveEmployees();
+  
+  // If user has a branch assigned, lock the filter
+  const isBranchLocked = !!userBranchId && currentUser?.role !== 'admin';
 
   // Load saved entries when component mounts or month/year changes
   useEffect(() => {
@@ -279,12 +286,12 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <div className="flex-1">
               <Label>{t.branch}</Label>
-              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={isBranchLocked}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.allBranches}</SelectItem>
+                  {!isBranchLocked && <SelectItem value="all">{t.allBranches}</SelectItem>}
                   {branches.map(branch => (
                     <SelectItem key={branch.id} value={branch.id}>
                       {branch.name}

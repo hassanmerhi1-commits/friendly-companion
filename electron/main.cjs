@@ -1386,6 +1386,7 @@ function runMigrations() {
     addColumnIfMissing('users', 'role', "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'");
     addColumnIfMissing('users', 'is_active', "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1");
     addColumnIfMissing('users', 'custom_permissions', "ALTER TABLE users ADD COLUMN custom_permissions TEXT");
+    addColumnIfMissing('users', 'branch_id', "ALTER TABLE users ADD COLUMN branch_id TEXT");
     
     // Absence columns
     addColumnIfMissing('absences', 'status', "ALTER TABLE absences ADD COLUMN status TEXT DEFAULT 'pending'");

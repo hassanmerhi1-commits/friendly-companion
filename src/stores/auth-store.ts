@@ -130,6 +130,7 @@ export interface AppUser {
   password: string;
   name: string;
   role: UserRole;
+  branchId?: string;
   customPermissions?: Permission[];
   isActive: boolean;
   createdAt: string;
@@ -178,6 +179,7 @@ function mapDbRowToUser(row: any): AppUser {
     password: row.password,
     name: row.name || '',
     role: row.role || 'viewer',
+    branchId: row.branch_id || undefined,
     customPermissions: row.custom_permissions ? JSON.parse(row.custom_permissions) : undefined,
     isActive: row.is_active === 1,
     createdAt: row.created_at || '',
@@ -192,6 +194,7 @@ function mapUserToDbRow(user: AppUser): Record<string, any> {
     password: user.password,
     name: user.name,
     role: user.role,
+    branch_id: user.branchId || null,
     custom_permissions: user.customPermissions ? JSON.stringify(user.customPermissions) : null,
     is_active: user.isActive ? 1 : 0,
     created_at: user.createdAt,

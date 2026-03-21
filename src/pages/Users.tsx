@@ -8,10 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/lib/i18n';
 import { useAuthStore, type AppUser, type UserRole, roleLabels, rolePermissions, type Permission } from '@/stores/auth-store';
+import { useBranchStore } from '@/stores/branch-store';
 import { PermissionGrid } from '@/components/users/PermissionGrid';
-import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye, Key } from 'lucide-react';
+import { UserPlus, Users, Shield, Pencil, Trash2, Briefcase, Calculator, Eye, Key, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -35,6 +37,8 @@ const roleIcons: Record<UserRole, React.ReactNode> = {
 const UsersPage = () => {
   const { t, language } = useLanguage();
   const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useAuthStore();
+  const { branches: allBranches } = useBranchStore();
+  const activeBranches = allBranches.filter(b => b.isActive);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editUser, setEditUser] = useState<AppUser | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -45,6 +49,7 @@ const UsersPage = () => {
     password: '',
     name: '',
     role: 'viewer' as UserRole,
+    branchId: '' as string,
     isActive: true,
     customPermissions: [] as Permission[],
     useCustomPermissions: false,
@@ -74,6 +79,7 @@ const UsersPage = () => {
         password: '',
         name: user.name,
         role: user.role,
+        branchId: user.branchId || '',
         isActive: user.isActive,
         customPermissions: user.customPermissions || rolePermissions[user.role] || [],
         useCustomPermissions: hasCustom,
@@ -85,6 +91,7 @@ const UsersPage = () => {
         password: '',
         name: '',
         role: 'viewer',
+        branchId: '',
         isActive: true,
         customPermissions: rolePermissions.viewer || [],
         useCustomPermissions: false,
@@ -102,6 +109,7 @@ const UsersPage = () => {
         username: formData.username,
         name: formData.name,
         role: formData.role,
+        branchId: formData.branchId || undefined,
         isActive: formData.isActive,
         customPermissions: formData.useCustomPermissions ? formData.customPermissions : undefined,
       };
@@ -120,6 +128,7 @@ const UsersPage = () => {
         password: formData.password,
         name: formData.name,
         role: formData.role,
+        branchId: formData.branchId || undefined,
         isActive: formData.isActive,
         customPermissions: formData.useCustomPermissions ? formData.customPermissions : undefined,
       });
@@ -216,6 +225,15 @@ const UsersPage = () => {
                     : (language === 'pt' ? 'Inativo' : 'Inactive')
                   }
                 </Badge>
+                {user.branchId && (() => {
+                  const branch = activeBranches.find(b => b.id === user.branchId);
+                  return branch ? (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {branch.name}
+                    </Badge>
+                  ) : null;
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -281,6 +299,35 @@ const UsersPage = () => {
                     onCheckedChange={(v) => setFormData(prev => ({ ...prev, isActive: v }))}
                   />
                   <Label>{language === 'pt' ? 'Ativo' : 'Active'}</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    {language === 'pt' ? 'Filial Associada' : 'Assigned Branch'}
+                  </Label>
+                  <Select
+                    value={formData.branchId || 'none'}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, branchId: v === 'none' ? '' : v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'pt' ? 'Todas as filiais (admin)' : 'All branches (admin)'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        {language === 'pt' ? 'Todas as filiais (sem restrição)' : 'All branches (unrestricted)'}
+                      </SelectItem>
+                      {activeBranches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name} ({branch.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'pt' 
+                      ? 'Se definido, o utilizador só verá funcionários desta filial'
+                      : 'If set, user will only see employees from this branch'}
+                  </p>
                 </div>
               </TabsContent>
 
