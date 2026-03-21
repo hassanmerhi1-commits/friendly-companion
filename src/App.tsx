@@ -346,6 +346,7 @@ function AppContent() {
             const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
             const { loadHRData } = useHRStore.getState();
             const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+            const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
 
             await Promise.all([
               loadUsers(),
@@ -360,6 +361,7 @@ function AppContent() {
               loadBulkAttendance(),
               loadHRData(),
               loadOvertimePayments(),
+              loadDailyAttendance(),
             ]);
 
             console.log('[App] All stores loaded from database');
