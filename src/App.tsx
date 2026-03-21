@@ -26,6 +26,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
+import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
