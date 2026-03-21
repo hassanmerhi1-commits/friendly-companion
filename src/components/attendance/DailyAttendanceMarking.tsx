@@ -23,7 +23,7 @@ interface LocalMark {
   delayHours: number;
 }
 
-export function DailyAttendanceMarking({ readOnly = false }: DailyAttendanceMarkingProps) {
+export function DailyAttendanceMarking() {
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
