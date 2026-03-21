@@ -49,6 +49,7 @@ const UsersPage = () => {
     password: '',
     name: '',
     role: 'viewer' as UserRole,
+    branchId: '' as string,
     isActive: true,
     customPermissions: [] as Permission[],
     useCustomPermissions: false,
