@@ -312,7 +312,7 @@ function startWebSocketServer() {
             // Send initial data for this company
             const targetDb = getCompanyDb(msg.companyId);
             if (targetDb) {
-              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance'];
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
               for (const table of tables) {
                 try {
                   const rows = dbGetAll(table, targetDb);
