@@ -26,6 +26,8 @@ interface HolidayState {
   isSubsidyPaid: (employeeId: string, year: number) => boolean;
   hasHolidayRegisteredForYear: (employeeId: string, year: number) => boolean;
   canRegisterHoliday: (employeeId: string, year: number) => { allowed: boolean; reason?: string };
+  autoDetectPaidSubsidies: (payrollEntries: { employeeId: string; holidaySubsidy: number; payrollPeriodId: string }[], periods: { id: string; year: number; month: number; status: string }[]) => Promise<number>;
+  getHolidayStatus: (employeeId: string, year: number) => 'pendente' | 'pago' | 'gozado';
 }
 
 function mapDbRowToHoliday(row: any): HolidayRecord {
