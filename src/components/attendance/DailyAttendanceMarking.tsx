@@ -25,7 +25,7 @@ interface LocalMark {
 
 export function DailyAttendanceMarking() {
   const { language } = useLanguage();
-  const { getActiveEmployees } = useEmployeeStore();
+  const employees = useEmployeeStore((state) => state.employees);
   const { getActiveBranches, getBranch } = useBranchStore();
   const { currentUser } = useAuthStore();
   const { markAttendance, getRecordForEmployeeDate, getMonthlyAggregation, isLoaded, loadRecords } = useDailyAttendanceStore();
@@ -40,7 +40,10 @@ export function DailyAttendanceMarking() {
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const branches = getActiveBranches();
-  const activeEmployees = getActiveEmployees();
+  const activeEmployees = useMemo(
+    () => employees.filter((emp) => emp.status === 'active'),
+    [employees]
+  );
   const isBranchLocked = !!currentUser?.branchId && currentUser?.role !== 'admin';
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
