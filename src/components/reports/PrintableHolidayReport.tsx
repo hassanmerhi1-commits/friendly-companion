@@ -5,6 +5,7 @@ import { useReactToPrint } from 'react-to-print';
 import type { Employee } from '@/types/employee';
 import type { HolidayRecord } from '@/stores/holiday-store';
 import type { Branch } from '@/types/branch';
+import { useHolidayStore } from '@/stores/holiday-store';
 
 interface PrintableHolidayReportProps {
   employees: Employee[];
@@ -31,6 +32,7 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
   onClose,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const { getHolidayStatus } = useHolidayStore();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -51,6 +53,9 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
     const now = new Date();
     const yearsWorked = Math.floor((now.getTime() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     
+    // Use centralized status logic
+    const status = getHolidayStatus(emp.id, year);
+    
     return {
       employee: emp,
       record,
@@ -62,13 +67,14 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
       endDate: record?.endDate,
       subsidyPaid: !!record?.subsidyPaidInMonth,
       subsidyMonth: record?.subsidyPaidInMonth,
+      status,
     };
   });
 
   // Group by status
-  const scheduled = employeeHolidays.filter(e => e.startDate && !e.endDate);
-  const completed = employeeHolidays.filter(e => e.endDate);
-  const pending = employeeHolidays.filter(e => !e.startDate);
+  const gozado = employeeHolidays.filter(e => e.status === 'gozado');
+  const pago = employeeHolidays.filter(e => e.status === 'pago');
+  const pendente = employeeHolidays.filter(e => e.status === 'pendente');
 
   // Totals
   const totalEntitled = employeeHolidays.reduce((sum, e) => sum + e.daysEntitled, 0);
@@ -167,7 +173,13 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
                   {item.subsidyPaid ? `✓ (${item.subsidyMonth}/${year})` : '-'}
                 </td>
                 <td className="border border-black p-1 text-center">
-                  {item.endDate ? '✓ Gozadas' : item.startDate ? '⏳ Agendadas' : '○ Pendente'}
+                  {item.status === 'gozado' ? (
+                    <span style={{ color: '#27ae60', fontWeight: 'bold' }}>✓ Gozado</span>
+                  ) : item.status === 'pago' ? (
+                    <span style={{ color: '#2980b9', fontWeight: 'bold' }}>💰 Pago</span>
+                  ) : (
+                    <span style={{ color: '#e67e22' }}>○ Pendente</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -177,47 +189,47 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
         {/* Status Summary */}
         <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
           <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Férias Agendadas ({scheduled.length})</h4>
-            {scheduled.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
+            <h4 className="font-bold mb-2" style={{ color: '#e67e22' }}>Pendentes ({pendente.length})</h4>
+            {pendente.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
             ) : (
               <ul className="space-y-1">
-                {scheduled.slice(0, 5).map(e => (
-                  <li key={e.employee.id}>
-                    {e.employee.firstName} {e.employee.lastName} - {formatDate(e.startDate)}
-                  </li>
-                ))}
-                {scheduled.length > 5 && <li>... e mais {scheduled.length - 5}</li>}
-              </ul>
-            )}
-          </div>
-          <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Férias Gozadas ({completed.length})</h4>
-            {completed.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
-            ) : (
-              <ul className="space-y-1">
-                {completed.slice(0, 5).map(e => (
-                  <li key={e.employee.id}>
-                    {e.employee.firstName} {e.employee.lastName} - {e.daysUsed} dias
-                  </li>
-                ))}
-                {completed.length > 5 && <li>... e mais {completed.length - 5}</li>}
-              </ul>
-            )}
-          </div>
-          <div className="border border-black p-3">
-            <h4 className="font-bold mb-2">Pendentes de Agendar ({pending.length})</h4>
-            {pending.length === 0 ? (
-              <p className="text-gray-500">Nenhuma</p>
-            ) : (
-              <ul className="space-y-1">
-                {pending.slice(0, 5).map(e => (
+                {pendente.slice(0, 5).map(e => (
                   <li key={e.employee.id}>
                     {e.employee.firstName} {e.employee.lastName}
                   </li>
                 ))}
-                {pending.length > 5 && <li>... e mais {pending.length - 5}</li>}
+                {pendente.length > 5 && <li>... e mais {pendente.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#2980b9' }}>Subsídio Pago ({pago.length})</h4>
+            {pago.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {pago.slice(0, 5).map(e => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName} - {e.subsidyMonth}/{year}
+                  </li>
+                ))}
+                {pago.length > 5 && <li>... e mais {pago.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#27ae60' }}>Gozado ({gozado.length})</h4>
+            {gozado.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {gozado.slice(0, 5).map(e => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName} - {e.daysUsed} dias
+                  </li>
+                ))}
+                {gozado.length > 5 && <li>... e mais {gozado.length - 5}</li>}
               </ul>
             )}
           </div>

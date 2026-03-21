@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -45,10 +45,28 @@ const Payroll = () => {
   const branches = allBranches.filter(b => b.isActive);
   const activeEmployees = employees.filter(emp => emp.status === 'active');
   const { settings } = useSettingsStore();
-  const { records: holidayRecords, markSubsidyPaid } = useHolidayStore();
+  const { records: holidayRecords, markSubsidyPaid, isSubsidyPaid, autoDetectPaidSubsidies } = useHolidayStore();
   const absenceStore = useAbsenceStore();
   const bulkAttendanceStore = useBulkAttendanceStore();
   const { calculateDeductionForEmployee, getPendingAbsences } = absenceStore;
+  
+  // Auto-detect paid subsidies from payroll history (runs once)
+  const autoDetectRan = useRef(false);
+  useEffect(() => {
+    if (autoDetectRan.current || entries.length === 0 || periods.length === 0) return;
+    autoDetectRan.current = true;
+    autoDetectPaidSubsidies(
+      entries.map(e => ({ employeeId: e.employeeId, holidaySubsidy: e.holidaySubsidy, payrollPeriodId: e.payrollPeriodId })),
+      periods.map(p => ({ id: p.id, year: p.year, month: p.month, status: p.status }))
+    ).then(count => {
+      if (count > 0) {
+        toast.info(language === 'pt' 
+          ? `${count} subsídio(s) de férias detectado(s) automaticamente` 
+          : `${count} holiday subsid(ies) auto-detected`);
+      }
+    });
+  }, [entries, periods]);
+  
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<PayrollEntry | null>(null);
   const [printSheetOpen, setPrintSheetOpen] = useState(false);
@@ -776,36 +794,60 @@ const Payroll = () => {
                         )}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        {!isHistoricalView ? (
-                          <Input
-                            type="number"
-                            min={0}
-                            defaultValue={entry.holidaySubsidy || ''}
-                            key={`holiday-${entry.id}-${entry.holidaySubsidy}`}
-                            onBlur={(e) => {
-                              const value = parseFloat(e.target.value) || 0;
-                              const minValue = Math.round(entry.baseSalary * 0.5);
-                              if (value > 0 && value < minValue) {
-                                toast.error(
-                                  language === 'pt'
-                                    ? `Mínimo legal: ${formatAOA(minValue)} (50% do salário base)`
-                                    : `Legal minimum: ${formatAOA(minValue)} (50% of base salary)`
-                                );
-                                return;
-                              }
-                              if (value !== entry.holidaySubsidy) {
-                                handleUpdateHolidaySubsidy(entry, value);
-                              }
-                            }}
-                            className="w-24 text-right font-mono text-sm h-7"
-                            placeholder={formatAOA(Math.round(entry.baseSalary * 0.5))}
-                            title={language === 'pt' 
-                              ? `Mínimo: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% do salário base)` 
-                              : `Minimum: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% of base salary)`}
-                          />
-                        ) : (
-                          <span className="font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</span>
-                        )}
+                        {(() => {
+                          const subsidyAlreadyPaid = isSubsidyPaid(entry.employeeId, selectedPeriod?.year || new Date().getFullYear());
+                          const isBlocked = subsidyAlreadyPaid && entry.holidaySubsidy === 0;
+                          
+                          if (isBlocked) {
+                            return (
+                              <span className="text-xs text-muted-foreground" title={language === 'pt' ? 'Subsídio de férias já pago este ano' : 'Holiday subsidy already paid this year'}>
+                                🔒 {language === 'pt' ? 'Pago' : 'Paid'}
+                              </span>
+                            );
+                          }
+                          
+                          return !isHistoricalView ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              defaultValue={entry.holidaySubsidy || ''}
+                              key={`holiday-${entry.id}-${entry.holidaySubsidy}`}
+                              onBlur={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                const minValue = Math.round(entry.baseSalary * 0.5);
+                                if (value > 0 && value < minValue) {
+                                  toast.error(
+                                    language === 'pt'
+                                      ? `Mínimo legal: ${formatAOA(minValue)} (50% do salário base)`
+                                      : `Legal minimum: ${formatAOA(minValue)} (50% of base salary)`
+                                  );
+                                  return;
+                                }
+                                // Block if subsidy already paid and trying to add value
+                                if (value > 0 && subsidyAlreadyPaid) {
+                                  toast.error(
+                                    language === 'pt'
+                                      ? 'Subsídio de férias já foi pago para este funcionário neste ano'
+                                      : 'Holiday subsidy already paid for this employee this year'
+                                  );
+                                  return;
+                                }
+                                if (value !== entry.holidaySubsidy) {
+                                  handleUpdateHolidaySubsidy(entry, value);
+                                }
+                              }}
+                              className="w-24 text-right font-mono text-sm h-7"
+                              placeholder={formatAOA(Math.round(entry.baseSalary * 0.5))}
+                              title={subsidyAlreadyPaid 
+                                ? (language === 'pt' ? 'Subsídio já pago este ano' : 'Subsidy already paid this year')
+                                : (language === 'pt' 
+                                  ? `Mínimo: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% do salário base)` 
+                                  : `Minimum: ${formatAOA(Math.round(entry.baseSalary * 0.5))} (50% of base salary)`)}
+                            />
+                          ) : (
+                            <span className="font-mono text-sm">{formatAOA(entry.holidaySubsidy)}</span>
+                          );
+                        })()}
                       </td>
                       <td className="px-3 py-3 text-right">
                         {!isHistoricalView ? (
