@@ -9,6 +9,7 @@ import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
 import { BranchAttendanceImport } from "@/components/attendance/BranchAttendanceImport";
+import { DailyAttendanceMarking } from "@/components/attendance/DailyAttendanceMarking";
 import { useLanguage } from "@/lib/i18n";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useAttendanceStore } from "@/stores/attendance-store";
