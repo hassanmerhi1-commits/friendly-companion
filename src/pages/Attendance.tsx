@@ -203,34 +203,38 @@ export default function Attendance() {
             <DailyAttendanceMarking />
           </TabsContent>
 
-          <TabsContent value="bulk" className="space-y-4">
-            <BulkAttendanceEntry 
-              month={selectedMonth} 
-              year={selectedYear} 
-              readOnly={isPeriodArchived && !isCurrentPeriod}
-            />
-          </TabsContent>
+          {!isShopUser && (
+            <>
+              <TabsContent value="bulk" className="space-y-4">
+                <BulkAttendanceEntry 
+                  month={selectedMonth} 
+                  year={selectedYear} 
+                  readOnly={isPeriodArchived && !isCurrentPeriod}
+                />
+              </TabsContent>
 
-          <TabsContent value="clock" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ClockInOut />
-              <div className="space-y-4">
+              <TabsContent value="clock" className="space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ClockInOut />
+                  <div className="space-y-4">
+                    <AttendanceList />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="records">
                 <AttendanceList />
-              </div>
-            </div>
-          </TabsContent>
+              </TabsContent>
 
-          <TabsContent value="records">
-            <AttendanceList />
-          </TabsContent>
+              <TabsContent value="overtime">
+                <OvertimeTracker />
+              </TabsContent>
 
-          <TabsContent value="overtime">
-            <OvertimeTracker />
-          </TabsContent>
-
-          <TabsContent value="calendar">
-            <AbsenceCalendar />
-          </TabsContent>
+              <TabsContent value="calendar">
+                <AbsenceCalendar />
+              </TabsContent>
+            </>
+          )}
         </Tabs>
       </div>
     </TopNavLayout>
