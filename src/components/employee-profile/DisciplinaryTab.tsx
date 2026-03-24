@@ -41,7 +41,7 @@ const statusColors: Record<DisciplinaryStatus, string> = {
 
 export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   const { language } = useLanguage();
-  const { getRecordsByEmployee, loadRecords } = useDisciplinaryStore();
+  const { records: allRecords, loadRecords } = useDisciplinaryStore();
   const { employees } = useEmployeeStore();
   const { settings } = useSettingsStore();
   
@@ -56,7 +56,12 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   }, [loadRecords]);
 
   const employee = employees.find((e) => e.id === employeeId);
-  const records = getRecordsByEmployee(employeeId);
+  const records = useMemo(() => 
+    allRecords
+      .filter((r) => r.employeeId === employeeId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [allRecords, employeeId]
+  );
 
   // Stats
   const stats = useMemo(() => {
