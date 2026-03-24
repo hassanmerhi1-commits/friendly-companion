@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DisciplinaryRecord, DisciplinaryType, DisciplinaryStatus } from '@/types/disciplinary';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync } from '@/lib/db-live';
+import { useAbsenceStore } from '@/stores/absence-store';
 
 interface DisciplinaryState {
   records: DisciplinaryRecord[];
