@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DisciplinaryRecord, DisciplinaryType, DisciplinaryStatus } from '@/types/disciplinary';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync } from '@/lib/db-live';
+import { useAbsenceStore } from '@/stores/absence-store';
 
 interface DisciplinaryState {
   records: DisciplinaryRecord[];
@@ -79,6 +80,30 @@ export const useDisciplinaryStore = create<DisciplinaryState>((set, get) => ({
     const success = await liveInsert('disciplinary_records', dbRow);
     if (success) {
       set((state) => ({ records: [...state.records, newRecord] }));
+
+      // Auto-create absence records for suspensions
+      if (newRecord.type === 'suspensao' && newRecord.duration && newRecord.duration > 0) {
+        try {
+          const startDate = new Date(newRecord.date);
+          const endDate = new Date(startDate);
+          endDate.setDate(endDate.getDate() + newRecord.duration - 1);
+
+          await useAbsenceStore.getState().addAbsence({
+            employeeId: newRecord.employeeId,
+            type: 'unjustified',
+            status: 'approved',
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            days: newRecord.duration,
+            reason: `Suspensão disciplinar - ${newRecord.description}`,
+            deductFromSalary: true,
+          });
+          console.log(`[Disciplinary] Auto-created ${newRecord.duration} absence days for suspension`);
+        } catch (error) {
+          console.error('[Disciplinary] Failed to auto-create absence for suspension:', error);
+        }
+      }
+
       return newRecord;
     }
     return null;
