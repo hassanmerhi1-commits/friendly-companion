@@ -83,11 +83,11 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
     rejectSuccess: language === 'pt' ? 'Ausência marcada como injustificada' : 'Absence marked as unjustified',
     deleteSuccess: language === 'pt' ? 'Ausência eliminada' : 'Absence deleted',
     maternityNote: language === 'pt' 
-      ? 'Licença de maternidade: 90 dias pagos pelo INSS (Art. 150 LGT)' 
-      : 'Maternity leave: 90 days paid by INSS (Art. 150 LGT)',
+      ? 'Licença de maternidade: 13 semanas (91 dias) pagos pelo empregador, reembolsado pelo INSS (Lei 12/23)' 
+      : 'Maternity leave: 13 weeks (91 days) paid by employer, reimbursed by INSS (Law 12/23)',
     paternityNote: language === 'pt'
-      ? 'Licença de paternidade: 3 dias pagos pelo empregador (Art. 151 LGT)'
-      : 'Paternity leave: 3 days paid by employer (Art. 151 LGT)',
+      ? 'Licença de paternidade: 1 dia pago + 7 dias não remunerados (Lei 12/23)'
+      : 'Paternity leave: 1 paid day + 7 unpaid days (Law 12/23)',
   };
 
   const getStatusBadge = (status: AbsenceStatus) => {
