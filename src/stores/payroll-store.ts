@@ -459,6 +459,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               daysAbsent: absenceDays,
               otherDeductions,
               deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
+              leaveNotes,
               overtimeHoursNormal: 0,
               overtimeHoursNight: 0,
               overtimeHoursHoliday: 0,
