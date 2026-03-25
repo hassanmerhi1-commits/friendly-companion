@@ -62,7 +62,7 @@ const Employees = () => {
   const { t, language } = useLanguage();
   const { employees, deleteEmployee, approveEmployee, rejectEmployee } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
-  const isAdmin = currentUser?.role === 'admin';
+  const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
   const { branches: allBranches } = useBranchStore();
   // Derive active branches from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);

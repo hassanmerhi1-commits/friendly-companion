@@ -254,9 +254,10 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       hireDate: data.hireDate,
       contractEndDate: data.contractEndDate,
       status: (() => {
-        const currentUser = useAuthStore.getState().currentUser;
-        const isAdmin = currentUser?.role === 'admin';
-        return isAdmin ? 'active' : 'pending_approval';
+        const authState = useAuthStore.getState();
+        const currentUser = authState.currentUser;
+        const canAutoActivate = currentUser?.role === 'admin' || authState.hasPermission('users.edit');
+        return canAutoActivate ? 'active' : 'pending_approval';
       })(),
       branchId: data.branchId,
       baseSalary: data.baseSalary,

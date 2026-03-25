@@ -44,6 +44,7 @@ const Payroll = () => {
   // Derive active branches and employees from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
   const activeEmployees = employees.filter(emp => emp.status === 'active');
+  const pendingApprovalEmployees = employees.filter(emp => emp.status === 'pending_approval');
   const { settings } = useSettingsStore();
   const { records: holidayRecords, markSubsidyPaid, isSubsidyPaid, autoDetectPaidSubsidies } = useHolidayStore();
   const absenceStore = useAbsenceStore();
