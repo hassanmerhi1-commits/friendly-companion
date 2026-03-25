@@ -121,6 +121,17 @@ export const useBulkAttendanceStore = create<BulkAttendanceState>()((set, get) =
       const { id, ...row } = mapEntryToDbRow(updated);
       await liveUpdate('bulk_attendance', existingEntry.id, row);
       await get().loadEntries();
+      
+      logAudit({
+        action: 'attendance_updated',
+        entityType: 'attendance',
+        entityId: existingEntry.id,
+        employeeId: data.employeeId,
+        description: `Assiduidade editada: ${data.month}/${data.year} - Faltas: ${data.absenceDays}, Atrasos: ${data.delayHours}h`,
+        previousValue: { absenceDays: existingEntry.absenceDays, justifiedAbsenceDays: existingEntry.justifiedAbsenceDays, delayHours: existingEntry.delayHours, totalDeduction: existingEntry.totalDeduction },
+        newValue: { absenceDays: data.absenceDays, justifiedAbsenceDays: data.justifiedAbsenceDays, delayHours: data.delayHours, totalDeduction: data.totalDeduction },
+      });
+      
       return updated;
     } else {
       // Create new entry
@@ -132,6 +143,18 @@ export const useBulkAttendanceStore = create<BulkAttendanceState>()((set, get) =
       };
       await liveInsert('bulk_attendance', mapEntryToDbRow(newEntry));
       await get().loadEntries();
+      
+      if (data.absenceDays > 0 || data.delayHours > 0) {
+        logAudit({
+          action: 'attendance_updated',
+          entityType: 'attendance',
+          entityId: newEntry.id,
+          employeeId: data.employeeId,
+          description: `Assiduidade registada: ${data.month}/${data.year} - Faltas: ${data.absenceDays}, Atrasos: ${data.delayHours}h`,
+          newValue: { absenceDays: data.absenceDays, justifiedAbsenceDays: data.justifiedAbsenceDays, delayHours: data.delayHours, totalDeduction: data.totalDeduction },
+        });
+      }
+      
       return newEntry;
     }
   },
