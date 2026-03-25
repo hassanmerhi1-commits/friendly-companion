@@ -145,12 +145,22 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
     },
 
     deleteAbsence: async (id) => {
+      const current = get().absences.find(a => a.id === id);
       const success = await liveDelete('absences', id);
-      // If not in Electron or delete failed silently, update local state directly
       if (!success) {
         set(state => ({
           absences: state.absences.filter(a => a.id !== id)
         }));
+      }
+      if (current) {
+        logAudit({
+          action: 'absence_deleted',
+          entityType: 'absence',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Ausência eliminada: ${current.type} - ${current.days} dias`,
+          previousValue: { type: current.type, status: current.status, days: current.days, startDate: current.startDate, endDate: current.endDate },
+        });
       }
     },
 
