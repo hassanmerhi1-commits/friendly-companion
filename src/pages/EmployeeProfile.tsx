@@ -54,7 +54,7 @@ const EmployeeProfile = () => {
 
       {/* Tabs for different sections */}
       <Tabs defaultValue="payroll" className="mt-6">
-        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-grid">
           <TabsTrigger value="payroll" className="gap-2">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">
