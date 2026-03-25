@@ -19,6 +19,7 @@ export function AbsenceCalendar() {
   const { language } = useLanguage();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
+  const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
 
   const { employees } = useEmployeeStore();
   const { absences, getAbsencesByPeriod, deleteAbsence } = useAbsenceStore();
