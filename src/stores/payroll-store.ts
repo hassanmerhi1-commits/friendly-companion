@@ -144,6 +144,7 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     overtimeHoursHoliday: row.overtime_hours_holiday || 0,
     daysAbsent: row.absence_days || 0,
     paidEarly: row.paid_early === 1,
+    leaveNotes: row.leave_notes || undefined,
     notes: row.notes || undefined,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
@@ -191,6 +192,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     deduction_details: e.deductionDetails || null,
     total_employer_cost: e.totalEmployerCost,
     paid_early: e.paidEarly ? 1 : 0,
+    leave_notes: e.leaveNotes || null,
     notes: e.notes || null,
     status: e.status,
     created_at: e.createdAt,
@@ -321,6 +323,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
           }
           
+          // Check absence store for active leaves (maternity, paternity, etc.) - informational
+          let leaveNotes: string | undefined;
+          if (absenceStore) {
+            const monthStart = new Date(period.year, period.month - 1, 1).toISOString().split('T')[0];
+            const monthEnd = new Date(period.year, period.month, 0).toISOString().split('T')[0];
+            const periodAbsences = absenceStore.getAbsencesByPeriod(monthStart, monthEnd);
+            const empLeaves = periodAbsences.filter(
+              (a: any) => a.employeeId === emp.id && (a.status === 'justified' || a.status === 'approved') &&
+              ['maternity', 'paternity', 'marriage', 'bereavement', 'sick_leave'].includes(a.type)
+            );
+            if (empLeaves.length > 0) {
+              leaveNotes = JSON.stringify(empLeaves.map((l: any) => ({
+                type: l.type,
+                days: l.days,
+                startDate: l.startDate,
+                endDate: l.endDate,
+              })));
+              console.log(`[Payroll] Active leave for ${emp.firstName}:`, leaveNotes);
+            }
+          }
+          
           // Combine absence + delay deductions
           const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
@@ -438,6 +461,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               daysAbsent: absenceDays,
               otherDeductions,
               deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
+              leaveNotes,
               overtimeHoursNormal: 0,
               overtimeHoursNight: 0,
               overtimeHoursHoliday: 0,

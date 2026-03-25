@@ -6,12 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Save, Calculator, Users, AlertTriangle, Search, Loader2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Save, Calculator, Users, AlertTriangle, Search, Loader2, Baby, Info } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAbsenceStore } from '@/stores/absence-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary, type BulkAttendanceEntry as BulkEntry } from '@/stores/bulk-attendance-store';
+import { ABSENCE_TYPE_INFO } from '@/types/absence';
 import { toast } from 'sonner';
 
 interface LocalEntry {
@@ -34,6 +37,7 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   const { getActiveBranches, getBranch } = useBranchStore();
   const { currentUser } = useAuthStore();
   const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries, deleteEntry } = useBulkAttendanceStore();
+  const { absences, getAbsencesByPeriod } = useAbsenceStore();
   
   // Auto-set branch filter based on user's assigned branch
   const userBranchId = currentUser?.branchId;
@@ -48,6 +52,29 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   
   // If user has a branch assigned, lock the filter
   const isBranchLocked = !!userBranchId && currentUser?.role !== 'admin';
+
+  // Get active leaves (maternity, paternity, etc.) for the selected period
+  const activeLeaves = useMemo(() => {
+    const monthStart = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const monthEnd = new Date(year, month, 0).toISOString().split('T')[0];
+    const periodAbsences = getAbsencesByPeriod(monthStart, monthEnd);
+    
+    // Group by employee, only justified/approved leaves (not unjustified)
+    const leaveMap: Record<string, { type: string; label: string; days: number; status: string }[]> = {};
+    for (const absence of periodAbsences) {
+      if (absence.status === 'justified' || absence.status === 'approved') {
+        if (!leaveMap[absence.employeeId]) leaveMap[absence.employeeId] = [];
+        const typeInfo = ABSENCE_TYPE_INFO[absence.type];
+        leaveMap[absence.employeeId].push({
+          type: absence.type,
+          label: language === 'pt' ? typeInfo.labelPt : typeInfo.labelEn,
+          days: absence.days,
+          status: absence.status,
+        });
+      }
+    }
+    return leaveMap;
+  }, [absences, month, year, language, getAbsencesByPeriod]);
 
   // Load saved entries when component mounts or month/year changes
   useEffect(() => {
@@ -341,9 +368,10 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                     const fullSalary = getFullSalary(emp);
                     const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
                     const branchName = emp.branchId ? getBranch(emp.branchId)?.name : undefined;
+                    const empLeaves = activeLeaves[emp.id];
                     
                     return (
-                      <TableRow key={emp.id}>
+                      <TableRow key={emp.id} className={empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''}>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium">{emp.firstName} {emp.lastName}</span>
@@ -351,6 +379,14 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                               {emp.employeeNumber}
                               {branchName && ` • ${branchName}`}
                             </span>
+                            {empLeaves && empLeaves.map((leave, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-xs mt-0.5">
+                                <Baby className="h-3 w-3 text-pink-500" />
+                                <span className="text-pink-600 dark:text-pink-400 font-medium">
+                                  {leave.label} ({leave.days}d)
+                                </span>
+                              </span>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono">
@@ -372,16 +408,33 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                           />
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={26}
-                            value={entry.justifiedAbsenceDays || ''}
-                            onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-center mx-auto"
-                            placeholder="0"
-                            disabled={readOnly}
-                          />
+                          <div className="flex flex-col items-center gap-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={26}
+                              value={entry.justifiedAbsenceDays || ''}
+                              onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
+                              className="w-20 text-center mx-auto"
+                              placeholder="0"
+                              disabled={readOnly}
+                            />
+                            {empLeaves && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[10px] text-pink-500 cursor-help flex items-center gap-0.5">
+                                    <Info className="h-3 w-3" />
+                                    {language === 'pt' ? 'Licença activa' : 'Active leave'}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {empLeaves.map((l, i) => (
+                                    <p key={i}>{l.label}: {l.days} {language === 'pt' ? 'dias — sem desconto' : 'days — no deduction'}</p>
+                                  ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Input

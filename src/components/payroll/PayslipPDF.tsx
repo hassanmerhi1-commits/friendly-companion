@@ -54,11 +54,24 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
     absenceDeduction: language === 'pt' ? 'Desconto por Ausência' : 'Absence Deduction',
     totalDeductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
     netSalary: language === 'pt' ? 'SALÁRIO LÍQUIDO' : 'NET SALARY',
+    activeLeave: language === 'pt' ? 'LICENÇAS ACTIVAS' : 'ACTIVE LEAVES',
+    noDeduction: language === 'pt' ? 'Sem desconto salarial' : 'No salary deduction',
     employeeSignature: language === 'pt' ? 'Assinatura do Funcionário' : 'Employee Signature',
     companySignature: language === 'pt' ? 'Assinatura da Empresa' : 'Company Signature',
     date: language === 'pt' ? 'Data' : 'Date',
     print: language === 'pt' ? 'Imprimir Recibo' : 'Print Payslip',
     generatedOn: language === 'pt' ? 'Gerado em' : 'Generated on',
+  };
+
+  // Parse leave notes
+  const leaveInfo = entry.leaveNotes ? JSON.parse(entry.leaveNotes) as { type: string; days: number; startDate: string; endDate: string }[] : [];
+
+  const leaveTypeLabels: Record<string, string> = {
+    maternity: language === 'pt' ? 'Licença de Maternidade' : 'Maternity Leave',
+    paternity: language === 'pt' ? 'Licença de Paternidade' : 'Paternity Leave',
+    marriage: language === 'pt' ? 'Licença de Casamento' : 'Marriage Leave',
+    bereavement: language === 'pt' ? 'Licença por Falecimento' : 'Bereavement Leave',
+    sick_leave: language === 'pt' ? 'Doença Comum' : 'Sick Leave',
   };
 
   return (
@@ -194,6 +207,19 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
               </table>
             </div>
           </div>
+
+          {/* Active Leave Information */}
+          {leaveInfo.length > 0 && (
+            <div className="mb-4 p-3 border border-pink-300 rounded bg-pink-50">
+              <h3 className="font-bold text-sm mb-1" style={{ color: '#be185d' }}>{t.activeLeave}</h3>
+              {leaveInfo.map((leave, i) => (
+                <p key={i} className="text-sm">
+                  • {leaveTypeLabels[leave.type] || leave.type}: {leave.days} {language === 'pt' ? 'dias' : 'days'} 
+                  {' '}({leave.startDate} → {leave.endDate}) — <em>{t.noDeduction}</em>
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* Net Salary */}
           <div className="p-4 bg-green-50 border-2 border-green-500 rounded mb-8">
