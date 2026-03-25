@@ -14,6 +14,7 @@ const alertIcons: Record<AlertType, typeof Bell> = {
   pending_approval: Clock,
   loan_payment: Wallet,
   absence_pending: Clock,
+  excessive_absence: AlertTriangle,
   payroll_pending: Clock,
   budget_warning: AlertTriangle,
 };

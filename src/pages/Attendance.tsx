@@ -7,6 +7,7 @@ import { ClockInOut } from "@/components/attendance/ClockInOut";
 import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
+import { PrintableAttendanceMap } from "@/components/attendance/PrintableAttendanceMap";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
 import { BranchAttendanceImport } from "@/components/attendance/BranchAttendanceImport";
 import { DailyAttendanceMarking } from "@/components/attendance/DailyAttendanceMarking";
@@ -16,7 +17,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck } from "lucide-react";
+import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Attendance() {
@@ -101,6 +102,7 @@ export default function Attendance() {
     bulkEntry: language === 'pt' ? 'Ausências/Atrasos' : 'Absences/Delays',
     dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
+    effectivenessMap: language === 'pt' ? 'Mapa de Efectividade' : 'Effectiveness Map',
   };
 
   return (
@@ -195,6 +197,10 @@ export default function Attendance() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="effectiveness" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  {t.effectivenessMap}
+                </TabsTrigger>
               </>
             )}
           </TabsList>
@@ -232,6 +238,10 @@ export default function Attendance() {
 
               <TabsContent value="calendar">
                 <AbsenceCalendar />
+              </TabsContent>
+
+              <TabsContent value="effectiveness">
+                <PrintableAttendanceMap month={selectedMonth} year={selectedYear} />
               </TabsContent>
             </>
           )}
