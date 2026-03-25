@@ -177,6 +177,13 @@ const Index = () => {
         </div>
       )}
 
+      {/* Active Leaves Widget - for HR/attendance viewers */}
+      {(canViewHR || canViewAttendance || canViewEmployees) && (
+        <div className="mb-6">
+          <ActiveLeavesWidget />
+        </div>
+      )}
+
       {/* Alerts and Audit Log - only for HR/admin */}
       {(canViewHR || canViewPayroll) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
