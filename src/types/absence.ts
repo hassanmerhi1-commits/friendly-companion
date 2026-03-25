@@ -49,6 +49,8 @@ export const ABSENCE_TYPE_INFO: Record<AbsenceType, {
   labelPt: string;
   labelEn: string;
   maxDays?: number;
+  paidDays?: number;    // For partial-paid leaves (e.g. paternity: 1 paid day)
+  unpaidDays?: number;  // Unpaid portion of leave
   paidByEmployer: boolean;
   paidByINSS: boolean;
   requiresDocument: boolean;
