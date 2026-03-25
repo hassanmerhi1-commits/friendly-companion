@@ -82,6 +82,15 @@ export const useDisciplinaryStore = create<DisciplinaryState>((set, get) => ({
     if (success) {
       set((state) => ({ records: [...state.records, newRecord] }));
 
+      logAudit({
+        action: 'disciplinary_created',
+        entityType: 'disciplinary',
+        entityId: newRecord.id,
+        employeeId: newRecord.employeeId,
+        description: `Registo disciplinar criado: ${newRecord.type} - ${newRecord.description}`,
+        newValue: { type: newRecord.type, status: newRecord.status, description: newRecord.description, duration: newRecord.duration },
+      });
+
       // Auto-create absence records for suspensions
       if (newRecord.type === 'suspensao' && newRecord.duration && newRecord.duration > 0) {
         try {
@@ -112,6 +121,7 @@ export const useDisciplinaryStore = create<DisciplinaryState>((set, get) => ({
 
   updateRecord: async (id, data) => {
     const now = new Date().toISOString();
+    const current = get().records.find(r => r.id === id);
     const dbRow = {
       ...mapRecordToDbRow(data),
       updated_at: now,
@@ -124,6 +134,18 @@ export const useDisciplinaryStore = create<DisciplinaryState>((set, get) => ({
           r.id === id ? { ...r, ...data, updatedAt: now } : r
         ),
       }));
+      
+      if (current) {
+        logAudit({
+          action: 'disciplinary_updated',
+          entityType: 'disciplinary',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Registo disciplinar editado: ${current.type}`,
+          previousValue: current as any,
+          newValue: { ...current, ...data } as any,
+        });
+      }
       return true;
     }
     return false;
