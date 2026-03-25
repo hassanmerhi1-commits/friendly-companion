@@ -255,6 +255,15 @@ const Reports = () => {
       color: 'bg-slate-500',
       available: employees.length > 0
     },
+    { 
+      id: "13", 
+      type: 'audit_history' as ReportType,
+      name: language === 'pt' ? 'Histórico de Alterações' : 'Edit History', 
+      description: language === 'pt' ? 'Relatório completo de todas as alterações feitas no sistema' : 'Complete report of all system changes', 
+      icon: ClipboardList, 
+      color: 'bg-violet-500',
+      available: true
+    },
   ];
 
   const stats = {
