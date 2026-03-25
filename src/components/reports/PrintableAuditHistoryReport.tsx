@@ -136,10 +136,6 @@ export const PrintableAuditHistoryReport = ({ companyName, companyNif, year, onC
             <TableBody>
               {yearLogs.map((log) => {
                 const label = actionLabels[log.action]?.[language === 'pt' ? 'pt' : 'en'] || log.action;
-                const changes = log.previousValue && log.newValue ? 
-                  Object.keys(log.newValue).filter(k => 
-                    JSON.stringify(log.previousValue?.[k]) !== JSON.stringify(log.newValue?.[k])
-                  ) : [];
 
                 return (
                   <TableRow key={log.id}>

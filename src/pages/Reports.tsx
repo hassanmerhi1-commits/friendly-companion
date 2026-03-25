@@ -717,6 +717,20 @@ const Reports = () => {
           )}
         </DialogContent>
       </Dialog>
+      {/* Audit History Report Dialog */}
+      <Dialog open={openReport === 'audit_history'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>{language === 'pt' ? 'Histórico de Alterações' : 'Edit History'} — {selectedYear}</DialogTitle>
+          </DialogHeader>
+          <PrintableAuditHistoryReport
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            year={selectedYear}
+            onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
     </TopNavLayout>
   );
 };
