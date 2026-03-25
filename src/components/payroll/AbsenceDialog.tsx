@@ -272,7 +272,21 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
                 <Input 
                   type="date" 
                   value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)} 
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    // Auto-recalculate end date for maternity/paternity
+                    if (absenceType === 'maternity' && e.target.value) {
+                      const start = new Date(e.target.value);
+                      const end = new Date(start);
+                      end.setDate(end.getDate() + 90);
+                      setEndDate(end.toISOString().split('T')[0]);
+                    } else if (absenceType === 'paternity' && e.target.value) {
+                      const start = new Date(e.target.value);
+                      const end = new Date(start);
+                      end.setDate(end.getDate() + 7);
+                      setEndDate(end.toISOString().split('T')[0]);
+                    }
+                  }}
                 />
               </div>
 
