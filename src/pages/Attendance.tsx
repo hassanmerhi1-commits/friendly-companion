@@ -102,6 +102,7 @@ export default function Attendance() {
     bulkEntry: language === 'pt' ? 'Ausências/Atrasos' : 'Absences/Delays',
     dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
+    effectivenessMap: language === 'pt' ? 'Mapa de Efectividade' : 'Effectiveness Map',
   };
 
   return (
