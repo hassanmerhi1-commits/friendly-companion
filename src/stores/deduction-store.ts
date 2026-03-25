@@ -131,6 +131,16 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const { id: _, ...row } = mapDeductionToDbRow(updated);
       await liveUpdate('deductions', id, row);
       await get().loadDeductions();
+      
+      logAudit({
+        action: 'deduction_updated',
+        entityType: 'deduction',
+        entityId: id,
+        employeeId: current.employeeId,
+        description: `Dedução editada: ${current.description}`,
+        previousValue: current as any,
+        newValue: updated as any,
+      });
     },
 
     deleteDeduction: async (id: string) => {
