@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 function generateId(): string {
   return `abs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -122,6 +123,15 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
       const days = calculateWorkingDays(absence.startDate, absence.endDate);
       const newAbsence: Absence = { ...absence, id: generateId(), days, createdAt: now, updatedAt: now };
       await liveInsert('absences', mapAbsenceToDbRow(newAbsence));
+      
+      logAudit({
+        action: 'absence_recorded',
+        entityType: 'absence',
+        entityId: newAbsence.id,
+        employeeId: newAbsence.employeeId,
+        description: `Ausência registada: ${newAbsence.type} - ${days} dias (${newAbsence.startDate} a ${newAbsence.endDate})`,
+        newValue: { type: newAbsence.type, status: newAbsence.status, days, startDate: newAbsence.startDate, endDate: newAbsence.endDate },
+      });
     },
 
     updateAbsence: async (id, updates) => {
@@ -135,17 +145,28 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
     },
 
     deleteAbsence: async (id) => {
+      const current = get().absences.find(a => a.id === id);
       const success = await liveDelete('absences', id);
-      // If not in Electron or delete failed silently, update local state directly
       if (!success) {
         set(state => ({
           absences: state.absences.filter(a => a.id !== id)
         }));
       }
+      if (current) {
+        logAudit({
+          action: 'absence_deleted',
+          entityType: 'absence',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Ausência eliminada: ${current.type} - ${current.days} dias`,
+          previousValue: { type: current.type, status: current.status, days: current.days, startDate: current.startDate, endDate: current.endDate },
+        });
+      }
     },
 
     justifyAbsence: async (id, document, notes) => {
       const now = new Date().toISOString();
+      const current = get().absences.find(a => a.id === id);
       await liveUpdate('absences', id, { 
         status: 'justified', 
         justification_document: document, 
@@ -153,6 +174,18 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
         justification_notes: notes || null, 
         updated_at: now 
       });
+      
+      if (current) {
+        logAudit({
+          action: 'absence_justified',
+          entityType: 'absence',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Ausência justificada: ${current.type} - Doc: ${document}`,
+          previousValue: { status: current.status },
+          newValue: { status: 'justified', justificationDocument: document },
+        });
+      }
     },
 
     rejectJustification: async (id, reason) => {

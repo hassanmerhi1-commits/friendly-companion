@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 
 interface DeductionState {
@@ -108,6 +109,16 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
 
       await liveInsert('deductions', mapDeductionToDbRow(newDeduction));
       await get().loadDeductions();
+      
+      logAudit({
+        action: 'deduction_created',
+        entityType: 'deduction',
+        entityId: newDeduction.id,
+        employeeId: newDeduction.employeeId,
+        description: `Dedução criada: ${data.description} - ${data.totalAmount} AOA`,
+        newValue: { type: data.type, description: data.description, totalAmount: data.totalAmount, installments: data.installments },
+      });
+      
       return newDeduction;
     },
 
@@ -120,11 +131,33 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const { id: _, ...row } = mapDeductionToDbRow(updated);
       await liveUpdate('deductions', id, row);
       await get().loadDeductions();
+      
+      logAudit({
+        action: 'deduction_updated',
+        entityType: 'deduction',
+        entityId: id,
+        employeeId: current.employeeId,
+        description: `Dedução editada: ${current.description}`,
+        previousValue: current as any,
+        newValue: updated as any,
+      });
     },
 
     deleteDeduction: async (id: string) => {
+      const current = get().deductions.find(d => d.id === id);
       await liveDelete('deductions', id);
       await get().loadDeductions();
+      
+      if (current) {
+        logAudit({
+          action: 'deduction_deleted',
+          entityType: 'deduction',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Dedução eliminada: ${current.description} - ${current.totalAmount} AOA`,
+          previousValue: { type: current.type, description: current.description, totalAmount: current.totalAmount },
+        });
+      }
     },
 
     getDeductionsByEmployee: (employeeId: string) => {

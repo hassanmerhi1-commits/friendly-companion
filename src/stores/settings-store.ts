@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { liveGetAll, liveInsert, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 export interface CompanySettings {
   companyName: string;
@@ -92,11 +93,33 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     },
 
     updateSettings: async (newSettings) => {
-      const merged = { ...get().settings, ...newSettings };
+      const previous = { ...get().settings };
+      const merged = { ...previous, ...newSettings };
       set({ settings: merged });
       const now = new Date().toISOString();
       for (const [key, val] of Object.entries(merged)) {
         await liveInsert('settings', { key, value: String(val), updated_at: now });
+      }
+      
+      // Only log if actual values changed
+      const changedKeys = Object.keys(newSettings).filter(
+        k => JSON.stringify((previous as any)[k]) !== JSON.stringify((newSettings as any)[k])
+      );
+      if (changedKeys.length > 0) {
+        const prevChanged: Record<string, any> = {};
+        const newChanged: Record<string, any> = {};
+        changedKeys.forEach(k => {
+          prevChanged[k] = (previous as any)[k];
+          newChanged[k] = (newSettings as any)[k];
+        });
+        logAudit({
+          action: 'settings_updated',
+          entityType: 'settings',
+          entityId: 'company',
+          description: `Configurações alteradas: ${changedKeys.join(', ')}`,
+          previousValue: prevChanged,
+          newValue: newChanged,
+        });
       }
     },
   }));

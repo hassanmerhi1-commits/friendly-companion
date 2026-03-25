@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 /**
  * Loan/Advance Management Store
@@ -147,6 +148,15 @@ export const useLoanStore = create<LoanState>()((set, get) => ({
       loans: [...state.loans, loan],
     }));
     
+    logAudit({
+      action: 'loan_created',
+      entityType: 'loan',
+      entityId: loan.id,
+      employeeId: loan.employeeId,
+      description: `Empréstimo criado: ${loan.amount} AOA - ${loan.reason}`,
+      newValue: { type: loan.type, amount: loan.amount, installments: loan.installments, reason: loan.reason },
+    });
+    
     return { success: true, loan };
   },
   
@@ -211,6 +221,16 @@ export const useLoanStore = create<LoanState>()((set, get) => ({
     set(state => ({
       payments: [...state.payments, payment],
     }));
+    
+    logAudit({
+      action: 'loan_payment',
+      entityType: 'loan',
+      entityId: loanId,
+      employeeId: loan.employeeId,
+      description: `Pagamento de empréstimo: ${amount} AOA (${newPaidInstallments}/${loan.installments})`,
+      previousValue: { remainingAmount: loan.remainingAmount, paidInstallments: loan.paidInstallments, status: loan.status },
+      newValue: { remainingAmount: newRemaining, paidInstallments: newPaidInstallments, status: newStatus },
+    });
   },
   
   getActiveLoansByEmployee: (employeeId) => {

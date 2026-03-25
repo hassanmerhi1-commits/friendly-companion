@@ -53,6 +53,7 @@ import TaxSimulator from "./pages/TaxSimulator";
 import PayrollHistory from "./pages/PayrollHistory";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import BranchAttendance from "./pages/BranchAttendance";
+import EditHistory from "./pages/EditHistory";
 const queryClient = new QueryClient();
 
 // Check if we're running in browser (not Electron) - includes dev preview AND published web
@@ -198,6 +199,9 @@ const AppRoutes = () => {
       } />
       <Route path="/labor-law" element={
         <PermissionRoute requiredPermission="laborlaw.view"><LaborLaw /></PermissionRoute>
+      } />
+      <Route path="/edit-history" element={
+        <PermissionRoute requiredPermission="settings.view"><EditHistory /></PermissionRoute>
       } />
       <Route path="/tax-simulator" element={
         <PermissionRoute requiredPermission="payroll.view"><TaxSimulator /></PermissionRoute>

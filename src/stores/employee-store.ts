@@ -3,6 +3,7 @@ import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 /**
  * Employee Store - Database-Centric Architecture
@@ -284,6 +285,15 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       return { success: false, error: 'Erro ao guardar no banco de dados' };
     }
     
+    logAudit({
+      action: 'employee_created',
+      entityType: 'employee',
+      entityId: newEmployee.id,
+      employeeId: newEmployee.id,
+      description: `Funcionário criado: ${newEmployee.firstName} ${newEmployee.lastName}`,
+      newValue: { firstName: newEmployee.firstName, lastName: newEmployee.lastName, department: newEmployee.department, position: newEmployee.position, baseSalary: newEmployee.baseSalary },
+    });
+    
     // Refresh from database to ensure consistency
     await get().loadEmployees();
     
@@ -398,6 +408,16 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       return { success: false, error: 'Erro ao actualizar no banco de dados' };
     }
     
+    logAudit({
+      action: 'employee_updated',
+      entityType: 'employee',
+      entityId: id,
+      employeeId: id,
+      description: `Funcionário editado: ${updatedEmployee.firstName} ${updatedEmployee.lastName}`,
+      previousValue: currentEmployee as any,
+      newValue: updatedEmployee as any,
+    });
+    
     // Refresh from database to ensure consistency
     await get().loadEmployees();
     
@@ -414,6 +434,16 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       updated_at: new Date().toISOString() 
     });
     if (!success) return { success: false, error: 'Erro ao aprovar no banco de dados' };
+    
+    logAudit({
+      action: 'employee_approved',
+      entityType: 'employee',
+      entityId: id,
+      employeeId: id,
+      description: `Funcionário aprovado: ${employee.firstName} ${employee.lastName}`,
+      previousValue: { status: 'pending_approval' },
+      newValue: { status: 'active' },
+    });
     
     await get().loadEmployees();
     return { success: true };

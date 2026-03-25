@@ -12,11 +12,32 @@ export type AuditAction =
   | 'entry_updated'
   | 'overtime_added'
   | 'absence_recorded'
+  | 'absence_justified'
+  | 'absence_rejected'
+  | 'absence_approved'
+  | 'absence_deleted'
   | 'deduction_applied'
+  | 'deduction_created'
+  | 'deduction_updated'
+  | 'deduction_deleted'
+  | 'deduction_paid'
   | 'salary_changed'
   | 'salary_adjusted'
+  | 'employee_created'
+  | 'employee_updated'
   | 'employee_hired'
   | 'employee_terminated'
+  | 'employee_approved'
+  | 'employee_deleted'
+  | 'loan_created'
+  | 'loan_updated'
+  | 'loan_payment'
+  | 'loan_deleted'
+  | 'disciplinary_created'
+  | 'disciplinary_updated'
+  | 'disciplinary_deleted'
+  | 'attendance_updated'
+  | 'settings_updated'
   | 'correction_applied';
 
 export interface AuditLogEntry {
@@ -27,7 +48,7 @@ export interface AuditLogEntry {
   userName?: string;
   
   // What was affected
-  entityType: 'payroll_period' | 'payroll_entry' | 'employee' | 'deduction';
+  entityType: 'payroll_period' | 'payroll_entry' | 'employee' | 'deduction' | 'loan' | 'absence' | 'disciplinary' | 'attendance' | 'settings';
   entityId: string;
   
   // Context
