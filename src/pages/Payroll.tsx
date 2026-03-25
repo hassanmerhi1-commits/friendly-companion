@@ -278,7 +278,15 @@ const Payroll = () => {
       return;
     }
     if (activeEmployees.length === 0) {
-      toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
+      if (pendingApprovalEmployees.length > 0) {
+        toast.error(
+          language === 'pt'
+            ? `Tem ${pendingApprovalEmployees.length} funcionário(s) pendente(s). Aprove primeiro para aparecerem na folha.`
+            : `You have ${pendingApprovalEmployees.length} pending employee(s). Approve them first to appear in payroll.`
+        );
+      } else {
+        toast.error(language === 'pt' ? 'Adicione funcionários primeiro' : 'Add employees first');
+      }
       return;
     }
 
