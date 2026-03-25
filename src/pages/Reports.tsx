@@ -28,7 +28,7 @@ import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncome
 import { PrintableAuditHistoryReport } from "@/components/reports/PrintableAuditHistoryReport";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
-type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | null;
+type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | null;
 
 const Reports = () => {
   const { t, language } = useLanguage();
