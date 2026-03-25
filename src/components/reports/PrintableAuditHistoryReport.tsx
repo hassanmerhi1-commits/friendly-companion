@@ -146,7 +146,7 @@ export const PrintableAuditHistoryReport = ({ companyName, companyNif, year, onC
                     <TableCell className="text-xs whitespace-nowrap">
                       {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm')}
                     </TableCell>
-                    <TableCell className="text-xs">{log.user}</TableCell>
+                    <TableCell className="text-xs">{log.userName || log.userId || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${actionColor(log.action)}`}>
                         {label}
