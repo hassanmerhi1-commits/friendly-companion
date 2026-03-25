@@ -239,6 +239,10 @@ export default function Attendance() {
               <TabsContent value="calendar">
                 <AbsenceCalendar />
               </TabsContent>
+
+              <TabsContent value="effectiveness">
+                <PrintableAttendanceMap month={selectedMonth} year={selectedYear} />
+              </TabsContent>
             </>
           )}
         </Tabs>
