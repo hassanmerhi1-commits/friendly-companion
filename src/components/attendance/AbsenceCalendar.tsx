@@ -307,5 +307,7 @@ export function AbsenceCalendar() {
         )}
       </CardContent>
     </Card>
+    <AbsenceDialog open={absenceDialogOpen} onOpenChange={setAbsenceDialogOpen} />
+    </>
   );
 }
