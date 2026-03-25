@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useEmployeeStore } from './employee-store';
 import { useAbsenceStore } from './absence-store';
 import { useLoanStore } from './loan-store';
+import { useBulkAttendanceStore } from './bulk-attendance-store';
 
 /**
  * Alerts Store - System notifications and warnings
