@@ -123,6 +123,15 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
       const days = calculateWorkingDays(absence.startDate, absence.endDate);
       const newAbsence: Absence = { ...absence, id: generateId(), days, createdAt: now, updatedAt: now };
       await liveInsert('absences', mapAbsenceToDbRow(newAbsence));
+      
+      logAudit({
+        action: 'absence_recorded',
+        entityType: 'absence',
+        entityId: newAbsence.id,
+        employeeId: newAbsence.employeeId,
+        description: `Ausência registada: ${newAbsence.type} - ${days} dias (${newAbsence.startDate} a ${newAbsence.endDate})`,
+        newValue: { type: newAbsence.type, status: newAbsence.status, days, startDate: newAbsence.startDate, endDate: newAbsence.endDate },
+      });
     },
 
     updateAbsence: async (id, updates) => {
