@@ -208,6 +208,19 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
             </div>
           </div>
 
+          {/* Active Leave Information */}
+          {leaveInfo.length > 0 && (
+            <div className="mb-4 p-3 border border-pink-300 rounded bg-pink-50">
+              <h3 className="font-bold text-sm mb-1" style={{ color: '#be185d' }}>{t.activeLeave}</h3>
+              {leaveInfo.map((leave, i) => (
+                <p key={i} className="text-sm">
+                  • {leaveTypeLabels[leave.type] || leave.type}: {leave.days} {language === 'pt' ? 'dias' : 'days'} 
+                  {' '}({leave.startDate} → {leave.endDate}) — <em>{t.noDeduction}</em>
+                </p>
+              ))}
+            </div>
+          )}
+
           {/* Net Salary */}
           <div className="p-4 bg-green-50 border-2 border-green-500 rounded mb-8">
             <div className="flex justify-between items-center">
