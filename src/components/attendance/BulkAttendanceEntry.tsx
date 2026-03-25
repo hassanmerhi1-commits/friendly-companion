@@ -368,9 +368,10 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                     const fullSalary = getFullSalary(emp);
                     const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
                     const branchName = emp.branchId ? getBranch(emp.branchId)?.name : undefined;
+                    const empLeaves = activeLeaves[emp.id];
                     
                     return (
-                      <TableRow key={emp.id}>
+                      <TableRow key={emp.id} className={empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''}>
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium">{emp.firstName} {emp.lastName}</span>
@@ -378,6 +379,14 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                               {emp.employeeNumber}
                               {branchName && ` • ${branchName}`}
                             </span>
+                            {empLeaves && empLeaves.map((leave, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-xs mt-0.5">
+                                <Baby className="h-3 w-3 text-pink-500" />
+                                <span className="text-pink-600 dark:text-pink-400 font-medium">
+                                  {leave.label} ({leave.days}d)
+                                </span>
+                              </span>
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono">
@@ -399,16 +408,33 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                           />
                         </TableCell>
                         <TableCell>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={26}
-                            value={entry.justifiedAbsenceDays || ''}
-                            onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
-                            className="w-20 text-center mx-auto"
-                            placeholder="0"
-                            disabled={readOnly}
-                          />
+                          <div className="flex flex-col items-center gap-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={26}
+                              value={entry.justifiedAbsenceDays || ''}
+                              onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
+                              className="w-20 text-center mx-auto"
+                              placeholder="0"
+                              disabled={readOnly}
+                            />
+                            {empLeaves && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-[10px] text-pink-500 cursor-help flex items-center gap-0.5">
+                                    <Info className="h-3 w-3" />
+                                    {language === 'pt' ? 'Licença activa' : 'Active leave'}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {empLeaves.map((l, i) => (
+                                    <p key={i}>{l.label}: {l.days} {language === 'pt' ? 'dias — sem desconto' : 'days — no deduction'}</p>
+                                  ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Input
