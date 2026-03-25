@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Umbrella } from 'lucide-react';
+import { ArrowLeft, User, Wallet, Clock, FileWarning, Banknote, Receipt, Umbrella, History } from 'lucide-react';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useLanguage } from '@/lib/i18n';
 import { ProfileHeader } from '@/components/employee-profile/ProfileHeader';
