@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FileText, Calendar, TrendingUp, Users, DollarSign, History, Clock, Landmark, CreditCard, Building2, FileCheck } from "lucide-react";
+import { FileText, Calendar, TrendingUp, Users, DollarSign, History, Clock, Landmark, CreditCard, Building2, FileCheck, ClipboardList } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
