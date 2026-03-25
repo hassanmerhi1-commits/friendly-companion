@@ -83,11 +83,11 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
     rejectSuccess: language === 'pt' ? 'Ausência marcada como injustificada' : 'Absence marked as unjustified',
     deleteSuccess: language === 'pt' ? 'Ausência eliminada' : 'Absence deleted',
     maternityNote: language === 'pt' 
-      ? 'Licença de maternidade: 90 dias pagos pelo INSS (Art. 150 LGT)' 
-      : 'Maternity leave: 90 days paid by INSS (Art. 150 LGT)',
+      ? 'Licença de maternidade: 13 semanas (91 dias) pagos pelo empregador, reembolsado pelo INSS (Lei 12/23)' 
+      : 'Maternity leave: 13 weeks (91 days) paid by employer, reimbursed by INSS (Law 12/23)',
     paternityNote: language === 'pt'
-      ? 'Licença de paternidade: 3 dias pagos pelo empregador (Art. 151 LGT)'
-      : 'Paternity leave: 3 days paid by employer (Art. 151 LGT)',
+      ? 'Licença de paternidade: 1 dia pago + 7 dias não remunerados (Lei 12/23)'
+      : 'Paternity leave: 1 paid day + 7 unpaid days (Law 12/23)',
   };
 
   const getStatusBadge = (status: AbsenceStatus) => {
@@ -119,23 +119,40 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
 
     const typeInfo = ABSENCE_TYPE_INFO[absenceType];
     const isAutoJustified = ['maternity', 'paternity', 'marriage', 'bereavement'].includes(absenceType);
-    const needsApproval = ['maternity', 'study_leave'].includes(absenceType);
+    const isLeaveType = ['maternity', 'paternity'].includes(absenceType);
+    
+    // Maternity and paternity are auto-approved (no salary deduction)
+    const status = absenceType === 'unjustified' 
+      ? 'unjustified' as const
+      : (isLeaveType ? 'approved' as const : (isAutoJustified ? 'justified' as const : 'pending' as const));
+    
+    // For maternity/paternity, never deduct from salary
+    const deductFromSalary = absenceType === 'unjustified' || 
+      (!typeInfo.paidByEmployer && !typeInfo.paidByINSS && !isLeaveType);
     
     addAbsence({
       employeeId: selectedEmployeeId,
       type: absenceType,
-      status: absenceType === 'unjustified' 
-        ? 'unjustified' 
-        : (needsApproval ? 'pending' : (isAutoJustified ? 'justified' : 'pending')),
+      status,
       startDate,
       endDate,
       days: 0, // Will be calculated by the store
-      reason,
+      reason: reason || (isLeaveType 
+        ? (absenceType === 'maternity' ? t.maternityNote : t.paternityNote)
+        : ''),
       justificationDocument: justificationDoc || undefined,
-      deductFromSalary: absenceType === 'unjustified' || (!typeInfo.paidByEmployer && !typeInfo.paidByINSS),
+      deductFromSalary,
     });
 
     toast.success(t.success);
+    
+    // Show info toast for maternity/paternity
+    if (absenceType === 'maternity') {
+      toast.info(t.maternityNote);
+    } else if (absenceType === 'paternity') {
+      toast.info(t.paternityNote);
+    }
+    
     setReason('');
     setJustificationDoc('');
     setAbsenceType('unjustified');
@@ -221,7 +238,22 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
 
               <div className="space-y-2">
                 <Label>{t.type}</Label>
-                <Select value={absenceType} onValueChange={(v) => setAbsenceType(v as AbsenceType)}>
+                <Select value={absenceType} onValueChange={(v) => {
+                  const type = v as AbsenceType;
+                  setAbsenceType(type);
+                  // Auto-calculate end date for maternity/paternity
+                  if (type === 'maternity' && startDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(start);
+                    end.setDate(end.getDate() + 90); // 91 days (start + 90)
+                    setEndDate(end.toISOString().split('T')[0]);
+                  } else if (type === 'paternity' && startDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(start);
+                    end.setDate(end.getDate() + 7); // 8 days total (1 paid + 7 unpaid)
+                    setEndDate(end.toISOString().split('T')[0]);
+                  }
+                }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -240,7 +272,21 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
                 <Input 
                   type="date" 
                   value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)} 
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    // Auto-recalculate end date for maternity/paternity
+                    if (absenceType === 'maternity' && e.target.value) {
+                      const start = new Date(e.target.value);
+                      const end = new Date(start);
+                      end.setDate(end.getDate() + 90);
+                      setEndDate(end.toISOString().split('T')[0]);
+                    } else if (absenceType === 'paternity' && e.target.value) {
+                      const start = new Date(e.target.value);
+                      const end = new Date(start);
+                      end.setDate(end.getDate() + 7);
+                      setEndDate(end.toISOString().split('T')[0]);
+                    }
+                  }}
                 />
               </div>
 
