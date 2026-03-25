@@ -221,6 +221,16 @@ export const useLoanStore = create<LoanState>()((set, get) => ({
     set(state => ({
       payments: [...state.payments, payment],
     }));
+    
+    logAudit({
+      action: 'loan_payment',
+      entityType: 'loan',
+      entityId: loanId,
+      employeeId: loan.employeeId,
+      description: `Pagamento de empréstimo: ${amount} AOA (${newPaidInstallments}/${loan.installments})`,
+      previousValue: { remainingAmount: loan.remainingAmount, paidInstallments: loan.paidInstallments, status: loan.status },
+      newValue: { remainingAmount: newRemaining, paidInstallments: newPaidInstallments, status: newStatus },
+    });
   },
   
   getActiveLoansByEmployee: (employeeId) => {
