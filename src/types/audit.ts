@@ -48,7 +48,7 @@ export interface AuditLogEntry {
   userName?: string;
   
   // What was affected
-  entityType: 'payroll_period' | 'payroll_entry' | 'employee' | 'deduction';
+  entityType: 'payroll_period' | 'payroll_entry' | 'employee' | 'deduction' | 'loan' | 'absence' | 'disciplinary' | 'attendance' | 'settings';
   entityId: string;
   
   // Context
