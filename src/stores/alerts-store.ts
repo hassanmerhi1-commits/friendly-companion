@@ -160,6 +160,30 @@ export const useAlertsStore = create<AlertsState>()((set, get) => ({
         });
       }
       
+      // Excessive absence alerts - flag employees with 3+ unjustified absences in current month
+      const { entries: bulkEntries } = useBulkAttendanceStore.getState();
+      const currentMonthEntries = bulkEntries.filter(
+        e => e.month === (now.getMonth() + 1) && e.year === now.getFullYear() && e.absenceDays >= 3
+      );
+      currentMonthEntries.forEach(entry => {
+        const emp = employees.find(e => e.id === entry.employeeId);
+        if (emp && emp.status === 'active') {
+          alerts.push({
+            id: `excessive-absence-${emp.id}`,
+            type: 'excessive_absence',
+            severity: entry.absenceDays >= 5 ? 'critical' : 'warning',
+            title: entry.absenceDays >= 5 ? 'Faltas Excessivas!' : 'Alerta de Faltas',
+            message: `${emp.firstName} ${emp.lastName} tem ${entry.absenceDays} faltas injustificadas este mês.`,
+            entityType: 'employee',
+            entityId: emp.id,
+            entityName: `${emp.firstName} ${emp.lastName}`,
+            createdAt: now.toISOString(),
+            isRead: false,
+            isDismissed: false,
+          });
+        }
+      });
+      
       set({ alerts, isLoaded: true });
     } catch (error) {
       console.error('[Alerts] Error generating alerts:', error);
