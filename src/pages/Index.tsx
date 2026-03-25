@@ -8,6 +8,7 @@ import { HeadcountChart } from "@/components/dashboard/HeadcountChart";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
 import { AuditLogPanel } from "@/components/dashboard/AuditLogPanel";
 import { KPIMetricsGrid } from "@/components/dashboard/KPIMetricsGrid";
+import { ActiveLeavesWidget } from "@/components/dashboard/ActiveLeavesWidget";
 import { Users, DollarSign, Clock, CheckCircle, AlertTriangle, Calendar } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
