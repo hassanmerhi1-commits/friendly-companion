@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 function generateId(): string {
   return `abs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

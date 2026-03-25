@@ -3,6 +3,7 @@ import type { Employee, EmployeeFormData } from '@/types/employee';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 /**
  * Employee Store - Database-Centric Architecture

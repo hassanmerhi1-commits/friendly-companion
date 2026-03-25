@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 /**
  * Bulk Attendance Entry Store

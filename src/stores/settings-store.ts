@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { liveGetAll, liveInsert, onTableSync, onDataChange } from '@/lib/db-live';
+import { logAudit } from '@/lib/audit-helper';
 
 export interface CompanySettings {
   companyName: string;
