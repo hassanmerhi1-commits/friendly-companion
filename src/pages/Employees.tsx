@@ -62,7 +62,7 @@ const Employees = () => {
   const { t, language } = useLanguage();
   const { employees, deleteEmployee, approveEmployee, rejectEmployee } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
-  const isAdmin = currentUser?.role === 'admin';
+  const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
   const { branches: allBranches } = useBranchStore();
   // Derive active branches from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
@@ -262,13 +262,14 @@ const Employees = () => {
       <div className="flex flex-wrap items-center gap-4 mb-6 animate-slide-up">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
+          <Input
             placeholder={t.employees.searchPlaceholder}
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
         <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
           <SelectTrigger className="w-[200px]">
             <Filter className="h-4 w-4 mr-2" />
@@ -284,7 +285,6 @@ const Employees = () => {
           </SelectContent>
         </Select>
 
-        {/* Status Filter */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[200px]">
             <Archive className="h-4 w-4 mr-2" />
@@ -292,7 +292,7 @@ const Employees = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">{language === 'pt' ? 'Activos' : 'Active'}</SelectItem>
-            {isAdmin && pendingCount > 0 && (
+            {canApproveEmployees && pendingCount > 0 && (
               <SelectItem value="pending">
                 {language === 'pt' ? `Pendentes (${pendingCount})` : `Pending (${pendingCount})`}
               </SelectItem>
@@ -301,184 +301,77 @@ const Employees = () => {
             <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
           </SelectContent>
         </Select>
-        
-        {/* Sort by field */}
-        <Select value={sortField} onValueChange={(value) => setSortField(value as SortField)}>
-          <SelectTrigger className="w-[180px]">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            <SelectValue placeholder={language === 'pt' ? 'Ordenar por' : 'Sort by'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name">{language === 'pt' ? 'Nome' : 'Name'}</SelectItem>
-            <SelectItem value="department">{language === 'pt' ? 'Departamento' : 'Department'}</SelectItem>
-            <SelectItem value="branch">{language === 'pt' ? 'Filial' : 'Branch'}</SelectItem>
-            <SelectItem value="salary">{language === 'pt' ? 'Salário' : 'Salary'}</SelectItem>
-            <SelectItem value="hireDate">{language === 'pt' ? 'Data de Admissão' : 'Hire Date'}</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        {/* Sort order toggle */}
-        <Button 
-          variant="outline" 
-          size="icon"
-          onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-          title={sortOrder === 'asc' 
-            ? (language === 'pt' ? 'Ascendente (A-Z, 1-9)' : 'Ascending (A-Z, 1-9)') 
-            : (language === 'pt' ? 'Descendente (Z-A, 9-1)' : 'Descending (Z-A, 9-1)')}
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSortField('name');
+            setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+          }}
         >
-          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />}
+          {language === 'pt' ? 'Ordenar Nome' : 'Sort Name'}
         </Button>
       </div>
 
-      {/* Employee Table */}
-      <div className="stat-card p-0 overflow-hidden animate-slide-up" style={{ animationDelay: "100ms" }}>
+      <div className="rounded-lg border bg-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[14%]">
-                  {t.employees.employee}
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[8%]">
-                  {t.branches?.title || 'Filial'}
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[9%]">
-                  {t.employees.department}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[9%]">
-                  {t.employees.baseSalary}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[8%]">
-                  {t.employees.mealAllowance}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[8%]">
-                  {t.employees.transportAllowance}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[8%] whitespace-nowrap">
-                  {t.payroll?.familyAllowance || 'Abono Fam.'}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[7%]">
-                  {t.payroll?.bonus || 'Bónus'}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider bg-primary/5 w-[9%]">
-                  {t.payroll?.totalEarnings || 'Total'}
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[8%]">
-                  {t.employees.contract}
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[7%]">
-                  {t.common.status}
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[5%]">
-                  {t.common.actions}
-                </th>
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Nome' : 'Name'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Departamento' : 'Department'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Filial' : 'Branch'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Contrato' : 'Contract'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Estado' : 'Status'}</th>
+                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Salário' : 'Salary'}</th>
+                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Ações' : 'Actions'}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {filteredAndSortedEmployees.map((employee) => {
-                const totalComp = (employee.baseSalary || 0) + 
-                  (employee.mealAllowance || 0) + 
-                  (employee.transportAllowance || 0) + 
-                  (employee.familyAllowance || 0) + 
-                  (employee.monthlyBonus || 0) +
-                  (employee.otherAllowances || 0);
-                
-                return (
-                  <tr key={employee.id} className="table-row-hover">
-                    <td className="px-2 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-semibold text-accent">
-                            {employee.firstName[0]}{employee.lastName[0]}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground text-sm truncate">
-                            {employee.firstName} {employee.lastName}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
-                        </div>
+            <tbody>
+              {filteredAndSortedEmployees.map(employee => (
+                <tr key={employee.id} className="border-t border-border">
+                  <td className="px-3 py-3 font-medium">
+                    <div>{employee.firstName} {employee.lastName}</div>
+                    <div className="text-xs text-muted-foreground">{employee.employeeNumber}</div>
+                  </td>
+                  <td className="px-3 py-3">{employee.department || '-'}</td>
+                  <td className="px-3 py-3">{getBranchName(employee.branchId)}</td>
+                  <td className="px-3 py-3">{getContractLabel(employee.contractType)}</td>
+                  <td className="px-3 py-3">
+                    <span className={cn(
+                      "inline-flex rounded-full px-2 py-1 text-xs",
+                      employee.status === "active" && "bg-primary/10 text-primary",
+                      employee.status === "pending_approval" && "bg-secondary text-secondary-foreground",
+                      employee.status === "terminated" && "bg-destructive/10 text-destructive"
+                    )}>
+                      {getStatusLabel(employee.status)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right">{formatAOA(employee.baseSalary || 0)}</td>
+                  <td className="px-3 py-3 text-right">
+                    {employee.status === 'pending_approval' && canApproveEmployees ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleApprove(employee)}
+                          title={language === 'pt' ? 'Aprovar' : 'Approve'}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleReject(employee)}
+                          title={language === 'pt' ? 'Rejeitar' : 'Reject'}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
                       </div>
-                    </td>
-                    <td className="px-2 py-3">
-                      <span className="text-foreground text-xs truncate block">{getBranchName(employee.branchId)}</span>
-                    </td>
-                    <td className="px-2 py-3">
-                      <div>
-                        <p className="text-foreground text-xs truncate">{employee.department}</p>
-                        <p className="text-xs text-muted-foreground truncate">{employee.position}</p>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="font-medium text-foreground text-xs font-mono">
-                        {formatAOA(employee.baseSalary)}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {employee.mealAllowance ? formatAOA(employee.mealAllowance) : '-'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {employee.transportAllowance ? formatAOA(employee.transportAllowance) : '-'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {employee.familyAllowance ? formatAOA(employee.familyAllowance) : '-'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      <span className="text-xs font-mono text-muted-foreground">
-                        {employee.monthlyBonus ? formatAOA(employee.monthlyBonus) : '-'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right bg-primary/5">
-                      <span className="font-semibold text-primary text-xs font-mono">
-                        {formatAOA(totalComp)}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3">
-                      <span className="text-foreground text-xs truncate block">
-                        {getContractLabel(employee.contractType)}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3">
-                      <span className={cn(
-                        "badge-status",
-                        employee.status === "active" && "badge-paid",
-                        employee.status === "inactive" && "badge-overdue",
-                        employee.status === "on_leave" && "badge-pending",
-                        employee.status === "terminated" && "badge-overdue",
-                        employee.status === "pending_approval" && "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      )}>
-                        {getStatusLabel(employee.status)}
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-right">
-                      {employee.status === 'pending_approval' && isAdmin ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                            onClick={() => handleApprove(employee)}
-                            title={language === 'pt' ? 'Aprovar' : 'Approve'}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            onClick={() => handleReject(employee)}
-                            title={language === 'pt' ? 'Rejeitar' : 'Reject'}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
+                    ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -501,29 +394,24 @@ const Employees = () => {
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
                           {hasPermission('employees.delete') && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteClick(employee)}
-                              className="text-destructive"
-                            >
+                            <DropdownMenuItem onClick={() => handleDeleteClick(employee)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
                               {t.common.delete}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
           <p className="text-sm text-muted-foreground">
-            {t.common.showing} <span className="font-medium">1-{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
+            {t.common.showing} <span className="font-medium">{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
           </p>
         </div>
       </div>
