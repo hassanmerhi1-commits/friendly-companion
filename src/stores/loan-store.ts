@@ -148,6 +148,15 @@ export const useLoanStore = create<LoanState>()((set, get) => ({
       loans: [...state.loans, loan],
     }));
     
+    logAudit({
+      action: 'loan_created',
+      entityType: 'loan',
+      entityId: loan.id,
+      employeeId: loan.employeeId,
+      description: `Empréstimo criado: ${loan.amount} AOA - ${loan.reason}`,
+      newValue: { type: loan.type, amount: loan.amount, installments: loan.installments, reason: loan.reason },
+    });
+    
     return { success: true, loan };
   },
   
