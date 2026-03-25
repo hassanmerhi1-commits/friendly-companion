@@ -197,6 +197,10 @@ export default function Attendance() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="effectiveness" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  {t.effectivenessMap}
+                </TabsTrigger>
               </>
             )}
           </TabsList>
