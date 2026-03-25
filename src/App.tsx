@@ -53,6 +53,7 @@ import TaxSimulator from "./pages/TaxSimulator";
 import PayrollHistory from "./pages/PayrollHistory";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import BranchAttendance from "./pages/BranchAttendance";
+import EditHistory from "./pages/EditHistory";
 const queryClient = new QueryClient();
 
 // Check if we're running in browser (not Electron) - includes dev preview AND published web
