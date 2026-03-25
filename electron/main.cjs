@@ -1473,6 +1473,7 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'other_deductions', "ALTER TABLE payroll_entries ADD COLUMN other_deductions TEXT");
     addColumnIfMissing('payroll_entries', 'other_bonuses', "ALTER TABLE payroll_entries ADD COLUMN other_bonuses TEXT");
     addColumnIfMissing('payroll_entries', 'notes', "ALTER TABLE payroll_entries ADD COLUMN notes TEXT");
+    addColumnIfMissing('payroll_entries', 'leave_notes', "ALTER TABLE payroll_entries ADD COLUMN leave_notes TEXT");
     
     // Document columns
     addColumnIfMissing('documents', 'employee_id', "ALTER TABLE documents ADD COLUMN employee_id TEXT");
