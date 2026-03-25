@@ -7,6 +7,7 @@ import { ClockInOut } from "@/components/attendance/ClockInOut";
 import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
+import { PrintableAttendanceMap } from "@/components/attendance/PrintableAttendanceMap";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
 import { BranchAttendanceImport } from "@/components/attendance/BranchAttendanceImport";
 import { DailyAttendanceMarking } from "@/components/attendance/DailyAttendanceMarking";
