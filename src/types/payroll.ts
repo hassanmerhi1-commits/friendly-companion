@@ -74,6 +74,9 @@ export interface PayrollEntry {
   // Absences
   daysAbsent: number; // Dias de falta
   
+  // Active leaves (maternity, paternity, etc.) - informational, no deduction
+  leaveNotes?: string; // JSON string: [{ type, label, days }]
+  
   // Dependents for family allowance (deprecated - using familyAllowance value)
   dependents?: number;
   
