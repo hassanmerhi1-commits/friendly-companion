@@ -144,6 +144,7 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     overtimeHoursHoliday: row.overtime_hours_holiday || 0,
     daysAbsent: row.absence_days || 0,
     paidEarly: row.paid_early === 1,
+    leaveNotes: row.leave_notes || undefined,
     notes: row.notes || undefined,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
