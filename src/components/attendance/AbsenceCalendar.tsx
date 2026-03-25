@@ -108,6 +108,7 @@ export function AbsenceCalendar() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -118,22 +119,28 @@ export function AbsenceCalendar() {
             </CardTitle>
             <CardDescription>{t.description}</CardDescription>
           </div>
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={t.allEmployees} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t.allEmployees}</SelectItem>
-              {employees.map(e => (
-                <SelectItem key={e.id} value={e.id}>
-                  <div className="flex items-center gap-2">
-                    <User className="h-3 w-3" />
-                    {e.firstName} {e.lastName}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setAbsenceDialogOpen(true)}>
+              <User className="h-4 w-4 mr-2" />
+              {language === 'pt' ? 'Registar Ausência / Licença' : 'Record Absence / Leave'}
+            </Button>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={t.allEmployees} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t.allEmployees}</SelectItem>
+                {employees.map(e => (
+                  <SelectItem key={e.id} value={e.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-3 w-3" />
+                      {e.firstName} {e.lastName}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
