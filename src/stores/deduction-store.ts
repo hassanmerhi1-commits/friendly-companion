@@ -109,6 +109,16 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
 
       await liveInsert('deductions', mapDeductionToDbRow(newDeduction));
       await get().loadDeductions();
+      
+      logAudit({
+        action: 'deduction_created',
+        entityType: 'deduction',
+        entityId: newDeduction.id,
+        employeeId: newDeduction.employeeId,
+        description: `Dedução criada: ${data.description} - ${data.totalAmount} AOA`,
+        newValue: { type: data.type, description: data.description, totalAmount: data.totalAmount, installments: data.installments },
+      });
+      
       return newDeduction;
     },
 
