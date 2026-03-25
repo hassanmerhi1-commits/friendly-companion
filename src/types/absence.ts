@@ -81,20 +81,22 @@ export const ABSENCE_TYPE_INFO: Record<AbsenceType, {
   maternity: {
     labelPt: 'Licença de Maternidade',
     labelEn: 'Maternity Leave',
-    maxDays: 90, // 3 months
-    paidByEmployer: false,
+    maxDays: 91, // 13 weeks per Lei 12/23
+    paidByEmployer: true, // Employer pays, reimbursed by INSS
     paidByINSS: true,
     requiresDocument: true,
-    legalReference: 'Art. 150 LGT - 90 dias'
+    legalReference: 'Lei 12/23 - 13 semanas (91 dias), 4 semanas antes do parto'
   },
   paternity: {
     labelPt: 'Licença de Paternidade',
     labelEn: 'Paternity Leave',
-    maxDays: 3,
+    maxDays: 8, // 1 paid + 7 unpaid per Lei 12/23
+    paidDays: 1, // Only 1 day is paid
+    unpaidDays: 7, // 7 days are unpaid
     paidByEmployer: true,
     paidByINSS: false,
     requiresDocument: true,
-    legalReference: 'Art. 151 LGT - 3 dias'
+    legalReference: 'Lei 12/23 - 1 dia pago + 7 dias não remunerados'
   },
   marriage: {
     labelPt: 'Casamento',
