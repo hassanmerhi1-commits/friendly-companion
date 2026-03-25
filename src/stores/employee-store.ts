@@ -472,11 +472,32 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   },
   
   deleteEmployee: async (id: string) => {
+    const employee = get().employees.find(e => e.id === id);
+    
     // Clean up payroll entries for this employee
     const payrollStore = usePayrollStore.getState();
     await payrollStore.removeEntriesForEmployee(id);
     
     await liveDelete('employees', id);
+    
+    // Log audit for deletion
+    if (employee) {
+      logAudit({
+        action: 'employee_deleted',
+        entityType: 'employee',
+        entityId: id,
+        employeeId: id,
+        description: `Funcionário eliminado: ${employee.firstName} ${employee.lastName}`,
+        previousValue: { 
+          firstName: employee.firstName, 
+          lastName: employee.lastName, 
+          department: employee.department, 
+          position: employee.position, 
+          baseSalary: employee.baseSalary,
+          status: employee.status,
+        },
+      });
+    }
     
     // Refresh from database to ensure consistency
     await get().loadEmployees();
