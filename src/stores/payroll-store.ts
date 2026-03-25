@@ -192,6 +192,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     deduction_details: e.deductionDetails || null,
     total_employer_cost: e.totalEmployerCost,
     paid_early: e.paidEarly ? 1 : 0,
+    leave_notes: e.leaveNotes || null,
     notes: e.notes || null,
     status: e.status,
     created_at: e.createdAt,
