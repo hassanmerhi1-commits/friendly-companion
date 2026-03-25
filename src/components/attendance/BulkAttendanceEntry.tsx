@@ -6,12 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Save, Calculator, Users, AlertTriangle, Search, Loader2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Save, Calculator, Users, AlertTriangle, Search, Loader2, Baby, Info } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAbsenceStore } from '@/stores/absence-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary, type BulkAttendanceEntry as BulkEntry } from '@/stores/bulk-attendance-store';
+import { ABSENCE_TYPE_INFO } from '@/types/absence';
 import { toast } from 'sonner';
 
 interface LocalEntry {
