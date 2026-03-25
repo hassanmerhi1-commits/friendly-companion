@@ -154,26 +154,32 @@ export const PrintableAuditHistoryReport = ({ companyName, companyNif, year, onC
                     </TableCell>
                     <TableCell className="text-xs">{getEmployeeName(log.employeeId)}</TableCell>
                     <TableCell className="text-xs">
-                      {changes.length > 0 ? (
-                        <div className="space-y-0.5">
-                          {changes.slice(0, 3).map(field => (
-                            <div key={field}>
-                              <span className="font-medium">{formatFieldName(field)}:</span>{' '}
-                              <span className="text-destructive line-through">
-                                {String(log.previousValue?.[field] ?? '-')}
-                              </span>{' → '}
-                              <span className="text-emerald-600 font-medium">
-                                {String(log.newValue?.[field] ?? '-')}
-                              </span>
-                            </div>
-                          ))}
-                          {changes.length > 3 && (
-                            <span className="text-muted-foreground">+{changes.length - 3} more</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">{log.details || '-'}</span>
-                      )}
+              {(() => {
+                        const prev = log.previousValue ? (() => { try { return JSON.parse(log.previousValue); } catch { return null; } })() : null;
+                        const next = log.newValue ? (() => { try { return JSON.parse(log.newValue); } catch { return null; } })() : null;
+                        const diffFields = prev && next ? Object.keys(next).filter(k => JSON.stringify(prev[k]) !== JSON.stringify(next[k])) : [];
+                        
+                        return diffFields.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {diffFields.slice(0, 3).map(field => (
+                              <div key={field}>
+                                <span className="font-medium">{formatFieldName(field)}:</span>{' '}
+                                <span className="text-destructive line-through">
+                                  {String(prev?.[field] ?? '-')}
+                                </span>{' → '}
+                                <span className="text-emerald-600 font-medium">
+                                  {String(next?.[field] ?? '-')}
+                                </span>
+                              </div>
+                            ))}
+                            {diffFields.length > 3 && (
+                              <span className="text-muted-foreground">+{diffFields.length - 3} more</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">{log.description || '-'}</span>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 );
