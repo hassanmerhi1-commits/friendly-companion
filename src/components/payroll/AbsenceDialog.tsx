@@ -119,23 +119,40 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
 
     const typeInfo = ABSENCE_TYPE_INFO[absenceType];
     const isAutoJustified = ['maternity', 'paternity', 'marriage', 'bereavement'].includes(absenceType);
-    const needsApproval = ['maternity', 'study_leave'].includes(absenceType);
+    const isLeaveType = ['maternity', 'paternity'].includes(absenceType);
+    
+    // Maternity and paternity are auto-approved (no salary deduction)
+    const status = absenceType === 'unjustified' 
+      ? 'unjustified' as const
+      : (isLeaveType ? 'approved' as const : (isAutoJustified ? 'justified' as const : 'pending' as const));
+    
+    // For maternity/paternity, never deduct from salary
+    const deductFromSalary = absenceType === 'unjustified' || 
+      (!typeInfo.paidByEmployer && !typeInfo.paidByINSS && !isLeaveType);
     
     addAbsence({
       employeeId: selectedEmployeeId,
       type: absenceType,
-      status: absenceType === 'unjustified' 
-        ? 'unjustified' 
-        : (needsApproval ? 'pending' : (isAutoJustified ? 'justified' : 'pending')),
+      status,
       startDate,
       endDate,
       days: 0, // Will be calculated by the store
-      reason,
+      reason: reason || (isLeaveType 
+        ? (absenceType === 'maternity' ? t.maternityNote : t.paternityNote)
+        : ''),
       justificationDocument: justificationDoc || undefined,
-      deductFromSalary: absenceType === 'unjustified' || (!typeInfo.paidByEmployer && !typeInfo.paidByINSS),
+      deductFromSalary,
     });
 
     toast.success(t.success);
+    
+    // Show info toast for maternity/paternity
+    if (absenceType === 'maternity') {
+      toast.info(t.maternityNote);
+    } else if (absenceType === 'paternity') {
+      toast.info(t.paternityNote);
+    }
+    
     setReason('');
     setJustificationDoc('');
     setAbsenceType('unjustified');
