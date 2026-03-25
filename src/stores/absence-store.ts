@@ -156,6 +156,7 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
 
     justifyAbsence: async (id, document, notes) => {
       const now = new Date().toISOString();
+      const current = get().absences.find(a => a.id === id);
       await liveUpdate('absences', id, { 
         status: 'justified', 
         justification_document: document, 
@@ -163,6 +164,18 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
         justification_notes: notes || null, 
         updated_at: now 
       });
+      
+      if (current) {
+        logAudit({
+          action: 'absence_justified',
+          entityType: 'absence',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Ausência justificada: ${current.type} - Doc: ${document}`,
+          previousValue: { status: current.status },
+          newValue: { status: 'justified', justificationDocument: document },
+        });
+      }
     },
 
     rejectJustification: async (id, reason) => {
