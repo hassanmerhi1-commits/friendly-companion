@@ -10,6 +10,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useLanguage } from "@/lib/i18n";
 import { ABSENCE_TYPE_INFO } from "@/types/absence";
+import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isToday, isSameDay } from "date-fns";
 import { pt, enUS } from "date-fns/locale";
 import { NATIONAL_HOLIDAYS } from "@/lib/angola-labor-law";
