@@ -122,6 +122,10 @@ const EmployeeProfile = () => {
         <TabsContent value="deductions" className="mt-6">
           <DeductionsTab employeeId={employee.id} />
         </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <AuditHistoryTab employeeId={employee.id} />
+        </TabsContent>
       </Tabs>
     </TopNavLayout>
   );
