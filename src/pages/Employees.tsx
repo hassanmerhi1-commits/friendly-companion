@@ -262,13 +262,14 @@ const Employees = () => {
       <div className="flex flex-wrap items-center gap-4 mb-6 animate-slide-up">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
+          <Input
             placeholder={t.employees.searchPlaceholder}
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
         <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
           <SelectTrigger className="w-[200px]">
             <Filter className="h-4 w-4 mr-2" />
@@ -284,7 +285,6 @@ const Employees = () => {
           </SelectContent>
         </Select>
 
-        {/* Status Filter */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[200px]">
             <Archive className="h-4 w-4 mr-2" />
@@ -300,29 +300,78 @@ const Employees = () => {
             <SelectItem value="terminated">{language === 'pt' ? 'Arquivados / Despedidos' : 'Archived / Terminated'}</SelectItem>
             <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
           </SelectContent>
-...
-                      {employee.status === 'pending_approval' && canApproveEmployees ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                            onClick={() => handleApprove(employee)}
-                            title={language === 'pt' ? 'Aprovar' : 'Approve'}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            onClick={() => handleReject(employee)}
-                            title={language === 'pt' ? 'Rejeitar' : 'Reject'}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
+        </Select>
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSortField('name');
+            setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+          }}
+        >
+          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />}
+          {language === 'pt' ? 'Ordenar Nome' : 'Sort Name'}
+        </Button>
+      </div>
+
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Nome' : 'Name'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Departamento' : 'Department'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Filial' : 'Branch'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Contrato' : 'Contract'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Estado' : 'Status'}</th>
+                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Salário' : 'Salary'}</th>
+                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Ações' : 'Actions'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAndSortedEmployees.map(employee => (
+                <tr key={employee.id} className="border-t border-border">
+                  <td className="px-3 py-3 font-medium">
+                    <div>{employee.firstName} {employee.lastName}</div>
+                    <div className="text-xs text-muted-foreground">{employee.employeeNumber}</div>
+                  </td>
+                  <td className="px-3 py-3">{employee.department || '-'}</td>
+                  <td className="px-3 py-3">{getBranchName(employee.branchId)}</td>
+                  <td className="px-3 py-3">{getContractLabel(employee.contractType)}</td>
+                  <td className="px-3 py-3">
+                    <span className={cn(
+                      "inline-flex rounded-full px-2 py-1 text-xs",
+                      employee.status === "active" && "bg-primary/10 text-primary",
+                      employee.status === "pending_approval" && "bg-secondary text-secondary-foreground",
+                      employee.status === "terminated" && "bg-destructive/10 text-destructive"
+                    )}>
+                      {getStatusLabel(employee.status)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right">{formatAOA(employee.baseSalary || 0)}</td>
+                  <td className="px-3 py-3 text-right">
+                    {employee.status === 'pending_approval' && canApproveEmployees ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleApprove(employee)}
+                          title={language === 'pt' ? 'Aprovar' : 'Approve'}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleReject(employee)}
+                          title={language === 'pt' ? 'Rejeitar' : 'Reject'}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -345,29 +394,24 @@ const Employees = () => {
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
                           {hasPermission('employees.delete') && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteClick(employee)}
-                              className="text-destructive"
-                            >
+                            <DropdownMenuItem onClick={() => handleDeleteClick(employee)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
                               {t.common.delete}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
           <p className="text-sm text-muted-foreground">
-            {t.common.showing} <span className="font-medium">1-{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
+            {t.common.showing} <span className="font-medium">{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
           </p>
         </div>
       </div>
