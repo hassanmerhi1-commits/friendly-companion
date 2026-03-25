@@ -10,6 +10,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useLanguage } from "@/lib/i18n";
 import { ABSENCE_TYPE_INFO } from "@/types/absence";
+import { AbsenceDialog } from "@/components/payroll/AbsenceDialog";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth, isToday, isSameDay } from "date-fns";
 import { pt, enUS } from "date-fns/locale";
 import { NATIONAL_HOLIDAYS } from "@/lib/angola-labor-law";
@@ -18,6 +19,7 @@ export function AbsenceCalendar() {
   const { language } = useLanguage();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
+  const [absenceDialogOpen, setAbsenceDialogOpen] = useState(false);
 
   const { employees } = useEmployeeStore();
   const { absences, getAbsencesByPeriod, deleteAbsence } = useAbsenceStore();
@@ -106,6 +108,7 @@ export function AbsenceCalendar() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -116,22 +119,28 @@ export function AbsenceCalendar() {
             </CardTitle>
             <CardDescription>{t.description}</CardDescription>
           </div>
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={t.allEmployees} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t.allEmployees}</SelectItem>
-              {employees.map(e => (
-                <SelectItem key={e.id} value={e.id}>
-                  <div className="flex items-center gap-2">
-                    <User className="h-3 w-3" />
-                    {e.firstName} {e.lastName}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setAbsenceDialogOpen(true)}>
+              <User className="h-4 w-4 mr-2" />
+              {language === 'pt' ? 'Registar Ausência / Licença' : 'Record Absence / Leave'}
+            </Button>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={t.allEmployees} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t.allEmployees}</SelectItem>
+                {employees.map(e => (
+                  <SelectItem key={e.id} value={e.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-3 w-3" />
+                      {e.firstName} {e.lastName}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -298,5 +307,7 @@ export function AbsenceCalendar() {
         )}
       </CardContent>
     </Card>
+    <AbsenceDialog open={absenceDialogOpen} onOpenChange={setAbsenceDialogOpen} />
+    </>
   );
 }
