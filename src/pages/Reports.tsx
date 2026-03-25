@@ -25,6 +25,7 @@ import { PrintableLoanReport } from "@/components/reports/PrintableLoanReport";
 import { PrintableAnnualSummary } from "@/components/reports/PrintableAnnualSummary";
 import { PrintableBranchCostAnalysis } from "@/components/reports/PrintableBranchCostAnalysis";
 import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncomeDeclaration";
+import { PrintableAuditHistoryReport } from "@/components/reports/PrintableAuditHistoryReport";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
 type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | null;
