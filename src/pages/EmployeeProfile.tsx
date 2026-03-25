@@ -91,6 +91,12 @@ const EmployeeProfile = () => {
               {language === 'pt' ? 'Deduções' : 'Deductions'}
             </span>
           </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2">
+            <History className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {language === 'pt' ? 'Histórico' : 'History'}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="payroll" className="mt-6">
