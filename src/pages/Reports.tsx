@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FileText, Calendar, TrendingUp, Users, DollarSign, History, Clock, Landmark, CreditCard, Building2, FileCheck } from "lucide-react";
+import { FileText, Calendar, TrendingUp, Users, DollarSign, History, Clock, Landmark, CreditCard, Building2, FileCheck, ClipboardList } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -25,9 +25,10 @@ import { PrintableLoanReport } from "@/components/reports/PrintableLoanReport";
 import { PrintableAnnualSummary } from "@/components/reports/PrintableAnnualSummary";
 import { PrintableBranchCostAnalysis } from "@/components/reports/PrintableBranchCostAnalysis";
 import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncomeDeclaration";
+import { PrintableAuditHistoryReport } from "@/components/reports/PrintableAuditHistoryReport";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
-type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | null;
+type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | null;
 
 const Reports = () => {
   const { t, language } = useLanguage();
@@ -253,6 +254,15 @@ const Reports = () => {
       icon: FileText, 
       color: 'bg-slate-500',
       available: employees.length > 0
+    },
+    { 
+      id: "13", 
+      type: 'audit_history' as ReportType,
+      name: language === 'pt' ? 'Histórico de Alterações' : 'Edit History', 
+      description: language === 'pt' ? 'Relatório completo de todas as alterações feitas no sistema' : 'Complete report of all system changes', 
+      icon: ClipboardList, 
+      color: 'bg-violet-500',
+      available: true
     },
   ];
 
@@ -705,6 +715,20 @@ const Reports = () => {
               onClose={() => setOpenReport(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Audit History Report Dialog */}
+      <Dialog open={openReport === 'audit_history'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>{language === 'pt' ? 'Histórico de Alterações' : 'Edit History'} — {selectedYear}</DialogTitle>
+          </DialogHeader>
+          <PrintableAuditHistoryReport
+            companyName={settings.companyName}
+            companyNif={settings.nif}
+            year={selectedYear}
+            onClose={() => setOpenReport(null)}
+          />
         </DialogContent>
       </Dialog>
     </TopNavLayout>
