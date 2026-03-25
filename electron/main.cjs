@@ -1753,13 +1753,19 @@ function getDistPath() {
 }
 
 // ============= WINDOW =============
+function getAppIconPath() {
+  return process.platform === 'win32'
+    ? path.join(__dirname, '../public/payrollao-icon.ico')
+    : path.join(__dirname, '../public/pwa-512x512.png');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    icon: path.join(__dirname, '../public/pwa-512x512.png'),
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -2216,6 +2222,10 @@ autoUpdater.on('error', (error) => {
 
 // ============= APP LIFECYCLE =============
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.payrollao.app');
+  }
+
   initDatabase();
   createWindow();
 
