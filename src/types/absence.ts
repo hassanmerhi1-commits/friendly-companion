@@ -7,8 +7,8 @@ export type AbsenceType =
   | 'unjustified'        // Falta injustificada - deducted from salary
   | 'sick_leave'         // Doença comum - justified with medical certificate
   | 'work_accident'      // Acidente de trabalho
-  | 'maternity'          // Licença de maternidade (90 dias - Art. 150)
-  | 'paternity'          // Licença de paternidade (3 dias - Art. 151)
+  | 'maternity'          // Licença de maternidade (91 dias / 13 semanas - Lei 12/23)
+  | 'paternity'          // Licença de paternidade (1 dia pago + 7 dias não pagos - Lei 12/23)
   | 'marriage'           // Casamento (8 dias - Art. 173)
   | 'bereavement'        // Falecimento de familiar (2-5 dias)
   | 'study_leave'        // Licença para estudos
