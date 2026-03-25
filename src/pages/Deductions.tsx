@@ -36,7 +36,7 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('in_progress');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [filterBranch, setFilterBranch] = useState<string>('all');
