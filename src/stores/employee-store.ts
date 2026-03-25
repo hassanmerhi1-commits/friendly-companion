@@ -285,6 +285,15 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       return { success: false, error: 'Erro ao guardar no banco de dados' };
     }
     
+    logAudit({
+      action: 'employee_created',
+      entityType: 'employee',
+      entityId: newEmployee.id,
+      employeeId: newEmployee.id,
+      description: `Funcionário criado: ${newEmployee.firstName} ${newEmployee.lastName}`,
+      newValue: { firstName: newEmployee.firstName, lastName: newEmployee.lastName, department: newEmployee.department, position: newEmployee.position, baseSalary: newEmployee.baseSalary },
+    });
+    
     // Refresh from database to ensure consistency
     await get().loadEmployees();
     
