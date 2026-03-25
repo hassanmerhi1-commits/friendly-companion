@@ -321,6 +321,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
           }
           
+          // Check absence store for active leaves (maternity, paternity, etc.) - informational
+          let leaveNotes: string | undefined;
+          if (absenceStore) {
+            const monthStart = new Date(period.year, period.month - 1, 1).toISOString().split('T')[0];
+            const monthEnd = new Date(period.year, period.month, 0).toISOString().split('T')[0];
+            const periodAbsences = absenceStore.getAbsencesByPeriod(monthStart, monthEnd);
+            const empLeaves = periodAbsences.filter(
+              (a: any) => a.employeeId === emp.id && (a.status === 'justified' || a.status === 'approved') &&
+              ['maternity', 'paternity', 'marriage', 'bereavement', 'sick_leave'].includes(a.type)
+            );
+            if (empLeaves.length > 0) {
+              leaveNotes = JSON.stringify(empLeaves.map((l: any) => ({
+                type: l.type,
+                days: l.days,
+                startDate: l.startDate,
+                endDate: l.endDate,
+              })));
+              console.log(`[Payroll] Active leave for ${emp.firstName}:`, leaveNotes);
+            }
+          }
+          
           // Combine absence + delay deductions
           const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
