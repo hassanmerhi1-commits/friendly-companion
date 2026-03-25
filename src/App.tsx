@@ -200,6 +200,9 @@ const AppRoutes = () => {
       <Route path="/labor-law" element={
         <PermissionRoute requiredPermission="laborlaw.view"><LaborLaw /></PermissionRoute>
       } />
+      <Route path="/edit-history" element={
+        <PermissionRoute requiredPermission="settings.view"><EditHistory /></PermissionRoute>
+      } />
       <Route path="/tax-simulator" element={
         <PermissionRoute requiredPermission="payroll.view"><TaxSimulator /></PermissionRoute>
       } />
