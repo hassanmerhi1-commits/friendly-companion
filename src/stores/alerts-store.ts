@@ -14,6 +14,7 @@ export type AlertType =
   | 'pending_approval' 
   | 'loan_payment' 
   | 'absence_pending'
+  | 'excessive_absence'
   | 'payroll_pending'
   | 'budget_warning';
 
