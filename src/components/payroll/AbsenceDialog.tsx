@@ -238,7 +238,22 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
 
               <div className="space-y-2">
                 <Label>{t.type}</Label>
-                <Select value={absenceType} onValueChange={(v) => setAbsenceType(v as AbsenceType)}>
+                <Select value={absenceType} onValueChange={(v) => {
+                  const type = v as AbsenceType;
+                  setAbsenceType(type);
+                  // Auto-calculate end date for maternity/paternity
+                  if (type === 'maternity' && startDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(start);
+                    end.setDate(end.getDate() + 90); // 91 days (start + 90)
+                    setEndDate(end.toISOString().split('T')[0]);
+                  } else if (type === 'paternity' && startDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(start);
+                    end.setDate(end.getDate() + 7); // 8 days total (1 paid + 7 unpaid)
+                    setEndDate(end.toISOString().split('T')[0]);
+                  }
+                }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
