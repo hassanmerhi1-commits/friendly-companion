@@ -12,6 +12,7 @@ import { DisciplinaryTab } from '@/components/employee-profile/DisciplinaryTab';
 import { LoansTab } from '@/components/employee-profile/LoansTab';
 import { DeductionsTab } from '@/components/employee-profile/DeductionsTab';
 import { HolidaysTab } from '@/components/employee-profile/HolidaysTab';
+import { AuditHistoryTab } from '@/components/employee-profile/AuditHistoryTab';
 
 const EmployeeProfile = () => {
   const { id } = useParams<{ id: string }>();
