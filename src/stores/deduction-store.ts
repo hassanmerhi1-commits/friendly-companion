@@ -144,8 +144,20 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
     },
 
     deleteDeduction: async (id: string) => {
+      const current = get().deductions.find(d => d.id === id);
       await liveDelete('deductions', id);
       await get().loadDeductions();
+      
+      if (current) {
+        logAudit({
+          action: 'deduction_deleted',
+          entityType: 'deduction',
+          entityId: id,
+          employeeId: current.employeeId,
+          description: `Dedução eliminada: ${current.description} - ${current.totalAmount} AOA`,
+          previousValue: { type: current.type, description: current.description, totalAmount: current.totalAmount },
+        });
+      }
     },
 
     getDeductionsByEmployee: (employeeId: string) => {
