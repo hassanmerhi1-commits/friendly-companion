@@ -19,6 +19,7 @@ import { buildEmployeeSalaryHistory, buildSalaryComparison, calculateTermination
 import { EmployeeSalaryHistoryReport } from "@/components/reports/EmployeeSalaryHistoryReport";
 import { SalaryComparisonReport } from "@/components/reports/SalaryComparisonReport";
 import { TerminationDialog } from "@/components/hr/TerminationDialog";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { SalaryAdjustmentsList } from "@/components/hr/SalaryAdjustmentsList";
 import { DisciplinaryRecordDialog } from "@/components/hr/DisciplinaryRecordDialog";
 import { DisciplinaryRecordsList } from "@/components/hr/DisciplinaryRecordsList";

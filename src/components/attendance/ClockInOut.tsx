@@ -117,26 +117,12 @@ export function ClockInOut() {
         {/* Employee Selection */}
         <div className="space-y-2">
           <label className="text-sm font-medium">{t.selectEmployee}</label>
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger>
-              <SelectValue placeholder={t.selectEmployee} />
-            </SelectTrigger>
-            <SelectContent>
-              {activeEmployees.map(employee => (
-                <SelectItem key={employee.id} value={employee.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{employee.firstName} {employee.lastName}</span>
-                    {isEmployeeClockedIn(employee.id) && (
-                      <Badge variant="outline" className="text-xs">
-                        <UserCheck className="h-3 w-3 mr-1" />
-                        {t.working}
-                      </Badge>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <EmployeeSearchSelect
+            employees={activeEmployees}
+            value={selectedEmployee}
+            onSelect={setSelectedEmployee}
+            placeholder={t.selectEmployee}
+          />
         </div>
 
         {/* Status Display */}

@@ -358,18 +358,11 @@ const Reports = () => {
             <Label className="text-sm font-medium mb-2 block">
               {language === 'pt' ? 'Funcionário (Declaração)' : 'Employee (Declaration)'}
             </Label>
-            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-              <SelectTrigger>
-                <SelectValue placeholder={language === 'pt' ? 'Seleccionar funcionário' : 'Select employee'} />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EmployeeSearchSelect
+              employees={employees}
+              value={selectedEmployeeId}
+              onSelect={setSelectedEmployeeId}
+            />
           </div>
           
           {/* Info display */}

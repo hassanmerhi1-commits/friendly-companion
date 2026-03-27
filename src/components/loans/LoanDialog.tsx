@@ -156,18 +156,12 @@ export function LoanDialog({ open, onOpenChange, employeeId }: LoanDialogProps) 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.employee}</Label>
-                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t.selectEmployee} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeEmployees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} - {emp.employeeNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EmployeeSearchSelect
+                  employees={activeEmployees}
+                  value={selectedEmployeeId}
+                  onSelect={setSelectedEmployeeId}
+                  placeholder={t.selectEmployee}
+                />
               </div>
 
               <div className="space-y-2">

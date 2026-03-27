@@ -11,6 +11,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useHRStore } from "@/stores/hr-store";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { toast } from "sonner";
 import type { AdjustmentType } from "@/types/hr";
 

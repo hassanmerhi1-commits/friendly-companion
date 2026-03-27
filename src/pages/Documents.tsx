@@ -861,25 +861,12 @@ const Documents = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{t.selectEmployee}</Label>
-                  <Select 
-                    value={documentData.employeeId} 
-                    onValueChange={(v) => setDocumentData(prev => ({ ...prev, employeeId: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t.selectEmployee} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.length === 0 ? (
-                        <SelectItem value="none" disabled>{t.noEmployees}</SelectItem>
-                      ) : (
-                        employees.map(emp => (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {emp.firstName} {emp.lastName} - {emp.position}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                <EmployeeSearchSelect
+                  employees={employees}
+                  value={documentData.employeeId}
+                  onSelect={(v) => setDocumentData(prev => ({ ...prev, employeeId: v }))}
+                  placeholder={t.selectEmployee}
+                />
                 </div>
                 <div className="space-y-2">
                   <Label>{t.date}</Label>
