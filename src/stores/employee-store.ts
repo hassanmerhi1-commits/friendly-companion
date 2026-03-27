@@ -302,15 +302,22 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   },
   
   updateEmployee: async (id: string, data: Partial<EmployeeFormData>) => {
-    // Check for duplicate employee number if being updated
+    const currentEmployee = get().employees.find(e => e.id === id);
+    
+    // Check for duplicate employee number ONLY if it actually changed
     if (data.employeeNumber) {
       const trimmedNumber = data.employeeNumber.trim().toLowerCase();
-      const existingByNumber = get().employees.find(
-        e => e.employeeNumber?.trim().toLowerCase() === trimmedNumber && e.id !== id
-      );
-      if (existingByNumber) {
-        console.warn('[Employee] Duplicate number detected:', trimmedNumber, 'belongs to', existingByNumber.id, 'editing id:', id);
-        return { success: false, error: 'Número de funcionário já existe / Employee number already exists' };
+      const currentNumber = currentEmployee?.employeeNumber?.trim().toLowerCase();
+      
+      // Skip check if number hasn't changed
+      if (trimmedNumber !== currentNumber) {
+        const existingByNumber = get().employees.find(
+          e => e.employeeNumber?.trim().toLowerCase() === trimmedNumber && e.id !== id
+        );
+        if (existingByNumber) {
+          console.warn('[Employee] Duplicate number detected:', trimmedNumber, 'belongs to', existingByNumber.id, 'editing id:', id);
+          return { success: false, error: 'Número de funcionário já existe / Employee number already exists' };
+        }
       }
     }
     
