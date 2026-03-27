@@ -90,19 +90,12 @@ export default function Deductions() {
     });
   };
 
-  const handleAddDeduction = () => {
+  const handleOpenAddDeduction = () => {
     if (!hasPermission('deductions.create')) {
       toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
       return;
     }
-    if (!formData.employeeId || !formData.totalAmount || !formData.description) {
-      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
-      return;
-    }
-    addDeduction(formData);
-    setIsAddDialogOpen(false);
-    resetForm();
-    toast.success(language === 'pt' ? 'Desconto registado com sucesso!' : 'Deduction registered successfully!');
+    setIsAddDialogOpen(true);
   };
 
   const handleEditClick = (deduction: Deduction) => {
