@@ -659,18 +659,12 @@ export default function HRDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="mb-4">
-                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="w-full max-w-md">
-                      <SelectValue placeholder={language === 'pt' ? 'Selecionar colaborador...' : 'Select employee...'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map(emp => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} - {emp.position}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EmployeeSearchSelect
+                    employees={employees}
+                    value={selectedEmployeeId}
+                    onSelect={setSelectedEmployeeId}
+                    className="max-w-md"
+                  />
                 </div>
 
                 {salaryHistory ? (
