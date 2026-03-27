@@ -51,6 +51,7 @@ const actionLabels: Record<AuditAction, { pt: string; en: string }> = {
   attendance_updated: { pt: 'Assiduidade', en: 'Attendance' },
   settings_updated: { pt: 'Configurações', en: 'Settings' },
   correction_applied: { pt: 'Correção', en: 'Correction' },
+  termination_reversed: { pt: 'Rescisão Revertida', en: 'Termination Reversed' },
 };
 
 function getActionBadgeVariant(action: string): 'default' | 'secondary' | 'destructive' | 'outline' {

@@ -38,7 +38,8 @@ export type AuditAction =
   | 'disciplinary_deleted'
   | 'attendance_updated'
   | 'settings_updated'
-  | 'correction_applied';
+  | 'correction_applied'
+  | 'termination_reversed';
 
 export interface AuditLogEntry {
   id: string;

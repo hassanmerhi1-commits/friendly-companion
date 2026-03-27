@@ -259,7 +259,7 @@ export function calculateTerminationPackage(
   entries: PayrollEntry[],
   periods: PayrollPeriod[],
   terminationDateStr: string = new Date().toISOString().split('T')[0],
-  terminationReason: 'voluntary' | 'dismissal' | 'contract_end' | 'retirement' = 'voluntary',
+  terminationReason: 'voluntary' | 'dismissal' | 'contract_end' | 'retirement' | 'mutual_agreement' = 'voluntary',
   unusedLeaveDays: number = 0
 ): {
   yearsOfService: number;

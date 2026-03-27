@@ -42,6 +42,7 @@ const actionIcons: Record<AuditAction, typeof Edit> = {
   attendance_updated: Clock,
   settings_updated: Settings,
   correction_applied: AlertTriangle,
+  termination_reversed: Clock,
 };
 
 const actionColors: Record<AuditAction, string> = {
@@ -79,6 +80,7 @@ const actionColors: Record<AuditAction, string> = {
   attendance_updated: 'text-blue-500',
   settings_updated: 'text-blue-500',
   correction_applied: 'text-amber-500',
+  termination_reversed: 'text-green-500',
 };
 
 export function AuditLogPanel() {

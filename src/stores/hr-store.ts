@@ -18,6 +18,7 @@ interface HRState {
     employee: Employee,
     terminationData: Omit<TerminationRecord, 'id' | 'employeeName' | 'createdAt' | 'updatedAt'>
   ) => Promise<{ success: boolean; record?: TerminationRecord; error?: string }>;
+  reverseTermination: (employeeId: string, reversedBy: string) => Promise<{ success: boolean; error?: string }>;
   getTerminationByEmployee: (employeeId: string) => TerminationRecord | undefined;
   
   // Salary adjustment operations
@@ -223,6 +224,45 @@ export const useHRStore = create<HRState>()((set, get) => ({
   
   getTerminationByEmployee: (employeeId) => {
     return get().terminations.find(t => t.employeeId === employeeId);
+  },
+  
+  reverseTermination: async (employeeId, reversedBy) => {
+    const termination = get().terminations.find(t => t.employeeId === employeeId);
+    if (!termination) {
+      return { success: false, error: 'Termination record not found' };
+    }
+    
+    try {
+      // Delete the termination record from DB
+      try {
+        await liveDelete('terminations', termination.id);
+      } catch (e) {
+        console.warn('[HR] Could not delete termination from DB:', e);
+      }
+      
+      // Reactivate the employee
+      const { updateEmployee } = useEmployeeStore.getState();
+      await updateEmployee(employeeId, { status: 'active' } as any);
+      
+      // Log audit
+      const { logAction } = useAuditStore.getState();
+      logAction({
+        action: 'termination_reversed',
+        entityType: 'employee',
+        entityId: employeeId,
+        description: `Termination reversed for ${termination.employeeName} by ${reversedBy}`,
+      });
+      
+      // Remove from local state
+      set(state => ({
+        terminations: state.terminations.filter(t => t.id !== termination.id),
+      }));
+      
+      return { success: true };
+    } catch (error) {
+      console.error('[HR] Error reversing termination:', error);
+      return { success: false, error: 'Failed to reverse termination' };
+    }
   },
   
   requestSalaryAdjustment: async (data, requestedBy) => {
