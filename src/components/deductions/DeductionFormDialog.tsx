@@ -161,9 +161,8 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
             </Select>
           </div>
 
-          {/* Warehouse Loss - Law info banner */}
-          {isWarehouseLoss && formData.employeeId && (
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+          {/* Warehouse Loss - Law info banner (always rendered to avoid DOM conflicts with Radix portals) */}
+          <div className={cn("p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2", !(isWarehouseLoss && formData.employeeId) && "hidden")}>
               <div className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Info className="h-4 w-4" />
                 {language === 'pt' ? 'Lei Geral do Trabalho - Art. 25%' : 'Labor Law - 25% Rule'}
@@ -195,8 +194,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                   onCheckedChange={setManualOverride}
                 />
               </div>
-            </div>
-          )}
+          </div>
 
           <div className="space-y-2">
             <Label>{t.deductions.description}</Label>
