@@ -42,7 +42,11 @@ function mapDbRowToDeduction(row: any): Deduction {
   const installments = row.installments || 1;
   // Legacy compatibility: older DBs stored installment progress in `current_installment`
   const installmentsPaid = row.installments_paid ?? row.current_installment ?? 0;
-  const monthlyAmount = installments > 0 ? totalAmount / installments : totalAmount;
+  // Use the stored monthly amount if available; only fall back to division if not stored
+  const storedAmount = row.amount;
+  const monthlyAmount = (storedAmount && storedAmount > 0 && storedAmount !== totalAmount)
+    ? storedAmount
+    : (installments > 0 ? totalAmount / installments : totalAmount);
   const remainingAmount = row.remaining_amount ?? (totalAmount - (installmentsPaid * monthlyAmount));
   
   return {
