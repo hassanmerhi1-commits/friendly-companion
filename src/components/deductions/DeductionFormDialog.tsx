@@ -60,7 +60,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     const emp = employees.find(e => e.id === formData.employeeId);
     if (!emp) return 0;
 
-    const result = calculateFullSalary({
+    const result = calculatePayroll({
       baseSalary: emp.baseSalary,
       mealAllowance: emp.mealAllowance,
       transportAllowance: emp.transportAllowance,
