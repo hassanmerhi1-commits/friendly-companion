@@ -280,11 +280,10 @@ export async function normalizeWarehouseLossDeductions() {
       // Check if monthly amount exceeds 25% limit
       if (ded.amount > maxMonthly) {
         const newInstallments = Math.max(1, Math.ceil(ded.remainingAmount / maxMonthly));
-        const newMonthlyAmount = ded.remainingAmount / newInstallments;
         
         await updateDeduction(ded.id, {
           installments: ded.installmentsPaid + newInstallments,
-          amount: newMonthlyAmount,
+          amount: maxMonthly, // Use exact 25% cap, not averaged amount
         });
         fixed++;
         console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${newMonthlyAmount} (${newInstallments} installments)`);

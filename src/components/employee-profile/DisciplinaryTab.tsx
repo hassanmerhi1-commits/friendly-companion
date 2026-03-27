@@ -52,8 +52,14 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
 
   // Always reload disciplinary records when tab mounts to ensure fresh data
   useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
+    console.log('[DisciplinaryTab] Loading records for employee:', employeeId);
+    loadRecords().then(() => {
+      const all = useDisciplinaryStore.getState().records;
+      console.log('[DisciplinaryTab] Total records in store:', all.length);
+      const forEmployee = all.filter(r => r.employeeId === employeeId);
+      console.log('[DisciplinaryTab] Records for this employee:', forEmployee.length);
+    });
+  }, [loadRecords, employeeId]);
 
   const employee = employees.find((e) => e.id === employeeId);
   const records = useMemo(() => 
