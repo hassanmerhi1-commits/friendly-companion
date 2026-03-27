@@ -94,7 +94,14 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addDeduction(formData);
+    // For warehouse loss in auto mode, pass the exact 25% monthly amount
+    const submitData: DeductionFormData = {
+      ...formData,
+      monthlyAmount: (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+        ? warehouseLossMaxMonthly
+        : undefined,
+    };
+    addDeduction(submitData);
     toast.success(t.common.save);
     onOpenChange(false);
   };
