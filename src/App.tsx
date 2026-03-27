@@ -273,7 +273,7 @@ function AppContent() {
           ]);
           
           // Retroactive: normalize warehouse loss deductions to 25% rule
-          normalizeWarehouseLossDeductions();
+          await normalizeWarehouseLossDeductions();
           
           // Diagnostic: detect duplicate employee numbers
           detectDuplicateEmployeeNumbers();
@@ -389,7 +389,7 @@ function AppContent() {
             console.log('[App] All stores loaded from database');
             
             // Retroactive: normalize warehouse loss deductions to 25% rule
-            normalizeWarehouseLossDeductions();
+            await normalizeWarehouseLossDeductions();
             
             // Diagnostic: detect duplicate employee numbers
             detectDuplicateEmployeeNumbers();
