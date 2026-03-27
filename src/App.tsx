@@ -9,7 +9,7 @@ import { useAuthStore, type Permission } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
-import { useDeductionStore } from "@/stores/deduction-store";
+import { useDeductionStore, normalizeWarehouseLossDeductions } from "@/stores/deduction-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
