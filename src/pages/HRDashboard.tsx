@@ -54,7 +54,7 @@ export default function HRDashboard() {
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [terminationDate, setTerminationDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [terminationReason, setTerminationReason] = useState<'voluntary' | 'dismissal' | 'contract_end' | 'retirement'>('voluntary');
+  const [terminationReason, setTerminationReason] = useState<TerminationReason>('voluntary');
   const [unusedLeaveDays, setUnusedLeaveDays] = useState<number>(0);
   const [showTerminationDialog, setShowTerminationDialog] = useState(false);
   const [showDisciplinaryDialog, setShowDisciplinaryDialog] = useState(false);
