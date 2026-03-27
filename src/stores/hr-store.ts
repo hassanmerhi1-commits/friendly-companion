@@ -18,6 +18,7 @@ interface HRState {
     employee: Employee,
     terminationData: Omit<TerminationRecord, 'id' | 'employeeName' | 'createdAt' | 'updatedAt'>
   ) => Promise<{ success: boolean; record?: TerminationRecord; error?: string }>;
+  reverseTermination: (employeeId: string, reversedBy: string) => Promise<{ success: boolean; error?: string }>;
   getTerminationByEmployee: (employeeId: string) => TerminationRecord | undefined;
   
   // Salary adjustment operations
