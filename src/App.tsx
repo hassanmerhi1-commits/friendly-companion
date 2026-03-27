@@ -331,6 +331,8 @@ function AppContent() {
             initHRStoreSync();
             initOvertimePaymentSync();
             initDailyAttendanceSync();
+            initDisciplinaryStoreSync();
+            initLoanStoreSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
