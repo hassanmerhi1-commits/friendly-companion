@@ -14,6 +14,7 @@ import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import type { DeductionFormData, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
 import { AlertTriangle, Info } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Angolan Labor Law: Maximum deduction for warehouse loss = 25% of net salary
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
