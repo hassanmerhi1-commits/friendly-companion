@@ -23,6 +23,7 @@ import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Che
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
@@ -89,19 +90,12 @@ export default function Deductions() {
     });
   };
 
-  const handleAddDeduction = () => {
+  const handleOpenAddDeduction = () => {
     if (!hasPermission('deductions.create')) {
       toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
       return;
     }
-    if (!formData.employeeId || !formData.totalAmount || !formData.description) {
-      toast.error(language === 'pt' ? 'Preencha os campos obrigatórios' : 'Fill in required fields');
-      return;
-    }
-    addDeduction(formData);
-    setIsAddDialogOpen(false);
-    resetForm();
-    toast.success(language === 'pt' ? 'Desconto registado com sucesso!' : 'Deduction registered successfully!');
+    setIsAddDialogOpen(true);
   };
 
   const handleEditClick = (deduction: Deduction) => {
@@ -328,23 +322,16 @@ export default function Deductions() {
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
           {hasPermission('deductions.create') && (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={resetForm}>
-                  <Plus className="h-4 w-4" />
-                  {addDeductionLabel}
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{addDeductionLabel}</DialogTitle>
-              </DialogHeader>
-              {deductionFormFields}
-              <Button onClick={handleAddDeduction} className="w-full">
+            <>
+              <Button className="gap-2" onClick={handleOpenAddDeduction}>
+                <Plus className="h-4 w-4" />
                 {addDeductionLabel}
               </Button>
-              </DialogContent>
-            </Dialog>
+              <DeductionFormDialog
+                open={isAddDialogOpen}
+                onOpenChange={setIsAddDialogOpen}
+              />
+            </>
           )}
         </div>
 
