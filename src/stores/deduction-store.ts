@@ -286,7 +286,7 @@ export async function normalizeWarehouseLossDeductions() {
           amount: maxMonthly, // Use exact 25% cap, not averaged amount
         });
         fixed++;
-        console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${newMonthlyAmount} (${newInstallments} installments)`);
+        console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${maxMonthly} (${newInstallments} installments)`);
       }
     }
     
