@@ -302,21 +302,27 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   },
   
   updateEmployee: async (id: string, data: Partial<EmployeeFormData>) => {
-    // Check for duplicate employee number if being updated
+    const currentEmployee = get().employees.find(e => e.id === id);
+    
+    // Check for duplicate employee number ONLY if it actually changed
     if (data.employeeNumber) {
       const trimmedNumber = data.employeeNumber.trim().toLowerCase();
-      const existingByNumber = get().employees.find(
-        e => e.employeeNumber?.trim().toLowerCase() === trimmedNumber && e.id !== id
-      );
-      if (existingByNumber) {
-        console.warn('[Employee] Duplicate number detected:', trimmedNumber, 'belongs to', existingByNumber.id, 'editing id:', id);
-        return { success: false, error: 'Número de funcionário já existe / Employee number already exists' };
+      const currentNumber = currentEmployee?.employeeNumber?.trim().toLowerCase();
+      
+      // Skip check if number hasn't changed
+      if (trimmedNumber !== currentNumber) {
+        const existingByNumber = get().employees.find(
+          e => e.employeeNumber?.trim().toLowerCase() === trimmedNumber && e.id !== id
+        );
+        if (existingByNumber) {
+          console.warn('[Employee] Duplicate number detected:', trimmedNumber, 'belongs to', existingByNumber.id, 'editing id:', id);
+          return { success: false, error: 'Número de funcionário já existe / Employee number already exists' };
+        }
       }
     }
     
     // Check for duplicate name if being updated
     if (data.firstName || data.lastName) {
-      const currentEmployee = get().employees.find(e => e.id === id);
       if (currentEmployee) {
         const newFirstName = data.firstName || currentEmployee.firstName;
         const newLastName = data.lastName || currentEmployee.lastName;
@@ -392,7 +398,6 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       }
     }
     
-    const currentEmployee = get().employees.find(e => e.id === id);
     if (!currentEmployee) {
       return { success: false, error: 'Funcionário não encontrado' };
     }
@@ -538,5 +543,34 @@ export function cleanupEmployeeStoreSync() {
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;
+  }
+}
+
+/**
+ * Startup diagnostic: detect and log duplicate employee numbers in the database.
+ */
+export function detectDuplicateEmployeeNumbers() {
+  const employees = useEmployeeStore.getState().employees;
+  const numberMap = new Map<string, { id: string; name: string }[]>();
+  
+  for (const emp of employees) {
+    if (!emp.employeeNumber) continue;
+    const key = emp.employeeNumber.trim().toLowerCase();
+    if (!numberMap.has(key)) numberMap.set(key, []);
+    numberMap.get(key)!.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` });
+  }
+  
+  let duplicates = 0;
+  for (const [number, entries] of numberMap) {
+    if (entries.length > 1) {
+      duplicates++;
+      console.warn(`[Employee] ⚠️ DUPLICATE employee number "${number}":`, entries.map(e => `${e.name} (${e.id})`).join(', '));
+    }
+  }
+  
+  if (duplicates > 0) {
+    console.warn(`[Employee] Found ${duplicates} duplicate employee number(s) — please correct them to avoid edit errors.`);
+  } else {
+    console.log('[Employee] ✓ No duplicate employee numbers found');
   }
 }

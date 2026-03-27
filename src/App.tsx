@@ -10,6 +10,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useDeductionStore, normalizeWarehouseLossDeductions } from "@/stores/deduction-store";
+import { detectDuplicateEmployeeNumbers } from "@/stores/employee-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -274,6 +275,9 @@ function AppContent() {
           // Retroactive: normalize warehouse loss deductions to 25% rule
           normalizeWarehouseLossDeductions();
           
+          // Diagnostic: detect duplicate employee numbers
+          detectDuplicateEmployeeNumbers();
+          
           console.log('[App] Browser mode: stores loaded from mock data');
           return;
         }
@@ -386,6 +390,9 @@ function AppContent() {
             
             // Retroactive: normalize warehouse loss deductions to 25% rule
             normalizeWarehouseLossDeductions();
+            
+            // Diagnostic: detect duplicate employee numbers
+            detectDuplicateEmployeeNumbers();
           }
         } catch (error) {
           console.error('Error during initial checks:', error);
