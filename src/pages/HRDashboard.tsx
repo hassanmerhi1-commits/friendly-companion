@@ -365,7 +365,7 @@ export default function HRDashboard() {
                     <Label>{language === 'pt' ? 'Motivo da Rescisão' : 'Termination Reason'}</Label>
                     <Select 
                       value={terminationReason} 
-                      onValueChange={(v: typeof terminationReason) => setTerminationReason(v)}
+                      onValueChange={(v: TerminationReason) => setTerminationReason(v)}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -382,6 +382,9 @@ export default function HRDashboard() {
                         </SelectItem>
                         <SelectItem value="retirement">
                           {language === 'pt' ? 'Reforma' : 'Retirement'}
+                        </SelectItem>
+                        <SelectItem value="mutual_agreement">
+                          {language === 'pt' ? 'Acordo Mútuo' : 'Mutual Agreement'}
                         </SelectItem>
                       </SelectContent>
                     </Select>
