@@ -517,6 +517,96 @@ export default function HRDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Terminated Employees - Reactivate */}
+            {(() => {
+              const terminatedEmployees = employees.filter(e => e.status === 'terminated');
+              if (terminatedEmployees.length === 0) return null;
+              
+              const handleReactivate = async (emp: typeof terminatedEmployees[0]) => {
+                if (!hasPermission('hr.edit')) {
+                  toast.error(language === 'pt' ? 'Sem permissão' : 'No permission');
+                  return;
+                }
+                const result = await reverseTermination(emp.id, currentUser?.name || 'System');
+                if (result.success) {
+                  toast.success(language === 'pt' 
+                    ? `${emp.firstName} ${emp.lastName} reactivado com sucesso!` 
+                    : `${emp.firstName} ${emp.lastName} reactivated successfully!`
+                  );
+                } else {
+                  toast.error(result.error || 'Error');
+                }
+              };
+              
+              return (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserX className="h-5 w-5 text-destructive" />
+                      {language === 'pt' ? 'Colaboradores Desligados' : 'Terminated Employees'}
+                    </CardTitle>
+                    <CardDescription>
+                      {language === 'pt' 
+                        ? 'Reactivar colaboradores desligados por engano' 
+                        : 'Reactivate employees terminated by mistake'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{language === 'pt' ? 'Nome' : 'Name'}</TableHead>
+                          <TableHead>{language === 'pt' ? 'Cargo' : 'Position'}</TableHead>
+                          <TableHead>{language === 'pt' ? 'Data Rescisão' : 'Termination Date'}</TableHead>
+                          <TableHead>{language === 'pt' ? 'Motivo' : 'Reason'}</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {terminatedEmployees.map(emp => {
+                          const termRecord = terminations.find(t => t.employeeId === emp.id);
+                          const reasonLabels: Record<string, string> = {
+                            voluntary: language === 'pt' ? 'Voluntária' : 'Voluntary',
+                            dismissal: language === 'pt' ? 'Despedimento' : 'Dismissal',
+                            contract_end: language === 'pt' ? 'Fim Contrato' : 'Contract End',
+                            retirement: language === 'pt' ? 'Reforma' : 'Retirement',
+                            mutual_agreement: language === 'pt' ? 'Acordo Mútuo' : 'Mutual Agreement',
+                          };
+                          return (
+                            <TableRow key={emp.id}>
+                              <TableCell className="font-medium">{emp.firstName} {emp.lastName}</TableCell>
+                              <TableCell>{emp.position}</TableCell>
+                              <TableCell>
+                                {termRecord 
+                                  ? new Date(termRecord.terminationDate).toLocaleDateString() 
+                                  : '-'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">
+                                  {termRecord ? (reasonLabels[termRecord.reason] || termRecord.reason) : '-'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleReactivate(emp)}
+                                  disabled={!hasPermission('hr.edit')}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  {language === 'pt' ? 'Reactivar' : 'Reactivate'}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
 
           {/* Disciplinary Records Tab */}
