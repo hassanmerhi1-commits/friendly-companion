@@ -322,23 +322,16 @@ export default function Deductions() {
             <p className="text-muted-foreground">{pageSubtitle}</p>
           </div>
           {hasPermission('deductions.create') && (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={resetForm}>
-                  <Plus className="h-4 w-4" />
-                  {addDeductionLabel}
-                </Button>
-              </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{addDeductionLabel}</DialogTitle>
-              </DialogHeader>
-              {deductionFormFields}
-              <Button onClick={handleAddDeduction} className="w-full">
+            <>
+              <Button className="gap-2" onClick={handleOpenAddDeduction}>
+                <Plus className="h-4 w-4" />
                 {addDeductionLabel}
               </Button>
-              </DialogContent>
-            </Dialog>
+              <DeductionFormDialog
+                open={isAddDialogOpen}
+                onOpenChange={setIsAddDialogOpen}
+              />
+            </>
           )}
         </div>
 
