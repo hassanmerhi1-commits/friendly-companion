@@ -340,18 +340,11 @@ export default function HRDashboard() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>{language === 'pt' ? 'Colaborador' : 'Employee'}</Label>
-                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={language === 'pt' ? 'Selecionar colaborador...' : 'Select employee...'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeEmployees.map(emp => (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {emp.firstName} {emp.lastName} - {emp.position}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EmployeeSearchSelect
+                      employees={activeEmployees}
+                      value={selectedEmployeeId}
+                      onSelect={setSelectedEmployeeId}
+                    />
                   </div>
 
                   <div className="space-y-2">
