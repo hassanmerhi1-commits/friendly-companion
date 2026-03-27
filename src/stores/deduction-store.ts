@@ -2,7 +2,24 @@ import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { logAudit } from '@/lib/audit-helper';
+import { calculatePayroll } from '@/lib/angola-labor-law';
 
+const WAREHOUSE_LOSS_MAX_RATE = 0.25;
+
+/** Calculate net salary for an employee to determine 25% warehouse loss limit */
+function getEmployeeNetSalary(emp: any): number {
+  if (!emp) return 0;
+  const result = calculatePayroll({
+    baseSalary: emp.baseSalary || 0,
+    mealAllowance: emp.mealAllowance || 0,
+    transportAllowance: emp.transportAllowance || 0,
+    otherAllowances: emp.otherAllowances || 0,
+    familyAllowanceValue: emp.familyAllowance || 0,
+    isRetired: emp.isRetired || false,
+    isColaborador: emp.contractType === 'colaborador',
+  });
+  return result.netSalary;
+}
 
 interface DeductionState {
   deductions: Deduction[];
