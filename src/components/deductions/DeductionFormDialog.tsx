@@ -87,14 +87,25 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     }
   }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, formData.totalAmount]);
 
-  const monthlyAmount = formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount;
+  // For warehouse loss auto mode, the monthly deduction is exactly the 25% cap value
+  const monthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+    ? warehouseLossMaxMonthly
+    : (formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount);
 
-  // For warehouse loss, check if monthly exceeds 25% limit
-  const exceedsLimit = isWarehouseLoss && !manualOverride && monthlyAmount > warehouseLossMaxMonthly && warehouseLossMaxMonthly > 0;
+  // For warehouse loss, check if monthly exceeds 25% limit (only relevant in manual mode)
+  const exceedsLimit = isWarehouseLoss && manualOverride && formData.installments > 0 
+    && (formData.totalAmount / formData.installments) > warehouseLossMaxMonthly && warehouseLossMaxMonthly > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addDeduction(formData);
+    // For warehouse loss in auto mode, pass the exact 25% monthly amount
+    const submitData: DeductionFormData = {
+      ...formData,
+      monthlyAmount: (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+        ? warehouseLossMaxMonthly
+        : undefined,
+    };
+    addDeduction(submitData);
     toast.success(t.common.save);
     onOpenChange(false);
   };

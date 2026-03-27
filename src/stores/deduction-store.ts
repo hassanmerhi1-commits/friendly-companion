@@ -105,7 +105,10 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
     addDeduction: async (data: DeductionFormData) => {
       const now = new Date().toISOString();
       const installments = data.installments || 1;
-      const monthlyAmount = data.totalAmount / installments;
+      // Use explicit monthlyAmount if provided (e.g. exact 25% for warehouse loss)
+      const monthlyAmount = data.monthlyAmount && data.monthlyAmount > 0
+        ? data.monthlyAmount
+        : data.totalAmount / installments;
 
       const newDeduction: Deduction = {
         id: crypto.randomUUID(),
@@ -277,14 +280,13 @@ export async function normalizeWarehouseLossDeductions() {
       // Check if monthly amount exceeds 25% limit
       if (ded.amount > maxMonthly) {
         const newInstallments = Math.max(1, Math.ceil(ded.remainingAmount / maxMonthly));
-        const newMonthlyAmount = ded.remainingAmount / newInstallments;
         
         await updateDeduction(ded.id, {
           installments: ded.installmentsPaid + newInstallments,
-          amount: newMonthlyAmount,
+          amount: maxMonthly, // Use exact 25% cap, not averaged amount
         });
         fixed++;
-        console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${newMonthlyAmount} (${newInstallments} installments)`);
+        console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${maxMonthly} (${newInstallments} installments)`);
       }
     }
     
