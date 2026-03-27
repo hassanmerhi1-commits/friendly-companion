@@ -23,6 +23,7 @@ import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Che
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
+import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 
 export default function Deductions() {
   const { t, language } = useLanguage();
