@@ -47,7 +47,7 @@ import { toast } from "sonner";
 
 export default function HRDashboard() {
   const { language } = useLanguage();
-  const { hasPermission } = useAuthStore();
+  const { hasPermission, currentUser } = useAuthStore();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
