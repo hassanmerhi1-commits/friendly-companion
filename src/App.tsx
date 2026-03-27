@@ -271,6 +271,9 @@ function AppContent() {
             loadLoans(),
           ]);
           
+          // Retroactive: normalize warehouse loss deductions to 25% rule
+          normalizeWarehouseLossDeductions();
+          
           console.log('[App] Browser mode: stores loaded from mock data');
           return;
         }
