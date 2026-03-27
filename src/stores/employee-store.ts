@@ -545,3 +545,32 @@ export function cleanupEmployeeStoreSync() {
     unsubscribe = null;
   }
 }
+
+/**
+ * Startup diagnostic: detect and log duplicate employee numbers in the database.
+ */
+export function detectDuplicateEmployeeNumbers() {
+  const employees = useEmployeeStore.getState().employees;
+  const numberMap = new Map<string, { id: string; name: string }[]>();
+  
+  for (const emp of employees) {
+    if (!emp.employeeNumber) continue;
+    const key = emp.employeeNumber.trim().toLowerCase();
+    if (!numberMap.has(key)) numberMap.set(key, []);
+    numberMap.get(key)!.push({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` });
+  }
+  
+  let duplicates = 0;
+  for (const [number, entries] of numberMap) {
+    if (entries.length > 1) {
+      duplicates++;
+      console.warn(`[Employee] ⚠️ DUPLICATE employee number "${number}":`, entries.map(e => `${e.name} (${e.id})`).join(', '));
+    }
+  }
+  
+  if (duplicates > 0) {
+    console.warn(`[Employee] Found ${duplicates} duplicate employee number(s) — please correct them to avoid edit errors.`);
+  } else {
+    console.log('[Employee] ✓ No duplicate employee numbers found');
+  }
+}
