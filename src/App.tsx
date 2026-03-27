@@ -9,7 +9,7 @@ import { useAuthStore, type Permission } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
-import { useDeductionStore } from "@/stores/deduction-store";
+import { useDeductionStore, normalizeWarehouseLossDeductions } from "@/stores/deduction-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -27,6 +27,8 @@ import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bu
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
 import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
+import { useDisciplinaryStore, initDisciplinaryStoreSync } from "@/stores/disciplinary-store";
+import { useLoanStore, initLoanStoreSync } from "@/stores/loan-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -249,6 +251,8 @@ function AppContent() {
           const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
           const { loadHRData } = useHRStore.getState();
           const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+          const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
+          const { loadLoans } = useLoanStore.getState();
 
           await Promise.all([
             loadUsers(),
@@ -263,8 +267,12 @@ function AppContent() {
             loadBulkAttendance(),
             loadHRData(),
             loadOvertimePayments(),
+            loadDisciplinary(),
+            loadLoans(),
           ]);
           
+          // Retroactive: normalize warehouse loss deductions to 25% rule
+          normalizeWarehouseLossDeductions();
           
           console.log('[App] Browser mode: stores loaded from mock data');
           return;
@@ -326,6 +334,8 @@ function AppContent() {
             initHRStoreSync();
             initOvertimePaymentSync();
             initDailyAttendanceSync();
+            initDisciplinaryStoreSync();
+            initLoanStoreSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
@@ -351,6 +361,8 @@ function AppContent() {
             const { loadHRData } = useHRStore.getState();
             const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
             const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
+            const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
+            const { loadLoans } = useLoanStore.getState();
 
             await Promise.all([
               loadUsers(),
@@ -366,9 +378,14 @@ function AppContent() {
               loadHRData(),
               loadOvertimePayments(),
               loadDailyAttendance(),
+              loadDisciplinary(),
+              loadLoans(),
             ]);
 
             console.log('[App] All stores loaded from database');
+            
+            // Retroactive: normalize warehouse loss deductions to 25% rule
+            normalizeWarehouseLossDeductions();
           }
         } catch (error) {
           console.error('Error during initial checks:', error);

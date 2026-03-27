@@ -2,7 +2,24 @@ import { create } from 'zustand';
 import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { logAudit } from '@/lib/audit-helper';
+import { calculatePayroll } from '@/lib/angola-labor-law';
 
+const WAREHOUSE_LOSS_MAX_RATE = 0.25;
+
+/** Calculate net salary for an employee to determine 25% warehouse loss limit */
+function getEmployeeNetSalary(emp: any): number {
+  if (!emp) return 0;
+  const result = calculatePayroll({
+    baseSalary: emp.baseSalary || 0,
+    mealAllowance: emp.mealAllowance || 0,
+    transportAllowance: emp.transportAllowance || 0,
+    otherAllowances: emp.otherAllowances || 0,
+    familyAllowanceValue: emp.familyAllowance || 0,
+    isRetired: emp.isRetired || false,
+    isColaborador: emp.contractType === 'colaborador',
+  });
+  return result.netSalary;
+}
 
 interface DeductionState {
   deductions: Deduction[];
@@ -229,6 +246,53 @@ export function cleanupDeductionStoreSync() {
   if (unsubscribe) {
     unsubscribe();
     unsubscribe = null;
+  }
+}
+
+/**
+ * Retroactive fix: Normalize existing warehouse loss deductions to comply with 25% rule.
+ * Should be called once after loading deductions + employees.
+ */
+export async function normalizeWarehouseLossDeductions() {
+  try {
+    // Dynamic import to avoid circular dependency
+    const { useEmployeeStore } = await import('./employee-store');
+    const employees = useEmployeeStore.getState().employees;
+    const { deductions, updateDeduction } = useDeductionStore.getState();
+    
+    const warehouseLosses = deductions.filter(
+      d => d.type === 'warehouse_loss' && !d.isFullyPaid
+    );
+    
+    let fixed = 0;
+    for (const ded of warehouseLosses) {
+      const emp = employees.find(e => e.id === ded.employeeId);
+      if (!emp) continue;
+      
+      const netSalary = getEmployeeNetSalary(emp);
+      const maxMonthly = Math.round(netSalary * WAREHOUSE_LOSS_MAX_RATE);
+      
+      if (maxMonthly <= 0) continue;
+      
+      // Check if monthly amount exceeds 25% limit
+      if (ded.amount > maxMonthly) {
+        const newInstallments = Math.max(1, Math.ceil(ded.remainingAmount / maxMonthly));
+        const newMonthlyAmount = ded.remainingAmount / newInstallments;
+        
+        await updateDeduction(ded.id, {
+          installments: ded.installmentsPaid + newInstallments,
+          amount: newMonthlyAmount,
+        });
+        fixed++;
+        console.log(`[Deductions] Normalized warehouse loss for employee ${emp.firstName} ${emp.lastName}: ${ded.amount} → ${newMonthlyAmount} (${newInstallments} installments)`);
+      }
+    }
+    
+    if (fixed > 0) {
+      console.log(`[Deductions] Normalized ${fixed} warehouse loss deductions to 25% rule`);
+    }
+  } catch (error) {
+    console.error('[Deductions] Error normalizing warehouse losses:', error);
   }
 }
 
