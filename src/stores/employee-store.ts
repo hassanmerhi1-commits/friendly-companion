@@ -398,7 +398,6 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       }
     }
     
-    const currentEmployee = get().employees.find(e => e.id === id);
     if (!currentEmployee) {
       return { success: false, error: 'Funcionário não encontrado' };
     }
