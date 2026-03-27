@@ -116,18 +116,11 @@ export function SalaryAdjustmentDialog({ open, onOpenChange, preselectedEmployee
           {/* Employee Selection */}
           <div className="space-y-2">
             <Label>{language === 'pt' ? 'Colaborador' : 'Employee'} *</Label>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
-              <SelectTrigger>
-                <SelectValue placeholder={language === 'pt' ? 'Selecionar colaborador...' : 'Select employee...'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeEmployees.map(emp => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName} - {formatAOA(emp.baseSalary)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EmployeeSearchSelect
+              employees={activeEmployees}
+              value={employeeId}
+              onSelect={setEmployeeId}
+            />
           </div>
 
           {/* Adjustment Type */}
