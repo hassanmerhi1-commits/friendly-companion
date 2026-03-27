@@ -323,7 +323,6 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     
     // Check for duplicate name if being updated
     if (data.firstName || data.lastName) {
-      const currentEmployee = get().employees.find(e => e.id === id);
       if (currentEmployee) {
         const newFirstName = data.firstName || currentEmployee.firstName;
         const newLastName = data.lastName || currentEmployee.lastName;
