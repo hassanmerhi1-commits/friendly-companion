@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/lib/i18n';
 import { useDeductionStore } from '@/stores/deduction-store';
 import { useEmployeeStore } from '@/stores/employee-store';
-import { calculateFullSalary, formatAOA } from '@/lib/angola-labor-law';
+import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import type { DeductionFormData, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
 import { AlertTriangle, Info } from 'lucide-react';
