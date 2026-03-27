@@ -234,19 +234,18 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
           {/* Installments */}
           <div className="space-y-2">
             <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
-            {isWarehouseLoss && !manualOverride ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={formData.installments}
-                  readOnly
-                  className="bg-muted"
-                />
-                <Badge variant="outline" className="whitespace-nowrap text-xs">
-                  {language === 'pt' ? 'Auto (25%)' : 'Auto (25%)'}
-                </Badge>
-              </div>
-            ) : (
+            <div className={cn("flex items-center gap-2", !(isWarehouseLoss && !manualOverride) && "hidden")}>
+              <Input
+                type="number"
+                value={formData.installments}
+                readOnly
+                className="bg-muted"
+              />
+              <Badge variant="outline" className="whitespace-nowrap text-xs">
+                {language === 'pt' ? 'Auto (25%)' : 'Auto (25%)'}
+              </Badge>
+            </div>
+            <div className={cn(isWarehouseLoss && !manualOverride && "hidden")}>
               <Select 
                 value={String(formData.installments)} 
                 onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
@@ -262,7 +261,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                   ))}
                 </SelectContent>
               </Select>
-            )}
+            </div>
           </div>
 
           {/* Show calculated monthly amount */}
