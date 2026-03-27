@@ -51,7 +51,7 @@ export default function HRDashboard() {
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { branches } = useBranchStore();
-  const { loadHRData, salaryAdjustments } = useHRStore();
+  const { loadHRData, salaryAdjustments, terminations, reverseTermination } = useHRStore();
   const { records: disciplinaryRecords, loadRecords: loadDisciplinaryRecords, getActiveRecordsByEmployee } = useDisciplinaryStore();
   
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
