@@ -389,6 +389,9 @@ function AppContent() {
             
             // Retroactive: normalize warehouse loss deductions to 25% rule
             normalizeWarehouseLossDeductions();
+            
+            // Diagnostic: detect duplicate employee numbers
+            detectDuplicateEmployeeNumbers();
           }
         } catch (error) {
           console.error('Error during initial checks:', error);
