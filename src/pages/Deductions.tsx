@@ -188,46 +188,12 @@ export default function Deductions() {
       {/* Searchable Employee Combobox */}
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Funcionário *' : 'Employee *'}</Label>
-        <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={employeeSearchOpen}
-              className="w-full justify-between font-normal"
-              disabled={!!editingDeduction}
-            >
-              {selectedEmployee
-                ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}`
-                : (language === 'pt' ? 'Pesquisar funcionário...' : 'Search employee...')}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
-            <Command>
-              <CommandInput placeholder={language === 'pt' ? 'Pesquisar por nome...' : 'Search by name...'} />
-              <CommandList>
-                <CommandEmpty>{language === 'pt' ? 'Nenhum funcionário encontrado.' : 'No employee found.'}</CommandEmpty>
-                <CommandGroup>
-                  {activeEmployees.map((emp) => (
-                    <CommandItem
-                      key={emp.id}
-                      value={`${emp.firstName} ${emp.lastName}`}
-                      onSelect={() => {
-                        setFormData(prev => ({ ...prev, employeeId: emp.id }));
-                        setEmployeeSearchOpen(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", formData.employeeId === emp.id ? "opacity-100" : "opacity-0")} />
-                      {emp.firstName} {emp.lastName}
-                      {emp.department && <span className="ml-auto text-xs text-muted-foreground">{emp.department}</span>}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <EmployeeSearchSelect
+          employees={activeEmployees}
+          value={formData.employeeId}
+          onSelect={(id) => setFormData(prev => ({ ...prev, employeeId: id }))}
+          disabled={!!editingDeduction}
+        />
       </div>
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
