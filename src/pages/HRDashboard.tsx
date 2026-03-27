@@ -37,8 +37,10 @@ import {
   CheckCircle,
   ArrowRight,
   FileWarning,
-  Plus
+  Plus,
+  RotateCcw
 } from "lucide-react";
+import type { TerminationReason } from "@/types/hr";
 import { useReactToPrint } from "react-to-print";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
