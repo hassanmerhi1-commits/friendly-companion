@@ -34,6 +34,7 @@ export interface DeductionFormData {
   type: DeductionType;
   description: string;
   totalAmount: number; // Total amount to deduct
+  monthlyAmount?: number; // Optional explicit monthly installment amount
   date: string;
   installments: number; // Number of installments to spread over
 }
