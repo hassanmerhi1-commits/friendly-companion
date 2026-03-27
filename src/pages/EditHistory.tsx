@@ -50,6 +50,7 @@ const actionLabels: Record<AuditAction, { pt: string; en: string }> = {
   attendance_updated: { pt: 'Assiduidade Editada', en: 'Attendance Updated' },
   settings_updated: { pt: 'Configurações Alteradas', en: 'Settings Updated' },
   correction_applied: { pt: 'Correção Aplicada', en: 'Correction Applied' },
+  termination_reversed: { pt: 'Rescisão Revertida', en: 'Termination Reversed' },
 };
 
 const entityTypeLabels: Record<string, { pt: string; en: string }> = {

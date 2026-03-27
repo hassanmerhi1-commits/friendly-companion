@@ -80,6 +80,7 @@ const actionColors: Record<AuditAction, string> = {
   attendance_updated: 'text-blue-500',
   settings_updated: 'text-blue-500',
   correction_applied: 'text-amber-500',
+  termination_reversed: 'text-green-500',
 };
 
 export function AuditLogPanel() {
