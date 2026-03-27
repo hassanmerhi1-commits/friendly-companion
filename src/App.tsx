@@ -383,6 +383,9 @@ function AppContent() {
             ]);
 
             console.log('[App] All stores loaded from database');
+            
+            // Retroactive: normalize warehouse loss deductions to 25% rule
+            normalizeWarehouseLossDeductions();
           }
         } catch (error) {
           console.error('Error during initial checks:', error);
