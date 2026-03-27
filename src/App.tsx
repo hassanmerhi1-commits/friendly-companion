@@ -251,6 +251,8 @@ function AppContent() {
           const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
           const { loadHRData } = useHRStore.getState();
           const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+          const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
+          const { loadLoans } = useLoanStore.getState();
 
           await Promise.all([
             loadUsers(),
@@ -265,8 +267,9 @@ function AppContent() {
             loadBulkAttendance(),
             loadHRData(),
             loadOvertimePayments(),
+            loadDisciplinary(),
+            loadLoans(),
           ]);
-          
           
           console.log('[App] Browser mode: stores loaded from mock data');
           return;
