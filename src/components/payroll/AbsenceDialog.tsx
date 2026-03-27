@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -222,18 +223,12 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.employee}</Label>
-                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t.selectEmployee} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.filter(e => e.status === 'active').map((emp) => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} - {emp.department}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EmployeeSearchSelect
+                  employees={employees.filter(e => e.status === 'active')}
+                  value={selectedEmployeeId}
+                  onSelect={setSelectedEmployeeId}
+                  placeholder={t.selectEmployee}
+                />
               </div>
 
               <div className="space-y-2">

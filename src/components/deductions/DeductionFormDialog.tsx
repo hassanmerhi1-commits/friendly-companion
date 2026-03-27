@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -121,22 +122,12 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>{t.deductions.selectEmployee}</Label>
-            <Select
+            <EmployeeSearchSelect
+              employees={activeEmployees}
               value={formData.employeeId}
-              onValueChange={(v) => setFormData(prev => ({ ...prev, employeeId: v }))}
-              required
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t.deductions.selectEmployee} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onSelect={(v) => setFormData(prev => ({ ...prev, employeeId: v }))}
+              placeholder={t.deductions.selectEmployee}
+            />
           </div>
 
           <div className="space-y-2">

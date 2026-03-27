@@ -19,6 +19,7 @@ import { buildEmployeeSalaryHistory, buildSalaryComparison, calculateTermination
 import { EmployeeSalaryHistoryReport } from "@/components/reports/EmployeeSalaryHistoryReport";
 import { SalaryComparisonReport } from "@/components/reports/SalaryComparisonReport";
 import { TerminationDialog } from "@/components/hr/TerminationDialog";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { SalaryAdjustmentsList } from "@/components/hr/SalaryAdjustmentsList";
 import { DisciplinaryRecordDialog } from "@/components/hr/DisciplinaryRecordDialog";
 import { DisciplinaryRecordsList } from "@/components/hr/DisciplinaryRecordsList";
@@ -340,18 +341,11 @@ export default function HRDashboard() {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label>{language === 'pt' ? 'Colaborador' : 'Employee'}</Label>
-                    <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={language === 'pt' ? 'Selecionar colaborador...' : 'Select employee...'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeEmployees.map(emp => (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {emp.firstName} {emp.lastName} - {emp.position}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <EmployeeSearchSelect
+                      employees={activeEmployees}
+                      value={selectedEmployeeId}
+                      onSelect={setSelectedEmployeeId}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -666,18 +660,12 @@ export default function HRDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="mb-4">
-                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="w-full max-w-md">
-                      <SelectValue placeholder={language === 'pt' ? 'Selecionar colaborador...' : 'Select employee...'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map(emp => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} - {emp.position}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <EmployeeSearchSelect
+                    employees={employees}
+                    value={selectedEmployeeId}
+                    onSelect={setSelectedEmployeeId}
+                    className="max-w-md"
+                  />
                 </div>
 
                 {salaryHistory ? (

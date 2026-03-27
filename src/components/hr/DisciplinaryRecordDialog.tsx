@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -127,20 +128,13 @@ export function DisciplinaryRecordDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Funcionário</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione o funcionário" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {activeEmployees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.firstName} {emp.lastName} - {emp.position}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <EmployeeSearchSelect
+                      employees={activeEmployees}
+                      value={field.value}
+                      onSelect={field.onChange}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
