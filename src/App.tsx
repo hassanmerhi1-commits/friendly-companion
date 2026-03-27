@@ -27,6 +27,8 @@ import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bu
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
 import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
+import { useDisciplinaryStore, initDisciplinaryStoreSync } from "@/stores/disciplinary-store";
+import { useLoanStore, initLoanStoreSync } from "@/stores/loan-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
