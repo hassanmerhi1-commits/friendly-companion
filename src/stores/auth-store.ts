@@ -136,6 +136,37 @@ export interface AppUser {
   createdAt: string;
 }
 
+const SESSION_KEY = 'payroll_session';
+
+interface SavedSession {
+  userId: string;
+  companyId?: string;
+  timestamp: number;
+}
+
+function saveSession(userId: string) {
+  const session: SavedSession = {
+    userId,
+    companyId: localStorage.getItem('payroll_last_company_id') || undefined,
+    timestamp: Date.now(),
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
+export function getSavedSession(): SavedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedSession;
+  } catch {
+    return null;
+  }
+}
+
 interface AuthState {
   users: AppUser[];
   currentUser: AppUser | null;
@@ -144,8 +175,9 @@ interface AuthState {
   
   // Auth actions
   loadUsers: () => Promise<void>;
-  login: (username: string, password: string) => { success: boolean; error?: string };
+  login: (username: string, password: string, rememberMe?: boolean) => { success: boolean; error?: string };
   logout: () => void;
+  restoreSession: () => boolean;
   
   // Permission check
   hasPermission: (permission: Permission) => boolean;
@@ -247,7 +279,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       }
     },
     
-    login: (username: string, password: string) => {
+    login: (username: string, password: string, rememberMe?: boolean) => {
       const user = get().users.find(
         u => u.username.toLowerCase() === username.toLowerCase() && 
              u.password === password && 
@@ -256,6 +288,11 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       
       if (user) {
         set({ currentUser: user, isAuthenticated: true });
+        if (rememberMe) {
+          saveSession(user.id);
+        } else {
+          clearSession();
+        }
         return { success: true };
       }
       
@@ -263,7 +300,21 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     },
     
     logout: () => {
+      clearSession();
       set({ currentUser: null, isAuthenticated: false });
+    },
+
+    restoreSession: () => {
+      const session = getSavedSession();
+      if (!session) return false;
+      const user = get().users.find(u => u.id === session.userId && u.isActive);
+      if (!user) {
+        clearSession();
+        return false;
+      }
+      set({ currentUser: user, isAuthenticated: true });
+      console.log('[Auth] Session restored for user:', user.username);
+      return true;
     },
     
     hasPermission: (permission: Permission) => {
