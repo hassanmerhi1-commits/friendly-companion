@@ -63,9 +63,12 @@ export function KPIMetricsGrid() {
     // Calculate average salary
     const totalSalary = activeEmployees.reduce((sum, e) => {
       return sum + e.baseSalary + (e.mealAllowance || 0) + (e.transportAllowance || 0) +
-             (e.familyAllowance || 0) + (e.monthlyBonus || 0);
+             (e.familyAllowance || 0) + (e.otherAllowances || 0);
     }, 0);
     const avgSalary = totalHeadcount > 0 ? totalSalary / totalHeadcount : 0;
+    
+    // Calculate total bonus
+    const totalBonus = activeEmployees.reduce((sum, e) => sum + (e.monthlyBonus || 0), 0);
     
     // Get current and previous period for comparison
     const sortedPeriods = [...periods]
@@ -101,6 +104,7 @@ export function KPIMetricsGrid() {
     return {
       headcount: totalHeadcount,
       avgSalary,
+      totalBonus,
       currentPayroll,
       payrollChange,
       costPerEmployee,
@@ -114,13 +118,14 @@ export function KPIMetricsGrid() {
     monthlyPayroll: language === 'pt' ? 'Folha Mensal' : 'Monthly Payroll',
     costPerEmployee: language === 'pt' ? 'Custo por Funcionário' : 'Cost per Employee',
     deductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
+    bonus: language === 'pt' ? 'Total Bónus' : 'Total Bonus',
     vsLastMonth: language === 'pt' ? 'vs mês anterior' : 'vs last month',
   };
 
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           <MetricCard
             label={t.headcount}
             value={metrics.headcount}
@@ -141,6 +146,11 @@ export function KPIMetricsGrid() {
             label={t.costPerEmployee}
             value={formatAOA(metrics.costPerEmployee)}
             color="blue"
+          />
+          <MetricCard
+            label={t.bonus}
+            value={formatAOA(metrics.totalBonus)}
+            color="green"
           />
           <MetricCard
             label={t.deductions}

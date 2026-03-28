@@ -140,8 +140,18 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
             <div className="text-2xl font-bold text-primary font-mono">
               {formatAOA(totalCompensation)}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {language === 'pt' ? 'Base' : 'Base'}: {formatAOA(employee.baseSalary)}
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <div>{language === 'pt' ? 'Base' : 'Base'}: {formatAOA(employee.baseSalary)}</div>
+              {(employee.monthlyBonus || 0) > 0 && (
+                <div className="text-accent font-medium">
+                  {language === 'pt' ? 'Bónus' : 'Bonus'}: {formatAOA(employee.monthlyBonus || 0)}
+                </div>
+              )}
+              {(employee.otherAllowances || 0) > 0 && (
+                <div>
+                  {language === 'pt' ? 'Outros Subsídios' : 'Other Allowances'}: {formatAOA(employee.otherAllowances || 0)}
+                </div>
+              )}
             </div>
           </div>
         </div>

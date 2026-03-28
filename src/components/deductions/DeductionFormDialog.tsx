@@ -90,9 +90,16 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
   }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, formData.totalAmount]);
 
   // For warehouse loss auto mode, the monthly deduction is exactly the 25% cap value
-  const monthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+  // But the last installment should only be the remaining balance
+  const rawMonthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
     ? warehouseLossMaxMonthly
     : (formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount);
+  const monthlyAmount = rawMonthlyAmount;
+  
+  // Calculate what the last installment would be
+  const lastInstallmentAmount = (formData.installments > 1 && formData.totalAmount > 0)
+    ? Math.max(0, formData.totalAmount - (rawMonthlyAmount * (formData.installments - 1)))
+    : rawMonthlyAmount;
 
   // For warehouse loss, check if monthly exceeds 25% limit (only relevant in manual mode)
   const exceedsLimit = isWarehouseLoss && manualOverride && formData.installments > 0 
@@ -275,14 +282,26 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                 </span>
               </div>
               {formData.installments > 1 && (
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">
-                    {language === 'pt' ? 'Durante:' : 'Over:'}
-                  </span>
-                  <span className="font-medium">
-                    {formData.installments} {language === 'pt' ? 'meses' : 'months'}
-                  </span>
-                </div>
+                <>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-muted-foreground">
+                      {language === 'pt' ? 'Durante:' : 'Over:'}
+                    </span>
+                    <span className="font-medium">
+                      {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+                    </span>
+                  </div>
+                  {Math.abs(lastInstallmentAmount - monthlyAmount) > 1 && (
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-muted-foreground">
+                        {language === 'pt' ? 'Última prestação:' : 'Last installment:'}
+                      </span>
+                      <span className="font-medium text-accent">
+                        {formatAOA(lastInstallmentAmount)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
