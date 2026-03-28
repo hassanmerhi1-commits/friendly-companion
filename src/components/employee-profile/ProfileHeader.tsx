@@ -16,6 +16,7 @@ import { Employee } from '@/types/employee';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import { useBranchStore } from '@/stores/branch-store';
+import { Badge } from '@/components/ui/badge';
 
 interface ProfileHeaderProps {
   employee: Employee;
@@ -94,6 +95,11 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
                 {employee.firstName} {employee.lastName}
               </h1>
               {getStatusBadge(employee.status)}
+              {employee.isRetired && (
+                <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/20">
+                  {language === 'pt' ? 'Reformado' : 'Retired'}
+                </Badge>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
