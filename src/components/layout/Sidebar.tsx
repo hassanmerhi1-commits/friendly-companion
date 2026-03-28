@@ -131,3 +131,55 @@ export function Sidebar() {
     </aside>
   );
 }
+
+function SidebarUpdateButton({ language }: { language: string }) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const isElectronEnv = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
+
+  const handleCheck = async () => {
+    if (!isElectronEnv) {
+      setResult(language === 'pt' ? 'Apenas no desktop' : 'Desktop only');
+      setTimeout(() => setResult(null), 3000);
+      return;
+    }
+    setChecking(true);
+    setResult(null);
+    try {
+      const api = (window as any).electronAPI;
+      const response = await api.updater.check();
+      if (response.success && response.updateInfo) {
+        setResult(`v${response.updateInfo.version}`);
+      } else if (response.success) {
+        setResult(language === 'pt' ? 'Actualizado ✓' : 'Up to date ✓');
+      } else {
+        setResult(language === 'pt' ? 'Erro' : 'Error');
+      }
+    } catch {
+      setResult(language === 'pt' ? 'Erro' : 'Error');
+    } finally {
+      setChecking(false);
+      setTimeout(() => setResult(null), 5000);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        onClick={handleCheck}
+        disabled={checking}
+        className="sidebar-link w-full text-sidebar-foreground/60 hover:text-primary"
+      >
+        {checking ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <RefreshCw className="h-5 w-5" />
+        )}
+        <span>{checking ? (language === 'pt' ? 'A verificar...' : 'Checking...') : (language === 'pt' ? 'Actualizações' : 'Updates')}</span>
+      </button>
+      {result && (
+        <p className="text-xs text-muted-foreground px-3 py-1">{result}</p>
+      )}
+    </div>
+  );
+}
