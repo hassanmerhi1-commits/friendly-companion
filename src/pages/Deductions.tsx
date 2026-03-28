@@ -89,7 +89,7 @@ export default function Deductions() {
       baseSalary: employee.baseSalary,
       mealAllowance: employee.mealAllowance,
       transportAllowance: employee.transportAllowance,
-      otherAllowances: employee.otherAllowances,
+      otherAllowances: (employee.otherAllowances || 0) + (employee.monthlyBonus || 0),
       familyAllowanceValue: employee.familyAllowance || 0,
       isRetired: employee.isRetired,
       isColaborador: employee.contractType === 'colaborador',
