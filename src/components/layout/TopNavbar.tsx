@@ -78,9 +78,40 @@ export function TopNavbar() {
     return hasPermission(item.permission);
   });
 
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<string | null>(null);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const isElectronEnv = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
+
+  const handleCheckForUpdates = async () => {
+    if (!isElectronEnv) {
+      setUpdateResult(language === 'pt' ? 'Apenas disponível na aplicação desktop' : 'Only available in desktop app');
+      setTimeout(() => setUpdateResult(null), 3000);
+      return;
+    }
+    setCheckingUpdate(true);
+    setUpdateResult(null);
+    try {
+      const api = (window as any).electronAPI;
+      const response = await api.updater.check();
+      if (response.success && response.updateInfo) {
+        setUpdateResult(language === 'pt' ? `Nova versão: ${response.updateInfo.version}` : `New version: ${response.updateInfo.version}`);
+      } else if (response.success) {
+        setUpdateResult(language === 'pt' ? 'Já tem a versão mais recente' : 'Already up to date');
+      } else {
+        setUpdateResult(response.error || (language === 'pt' ? 'Erro ao verificar' : 'Check failed'));
+      }
+    } catch {
+      setUpdateResult(language === 'pt' ? 'Erro ao verificar' : 'Check failed');
+    } finally {
+      setCheckingUpdate(false);
+      setTimeout(() => setUpdateResult(null), 5000);
+    }
   };
 
   const isActive = (href: string) => location.pathname === href;
