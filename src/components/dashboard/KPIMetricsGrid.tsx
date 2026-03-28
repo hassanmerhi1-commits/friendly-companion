@@ -63,9 +63,12 @@ export function KPIMetricsGrid() {
     // Calculate average salary
     const totalSalary = activeEmployees.reduce((sum, e) => {
       return sum + e.baseSalary + (e.mealAllowance || 0) + (e.transportAllowance || 0) +
-             (e.familyAllowance || 0) + (e.monthlyBonus || 0);
+             (e.familyAllowance || 0) + (e.otherAllowances || 0);
     }, 0);
     const avgSalary = totalHeadcount > 0 ? totalSalary / totalHeadcount : 0;
+    
+    // Calculate total bonus
+    const totalBonus = activeEmployees.reduce((sum, e) => sum + (e.monthlyBonus || 0), 0);
     
     // Get current and previous period for comparison
     const sortedPeriods = [...periods]
