@@ -329,6 +329,7 @@ const Employees = () => {
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Contrato' : 'Contract'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Estado' : 'Status'}</th>
                 <th className="px-3 py-3 text-right">{language === 'pt' ? 'Salário' : 'Salary'}</th>
+                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
                 <th className="px-3 py-3 text-right">{language === 'pt' ? 'Ações' : 'Actions'}</th>
               </tr>
             </thead>
