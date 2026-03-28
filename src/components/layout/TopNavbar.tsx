@@ -175,13 +175,36 @@ export function TopNavbar() {
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem asChild>
                   <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
                     <Settings className="h-4 w-4" />
                     <span>{t.nav.settings}</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={handleCheckForUpdates}
+                  disabled={checkingUpdate}
+                  className="cursor-pointer"
+                >
+                  {checkingUpdate ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{language === 'pt' ? 'A verificar...' : 'Checking...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <span>{language === 'pt' ? 'Verificar Actualizações' : 'Check for Updates'}</span>
+                    </>
+                  )}
+                </DropdownMenuItem>
+                {updateResult && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {updateResult}
+                  </div>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={handleLogout}
