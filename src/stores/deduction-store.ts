@@ -13,7 +13,7 @@ function getEmployeeNetSalary(emp: any): number {
     baseSalary: emp.baseSalary || 0,
     mealAllowance: emp.mealAllowance || 0,
     transportAllowance: emp.transportAllowance || 0,
-    otherAllowances: emp.otherAllowances || 0,
+    otherAllowances: (emp.otherAllowances || 0) + (emp.monthlyBonus || 0),
     familyAllowanceValue: emp.familyAllowance || 0,
     isRetired: emp.isRetired || false,
     isColaborador: emp.contractType === 'colaborador',
