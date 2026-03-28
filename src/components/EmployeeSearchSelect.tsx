@@ -7,6 +7,14 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import type { Employee } from "@/types/employee";
 
+const normalizeSearchText = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
 interface EmployeeSearchSelectProps {
   employees: Employee[];
   value: string;
@@ -47,13 +55,17 @@ export function EmployeeSearchSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full min-w-[300px] p-0" align="start">
-        <Command filter={(value, search) => {
-          // Custom filter: match against full name, position, department, employee number
-          const normalizedSearch = search.toLowerCase().trim();
-          const normalizedValue = value.toLowerCase();
-          // Split search into words and check all words match
-          const searchWords = normalizedSearch.split(/\s+/);
-          return searchWords.every(word => normalizedValue.includes(word)) ? 1 : 0;
+        <Command filter={(value, search, keywords) => {
+          const normalizedSearch = normalizeSearchText(search);
+          if (!normalizedSearch) return 1;
+
+          const searchableText = normalizeSearchText([
+            value,
+            ...(keywords ?? []),
+          ].join(" "));
+
+          const searchWords = normalizedSearch.split(" ");
+          return searchWords.every((word) => searchableText.includes(word)) ? 1 : 0;
         }}>
           <CommandInput placeholder={language === 'pt' ? 'Pesquisar por nome...' : 'Search by name...'} />
           <CommandList>
@@ -62,7 +74,14 @@ export function EmployeeSearchSelect({
               {employees.map((emp) => (
                 <CommandItem
                   key={emp.id}
-                  value={`${emp.firstName} ${emp.lastName} ${emp.position || ''} ${emp.department || ''} ${emp.employeeNumber || ''}`}
+                  value={`${emp.firstName} ${emp.lastName}`}
+                  keywords={[
+                    `${emp.firstName} ${emp.lastName}`,
+                    `${emp.lastName} ${emp.firstName}`,
+                    emp.position || '',
+                    emp.department || '',
+                    emp.employeeNumber || '',
+                  ]}
                   onSelect={() => {
                     onSelect(emp.id);
                     setOpen(false);
