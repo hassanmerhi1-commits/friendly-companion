@@ -397,6 +397,20 @@ const Employees = () => {
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
+                          {hasPermission('employees.edit') && (
+                            <DropdownMenuItem onClick={() => {
+                              const newValue = !employee.isRetired;
+                              updateEmployee(employee.id, { isRetired: newValue });
+                              toast.success(newValue
+                                ? (language === 'pt' ? 'Marcado como Reformado' : 'Marked as Retired')
+                                : (language === 'pt' ? 'Desmarcado como Reformado' : 'Unmarked as Retired'));
+                            }}>
+                              <Clock className="h-4 w-4 mr-2" />
+                              {employee.isRetired
+                                ? (language === 'pt' ? 'Desmarcar Reformado' : 'Unmark Retired')
+                                : (language === 'pt' ? 'Marcar Reformado' : 'Mark Retired')}
+                            </DropdownMenuItem>
+                          )}
                           {hasPermission('employees.delete') && (
                             <DropdownMenuItem onClick={() => handleDeleteClick(employee)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
