@@ -102,10 +102,10 @@ const Employees = () => {
       const matchesStatus = statusFilter === 'all' 
         ? true 
         : statusFilter === 'terminated' 
-          ? emp.status === 'terminated'
+          ? (emp.status === 'terminated' || emp.isRetired)
           : statusFilter === 'pending'
             ? emp.status === 'pending_approval'
-            : emp.status === 'active';
+            : (emp.status === 'active' && !emp.isRetired);
       
       return matchesSearch && matchesBranch && matchesStatus;
     })
