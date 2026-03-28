@@ -19,7 +19,9 @@ import {
   Archive,
   Menu,
   X,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
