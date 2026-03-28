@@ -118,6 +118,7 @@ export function KPIMetricsGrid() {
     monthlyPayroll: language === 'pt' ? 'Folha Mensal' : 'Monthly Payroll',
     costPerEmployee: language === 'pt' ? 'Custo por Funcionário' : 'Cost per Employee',
     deductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
+    bonus: language === 'pt' ? 'Total Bónus' : 'Total Bonus',
     vsLastMonth: language === 'pt' ? 'vs mês anterior' : 'vs last month',
   };
 
