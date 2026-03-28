@@ -16,7 +16,6 @@ import { Employee } from '@/types/employee';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import { useBranchStore } from '@/stores/branch-store';
-import { Badge } from '@/components/ui/badge';
 
 interface ProfileHeaderProps {
   employee: Employee;

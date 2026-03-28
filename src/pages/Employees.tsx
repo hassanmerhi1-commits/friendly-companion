@@ -61,6 +61,7 @@ const Employees = () => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { employees, deleteEmployee, approveEmployee, rejectEmployee } = useEmployeeStore();
+  const { updateEmployee } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
   const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
   const { branches: allBranches } = useBranchStore();
