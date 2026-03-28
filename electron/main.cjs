@@ -272,88 +272,101 @@ function activateApp() {
 }
 
 // ============= WEBSOCKET SERVER (SERVER MODE) =============
+let actualWsPort = WS_PORT;
+
 function startWebSocketServer() {
   if (wss) {
     console.log('[WS] Server already running');
-    return { success: true, port: WS_PORT };
+    return { success: true, port: actualWsPort };
   }
 
-  try {
-    wss = new WebSocketServer({ port: WS_PORT, host: '0.0.0.0' });
-    
-    console.log(`✅ WebSocket server running on port ${WS_PORT}`);
+  // Try WS_PORT first, then WS_PORT+1, +2, ... up to +10
+  const MAX_PORT_ATTEMPTS = 10;
+  
+  for (let attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt++) {
+    const tryPort = WS_PORT + attempt;
+    try {
+      const server = new WebSocketServer({ port: tryPort, host: '0.0.0.0' });
+      wss = server;
+      actualWsPort = tryPort;
+      
+      console.log(`✅ WebSocket server running on port ${tryPort}${attempt > 0 ? ` (primary port ${WS_PORT} was in use)` : ''}`);
 
-    wss.on('connection', (ws, req) => {
-      const clientIP = req.socket.remoteAddress;
-      console.log(`[WS] Client connected from ${clientIP}`);
+      wss.on('connection', (ws, req) => {
+        const clientIP = req.socket.remoteAddress;
+        console.log(`[WS] Client connected from ${clientIP}`);
 
-      // No initial sync - client must send 'setCompany' first to receive data
-
-      ws.on('message', (raw) => {
-        try {
-          const msg = JSON.parse(raw.toString());
-          console.log(`[WS] ← ${msg.action}(${msg.table || ''}) companyId=${msg.companyId || 'none'} from ${clientIP}`);
-          
-          // Handle company-specific actions
-          if (msg.action === 'listCompanies') {
-            const companies = ensureCompaniesRegistry();
-            ws.send(JSON.stringify({ success: true, data: companies, requestId: msg.requestId }));
-            return;
-          }
-          
-          if (msg.action === 'createCompany') {
-            const result = createCompany(msg.name);
-            ws.send(JSON.stringify({ ...result, requestId: msg.requestId }));
-            return;
-          }
-          
-          if (msg.action === 'setCompany') {
-            wsClientCompanies.set(ws, msg.companyId);
-            // Send initial data for this company
-            const targetDb = getCompanyDb(msg.companyId);
-            if (targetDb) {
-              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
-              for (const table of tables) {
-                try {
-                  const rows = dbGetAll(table, targetDb);
-                  ws.send(JSON.stringify({ type: 'db-sync', table, rows, companyId: msg.companyId }));
-                  console.log(`[WS] → Sent initial ${table}: ${rows.length} rows (${msg.companyId}) to ${clientIP}`);
-                } catch (e) {
-                  console.error(`[WS] Error sending initial ${table}:`, e);
+        ws.on('message', (raw) => {
+          try {
+            const msg = JSON.parse(raw.toString());
+            console.log(`[WS] ← ${msg.action}(${msg.table || ''}) companyId=${msg.companyId || 'none'} from ${clientIP}`);
+            
+            if (msg.action === 'listCompanies') {
+              const companies = ensureCompaniesRegistry();
+              ws.send(JSON.stringify({ success: true, data: companies, requestId: msg.requestId }));
+              return;
+            }
+            
+            if (msg.action === 'createCompany') {
+              const result = createCompany(msg.name);
+              ws.send(JSON.stringify({ ...result, requestId: msg.requestId }));
+              return;
+            }
+            
+            if (msg.action === 'setCompany') {
+              wsClientCompanies.set(ws, msg.companyId);
+              const targetDb = getCompanyDb(msg.companyId);
+              if (targetDb) {
+                const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
+                for (const table of tables) {
+                  try {
+                    const rows = dbGetAll(table, targetDb);
+                    ws.send(JSON.stringify({ type: 'db-sync', table, rows, companyId: msg.companyId }));
+                    console.log(`[WS] → Sent initial ${table}: ${rows.length} rows (${msg.companyId}) to ${clientIP}`);
+                  } catch (e) {
+                    console.error(`[WS] Error sending initial ${table}:`, e);
+                  }
                 }
               }
+              ws.send(JSON.stringify({ success: true, requestId: msg.requestId }));
+              return;
             }
-            ws.send(JSON.stringify({ success: true, requestId: msg.requestId }));
-            return;
+            
+            const response = handleDBRequest(msg);
+            ws.send(JSON.stringify({ ...response, requestId: msg.requestId }));
+          } catch (err) {
+            console.error('[WS] Error handling message:', err);
+            ws.send(JSON.stringify({ success: false, error: err.message }));
           }
-          
-          const response = handleDBRequest(msg);
-          ws.send(JSON.stringify({ ...response, requestId: msg.requestId }));
-        } catch (err) {
-          console.error('[WS] Error handling message:', err);
-          ws.send(JSON.stringify({ success: false, error: err.message }));
-        }
+        });
+
+        ws.on('close', () => {
+          console.log(`[WS] Client disconnected: ${clientIP}`);
+        });
+
+        ws.on('error', (err) => {
+          console.log(`[WS] Client error: ${err.message}`);
+        });
       });
 
-      ws.on('close', () => {
-        console.log(`[WS] Client disconnected: ${clientIP}`);
+      wss.on('error', (err) => {
+        console.error('[WS] Server error:', err);
+        wss = null;
       });
 
-      ws.on('error', (err) => {
-        console.log(`[WS] Client error: ${err.message}`);
-      });
-    });
-
-    wss.on('error', (err) => {
-      console.error('[WS] Server error:', err);
-      wss = null;
-    });
-
-    return { success: true, port: WS_PORT };
-  } catch (error) {
-    console.error('[WS] Error starting server:', error);
-    return { success: false, error: error.message };
+      return { success: true, port: actualWsPort };
+    } catch (error) {
+      if (error.code === 'EADDRINUSE') {
+        console.log(`[WS] Port ${tryPort} in use, trying next...`);
+        continue;
+      }
+      console.error('[WS] Error starting server:', error);
+      return { success: false, error: error.message };
+    }
   }
+
+  console.error(`[WS] Could not find an available port (tried ${WS_PORT}-${WS_PORT + MAX_PORT_ATTEMPTS - 1})`);
+  return { success: false, error: 'All WebSocket ports are in use' };
 }
 
 // Broadcast full table data to all clients (TRUE PUSH-BASED SYNC)
@@ -861,7 +874,7 @@ function initDatabase() {
     startWebSocketServer();
     
     console.log('SERVER MODE: Connected to database at:', dbPath);
-    return { success: true, mode: 'server', path: dbPath, wsPort: WS_PORT };
+    return { success: true, mode: 'server', path: dbPath, wsPort: actualWsPort };
   } catch (error) {
     console.error('Error initializing database:', error);
     return { success: false, error: error.message };
@@ -1876,7 +1889,7 @@ ipcMain.handle('db:getStatus', async () => {
     exists: isServerMode && dbPath ? checkDatabaseExists(dbPath) : null,
     connected: isServerMode ? (db !== null) : clientConnected,
     wsServerRunning: wss !== null,
-    wsPort: WS_PORT,
+    wsPort: actualWsPort,
     wsClients: wss ? wss.clients.size : 0,
     wsClientConnected: wsClient ? wsClient.readyState === WebSocket.OPEN : false,
     error: ipConfig.error || clientError,
