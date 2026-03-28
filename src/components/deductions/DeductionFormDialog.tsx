@@ -282,14 +282,26 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                 </span>
               </div>
               {formData.installments > 1 && (
-                <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">
-                    {language === 'pt' ? 'Durante:' : 'Over:'}
-                  </span>
-                  <span className="font-medium">
-                    {formData.installments} {language === 'pt' ? 'meses' : 'months'}
-                  </span>
-                </div>
+                <>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-muted-foreground">
+                      {language === 'pt' ? 'Durante:' : 'Over:'}
+                    </span>
+                    <span className="font-medium">
+                      {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+                    </span>
+                  </div>
+                  {Math.abs(lastInstallmentAmount - monthlyAmount) > 1 && (
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-muted-foreground">
+                        {language === 'pt' ? 'Última prestação:' : 'Last installment:'}
+                      </span>
+                      <span className="font-medium text-accent">
+                        {formatAOA(lastInstallmentAmount)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
