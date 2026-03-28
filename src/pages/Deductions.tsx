@@ -89,7 +89,7 @@ export default function Deductions() {
       baseSalary: employee.baseSalary,
       mealAllowance: employee.mealAllowance,
       transportAllowance: employee.transportAllowance,
-      otherAllowances: employee.otherAllowances,
+      otherAllowances: (employee.otherAllowances || 0) + (employee.monthlyBonus || 0),
       familyAllowanceValue: employee.familyAllowance || 0,
       isRetired: employee.isRetired,
       isColaborador: employee.contractType === 'colaborador',
@@ -675,7 +675,7 @@ export default function Deductions() {
             resetForm();
           }
         }}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{language === 'pt' ? 'Editar Desconto' : 'Edit Deduction'}</DialogTitle>
             </DialogHeader>
@@ -687,9 +687,11 @@ export default function Deductions() {
                   : `Note: ${editingDeduction.installmentsPaid} installment(s) have already been paid.`}
               </div>
             )}
-            <Button onClick={handleUpdateDeduction} className="w-full">
-              {language === 'pt' ? 'Guardar Alterações' : 'Save Changes'}
-            </Button>
+            <div className="sticky bottom-0 bg-background pt-3 border-t">
+              <Button onClick={handleUpdateDeduction} className="w-full">
+                {language === 'pt' ? 'Guardar Alterações' : 'Save Changes'}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

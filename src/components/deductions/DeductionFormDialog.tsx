@@ -66,7 +66,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       baseSalary: emp.baseSalary,
       mealAllowance: emp.mealAllowance,
       transportAllowance: emp.transportAllowance,
-      otherAllowances: emp.otherAllowances,
+      otherAllowances: (emp.otherAllowances || 0) + (emp.monthlyBonus || 0),
       familyAllowanceValue: emp.familyAllowance || 0,
       isRetired: emp.isRetired,
       isColaborador: emp.contractType === 'colaborador',
