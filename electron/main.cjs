@@ -1889,7 +1889,7 @@ ipcMain.handle('db:getStatus', async () => {
     exists: isServerMode && dbPath ? checkDatabaseExists(dbPath) : null,
     connected: isServerMode ? (db !== null) : clientConnected,
     wsServerRunning: wss !== null,
-    wsPort: WS_PORT,
+    wsPort: actualWsPort,
     wsClients: wss ? wss.clients.size : 0,
     wsClientConnected: wsClient ? wsClient.readyState === WebSocket.OPEN : false,
     error: ipConfig.error || clientError,
