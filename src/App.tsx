@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import { useAuthStore, type Permission } from "@/stores/auth-store";
+import { getSavedSession } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
@@ -67,7 +68,7 @@ const isDevelopmentPreview = () => {
 };
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, login } = useAuthStore();
+  const { isAuthenticated, login, restoreSession } = useAuthStore();
   
   useEffect(() => {
     if (isDevelopmentPreview() && !isAuthenticated) {
@@ -79,7 +80,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
   
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !getSavedSession()) {
     return <Navigate to="/login" replace />;
   }
   
@@ -94,7 +95,7 @@ function PermissionRoute({
   children: React.ReactNode;
   requiredPermission: Permission | Permission[];
 }) {
-  const { isAuthenticated, hasPermission, isLoaded, login } = useAuthStore();
+  const { isAuthenticated, hasPermission, isLoaded, login, restoreSession } = useAuthStore();
   const { language } = useLanguage();
   
   // Auto-login in development preview
@@ -118,6 +119,17 @@ function PermissionRoute({
   }
   
   if (!isAuthenticated && !isDevelopmentPreview()) {
+    // Check if we have a saved session that hasn't been restored yet
+    if (getSavedSession()) {
+      // Session will be restored after stores are loaded
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-muted-foreground">
+            {language === 'pt' ? 'A restaurar sessão...' : 'Restoring session...'}
+          </div>
+        </div>
+      );
+    }
     return <Navigate to="/login" replace />;
   }
   
@@ -279,6 +291,12 @@ function AppContent() {
           detectDuplicateEmployeeNumbers();
           
           console.log('[App] Browser mode: stores loaded from mock data');
+          
+          // Try to restore saved session (non-dev mode handled below)
+          if (!isDevelopmentPreview()) {
+            useAuthStore.getState().restoreSession();
+          }
+          
           return;
         }
 
@@ -387,6 +405,9 @@ function AppContent() {
             ]);
 
             console.log('[App] All stores loaded from database');
+            
+            // Restore saved session after all stores are loaded
+            useAuthStore.getState().restoreSession();
             
             // Retroactive: normalize warehouse loss deductions to 25% rule
             await normalizeWarehouseLossDeductions();
