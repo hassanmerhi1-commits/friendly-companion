@@ -117,7 +117,8 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-sidebar-border p-3">
+        <div className="border-t border-sidebar-border p-3 space-y-1">
+          <SidebarUpdateButton language={language} />
           <button 
             onClick={handleLogout}
             className="sidebar-link w-full text-sidebar-foreground/60 hover:text-destructive"
