@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -17,14 +18,16 @@ import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-sto
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
-import { formatAOA } from '@/lib/angola-labor-law';
+import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, ChevronsUpDown, Check, Search } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
+
+const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 
 export default function Deductions() {
   const { t, language } = useLanguage();
@@ -42,7 +45,7 @@ export default function Deductions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [filterBranch, setFilterBranch] = useState<string>('all');
-  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
+  const [manualOverride, setManualOverride] = useState(false);
   const [formData, setFormData] = useState<DeductionFormData>({
     employeeId: '',
     type: 'salary_advance',
@@ -78,7 +81,61 @@ export default function Deductions() {
   const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
 
-  const monthlyAmount = formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount;
+  const getEmployeeNetSalary = (employeeId: string) => {
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return 0;
+
+    const result = calculatePayroll({
+      baseSalary: employee.baseSalary,
+      mealAllowance: employee.mealAllowance,
+      transportAllowance: employee.transportAllowance,
+      otherAllowances: employee.otherAllowances,
+      familyAllowanceValue: employee.familyAllowance || 0,
+      isRetired: employee.isRetired,
+      isColaborador: employee.contractType === 'colaborador',
+    });
+
+    return result.netSalary;
+  };
+
+  const isWarehouseLoss = formData.type === 'warehouse_loss';
+
+  const employeeNetSalary = useMemo(
+    () => (formData.employeeId ? getEmployeeNetSalary(formData.employeeId) : 0),
+    [formData.employeeId, employees]
+  );
+
+  const warehouseLossMaxMonthly = useMemo(
+    () => Math.round(employeeNetSalary * WAREHOUSE_LOSS_MAX_RATE),
+    [employeeNetSalary]
+  );
+
+  useEffect(() => {
+    if (!isEditDialogOpen) return;
+    if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0 && formData.totalAmount > 0) {
+      const autoInstallments = Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly));
+      if (formData.installments !== autoInstallments) {
+        setFormData(prev => ({ ...prev, installments: autoInstallments }));
+      }
+    }
+  }, [
+    isEditDialogOpen,
+    isWarehouseLoss,
+    manualOverride,
+    warehouseLossMaxMonthly,
+    formData.totalAmount,
+    formData.installments,
+  ]);
+
+  const monthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+    ? warehouseLossMaxMonthly
+    : (formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount);
+
+  const exceedsLimit = isWarehouseLoss
+    && manualOverride
+    && formData.installments > 0
+    && warehouseLossMaxMonthly > 0
+    && (formData.totalAmount / formData.installments) > warehouseLossMaxMonthly;
 
   const resetForm = () => {
     setFormData({
@@ -89,6 +146,7 @@ export default function Deductions() {
       date: new Date().toISOString().split('T')[0],
       installments: 1,
     });
+    setManualOverride(false);
   };
 
   const handleOpenAddDeduction = () => {
@@ -113,6 +171,16 @@ export default function Deductions() {
       date: deduction.date,
       installments: deduction.installments || 1,
     });
+
+    if (deduction.type === 'warehouse_loss') {
+      const netSalary = getEmployeeNetSalary(deduction.employeeId);
+      const monthlyCap = Math.round(netSalary * WAREHOUSE_LOSS_MAX_RATE);
+      const isAutoMode = monthlyCap > 0 && Math.abs(deduction.amount - monthlyCap) < 0.01;
+      setManualOverride(!isAutoMode);
+    } else {
+      setManualOverride(false);
+    }
+
     setIsEditDialogOpen(true);
   };
 
@@ -123,7 +191,14 @@ export default function Deductions() {
       return;
     }
     
-    const newMonthlyAmount = formData.totalAmount / formData.installments;
+    const normalizedInstallments = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+      ? Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly))
+      : Math.max(1, formData.installments);
+
+    const newMonthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
+      ? warehouseLossMaxMonthly
+      : formData.totalAmount / normalizedInstallments;
+
     const newRemainingAmount = formData.totalAmount - (editingDeduction.installmentsPaid * newMonthlyAmount);
     
     await updateDeduction(editingDeduction.id, {
@@ -133,7 +208,7 @@ export default function Deductions() {
       totalAmount: formData.totalAmount,
       amount: newMonthlyAmount,
       date: formData.date,
-      installments: formData.installments,
+      installments: normalizedInstallments,
       remainingAmount: Math.max(0, newRemainingAmount),
       isFullyPaid: newRemainingAmount <= 0,
     });
@@ -181,7 +256,6 @@ export default function Deductions() {
   ];
 
   const activeEmployees = useMemo(() => employees.filter(e => e.status === 'active'), [employees]);
-  const selectedEmployee = activeEmployees.find(e => e.id === formData.employeeId);
 
   // Inline form fields
   const deductionFormFields = (
@@ -200,7 +274,10 @@ export default function Deductions() {
         <Label>{language === 'pt' ? 'Tipo de Desconto *' : 'Deduction Type *'}</Label>
         <Select 
           value={formData.type} 
-          onValueChange={(v) => setFormData(prev => ({ ...prev, type: v as DeductionType }))}
+          onValueChange={(v) => {
+            setFormData(prev => ({ ...prev, type: v as DeductionType }));
+            setManualOverride(false);
+          }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -212,9 +289,46 @@ export default function Deductions() {
           </SelectContent>
         </Select>
       </div>
+
+      <div className={cn("p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2", !(isWarehouseLoss && formData.employeeId) && "hidden")}>
+        <div className="flex items-center gap-2 text-sm font-medium text-primary">
+          <Info className="h-4 w-4" />
+          {language === 'pt' ? 'Lei Geral do Trabalho - Art. 25%' : 'Labor Law - 25% Rule'}
+        </div>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>
+            {language === 'pt'
+              ? 'A dedução máxima por perda de armazém é 25% do salário líquido mensal.'
+              : 'Maximum warehouse loss deduction is 25% of monthly net salary.'}
+          </p>
+          <div className="flex justify-between">
+            <span>{language === 'pt' ? 'Salário Líquido:' : 'Net Salary:'}</span>
+            <span className="font-semibold">{formatAOA(employeeNetSalary)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>{language === 'pt' ? 'Máximo mensal (25%):' : 'Monthly max (25%):'}</span>
+            <span className="font-semibold text-primary">{formatAOA(warehouseLossMaxMonthly)}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t border-primary/10">
+          <Label htmlFor="manual-override-edit" className="text-xs cursor-pointer">
+            {language === 'pt' ? 'Valor personalizado (ignorar 25%)' : 'Custom amount (override 25%)'}
+          </Label>
+          <Switch
+            id="manual-override-edit"
+            checked={manualOverride}
+            onCheckedChange={setManualOverride}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>{language === 'pt' ? 'Valor Total (AOA) *' : 'Total Amount (AOA) *'}</Label>
+          <Label>
+            {isWarehouseLoss
+              ? (language === 'pt' ? 'Valor da Perda (AOA) *' : 'Loss Amount (AOA) *')
+              : (language === 'pt' ? 'Valor Total (AOA) *' : 'Total Amount (AOA) *')}
+          </Label>
           <Input
             type="number"
             value={formData.totalAmount}
@@ -234,37 +348,61 @@ export default function Deductions() {
       {/* Flexible Installments - free numeric input */}
       <div className="space-y-2">
         <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
-        <Input
-          type="number"
-          min={1}
-          value={formData.installments}
-          onChange={(e) => setFormData(prev => ({ ...prev, installments: Math.max(1, Number(e.target.value)) }))}
-          placeholder={language === 'pt' ? 'Ex: 1, 6, 24...' : 'E.g.: 1, 6, 24...'}
-        />
-        {formData.installments === 1 && (
-          <p className="text-xs text-muted-foreground">{language === 'pt' ? 'Pagamento único' : 'Single payment'}</p>
-        )}
+        <div className={cn("flex items-center gap-2", !(isWarehouseLoss && !manualOverride) && "hidden")}>
+          <Input
+            type="number"
+            value={formData.installments}
+            readOnly
+            className="bg-muted"
+          />
+          <Badge variant="outline" className="whitespace-nowrap text-xs">
+            {language === 'pt' ? 'Auto (25%)' : 'Auto (25%)'}
+          </Badge>
+        </div>
+
+        <div className={cn(isWarehouseLoss && !manualOverride && "hidden")}>
+          <Input
+            type="number"
+            min={1}
+            value={formData.installments}
+            onChange={(e) => setFormData(prev => ({ ...prev, installments: Math.max(1, Number(e.target.value)) }))}
+            placeholder={language === 'pt' ? 'Ex: 1, 6, 24...' : 'E.g.: 1, 6, 24...'}
+          />
+          {formData.installments === 1 && (
+            <p className="text-xs text-muted-foreground mt-1">{language === 'pt' ? 'Pagamento único' : 'Single payment'}</p>
+          )}
+        </div>
       </div>
 
       {/* Show calculated monthly amount */}
-      {formData.installments > 1 && formData.totalAmount > 0 && (
-        <div className="p-3 bg-muted rounded-lg">
+      {formData.totalAmount > 0 && (
+        <div className={cn("p-3 rounded-lg", exceedsLimit ? 'bg-destructive/10 border border-destructive/20' : 'bg-muted')}>
+          {exceedsLimit && (
+            <div className="flex items-center gap-2 text-sm text-destructive mb-2">
+              <AlertTriangle className="h-4 w-4" />
+              {language === 'pt'
+                ? 'Valor mensal excede o limite de 25%!'
+                : 'Monthly amount exceeds 25% limit!'}
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">
               {language === 'pt' ? 'Desconto mensal:' : 'Monthly deduction:'}
             </span>
-            <span className="font-semibold text-destructive">
+            <span className={cn('font-semibold', exceedsLimit ? 'text-destructive' : 'text-foreground')}>
               {formatAOA(monthlyAmount)}
             </span>
           </div>
-          <div className="flex justify-between text-sm mt-1">
-            <span className="text-muted-foreground">
-              {language === 'pt' ? 'Durante:' : 'Over:'}
-            </span>
-            <span className="font-medium">
-              {formData.installments} {language === 'pt' ? 'meses' : 'months'}
-            </span>
-          </div>
+          {formData.installments > 1 && (
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-muted-foreground">
+                {language === 'pt' ? 'Durante:' : 'Over:'}
+              </span>
+              <span className="font-medium">
+                {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
