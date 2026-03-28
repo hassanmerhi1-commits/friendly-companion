@@ -87,12 +87,15 @@ const Employees = () => {
     return branch ? branch.name : '';
   };
 
+  const normalizeText = (text: string) =>
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
   const filteredAndSortedEmployees = employees
     .filter(emp => {
-      const matchesSearch = emp.firstName.toLowerCase().includes(search.toLowerCase()) ||
-        emp.lastName.toLowerCase().includes(search.toLowerCase()) ||
-        emp.email.toLowerCase().includes(search.toLowerCase()) ||
-        emp.department.toLowerCase().includes(search.toLowerCase());
+      const searchNorm = normalizeText(search);
+      const searchWords = searchNorm.split(/\s+/).filter(Boolean);
+      const empText = normalizeText(`${emp.firstName} ${emp.lastName} ${emp.email} ${emp.department} ${emp.employeeNumber || ''} ${emp.position || ''}`);
+      const matchesSearch = searchWords.length === 0 || searchWords.every(word => empText.includes(word));
       
       const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
       
@@ -394,6 +397,20 @@ const Employees = () => {
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
+                          {hasPermission('employees.edit') && (
+                            <DropdownMenuItem onClick={() => {
+                              const newValue = !employee.isRetired;
+                              updateEmployee(employee.id, { isRetired: newValue });
+                              toast.success(newValue
+                                ? (language === 'pt' ? 'Marcado como Reformado' : 'Marked as Retired')
+                                : (language === 'pt' ? 'Desmarcado como Reformado' : 'Unmarked as Retired'));
+                            }}>
+                              <Clock className="h-4 w-4 mr-2" />
+                              {employee.isRetired
+                                ? (language === 'pt' ? 'Desmarcar Reformado' : 'Unmark Retired')
+                                : (language === 'pt' ? 'Marcar Reformado' : 'Mark Retired')}
+                            </DropdownMenuItem>
+                          )}
                           {hasPermission('employees.delete') && (
                             <DropdownMenuItem onClick={() => handleDeleteClick(employee)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
