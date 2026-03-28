@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,7 +15,9 @@ import {
   UserCheck,
   Clock,
   Calculator,
-  Archive
+  Archive,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
