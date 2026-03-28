@@ -104,6 +104,7 @@ export function KPIMetricsGrid() {
     return {
       headcount: totalHeadcount,
       avgSalary,
+      totalBonus,
       currentPayroll,
       payrollChange,
       costPerEmployee,
