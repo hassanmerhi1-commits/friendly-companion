@@ -297,7 +297,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       // Build entries sequentially to properly await async deduction updates
       const newEntries: EntryWithDeductionIds[] = [];
       
-      for (const emp of employees.filter((e) => e.status === 'active')) {
+      for (const emp of employees.filter((e) => e.status === 'active' && !e.isRetired)) {
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
 
