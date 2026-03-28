@@ -409,8 +409,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // Basic time filter for pending deductions (don't pull future-dated items)
               if (isPending && !isAutoCarry && period.endDate && d.date && d.date > period.endDate) continue;
 
-              // d.amount is ALREADY the monthly installment amount (totalAmount / installments)
-              const amount = d.amount;
+              // d.amount is the monthly installment amount, but for the LAST installment
+              // we must only deduct the remaining balance to avoid over-deduction
+              const amount = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
 
               if (d.type === 'loan') {
                 loanDeduction += amount;

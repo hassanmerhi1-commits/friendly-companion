@@ -355,6 +355,13 @@ const Employees = () => {
                   </td>
                   <td className="px-3 py-3 text-right">{formatAOA(employee.baseSalary || 0)}</td>
                   <td className="px-3 py-3 text-right">
+                    {(employee.monthlyBonus || 0) > 0 ? (
+                      <span className="text-accent font-medium">{formatAOA(employee.monthlyBonus || 0)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right">
                     {employee.status === 'pending_approval' && canApproveEmployees ? (
                       <div className="flex items-center justify-end gap-1">
                         <Button

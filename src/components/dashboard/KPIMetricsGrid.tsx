@@ -148,6 +148,11 @@ export function KPIMetricsGrid() {
             color="blue"
           />
           <MetricCard
+            label={t.bonus}
+            value={formatAOA(metrics.totalBonus)}
+            color="green"
+          />
+          <MetricCard
             label={t.deductions}
             value={formatAOA(metrics.totalDeductions)}
             color="red"
