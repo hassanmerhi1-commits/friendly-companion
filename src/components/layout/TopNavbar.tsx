@@ -19,7 +19,9 @@ import {
   Archive,
   Menu,
   X,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -76,9 +78,40 @@ export function TopNavbar() {
     return hasPermission(item.permission);
   });
 
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<string | null>(null);
+
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const isElectronEnv = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
+
+  const handleCheckForUpdates = async () => {
+    if (!isElectronEnv) {
+      setUpdateResult(language === 'pt' ? 'Apenas disponível na aplicação desktop' : 'Only available in desktop app');
+      setTimeout(() => setUpdateResult(null), 3000);
+      return;
+    }
+    setCheckingUpdate(true);
+    setUpdateResult(null);
+    try {
+      const api = (window as any).electronAPI;
+      const response = await api.updater.check();
+      if (response.success && response.updateInfo) {
+        setUpdateResult(language === 'pt' ? `Nova versão: ${response.updateInfo.version}` : `New version: ${response.updateInfo.version}`);
+      } else if (response.success) {
+        setUpdateResult(language === 'pt' ? 'Já tem a versão mais recente' : 'Already up to date');
+      } else {
+        setUpdateResult(response.error || (language === 'pt' ? 'Erro ao verificar' : 'Check failed'));
+      }
+    } catch {
+      setUpdateResult(language === 'pt' ? 'Erro ao verificar' : 'Check failed');
+    } finally {
+      setCheckingUpdate(false);
+      setTimeout(() => setUpdateResult(null), 5000);
+    }
   };
 
   const isActive = (href: string) => location.pathname === href;
@@ -142,13 +175,36 @@ export function TopNavbar() {
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem asChild>
                   <Link to="/settings" className="flex items-center gap-2 cursor-pointer">
                     <Settings className="h-4 w-4" />
                     <span>{t.nav.settings}</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={handleCheckForUpdates}
+                  disabled={checkingUpdate}
+                  className="cursor-pointer"
+                >
+                  {checkingUpdate ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>{language === 'pt' ? 'A verificar...' : 'Checking...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <span>{language === 'pt' ? 'Verificar Actualizações' : 'Check for Updates'}</span>
+                    </>
+                  )}
+                </DropdownMenuItem>
+                {updateResult && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {updateResult}
+                  </div>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={handleLogout}
