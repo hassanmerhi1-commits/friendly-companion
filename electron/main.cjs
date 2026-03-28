@@ -874,7 +874,7 @@ function initDatabase() {
     startWebSocketServer();
     
     console.log('SERVER MODE: Connected to database at:', dbPath);
-    return { success: true, mode: 'server', path: dbPath, wsPort: WS_PORT };
+    return { success: true, mode: 'server', path: dbPath, wsPort: actualWsPort };
   } catch (error) {
     console.error('Error initializing database:', error);
     return { success: false, error: error.message };
