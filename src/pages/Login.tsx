@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 import { useCompanyLogo } from '@/hooks/use-company-logo';
 import { Building2, Plus, Loader2 } from 'lucide-react';
 import { liveListCompanies, liveCreateCompany, liveSetActiveCompany } from '@/lib/db-live';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Company {
   id: string;
@@ -55,6 +56,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Company selection
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -215,7 +217,7 @@ export function LoginPage() {
 
     setLoading(true);
 
-    const result = login(username, password);
+    const result = login(username, password, rememberMe);
 
     if (!result.success) {
       toast.error(result.error);
@@ -398,6 +400,19 @@ export function LoginPage() {
                 autoComplete="current-password"
                 disabled={!companyReady}
               />
+            </div>
+
+            {/* Remember Me */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+                disabled={!companyReady}
+              />
+              <Label htmlFor="rememberMe" className="text-sm font-normal cursor-pointer">
+                {language === 'pt' ? 'Manter sessão iniciada' : 'Stay logged in'}
+              </Label>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading || !companyReady}>
