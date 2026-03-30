@@ -225,7 +225,8 @@ export default function Attendance() {
           </div>
         )}
 
-          <Tabs defaultValue={isShopUser ? "daily" : "bulk"} className="space-y-4">
+        <Tabs defaultValue={isShopUser ? "daily" : "bulk"} className="space-y-4">
+          <TabsList>
             <TabsTrigger value="daily" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
               {t.dailyMarking}
