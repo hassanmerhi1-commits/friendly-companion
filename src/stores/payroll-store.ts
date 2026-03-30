@@ -72,6 +72,7 @@ function mapDbRowToPeriod(row: any): PayrollPeriod {
     processedAt: row.processed_at,
     approvedAt: row.approved_at,
     paidAt: row.paid_at,
+    cutoffDate: row.cutoff_date,
   };
 }
 
