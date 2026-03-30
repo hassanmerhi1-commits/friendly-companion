@@ -53,6 +53,41 @@ export default function Attendance() {
     );
   }, [periods, selectedMonth, selectedYear]);
 
+  // Check if attendance is closed for this month
+  const { isAttendanceClosed, closeAttendance, reopenAttendance, getAttendanceCutoff } = usePayrollStore();
+  const attendanceClosed = isAttendanceClosed(selectedMonth, selectedYear);
+  const attendanceCutoff = getAttendanceCutoff(selectedMonth, selectedYear);
+
+  const handleCloseAttendance = async () => {
+    try {
+      await closeAttendance(selectedMonth, selectedYear);
+      toast.success(
+        language === 'pt'
+          ? `Presenças fechadas para ${monthNames[selectedMonth - 1]} ${selectedYear}`
+          : `Attendance closed for ${monthNames[selectedMonth - 1]} ${selectedYear}`
+      );
+    } catch (error) {
+      toast.error(language === 'pt' ? 'Erro ao fechar presenças' : 'Error closing attendance');
+    }
+  };
+
+  const handleReopenAttendance = async () => {
+    try {
+      await reopenAttendance(selectedMonth, selectedYear);
+      toast.success(
+        language === 'pt'
+          ? `Presenças reabertas para ${monthNames[selectedMonth - 1]} ${selectedYear}`
+          : `Attendance reopened for ${monthNames[selectedMonth - 1]} ${selectedYear}`
+      );
+    } catch (error: any) {
+      toast.error(
+        error?.message?.includes('approved') 
+          ? (language === 'pt' ? 'Não pode reabrir — folha salarial já aprovada/paga' : 'Cannot reopen — payroll already approved/paid')
+          : (language === 'pt' ? 'Erro ao reabrir presenças' : 'Error reopening attendance')
+      );
+    }
+  };
+
   // Calculate min allowed month (3 months back)
   const canGoBack = useMemo(() => {
     if (!canEditPast) return false;
