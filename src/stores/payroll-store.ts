@@ -907,6 +907,53 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       await liveUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
     },
 
+    // ATTENDANCE CLOSE/REOPEN - independent of payroll calculation
+    closeAttendance: async (month: number, year: number) => {
+      const periodId = `period-${year}-${month}`;
+      let period = get().getPeriod(periodId);
+      
+      // Create a draft period if one doesn't exist yet
+      if (!period) {
+        await get().createPeriod(year, month);
+      }
+      
+      const cutoffDate = new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, {
+        cutoff_date: cutoffDate,
+        updated_at: now,
+      });
+      await get().loadPayroll();
+    },
+
+    reopenAttendance: async (month: number, year: number) => {
+      const periodId = `period-${year}-${month}`;
+      const period = get().getPeriod(periodId);
+      if (!period) return;
+      
+      // Don't allow reopening if payroll is approved or paid
+      if (period.status === 'approved' || period.status === 'paid') {
+        throw new Error('Cannot reopen attendance for approved/paid period');
+      }
+      
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, {
+        cutoff_date: null,
+        updated_at: now,
+      });
+      await get().loadPayroll();
+    },
+
+    isAttendanceClosed: (month: number, year: number) => {
+      const period = get().periods.find(p => p.month === month && p.year === year);
+      return !!period?.cutoffDate;
+    },
+
+    getAttendanceCutoff: (month: number, year: number) => {
+      const period = get().periods.find(p => p.month === month && p.year === year);
+      return period?.cutoffDate || undefined;
+    },
+
     // ARCHIVE SYSTEM: Closes the month, moves data to history, clears active items
     archivePeriod: async (periodId, deductionStore, absenceStore) => {
       const period = get().getPeriod(periodId);
