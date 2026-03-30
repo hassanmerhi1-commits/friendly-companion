@@ -182,7 +182,7 @@ export default function Attendance() {
               )}
             </div>
             {/* Close/Reopen Attendance Button */}
-            {isAdmin && !isPeriodArchived && (
+            {(isAdmin || hasPermission('attendance.close')) && !isPeriodArchived && (
               attendanceClosed ? (
                 <Button
                   variant="outline"
