@@ -37,6 +37,12 @@ interface PayrollState {
   reopenPeriod: (periodId: string) => Promise<void>;
   markAsPaid: (periodId: string) => Promise<void>;
   
+  // Attendance close/reopen - independent of payroll status
+  closeAttendance: (month: number, year: number) => Promise<void>;
+  reopenAttendance: (month: number, year: number) => Promise<void>;
+  isAttendanceClosed: (month: number, year: number) => boolean;
+  getAttendanceCutoff: (month: number, year: number) => string | undefined;
+  
   // Archive system - closes month and clears active data
   archivePeriod: (periodId: string, deductionStore: any, absenceStore: any) => Promise<{ archivedDeductions: number; archivedAbsences: number; installmentsCarried: number }>;
   
