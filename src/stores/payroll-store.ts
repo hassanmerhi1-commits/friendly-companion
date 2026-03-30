@@ -72,6 +72,7 @@ function mapDbRowToPeriod(row: any): PayrollPeriod {
     processedAt: row.processed_at,
     approvedAt: row.approved_at,
     paidAt: row.paid_at,
+    cutoffDate: row.cutoff_date,
   };
 }
 
@@ -91,6 +92,7 @@ function mapPeriodToDbRow(p: PayrollPeriod): Record<string, any> {
     processed_at: p.processedAt || null,
     approved_at: p.approvedAt || null,
     paid_at: p.paidAt || null,
+    cutoff_date: p.cutoffDate || null,
     notes: null,
     created_at: p.createdAt,
     updated_at: new Date().toISOString(),
@@ -860,6 +862,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       );
 
       const now = new Date().toISOString();
+      const cutoffDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
@@ -867,6 +870,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         total_employer_costs: totals.totalEmployerCosts,
         status: 'calculated',
         processed_at: now,
+        cutoff_date: cutoffDate,
         updated_at: now,
       });
     },
@@ -879,10 +883,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     reopenPeriod: async (periodId) => {
       const now = new Date().toISOString();
       // Reopen for edits; user must approve again afterwards.
+      // Clear cutoff date so attendance can be re-aggregated for this month
       await liveUpdate('payroll_periods', periodId, {
         status: 'calculated',
         approved_at: null,
         paid_at: null,
+        cutoff_date: null,
         updated_at: now,
       });
 

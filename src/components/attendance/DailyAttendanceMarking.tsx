@@ -14,6 +14,7 @@ import { useBranchStore } from '@/stores/branch-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDailyAttendanceStore, type DailyStatus } from '@/stores/daily-attendance-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary } from '@/stores/bulk-attendance-store';
+import { usePayrollStore } from '@/stores/payroll-store';
 import { format, addDays, subDays, isToday, isAfter, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -135,6 +136,31 @@ export function DailyAttendanceMarking() {
     setHasChanges(true);
   };
 
+  // Check if this date's month has a calculated/approved/paid payroll with a cutoff before this date
+  const { periods } = usePayrollStore();
+  
+  const getTargetMonth = (date: Date): { month: number; year: number } => {
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
+    // Check if there's a calculated/approved/paid period for this month with a cutoff date
+    const period = periods.find(
+      p => p.month === month && p.year === year && 
+      (p.status === 'calculated' || p.status === 'approved' || p.status === 'paid') &&
+      p.cutoffDate
+    );
+    
+    // If period exists and has a cutoff, and this date is AFTER the cutoff → carry to next month
+    if (period && period.cutoffDate && dateStr > period.cutoffDate) {
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextYear = month === 12 ? year + 1 : year;
+      return { month: nextMonth, year: nextYear };
+    }
+    
+    return { month, year };
+  };
+
   // Save daily marks and auto-aggregate into monthly totals
   const handleSave = async () => {
     if (!hasChanges || isSaving) return;
@@ -143,7 +169,7 @@ export function DailyAttendanceMarking() {
     try {
       const marksToSave = Object.values(localMarks);
       
-      // Save each daily mark
+      // Save each daily mark (always stored with actual date)
       for (const mark of marksToSave) {
         await markAttendance({
           employeeId: mark.employeeId,
@@ -155,15 +181,50 @@ export function DailyAttendanceMarking() {
         });
       }
 
-      // Auto-aggregate into monthly bulk attendance
-      const month = selectedDate.getMonth() + 1;
-      const year = selectedDate.getFullYear();
+      // Determine target month for aggregation (may carry forward if after cutoff)
+      const target = getTargetMonth(selectedDate);
+      const isCarriedForward = target.month !== (selectedDate.getMonth() + 1) || target.year !== selectedDate.getFullYear();
       
       // Get unique employee IDs that were marked
       const employeeIds = [...new Set(marksToSave.map(m => m.employeeId))];
       
+      // For carried-forward entries, we need to aggregate only the post-cutoff daily records
       const bulkEntries = employeeIds.map(empId => {
-        const agg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, month, year);
+        // Get the period's cutoff date if carrying forward
+        const originalMonth = selectedDate.getMonth() + 1;
+        const originalYear = selectedDate.getFullYear();
+        const period = periods.find(
+          p => p.month === originalMonth && p.year === originalYear && p.cutoffDate
+        );
+        
+        let absenceDays = 0;
+        let justifiedAbsenceDays = 0;
+        let delayHours = 0;
+        
+        if (isCarriedForward && period?.cutoffDate) {
+          // Only count daily records AFTER the cutoff date for the target month
+          const allRecords = useDailyAttendanceStore.getState().getRecordsForEmployee(empId, originalMonth, originalYear);
+          for (const r of allRecords) {
+            if (r.date > period.cutoffDate) {
+              if (r.status === 'absent') absenceDays++;
+              else if (r.status === 'justified') justifiedAbsenceDays++;
+              else if (r.status === 'late') delayHours += r.delayHours;
+            }
+          }
+          
+          // Also add any existing entries already in the target month
+          const existingTargetAgg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, target.month, target.year);
+          absenceDays += existingTargetAgg.absenceDays;
+          justifiedAbsenceDays += existingTargetAgg.justifiedAbsenceDays;
+          delayHours += existingTargetAgg.delayHours;
+        } else {
+          // Normal aggregation for current month
+          const agg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, target.month, target.year);
+          absenceDays = agg.absenceDays;
+          justifiedAbsenceDays = agg.justifiedAbsenceDays;
+          delayHours = agg.delayHours;
+        }
+
         const employee = activeEmployees.find(e => e.id === empId);
         const fullSalary = employee ? calculateFullMonthlySalary({
           baseSalary: employee.baseSalary,
@@ -175,17 +236,19 @@ export function DailyAttendanceMarking() {
           otherAllowances: employee.otherAllowances,
         }) : 0;
 
-        const deduction = calculateBulkAttendanceDeduction(fullSalary, agg.absenceDays, agg.delayHours);
+        const deduction = calculateBulkAttendanceDeduction(fullSalary, absenceDays, delayHours);
 
         return {
           employeeId: empId,
-          month,
-          year,
-          absenceDays: agg.absenceDays,
-          justifiedAbsenceDays: agg.justifiedAbsenceDays,
-          delayHours: agg.delayHours,
+          month: target.month,
+          year: target.year,
+          absenceDays,
+          justifiedAbsenceDays,
+          delayHours,
           ...deduction,
-          notes: `Auto-aggregated from daily marking`,
+          notes: isCarriedForward 
+            ? `Auto-aggregated (carried from ${originalMonth}/${originalYear} post-cutoff)` 
+            : `Auto-aggregated from daily marking`,
         };
       });
 
@@ -194,11 +257,20 @@ export function DailyAttendanceMarking() {
       }
 
       setHasChanges(false);
-      toast.success(
-        language === 'pt'
-          ? `${marksToSave.length} presenças registadas com sucesso`
-          : `${marksToSave.length} attendance marks saved successfully`
-      );
+      
+      if (isCarriedForward) {
+        toast.success(
+          language === 'pt'
+            ? `${marksToSave.length} presenças registadas — contabilizadas para ${target.month}/${target.year} (após fecho do mês)`
+            : `${marksToSave.length} marks saved — counted for ${target.month}/${target.year} (after payroll cutoff)`
+        );
+      } else {
+        toast.success(
+          language === 'pt'
+            ? `${marksToSave.length} presenças registadas com sucesso`
+            : `${marksToSave.length} attendance marks saved successfully`
+        );
+      }
     } catch (error) {
       console.error('[DailyAttendance] Save error:', error);
       toast.error(language === 'pt' ? 'Erro ao guardar presenças' : 'Error saving attendance');
@@ -226,6 +298,21 @@ export function DailyAttendanceMarking() {
     };
   }, [localMarks, filteredEmployees]);
 
+  // Check if current date is after cutoff
+  const isAfterCutoff = useMemo(() => {
+    const target = getTargetMonth(selectedDate);
+    return target.month !== (selectedDate.getMonth() + 1) || target.year !== selectedDate.getFullYear();
+  }, [selectedDate, periods]);
+
+  const carriedTargetLabel = useMemo(() => {
+    if (!isAfterCutoff) return '';
+    const target = getTargetMonth(selectedDate);
+    const monthNames = language === 'pt' 
+      ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${monthNames[target.month - 1]} ${target.year}`;
+  }, [isAfterCutoff, selectedDate, periods, language]);
+
   const t = {
     title: language === 'pt' ? 'Marcação Diária de Presenças' : 'Daily Attendance Marking',
     desc: language === 'pt' ? 'Marque a presença de cada funcionário para o dia selecionado' : 'Mark each employee\'s attendance for the selected day',
@@ -245,6 +332,9 @@ export function DailyAttendanceMarking() {
     futureMsg: language === 'pt' ? 'Não pode marcar presença em datas futuras' : 'Cannot mark attendance for future dates',
     unmarked: language === 'pt' ? 'Não marcado' : 'Unmarked',
     summary: language === 'pt' ? 'Resumo' : 'Summary',
+    carryForward: language === 'pt' 
+      ? `Folha salarial já calculada — estas marcações serão contabilizadas em` 
+      : `Payroll already calculated — these marks will count for`,
   };
 
   const getStatusBadge = (status?: DailyStatus) => {
@@ -264,6 +354,12 @@ export function DailyAttendanceMarking() {
           <div>
             <CardTitle className="text-lg">{t.title}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{t.desc}</p>
+            {isAfterCutoff && (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md text-sm text-amber-700 dark:text-amber-400 font-medium">
+                <Clock className="h-4 w-4 shrink-0" />
+                {t.carryForward} <strong>{carriedTargetLabel}</strong>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Date navigator */}

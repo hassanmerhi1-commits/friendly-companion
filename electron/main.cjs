@@ -1434,6 +1434,7 @@ function runMigrations() {
     addColumnIfMissing('payroll_periods', 'approved_at', "ALTER TABLE payroll_periods ADD COLUMN approved_at TEXT");
     addColumnIfMissing('payroll_periods', 'paid_at', "ALTER TABLE payroll_periods ADD COLUMN paid_at TEXT");
     addColumnIfMissing('payroll_periods', 'notes', "ALTER TABLE payroll_periods ADD COLUMN notes TEXT");
+    addColumnIfMissing('payroll_periods', 'cutoff_date', "ALTER TABLE payroll_periods ADD COLUMN cutoff_date TEXT");
     
     // Payroll entry columns
     addColumnIfMissing('payroll_entries', 'employee_name', "ALTER TABLE payroll_entries ADD COLUMN employee_name TEXT");
