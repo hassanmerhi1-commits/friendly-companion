@@ -217,7 +217,14 @@ export default function Attendance() {
           </div>
         )}
 
-        <Tabs defaultValue={isShopUser ? "daily" : "bulk"} className="space-y-4">
+        {/* Attendance closed info */}
+        {attendanceClosed && !isPeriodArchived && (
+          <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-700 dark:text-amber-400 font-medium">
+            <Lock className="h-4 w-4" />
+            {t.attendanceClosedOn} {attendanceCutoff} — {language === 'pt' ? 'novas marcações serão contabilizadas no próximo mês' : 'new marks will count for next month'}
+          </div>
+        )}
+
           <TabsList>
             <TabsTrigger value="daily" className="flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
