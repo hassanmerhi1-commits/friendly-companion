@@ -298,6 +298,21 @@ export function DailyAttendanceMarking() {
     };
   }, [localMarks, filteredEmployees]);
 
+  // Check if current date is after cutoff
+  const isAfterCutoff = useMemo(() => {
+    const target = getTargetMonth(selectedDate);
+    return target.month !== (selectedDate.getMonth() + 1) || target.year !== selectedDate.getFullYear();
+  }, [selectedDate, periods]);
+
+  const carriedTargetLabel = useMemo(() => {
+    if (!isAfterCutoff) return '';
+    const target = getTargetMonth(selectedDate);
+    const monthNames = language === 'pt' 
+      ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${monthNames[target.month - 1]} ${target.year}`;
+  }, [isAfterCutoff, selectedDate, periods, language]);
+
   const t = {
     title: language === 'pt' ? 'Marcação Diária de Presenças' : 'Daily Attendance Marking',
     desc: language === 'pt' ? 'Marque a presença de cada funcionário para o dia selecionado' : 'Mark each employee\'s attendance for the selected day',
@@ -317,6 +332,9 @@ export function DailyAttendanceMarking() {
     futureMsg: language === 'pt' ? 'Não pode marcar presença em datas futuras' : 'Cannot mark attendance for future dates',
     unmarked: language === 'pt' ? 'Não marcado' : 'Unmarked',
     summary: language === 'pt' ? 'Resumo' : 'Summary',
+    carryForward: language === 'pt' 
+      ? `Folha salarial já calculada — estas marcações serão contabilizadas em` 
+      : `Payroll already calculated — these marks will count for`,
   };
 
   const getStatusBadge = (status?: DailyStatus) => {
