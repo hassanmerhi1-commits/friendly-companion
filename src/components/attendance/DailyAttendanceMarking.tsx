@@ -136,7 +136,7 @@ export function DailyAttendanceMarking() {
     setHasChanges(true);
   };
 
-  // Check if this date's month has a calculated/approved/paid payroll with a cutoff before this date
+  // Check if this date's month has a cutoff date (from manual close OR payroll calculation)
   const { periods } = usePayrollStore();
   
   const getTargetMonth = (date: Date): { month: number; year: number } => {
@@ -144,11 +144,9 @@ export function DailyAttendanceMarking() {
     const year = date.getFullYear();
     const dateStr = format(date, 'yyyy-MM-dd');
     
-    // Check if there's a calculated/approved/paid period for this month with a cutoff date
+    // Check if there's ANY period for this month with a cutoff date (regardless of status)
     const period = periods.find(
-      p => p.month === month && p.year === year && 
-      (p.status === 'calculated' || p.status === 'approved' || p.status === 'paid') &&
-      p.cutoffDate
+      p => p.month === month && p.year === year && p.cutoffDate
     );
     
     // If period exists and has a cutoff, and this date is AFTER the cutoff → carry to next month
