@@ -17,7 +17,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck, FileText } from "lucide-react";
+import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck, FileText, LockOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Attendance() {
@@ -42,6 +42,7 @@ export default function Attendance() {
   const currentYear = now.getFullYear();
 
   const canEditPast = hasPermission('attendance.edit_past') || currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin';
   const isShopUser = currentUser?.role !== 'admin' && !!currentUser?.branchId;
   const isCurrentPeriod = selectedMonth === currentMonth && selectedYear === currentYear;
 
@@ -51,6 +52,41 @@ export default function Attendance() {
       p => p.month === selectedMonth && p.year === selectedYear && p.status === 'paid'
     );
   }, [periods, selectedMonth, selectedYear]);
+
+  // Check if attendance is closed for this month
+  const { isAttendanceClosed, closeAttendance, reopenAttendance, getAttendanceCutoff } = usePayrollStore();
+  const attendanceClosed = isAttendanceClosed(selectedMonth, selectedYear);
+  const attendanceCutoff = getAttendanceCutoff(selectedMonth, selectedYear);
+
+  const handleCloseAttendance = async () => {
+    try {
+      await closeAttendance(selectedMonth, selectedYear);
+      toast.success(
+        language === 'pt'
+          ? `Presenças fechadas para ${monthNames[selectedMonth - 1]} ${selectedYear}`
+          : `Attendance closed for ${monthNames[selectedMonth - 1]} ${selectedYear}`
+      );
+    } catch (error) {
+      toast.error(language === 'pt' ? 'Erro ao fechar presenças' : 'Error closing attendance');
+    }
+  };
+
+  const handleReopenAttendance = async () => {
+    try {
+      await reopenAttendance(selectedMonth, selectedYear);
+      toast.success(
+        language === 'pt'
+          ? `Presenças reabertas para ${monthNames[selectedMonth - 1]} ${selectedYear}`
+          : `Attendance reopened for ${monthNames[selectedMonth - 1]} ${selectedYear}`
+      );
+    } catch (error: any) {
+      toast.error(
+        error?.message?.includes('approved') 
+          ? (language === 'pt' ? 'Não pode reabrir — folha salarial já aprovada/paga' : 'Cannot reopen — payroll already approved/paid')
+          : (language === 'pt' ? 'Erro ao reabrir presenças' : 'Error reopening attendance')
+      );
+    }
+  };
 
   // Calculate min allowed month (3 months back)
   const canGoBack = useMemo(() => {
@@ -103,6 +139,9 @@ export default function Attendance() {
     dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
     effectivenessMap: language === 'pt' ? 'Mapa de Efectividade' : 'Effectiveness Map',
+    closeAttendance: language === 'pt' ? 'Fechar Presenças' : 'Close Attendance',
+    reopenAttendance: language === 'pt' ? 'Reabrir Presenças' : 'Reopen Attendance',
+    attendanceClosedOn: language === 'pt' ? 'Presenças fechadas em' : 'Attendance closed on',
   };
 
   return (
@@ -142,6 +181,30 @@ export default function Attendance() {
                 </Button>
               )}
             </div>
+            {/* Close/Reopen Attendance Button */}
+            {isAdmin && !isPeriodArchived && (
+              attendanceClosed ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReopenAttendance}
+                  className="gap-2"
+                >
+                  <LockOpen className="h-4 w-4" />
+                  {t.reopenAttendance}
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleCloseAttendance}
+                  className="gap-2"
+                >
+                  <Lock className="h-4 w-4" />
+                  {t.closeAttendance}
+                </Button>
+              )
+            )}
             <BranchAttendanceImport />
           </div>
         </div>
@@ -151,6 +214,14 @@ export default function Attendance() {
           <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive font-medium">
             <Lock className="h-4 w-4" />
             {t.archived}
+          </div>
+        )}
+
+        {/* Attendance closed info */}
+        {attendanceClosed && !isPeriodArchived && (
+          <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-700 dark:text-amber-400 font-medium">
+            <Lock className="h-4 w-4" />
+            {t.attendanceClosedOn} {attendanceCutoff} — {language === 'pt' ? 'novas marcações serão contabilizadas no próximo mês' : 'new marks will count for next month'}
           </div>
         )}
 

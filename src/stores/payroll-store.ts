@@ -37,6 +37,12 @@ interface PayrollState {
   reopenPeriod: (periodId: string) => Promise<void>;
   markAsPaid: (periodId: string) => Promise<void>;
   
+  // Attendance close/reopen - independent of payroll status
+  closeAttendance: (month: number, year: number) => Promise<void>;
+  reopenAttendance: (month: number, year: number) => Promise<void>;
+  isAttendanceClosed: (month: number, year: number) => boolean;
+  getAttendanceCutoff: (month: number, year: number) => string | undefined;
+  
   // Archive system - closes month and clears active data
   archivePeriod: (periodId: string, deductionStore: any, absenceStore: any) => Promise<{ archivedDeductions: number; archivedAbsences: number; installmentsCarried: number }>;
   
@@ -862,7 +868,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       );
 
       const now = new Date().toISOString();
-      const cutoffDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const period = get().getPeriod(periodId);
+      // Preserve existing cutoff if attendance was manually closed; otherwise set one now
+      const cutoffDate = period?.cutoffDate || new Date().toISOString().split('T')[0];
       await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
@@ -899,6 +907,53 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     markAsPaid: async (periodId) => {
       const now = new Date().toISOString();
       await liveUpdate('payroll_periods', periodId, { status: 'paid', paid_at: now, updated_at: now });
+    },
+
+    // ATTENDANCE CLOSE/REOPEN - independent of payroll calculation
+    closeAttendance: async (month: number, year: number) => {
+      const periodId = `period-${year}-${month}`;
+      let period = get().getPeriod(periodId);
+      
+      // Create a draft period if one doesn't exist yet
+      if (!period) {
+        await get().createPeriod(year, month);
+      }
+      
+      const cutoffDate = new Date().toISOString().split('T')[0];
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, {
+        cutoff_date: cutoffDate,
+        updated_at: now,
+      });
+      await get().loadPayroll();
+    },
+
+    reopenAttendance: async (month: number, year: number) => {
+      const periodId = `period-${year}-${month}`;
+      const period = get().getPeriod(periodId);
+      if (!period) return;
+      
+      // Don't allow reopening if payroll is approved or paid
+      if (period.status === 'approved' || period.status === 'paid') {
+        throw new Error('Cannot reopen attendance for approved/paid period');
+      }
+      
+      const now = new Date().toISOString();
+      await liveUpdate('payroll_periods', periodId, {
+        cutoff_date: null,
+        updated_at: now,
+      });
+      await get().loadPayroll();
+    },
+
+    isAttendanceClosed: (month: number, year: number) => {
+      const period = get().periods.find(p => p.month === month && p.year === year);
+      return !!period?.cutoffDate;
+    },
+
+    getAttendanceCutoff: (month: number, year: number) => {
+      const period = get().periods.find(p => p.month === month && p.year === year);
+      return period?.cutoffDate || undefined;
     },
 
     // ARCHIVE SYSTEM: Closes the month, moves data to history, clears active items
