@@ -868,7 +868,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       );
 
       const now = new Date().toISOString();
-      const cutoffDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const period = get().getPeriod(periodId);
+      // Preserve existing cutoff if attendance was manually closed; otherwise set one now
+      const cutoffDate = period?.cutoffDate || new Date().toISOString().split('T')[0];
       await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
