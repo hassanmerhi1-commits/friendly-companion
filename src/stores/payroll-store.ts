@@ -862,6 +862,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       );
 
       const now = new Date().toISOString();
+      const cutoffDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
@@ -869,6 +870,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         total_employer_costs: totals.totalEmployerCosts,
         status: 'calculated',
         processed_at: now,
+        cutoff_date: cutoffDate,
         updated_at: now,
       });
     },
