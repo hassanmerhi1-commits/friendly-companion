@@ -563,6 +563,37 @@ const Payroll = () => {
         </div>
       )}
 
+      {/* Attendance status indicator */}
+      {!isHistoricalView && currentPeriod && (
+        <div className={`stat-card mb-4 border-l-4 ${
+          isAttendanceClosedForPeriod 
+            ? 'border-l-emerald-500 bg-emerald-500/5' 
+            : 'border-l-amber-500 bg-amber-500/5'
+        }`}>
+          <div className="flex items-center gap-2 text-sm">
+            {isAttendanceClosedForPeriod ? (
+              <>
+                <Lock className="h-4 w-4 text-emerald-600" />
+                <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                  {language === 'pt' 
+                    ? `Presenças fechadas (${attendanceCutoffForPeriod})` 
+                    : `Attendance closed (${attendanceCutoffForPeriod})`}
+                </span>
+              </>
+            ) : (
+              <>
+                <LockOpen className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-700 dark:text-amber-400">
+                  {language === 'pt' 
+                    ? 'Presenças ainda não foram fechadas para este mês' 
+                    : 'Attendance has not been closed for this month yet'}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Ausências button - always visible */}
       <div className="stat-card mb-6">
         <div className="flex flex-wrap items-center gap-6">
