@@ -883,10 +883,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     reopenPeriod: async (periodId) => {
       const now = new Date().toISOString();
       // Reopen for edits; user must approve again afterwards.
+      // Clear cutoff date so attendance can be re-aggregated for this month
       await liveUpdate('payroll_periods', periodId, {
         status: 'calculated',
         approved_at: null,
         paid_at: null,
+        cutoff_date: null,
         updated_at: now,
       });
 
