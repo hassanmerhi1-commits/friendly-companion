@@ -136,6 +136,31 @@ export function DailyAttendanceMarking() {
     setHasChanges(true);
   };
 
+  // Check if this date's month has a calculated/approved/paid payroll with a cutoff before this date
+  const { periods } = usePayrollStore();
+  
+  const getTargetMonth = (date: Date): { month: number; year: number } => {
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    const dateStr = format(date, 'yyyy-MM-dd');
+    
+    // Check if there's a calculated/approved/paid period for this month with a cutoff date
+    const period = periods.find(
+      p => p.month === month && p.year === year && 
+      (p.status === 'calculated' || p.status === 'approved' || p.status === 'paid') &&
+      p.cutoffDate
+    );
+    
+    // If period exists and has a cutoff, and this date is AFTER the cutoff → carry to next month
+    if (period && period.cutoffDate && dateStr > period.cutoffDate) {
+      const nextMonth = month === 12 ? 1 : month + 1;
+      const nextYear = month === 12 ? year + 1 : year;
+      return { month: nextMonth, year: nextYear };
+    }
+    
+    return { month, year };
+  };
+
   // Save daily marks and auto-aggregate into monthly totals
   const handleSave = async () => {
     if (!hasChanges || isSaving) return;
@@ -144,7 +169,7 @@ export function DailyAttendanceMarking() {
     try {
       const marksToSave = Object.values(localMarks);
       
-      // Save each daily mark
+      // Save each daily mark (always stored with actual date)
       for (const mark of marksToSave) {
         await markAttendance({
           employeeId: mark.employeeId,
@@ -156,15 +181,50 @@ export function DailyAttendanceMarking() {
         });
       }
 
-      // Auto-aggregate into monthly bulk attendance
-      const month = selectedDate.getMonth() + 1;
-      const year = selectedDate.getFullYear();
+      // Determine target month for aggregation (may carry forward if after cutoff)
+      const target = getTargetMonth(selectedDate);
+      const isCarriedForward = target.month !== (selectedDate.getMonth() + 1) || target.year !== selectedDate.getFullYear();
       
       // Get unique employee IDs that were marked
       const employeeIds = [...new Set(marksToSave.map(m => m.employeeId))];
       
+      // For carried-forward entries, we need to aggregate only the post-cutoff daily records
       const bulkEntries = employeeIds.map(empId => {
-        const agg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, month, year);
+        // Get the period's cutoff date if carrying forward
+        const originalMonth = selectedDate.getMonth() + 1;
+        const originalYear = selectedDate.getFullYear();
+        const period = periods.find(
+          p => p.month === originalMonth && p.year === originalYear && p.cutoffDate
+        );
+        
+        let absenceDays = 0;
+        let justifiedAbsenceDays = 0;
+        let delayHours = 0;
+        
+        if (isCarriedForward && period?.cutoffDate) {
+          // Only count daily records AFTER the cutoff date for the target month
+          const allRecords = useDailyAttendanceStore.getState().getRecordsForEmployee(empId, originalMonth, originalYear);
+          for (const r of allRecords) {
+            if (r.date > period.cutoffDate) {
+              if (r.status === 'absent') absenceDays++;
+              else if (r.status === 'justified') justifiedAbsenceDays++;
+              else if (r.status === 'late') delayHours += r.delayHours;
+            }
+          }
+          
+          // Also add any existing entries already in the target month
+          const existingTargetAgg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, target.month, target.year);
+          absenceDays += existingTargetAgg.absenceDays;
+          justifiedAbsenceDays += existingTargetAgg.justifiedAbsenceDays;
+          delayHours += existingTargetAgg.delayHours;
+        } else {
+          // Normal aggregation for current month
+          const agg = useDailyAttendanceStore.getState().getMonthlyAggregation(empId, target.month, target.year);
+          absenceDays = agg.absenceDays;
+          justifiedAbsenceDays = agg.justifiedAbsenceDays;
+          delayHours = agg.delayHours;
+        }
+
         const employee = activeEmployees.find(e => e.id === empId);
         const fullSalary = employee ? calculateFullMonthlySalary({
           baseSalary: employee.baseSalary,
@@ -176,17 +236,19 @@ export function DailyAttendanceMarking() {
           otherAllowances: employee.otherAllowances,
         }) : 0;
 
-        const deduction = calculateBulkAttendanceDeduction(fullSalary, agg.absenceDays, agg.delayHours);
+        const deduction = calculateBulkAttendanceDeduction(fullSalary, absenceDays, delayHours);
 
         return {
           employeeId: empId,
-          month,
-          year,
-          absenceDays: agg.absenceDays,
-          justifiedAbsenceDays: agg.justifiedAbsenceDays,
-          delayHours: agg.delayHours,
+          month: target.month,
+          year: target.year,
+          absenceDays,
+          justifiedAbsenceDays,
+          delayHours,
           ...deduction,
-          notes: `Auto-aggregated from daily marking`,
+          notes: isCarriedForward 
+            ? `Auto-aggregated (carried from ${originalMonth}/${originalYear} post-cutoff)` 
+            : `Auto-aggregated from daily marking`,
         };
       });
 
@@ -195,11 +257,20 @@ export function DailyAttendanceMarking() {
       }
 
       setHasChanges(false);
-      toast.success(
-        language === 'pt'
-          ? `${marksToSave.length} presenças registadas com sucesso`
-          : `${marksToSave.length} attendance marks saved successfully`
-      );
+      
+      if (isCarriedForward) {
+        toast.success(
+          language === 'pt'
+            ? `${marksToSave.length} presenças registadas — contabilizadas para ${target.month}/${target.year} (após fecho do mês)`
+            : `${marksToSave.length} marks saved — counted for ${target.month}/${target.year} (after payroll cutoff)`
+        );
+      } else {
+        toast.success(
+          language === 'pt'
+            ? `${marksToSave.length} presenças registadas com sucesso`
+            : `${marksToSave.length} attendance marks saved successfully`
+        );
+      }
     } catch (error) {
       console.error('[DailyAttendance] Save error:', error);
       toast.error(language === 'pt' ? 'Erro ao guardar presenças' : 'Error saving attendance');
