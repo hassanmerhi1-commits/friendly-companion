@@ -137,6 +137,12 @@ const Payroll = () => {
   // Check if viewing historical (approved/paid) period
   const isHistoricalView = currentPeriod?.status === 'approved' || currentPeriod?.status === 'paid';
   
+  // Attendance close status for the current period
+  const periodMonth = currentPeriod?.month || (now.getMonth() + 1);
+  const periodYear = currentPeriod?.year || now.getFullYear();
+  const isAttendanceClosedForPeriod = isAttendanceClosed(periodMonth, periodYear);
+  const attendanceCutoffForPeriod = getAttendanceCutoff(periodMonth, periodYear);
+
   // Get all entries for the current period - don't filter by employee existence
   // This ensures payroll data shows even if employee data sync is delayed
   const currentEntries = currentPeriod 
