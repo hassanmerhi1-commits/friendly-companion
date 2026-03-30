@@ -25,6 +25,7 @@ export type Permission =
   | 'attendance.edit'
   | 'attendance.delete'
   | 'attendance.edit_past'
+  | 'attendance.close'
   | 'hr.view'
   | 'hr.create'
   | 'hr.edit'
