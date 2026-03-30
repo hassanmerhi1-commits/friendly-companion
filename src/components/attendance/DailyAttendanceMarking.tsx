@@ -14,6 +14,7 @@ import { useBranchStore } from '@/stores/branch-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useDailyAttendanceStore, type DailyStatus } from '@/stores/daily-attendance-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary } from '@/stores/bulk-attendance-store';
+import { usePayrollStore } from '@/stores/payroll-store';
 import { format, addDays, subDays, isToday, isAfter, startOfDay } from 'date-fns';
 import { toast } from 'sonner';
 
