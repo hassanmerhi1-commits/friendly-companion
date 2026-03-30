@@ -139,6 +139,9 @@ export default function Attendance() {
     dailyMarking: language === 'pt' ? 'Marcação Diária' : 'Daily Marking',
     archived: language === 'pt' ? 'Período Arquivado — Apenas Leitura' : 'Archived Period — Read Only',
     effectivenessMap: language === 'pt' ? 'Mapa de Efectividade' : 'Effectiveness Map',
+    closeAttendance: language === 'pt' ? 'Fechar Presenças' : 'Close Attendance',
+    reopenAttendance: language === 'pt' ? 'Reabrir Presenças' : 'Reopen Attendance',
+    attendanceClosedOn: language === 'pt' ? 'Presenças fechadas em' : 'Attendance closed on',
   };
 
   return (
