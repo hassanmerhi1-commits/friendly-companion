@@ -354,6 +354,12 @@ export function DailyAttendanceMarking() {
           <div>
             <CardTitle className="text-lg">{t.title}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{t.desc}</p>
+            {isAfterCutoff && (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md text-sm text-amber-700 dark:text-amber-400 font-medium">
+                <Clock className="h-4 w-4 shrink-0" />
+                {t.carryForward} <strong>{carriedTargetLabel}</strong>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Date navigator */}
