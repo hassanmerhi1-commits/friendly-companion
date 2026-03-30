@@ -309,6 +309,15 @@ const Payroll = () => {
     // Get or create period for current month
     const period = await getOrCreateCurrentPeriod();
     
+    // Warn if attendance is not closed yet (but don't block)
+    if (!isAttendanceClosed(period.month, period.year)) {
+      toast.warning(
+        language === 'pt'
+          ? 'Atenção: Presenças ainda não foram fechadas. Ausências após hoje serão incluídas no próximo mês.'
+          : 'Warning: Attendance has not been closed. Absences after today will be included in next month.'
+      );
+    }
+    
     // Pass absence store, deduction store and bulk attendance store to integrate calculations
     // Bulk attendance takes priority for absence/delay deductions (uses FULL salary including bonuses)
     await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords, absenceStore, deductionStore, bulkAttendanceStore);
