@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -36,7 +36,7 @@ import type { PayrollEntry } from "@/types/payroll";
 const Payroll = () => {
   const { t, language } = useLanguage();
   const { hasPermission } = useAuthStore();
-  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime } = usePayrollStore();
+  const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime, isAttendanceClosed, getAttendanceCutoff } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
   const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
@@ -137,6 +137,12 @@ const Payroll = () => {
   // Check if viewing historical (approved/paid) period
   const isHistoricalView = currentPeriod?.status === 'approved' || currentPeriod?.status === 'paid';
   
+  // Attendance close status for the current period
+  const periodMonth = currentPeriod?.month || (now.getMonth() + 1);
+  const periodYear = currentPeriod?.year || now.getFullYear();
+  const isAttendanceClosedForPeriod = isAttendanceClosed(periodMonth, periodYear);
+  const attendanceCutoffForPeriod = getAttendanceCutoff(periodMonth, periodYear);
+
   // Get all entries for the current period - don't filter by employee existence
   // This ensures payroll data shows even if employee data sync is delayed
   const currentEntries = currentPeriod 
@@ -302,6 +308,15 @@ const Payroll = () => {
     
     // Get or create period for current month
     const period = await getOrCreateCurrentPeriod();
+    
+    // Warn if attendance is not closed yet (but don't block)
+    if (!isAttendanceClosed(period.month, period.year)) {
+      toast.warning(
+        language === 'pt'
+          ? 'Atenção: Presenças ainda não foram fechadas. Ausências após hoje serão incluídas no próximo mês.'
+          : 'Warning: Attendance has not been closed. Absences after today will be included in next month.'
+      );
+    }
     
     // Pass absence store, deduction store and bulk attendance store to integrate calculations
     // Bulk attendance takes priority for absence/delay deductions (uses FULL salary including bonuses)
@@ -558,6 +573,37 @@ const Payroll = () => {
               >
                 {language === 'pt' ? 'Voltar ao Actual' : 'Back to Current'}
               </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Attendance status indicator */}
+      {!isHistoricalView && currentPeriod && (
+        <div className={`stat-card mb-4 border-l-4 ${
+          isAttendanceClosedForPeriod 
+            ? 'border-l-emerald-500 bg-emerald-500/5' 
+            : 'border-l-amber-500 bg-amber-500/5'
+        }`}>
+          <div className="flex items-center gap-2 text-sm">
+            {isAttendanceClosedForPeriod ? (
+              <>
+                <Lock className="h-4 w-4 text-emerald-600" />
+                <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                  {language === 'pt' 
+                    ? `Presenças fechadas (${attendanceCutoffForPeriod})` 
+                    : `Attendance closed (${attendanceCutoffForPeriod})`}
+                </span>
+              </>
+            ) : (
+              <>
+                <LockOpen className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-700 dark:text-amber-400">
+                  {language === 'pt' 
+                    ? 'Presenças ainda não foram fechadas para este mês' 
+                    : 'Attendance has not been closed for this month yet'}
+                </span>
+              </>
             )}
           </div>
         </div>
