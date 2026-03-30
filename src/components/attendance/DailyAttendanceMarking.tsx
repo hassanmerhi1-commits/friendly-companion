@@ -331,8 +331,8 @@ export function DailyAttendanceMarking() {
     unmarked: language === 'pt' ? 'Não marcado' : 'Unmarked',
     summary: language === 'pt' ? 'Resumo' : 'Summary',
     carryForward: language === 'pt' 
-      ? `Folha salarial já calculada — estas marcações serão contabilizadas em` 
-      : `Payroll already calculated — these marks will count for`,
+      ? `Presenças fechadas — estas marcações serão contabilizadas em` 
+      : `Attendance closed — these marks will count for`,
   };
 
   const getStatusBadge = (status?: DailyStatus) => {
