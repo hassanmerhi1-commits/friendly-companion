@@ -181,6 +181,30 @@ export default function Attendance() {
                 </Button>
               )}
             </div>
+            {/* Close/Reopen Attendance Button */}
+            {isAdmin && !isPeriodArchived && (
+              attendanceClosed ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReopenAttendance}
+                  className="gap-2"
+                >
+                  <LockOpen className="h-4 w-4" />
+                  {t.reopenAttendance}
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleCloseAttendance}
+                  className="gap-2"
+                >
+                  <Lock className="h-4 w-4" />
+                  {t.closeAttendance}
+                </Button>
+              )
+            )}
             <BranchAttendanceImport />
           </div>
         </div>
