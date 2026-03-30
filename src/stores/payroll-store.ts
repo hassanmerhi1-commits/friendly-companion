@@ -92,6 +92,7 @@ function mapPeriodToDbRow(p: PayrollPeriod): Record<string, any> {
     processed_at: p.processedAt || null,
     approved_at: p.approvedAt || null,
     paid_at: p.paidAt || null,
+    cutoff_date: p.cutoffDate || null,
     notes: null,
     created_at: p.createdAt,
     updated_at: new Date().toISOString(),

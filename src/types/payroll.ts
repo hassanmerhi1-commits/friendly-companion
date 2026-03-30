@@ -24,6 +24,7 @@ export interface PayrollPeriod {
   processedAt?: string;
   approvedAt?: string;
   paidAt?: string;
+  cutoffDate?: string; // Date when payroll was calculated - attendance after this carries to next month
 }
 
 export interface PayrollEntry {
