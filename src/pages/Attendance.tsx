@@ -45,9 +45,9 @@ export default function Attendance() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const canEditPast = hasPermission('attendance.edit_past') || currentUser?.role === 'admin';
+  const canEditPast = hasPermission('attendance.edit_past') || currentUser?.role?.toLowerCase() === 'admin';
   const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
-  const isShopUser = currentUser?.role !== 'admin' && !!currentUser?.branchId;
+  const isShopUser = currentUser?.role?.toLowerCase() !== 'admin' && !!currentUser?.branchId;
   const isCurrentPeriod = selectedMonth === currentMonth && selectedYear === currentYear;
 
   // Check if selected period's payroll is archived (paid)
