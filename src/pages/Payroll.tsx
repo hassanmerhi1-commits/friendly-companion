@@ -940,6 +940,13 @@ const Payroll = () => {
                           <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
                         )}
                       </td>
+                      <td className="px-3 py-3 text-right font-mono text-sm">
+                        {(entry.monthlyBonus || 0) > 0 ? (
+                          <span className="text-accent">{formatAOA(entry.monthlyBonus)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
