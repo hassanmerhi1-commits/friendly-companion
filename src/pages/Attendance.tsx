@@ -203,15 +203,59 @@ export default function Attendance() {
                   {t.reopenAttendance}
                 </Button>
               ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleCloseAttendance}
-                  className="gap-2"
-                >
-                  <Lock className="h-4 w-4" />
-                  {t.closeAttendance}
-                </Button>
+                <Popover open={cutoffPickerOpen} onOpenChange={setCutoffPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Lock className="h-4 w-4" />
+                      {t.closeAttendance}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <div className="p-3 border-b">
+                      <p className="text-sm font-medium">
+                        {language === 'pt' ? 'Seleccionar data de corte' : 'Select cutoff date'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {language === 'pt' 
+                          ? 'Ausências após esta data serão transferidas para o próximo mês'
+                          : 'Absences after this date will carry to next month'}
+                      </p>
+                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={selectedCutoffDate}
+                      onSelect={setSelectedCutoffDate}
+                      className={cn("p-3 pointer-events-auto")}
+                      defaultMonth={new Date(selectedYear, selectedMonth - 1)}
+                      disabled={(date) => {
+                        const monthStart = new Date(selectedYear, selectedMonth - 1, 1);
+                        const monthEnd = new Date(selectedYear, selectedMonth, 0);
+                        return date < monthStart || date > monthEnd;
+                      }}
+                    />
+                    <div className="p-3 border-t flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setCutoffPickerOpen(false)}>
+                        {language === 'pt' ? 'Cancelar' : 'Cancel'}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        disabled={!selectedCutoffDate}
+                        onClick={() => {
+                          if (selectedCutoffDate) {
+                            handleCloseAttendance(format(selectedCutoffDate, 'yyyy-MM-dd'));
+                          }
+                        }}
+                      >
+                        <Lock className="h-4 w-4 mr-1" />
+                        {language === 'pt' ? 'Confirmar' : 'Confirm'}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )
             )}
             <BranchAttendanceImport />
