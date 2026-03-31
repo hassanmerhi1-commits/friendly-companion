@@ -80,10 +80,15 @@ export const useAuditStore = create<AuditState>()((set, get) => ({
     const now = new Date().toISOString();
     const id = generateId();
     
+    // Capture current user
+    const { currentUser } = useAuthStore.getState();
+    
     const log: AuditLogEntry = {
       id,
       timestamp: now,
       action: params.action,
+      userId: currentUser?.id || params.periodId,
+      userName: currentUser?.username || currentUser?.name || 'Sistema',
       entityType: params.entityType,
       entityId: params.entityId,
       periodId: params.periodId,
