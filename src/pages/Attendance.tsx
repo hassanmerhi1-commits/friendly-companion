@@ -45,9 +45,10 @@ export default function Attendance() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const canEditPast = hasPermission('attendance.edit_past') || currentUser?.role?.toLowerCase() === 'admin';
-  const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
-  const isShopUser = currentUser?.role?.toLowerCase() !== 'admin' && !!currentUser?.branchId;
+  const normalizedRole = currentUser?.role?.trim().toLowerCase();
+  const canEditPast = hasPermission('attendance.edit_past') || normalizedRole === 'admin';
+  const isAdmin = normalizedRole === 'admin';
+  const isShopUser = normalizedRole !== 'admin' && !!currentUser?.branchId;
   const isCurrentPeriod = selectedMonth === currentMonth && selectedYear === currentYear;
 
   // Check if selected period's payroll is archived (paid)
@@ -62,16 +63,7 @@ export default function Attendance() {
   const attendanceClosed = isAttendanceClosed(selectedMonth, selectedYear);
   const attendanceCutoff = getAttendanceCutoff(selectedMonth, selectedYear);
 
-  // Debug: log conditions for Close Attendance button visibility
-  console.log('[Attendance] Close button conditions:', {
-    isAdmin,
-    hasClosePermission: hasPermission('attendance.close'),
-    isPeriodArchived,
-    currentUserRole: currentUser?.role,
-    selectedMonth,
-    selectedYear,
-    attendanceClosed,
-  });
+  const canManageAttendanceClose = (isAdmin || hasPermission('attendance.close')) && !isPeriodArchived;
 
   const [cutoffPickerOpen, setCutoffPickerOpen] = useState(false);
   const [selectedCutoffDate, setSelectedCutoffDate] = useState<Date | undefined>(undefined);
@@ -202,7 +194,7 @@ export default function Attendance() {
               )}
             </div>
             {/* Close/Reopen Attendance Button */}
-            {(isAdmin || hasPermission('attendance.close')) && !isPeriodArchived && (
+            {canManageAttendanceClose && (
               attendanceClosed ? (
                 <Button
                   variant="outline"

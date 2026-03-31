@@ -125,6 +125,11 @@ export const roleLabels: Record<UserRole, { pt: string; en: string }> = {
   viewer: { pt: 'Visualizador', en: 'Viewer' },
 };
 
+function normalizeUserRole(role: unknown): UserRole {
+  const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : '';
+  return normalizedRole in rolePermissions ? (normalizedRole as UserRole) : 'viewer';
+}
+
 export interface AppUser {
   id: string;
   username: string;
@@ -211,7 +216,7 @@ function mapDbRowToUser(row: any): AppUser {
     username: row.username,
     password: row.password,
     name: row.name || '',
-    role: row.role || 'viewer',
+    role: normalizeUserRole(row.role),
     branchId: row.branch_id || undefined,
     customPermissions: row.custom_permissions ? JSON.parse(row.custom_permissions) : undefined,
     isActive: row.is_active === 1,
@@ -226,7 +231,7 @@ function mapUserToDbRow(user: AppUser): Record<string, any> {
     username: user.username,
     password: user.password,
     name: user.name,
-    role: user.role,
+    role: normalizeUserRole(user.role),
     branch_id: user.branchId || null,
     custom_permissions: user.customPermissions ? JSON.stringify(user.customPermissions) : null,
     is_active: user.isActive ? 1 : 0,
@@ -322,7 +327,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
       const user = get().currentUser;
       if (!user) return false;
       
-      const permissions = user.customPermissions || rolePermissions[user.role] || [];
+      const permissions = user.customPermissions || rolePermissions[normalizeUserRole(user.role)] || [];
       return permissions.includes(permission);
     },
     
@@ -332,7 +337,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         : get().currentUser;
       
       if (!user) return [];
-      return user.customPermissions || rolePermissions[user.role] || [];
+      return user.customPermissions || rolePermissions[normalizeUserRole(user.role)] || [];
     },
     
     addUser: async (data) => {
@@ -400,10 +405,10 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     
     deleteUser: async (id: string) => {
       // Don't delete the last admin
-      const admins = get().users.filter(u => u.role === 'admin' && u.isActive);
+      const admins = get().users.filter(u => normalizeUserRole(u.role) === 'admin' && u.isActive);
       const userToDelete = get().users.find(u => u.id === id);
       
-      if (userToDelete?.role === 'admin' && admins.length <= 1) {
+      if (userToDelete && normalizeUserRole(userToDelete.role) === 'admin' && admins.length <= 1) {
         return;
       }
       

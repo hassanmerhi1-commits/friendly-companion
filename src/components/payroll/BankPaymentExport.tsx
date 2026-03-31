@@ -74,6 +74,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     const columns = [
       { header: 'Nº', key: 'num', width: 6 },
       { header: 'Nº Func.', key: 'empNum', width: 12 },
+      { header: 'Nº Bilhete', key: 'bi', width: 20 },
       { header: 'Nome Completo', key: 'name', width: 30 },
       { header: 'Departamento', key: 'dept', width: 18 },
       { header: 'Salário Base', key: 'base', width: 15 },
@@ -138,7 +139,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     const currencyFormat = '#,##0.00';
 
     // Currency column indices (1-based, after 3 inserted rows the data columns stay the same)
-    const currencyCols = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+    const currencyCols = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
     // ── Style header row ──
     headerRow.eachCell((cell) => {
@@ -155,6 +156,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       const row = ws.addRow({
         num: index + 1,
         empNum: entry.employee?.employeeNumber || '',
+        bi: entry.employee?.bilheteIdentidade || '',
         name: `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
         dept: entry.employee?.department || '',
         base: entry.baseSalary || 0,
@@ -209,6 +211,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     const totalsRow = ws.addRow({
       num: '',
       empNum: '',
+      bi: '',
       name: 'TOTAL',
       dept: '',
       base: sumCol('baseSalary'),
