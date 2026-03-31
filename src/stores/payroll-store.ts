@@ -914,18 +914,27 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const periodId = `period-${year}-${month}`;
       let period = get().getPeriod(periodId);
       
+      console.log('[Attendance Close] Starting for', month, year, 'periodId:', periodId, 'exists:', !!period);
+      
       // Create a draft period if one doesn't exist yet
       if (!period) {
         await get().createPeriod(year, month);
+        console.log('[Attendance Close] Created new period');
       }
       
       const cutoffDate = cutoffDateOverride || new Date().toISOString().split('T')[0];
       const now = new Date().toISOString();
-      await liveUpdate('payroll_periods', periodId, {
+      console.log('[Attendance Close] Setting cutoff_date:', cutoffDate);
+      const updateResult = await liveUpdate('payroll_periods', periodId, {
         cutoff_date: cutoffDate,
         updated_at: now,
       });
+      console.log('[Attendance Close] Update result:', updateResult);
       await get().loadPayroll();
+      
+      // Verify
+      const verifyPeriod = get().periods.find(p => p.month === month && p.year === year);
+      console.log('[Attendance Close] After reload, cutoffDate:', verifyPeriod?.cutoffDate);
     },
 
     reopenAttendance: async (month: number, year: number) => {
