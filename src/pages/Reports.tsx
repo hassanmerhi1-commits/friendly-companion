@@ -735,6 +735,21 @@ const Reports = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Bonus Report Dialog */}
+      <Dialog open={openReport === 'bonus'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Relatório de Bónus</DialogTitle>
+          </DialogHeader>
+          <PrintableBonusReport
+            entries={filteredEntries}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            branchName={selectedBranch?.name}
+          />
+        </DialogContent>
+      </Dialog>
     </TopNavLayout>
   );
 };
