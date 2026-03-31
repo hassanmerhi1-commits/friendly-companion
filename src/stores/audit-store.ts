@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import type { AuditLogEntry, AuditAction } from '@/types/audit';
 import { liveGetAll, liveInsert, onTableSync, onDataChange } from '@/lib/db-live';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface AuditState {
   logs: AuditLogEntry[];
