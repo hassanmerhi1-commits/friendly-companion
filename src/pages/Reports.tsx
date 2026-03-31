@@ -27,9 +27,10 @@ import { PrintableAnnualSummary } from "@/components/reports/PrintableAnnualSumm
 import { PrintableBranchCostAnalysis } from "@/components/reports/PrintableBranchCostAnalysis";
 import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncomeDeclaration";
 import { PrintableAuditHistoryReport } from "@/components/reports/PrintableAuditHistoryReport";
+import { PrintableBonusReport } from "@/components/reports/PrintableBonusReport";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
-type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | null;
+type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | 'bonus' | null;
 
 const Reports = () => {
   const { t, language } = useLanguage();
@@ -233,6 +234,15 @@ const Reports = () => {
       icon: Building2, 
       color: 'bg-cyan-500',
       available: filteredEntries.length > 0 && branches.length > 0
+    },
+    { 
+      id: "14", 
+      type: 'bonus' as ReportType,
+      name: 'Relatório de Bónus', 
+      description: 'Detalhamento de bónus mensal por funcionário e departamento', 
+      icon: DollarSign, 
+      color: 'bg-emerald-600',
+      available: filteredEntries.length > 0
     },
   ];
 
@@ -722,6 +732,21 @@ const Reports = () => {
             companyNif={settings.nif}
             year={selectedYear}
             onClose={() => setOpenReport(null)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Bonus Report Dialog */}
+      <Dialog open={openReport === 'bonus'} onOpenChange={() => setOpenReport(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Relatório de Bónus</DialogTitle>
+          </DialogHeader>
+          <PrintableBonusReport
+            entries={filteredEntries}
+            periodLabel={periodLabel}
+            companyName={settings.companyName}
+            branchName={selectedBranch?.name}
           />
         </DialogContent>
       </Dialog>

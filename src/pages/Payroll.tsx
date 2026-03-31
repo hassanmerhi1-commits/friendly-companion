@@ -268,7 +268,8 @@ const Payroll = () => {
     gross: acc.gross + e.grossSalary,
     deductions: acc.deductions + e.totalDeductions,
     net: acc.net + (e.paidEarly ? 0 : e.netSalary),
-  }), { gross: 0, deductions: 0, net: 0 });
+    bonus: acc.bonus + (e.monthlyBonus || 0),
+  }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
 
   // Calculate months worked for an employee
   const getMonthsWorked = (hireDate: string): number => {
@@ -766,14 +767,16 @@ const Payroll = () => {
           gross: acc.gross + e.grossSalary,
           deductions: acc.deductions + e.totalDeductions,
           net: acc.net + (e.paidEarly ? 0 : e.netSalary),
-        }), { gross: 0, deductions: 0, net: 0 });
+          bonus: acc.bonus + (e.monthlyBonus || 0),
+        }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
         
         return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
-            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={50} />
-            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={100} />
-            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={150} />
+            <StatCard title={language === 'pt' ? 'Total Bónus' : 'Total Bonus'} value={formatAOA(displayTotals.bonus)} icon={Gift} delay={50} />
+            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={100} />
+            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={150} />
+            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={200} />
           </div>
         );
       })()}
@@ -792,8 +795,9 @@ const Payroll = () => {
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'H. Extra' : 'Overtime'}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Faltas' : 'Absences'}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Férias' : 'Holiday'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
+                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
+                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
+                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.net}</th>
@@ -934,6 +938,13 @@ const Payroll = () => {
                           />
                         ) : (
                           <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-sm">
+                        {(entry.monthlyBonus || 0) > 0 ? (
+                          <span className="text-accent">{formatAOA(entry.monthlyBonus)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
