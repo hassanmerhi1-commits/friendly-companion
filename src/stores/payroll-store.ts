@@ -38,7 +38,7 @@ interface PayrollState {
   markAsPaid: (periodId: string) => Promise<void>;
   
   // Attendance close/reopen - independent of payroll status
-  closeAttendance: (month: number, year: number) => Promise<void>;
+  closeAttendance: (month: number, year: number, cutoffDate?: string) => Promise<void>;
   reopenAttendance: (month: number, year: number) => Promise<void>;
   isAttendanceClosed: (month: number, year: number) => boolean;
   getAttendanceCutoff: (month: number, year: number) => string | undefined;

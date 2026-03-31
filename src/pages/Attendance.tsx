@@ -62,9 +62,14 @@ export default function Attendance() {
   const attendanceClosed = isAttendanceClosed(selectedMonth, selectedYear);
   const attendanceCutoff = getAttendanceCutoff(selectedMonth, selectedYear);
 
-  const handleCloseAttendance = async () => {
+  const [cutoffPickerOpen, setCutoffPickerOpen] = useState(false);
+  const [selectedCutoffDate, setSelectedCutoffDate] = useState<Date | undefined>(undefined);
+
+  const handleCloseAttendance = async (cutoffDate?: string) => {
     try {
-      await closeAttendance(selectedMonth, selectedYear);
+      await closeAttendance(selectedMonth, selectedYear, cutoffDate);
+      setCutoffPickerOpen(false);
+      setSelectedCutoffDate(undefined);
       toast.success(
         language === 'pt'
           ? `Presenças fechadas para ${monthNames[selectedMonth - 1]} ${selectedYear}`
