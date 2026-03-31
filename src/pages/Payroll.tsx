@@ -773,9 +773,10 @@ const Payroll = () => {
         return (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
-            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={50} />
-            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={100} />
-            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={150} />
+            <StatCard title={language === 'pt' ? 'Total Bónus' : 'Total Bonus'} value={formatAOA(displayTotals.bonus)} icon={Gift} delay={50} />
+            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={100} />
+            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={150} />
+            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={200} />
           </div>
         );
       })()}
