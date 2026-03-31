@@ -15,11 +15,12 @@ export function exportPayrollToCSV(
 ): void {
   const isPt = language === 'pt';
   const headers = isPt
-    ? ['Funcionário', 'Departamento', 'Salário Base', 'Subsídios', 'Bruto', 'IRT', 'INSS', 'Outros Descontos', 'Líquido']
-    : ['Employee', 'Department', 'Base Salary', 'Allowances', 'Gross', 'IRT', 'INSS', 'Other Deductions', 'Net'];
+    ? ['Funcionário', 'Nº Bilhete (BI)', 'Departamento', 'Salário Base', 'Subsídios', 'Bruto', 'IRT', 'INSS', 'Outros Descontos', 'Líquido']
+    : ['Employee', 'ID Number (BI)', 'Department', 'Base Salary', 'Allowances', 'Gross', 'IRT', 'INSS', 'Other Deductions', 'Net'];
 
   const rows = entries.map(entry => [
     `${entry.employee?.firstName} ${entry.employee?.lastName}`,
+    entry.employee?.bilheteIdentidade || '',
     entry.employee?.department || '',
     entry.baseSalary,
     entry.mealAllowance + entry.transportAllowance + entry.otherAllowances,
@@ -46,6 +47,7 @@ export function exportPayrollToCSV(
 
   rows.push([
     language === 'pt' ? 'TOTAL' : 'TOTAL',
+    '',
     '',
     totals.base,
     totals.allowances,
