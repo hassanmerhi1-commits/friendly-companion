@@ -910,7 +910,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
     },
 
     // ATTENDANCE CLOSE/REOPEN - independent of payroll calculation
-    closeAttendance: async (month: number, year: number) => {
+    closeAttendance: async (month: number, year: number, cutoffDateOverride?: string) => {
       const periodId = `period-${year}-${month}`;
       let period = get().getPeriod(periodId);
       
@@ -919,7 +919,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         await get().createPeriod(year, month);
       }
       
-      const cutoffDate = new Date().toISOString().split('T')[0];
+      const cutoffDate = cutoffDateOverride || new Date().toISOString().split('T')[0];
       const now = new Date().toISOString();
       await liveUpdate('payroll_periods', periodId, {
         cutoff_date: cutoffDate,
