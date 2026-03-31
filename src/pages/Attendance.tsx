@@ -62,6 +62,17 @@ export default function Attendance() {
   const attendanceClosed = isAttendanceClosed(selectedMonth, selectedYear);
   const attendanceCutoff = getAttendanceCutoff(selectedMonth, selectedYear);
 
+  // Debug: log conditions for Close Attendance button visibility
+  console.log('[Attendance] Close button conditions:', {
+    isAdmin,
+    hasClosePermission: hasPermission('attendance.close'),
+    isPeriodArchived,
+    currentUserRole: currentUser?.role,
+    selectedMonth,
+    selectedYear,
+    attendanceClosed,
+  });
+
   const [cutoffPickerOpen, setCutoffPickerOpen] = useState(false);
   const [selectedCutoffDate, setSelectedCutoffDate] = useState<Date | undefined>(undefined);
 
