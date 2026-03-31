@@ -123,7 +123,7 @@ export function PrintableBonusReport({ entries, periodLabel, companyName, branch
                       <td className="text-center">{idx + 1}</td>
                       <td>{entry.employee?.firstName} {entry.employee?.lastName}</td>
                       <td>{entry.employee?.department || '-'}</td>
-                      <td>{entry.employee?.branchId || '-'}</td>
+                      <td>{getBranchName(entry.employee?.branchId)}</td>
                       <td className="text-right font-mono">{formatAOA(entry.baseSalary)}</td>
                       <td className="text-right font-mono font-bold">{formatAOA(entry.monthlyBonus)}</td>
                       <td className="text-right font-mono">{pct.toFixed(1)}%</td>
