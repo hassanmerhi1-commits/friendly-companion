@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useBranchStore } from '@/stores/branch-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { getPayrollPeriodLabel } from '@/types/payroll';
 import type { PayrollEntry } from '@/types/payroll';
@@ -16,7 +17,14 @@ interface PrintableBonusReportProps {
 export function PrintableBonusReport({ entries, periodLabel, companyName, branchName }: PrintableBonusReportProps) {
   const printRef = useRef<HTMLDivElement>(null);
   const { settings } = useSettingsStore();
+  const { branches } = useBranchStore();
   const company = companyName || settings.companyName || 'Empresa';
+
+  const getBranchName = (branchId?: string) => {
+    if (!branchId) return '-';
+    const branch = branches.find(b => b.id === branchId);
+    return branch ? branch.name : '-';
+  };
 
   // Filter entries that have bonus > 0
   const bonusEntries = entries.filter(e => (e.monthlyBonus || 0) > 0);
@@ -115,7 +123,7 @@ export function PrintableBonusReport({ entries, periodLabel, companyName, branch
                       <td className="text-center">{idx + 1}</td>
                       <td>{entry.employee?.firstName} {entry.employee?.lastName}</td>
                       <td>{entry.employee?.department || '-'}</td>
-                      <td>{entry.employee?.branchId || '-'}</td>
+                      <td>{getBranchName(entry.employee?.branchId)}</td>
                       <td className="text-right font-mono">{formatAOA(entry.baseSalary)}</td>
                       <td className="text-right font-mono font-bold">{formatAOA(entry.monthlyBonus)}</td>
                       <td className="text-right font-mono">{pct.toFixed(1)}%</td>
