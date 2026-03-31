@@ -1,8 +1,11 @@
 import { useState, useMemo } from "react";
+import { format } from "date-fns";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ClockInOut } from "@/components/attendance/ClockInOut";
 import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
@@ -17,7 +20,8 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { Clock, List, Timer, Calendar, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck, FileText, LockOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Clock, List, Timer, Calendar as CalendarIcon, UserMinus, ChevronLeft, ChevronRight, Lock, ClipboardCheck, FileText, LockOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Attendance() {
