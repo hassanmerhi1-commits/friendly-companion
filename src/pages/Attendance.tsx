@@ -50,6 +50,17 @@ export default function Attendance() {
   const isShopUser = currentUser?.role !== 'admin' && !!currentUser?.branchId;
   const isCurrentPeriod = selectedMonth === currentMonth && selectedYear === currentYear;
 
+  // Debug: log conditions for Close Attendance button visibility
+  console.log('[Attendance] Close button conditions:', {
+    isAdmin,
+    hasClosePermission: hasPermission('attendance.close'),
+    isPeriodArchived,
+    currentUserRole: currentUser?.role,
+    selectedMonth,
+    selectedYear,
+    attendanceClosed,
+  });
+
   // Check if selected period's payroll is archived (paid)
   const isPeriodArchived = useMemo(() => {
     return periods.some(
