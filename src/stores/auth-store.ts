@@ -130,6 +130,16 @@ function normalizeUserRole(role: unknown): UserRole {
   return normalizedRole in rolePermissions ? (normalizedRole as UserRole) : 'viewer';
 }
 
+function resolveUserPermissions(user: Pick<AppUser, 'role' | 'customPermissions'> | null | undefined): Permission[] {
+  if (!user) return [];
+
+  if (Array.isArray(user.customPermissions) && user.customPermissions.length > 0) {
+    return user.customPermissions;
+  }
+
+  return rolePermissions[normalizeUserRole(user.role)] || [];
+}
+
 export interface AppUser {
   id: string;
   username: string;
@@ -325,10 +335,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
     
     hasPermission: (permission: Permission) => {
       const user = get().currentUser;
-      if (!user) return false;
-      
-      const permissions = user.customPermissions || rolePermissions[normalizeUserRole(user.role)] || [];
-      return permissions.includes(permission);
+      return resolveUserPermissions(user).includes(permission);
     },
     
     getUserPermissions: (userId?: string) => {
@@ -336,8 +343,7 @@ export const useAuthStore = create<AuthState>()((set, get) => {
         ? get().users.find(u => u.id === userId)
         : get().currentUser;
       
-      if (!user) return [];
-      return user.customPermissions || rolePermissions[normalizeUserRole(user.role)] || [];
+      return resolveUserPermissions(user);
     },
     
     addUser: async (data) => {
