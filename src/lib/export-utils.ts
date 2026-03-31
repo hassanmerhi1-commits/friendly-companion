@@ -48,6 +48,7 @@ export function exportPayrollToCSV(
   rows.push([
     language === 'pt' ? 'TOTAL' : 'TOTAL',
     '',
+    '',
     totals.base,
     totals.allowances,
     totals.gross,
