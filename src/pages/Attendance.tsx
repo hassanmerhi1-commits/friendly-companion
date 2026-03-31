@@ -313,7 +313,7 @@ export default function Attendance() {
                   {t.overtime}
                 </TabsTrigger>
                 <TabsTrigger value="calendar" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
+                  <CalendarIcon className="h-4 w-4" />
                   {t.calendar}
                   {pendingAbsences > 0 && (
                     <Badge variant="destructive" className="ml-1">
