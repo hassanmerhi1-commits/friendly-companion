@@ -767,7 +767,8 @@ const Payroll = () => {
           gross: acc.gross + e.grossSalary,
           deductions: acc.deductions + e.totalDeductions,
           net: acc.net + (e.paidEarly ? 0 : e.netSalary),
-        }), { gross: 0, deductions: 0, net: 0 });
+          bonus: acc.bonus + (e.monthlyBonus || 0),
+        }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
         
         return (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
