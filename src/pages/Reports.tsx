@@ -30,7 +30,7 @@ import { PrintableAuditHistoryReport } from "@/components/reports/PrintableAudit
 import { PrintableBonusReport } from "@/components/reports/PrintableBonusReport";
 import { getPayrollPeriodLabel } from "@/types/payroll";
 
-type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | null;
+type ReportType = 'salary' | 'employee' | 'cost' | 'holiday' | 'inss' | 'irt' | 'ferias' | 'overtime' | 'loans' | 'annual' | 'branch_cost' | 'income_declaration' | 'audit_history' | 'bonus' | null;
 
 const Reports = () => {
   const { t, language } = useLanguage();
