@@ -235,6 +235,15 @@ const Reports = () => {
       color: 'bg-cyan-500',
       available: filteredEntries.length > 0 && branches.length > 0
     },
+    { 
+      id: "14", 
+      type: 'bonus' as ReportType,
+      name: 'Relatório de Bónus', 
+      description: 'Detalhamento de bónus mensal por funcionário e departamento', 
+      icon: DollarSign, 
+      color: 'bg-emerald-600',
+      available: filteredEntries.length > 0
+    },
   ];
 
   // Annual/Tax reports
