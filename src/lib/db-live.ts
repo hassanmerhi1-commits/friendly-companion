@@ -490,8 +490,17 @@ export function initSyncListener() {
 // ============= LIVE READ OPERATIONS =============
 
 export async function liveGetAll<T>(table: string): Promise<T[]> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'getAll', table, companyId: activeCompanyId });
+      return response.data || [];
+    } catch (e) {
+      console.error(`[Browser-WS] getAll ${table} failed:`, e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const data = getMockData<T>(table);
     console.log(`[DB-Live/Mock] getAll ${table}:`, data.length, 'rows');
     return data;
