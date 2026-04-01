@@ -568,21 +568,26 @@ export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]
 // Note: After write, server will broadcast full table data - no local notification needed
 
 export async function liveInsert(table: string, data: Record<string, any>): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'insert', table, data, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] insert ${table} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const newData = { ...data, id: data.id || generateId() };
-    
-    // Check if record with same ID exists (upsert behavior)
     const existingIndex = existing.findIndex((row: any) => row.id === newData.id);
     if (existingIndex >= 0) {
       existing[existingIndex] = { ...existing[existingIndex], ...newData };
     } else {
       existing.push(newData);
     }
-    
     setMockData(table, existing);
-    console.log(`[DB-Live/Mock] insert ${table}:`, newData.id);
     return true;
   }
   
