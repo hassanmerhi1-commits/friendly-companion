@@ -290,6 +290,16 @@ export function initMockData(): void {
 // ============= COMPANY MANAGEMENT =============
 
 export async function liveListCompanies(): Promise<Array<{ id: string; name: string; dbFile: string }>> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'listCompanies' });
+      return response.data || [];
+    } catch (e) {
+      console.error('[Browser-WS] listCompanies failed:', e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
     // Mock: return companies from localStorage
     try {
