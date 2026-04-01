@@ -36,11 +36,26 @@ if (!isElectron() && !isPreviewHost && !isInIframe) {
 initElectronStorage();
 
 // Try browser WebSocket mode (for phone/browser access via HTTP server)
-// If it fails (not served from PayrollAO), fall back to mock data
+// If it fails, check if we have saved server info (PWA mode) before falling back to mock
 if (!isElectron()) {
   initBrowserWSMode().then((connected) => {
     if (!connected) {
-      initMockData();
+      // Check if we have saved server info (PWA reopened from home screen)
+      const savedInfo = localStorage.getItem('payroll_server_info');
+      if (savedInfo) {
+        console.log('[PWA] Have saved server info, retrying connection in 2s...');
+        // Retry once after a short delay - server might still be loading
+        setTimeout(() => {
+          initBrowserWSMode().then((retryConnected) => {
+            if (!retryConnected) {
+              console.log('[PWA] Server unreachable, using mock data temporarily');
+              initMockData();
+            }
+          });
+        }, 2000);
+      } else {
+        initMockData();
+      }
     }
   });
 }
