@@ -32,6 +32,140 @@ function isElectron(): boolean {
     (window as any).electronAPI?.isElectron === true;
 }
 
+// ============= BROWSER WEBSOCKET MODE =============
+// When accessing via HTTP from a phone/browser, connect directly via WebSocket
+let browserWs: WebSocket | null = null;
+let browserWsConnected = false;
+let browserWsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let browserServerInfo: { wsPort: number; computerName: string; localIPs: string[] } | null = null;
+const pendingBrowserRequests = new Map<string, { resolve: (value: any) => void; reject: (reason: any) => void; timer: ReturnType<typeof setTimeout> }>();
+
+function isBrowserRemoteMode(): boolean {
+  if (isElectron()) return false;
+  // We're in browser remote mode if we've successfully connected or have server info
+  // OR if the URL is not a lovable preview / localhost:5173 dev server
+  const host = window.location.hostname;
+  const isPreview = host.includes('lovable') || host.includes('localhost') || host === '127.0.0.1';
+  return !isPreview || browserWsConnected;
+}
+
+async function fetchServerInfo(): Promise<typeof browserServerInfo> {
+  try {
+    const origin = window.location.origin;
+    const res = await fetch(`${origin}/api/server-info`);
+    if (res.ok) {
+      browserServerInfo = await res.json();
+      console.log('[Browser-WS] Server info:', browserServerInfo);
+      return browserServerInfo;
+    }
+  } catch (e) {
+    console.log('[Browser-WS] Not served from PayrollAO server');
+  }
+  return null;
+}
+
+function connectBrowserWebSocket() {
+  if (browserWs && (browserWs.readyState === WebSocket.OPEN || browserWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const host = window.location.hostname;
+  const wsPort = browserServerInfo?.wsPort || 4545;
+  const url = `ws://${host}:${wsPort}`;
+  
+  console.log(`[Browser-WS] Connecting to ${url}`);
+  
+  browserWs = new WebSocket(url);
+  
+  browserWs.onopen = () => {
+    console.log('[Browser-WS] ✅ Connected');
+    browserWsConnected = true;
+    if (browserWsReconnectTimer) {
+      clearTimeout(browserWsReconnectTimer);
+      browserWsReconnectTimer = null;
+    }
+    
+    // If we have an active company, set it
+    if (activeCompanyId) {
+      sendBrowserRequest({ action: 'setCompany', companyId: activeCompanyId });
+    }
+  };
+  
+  browserWs.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      
+      // Handle sync broadcasts
+      if (msg.type === 'db-sync') {
+        if (msg.companyId && activeCompanyId && msg.companyId !== activeCompanyId) return;
+        console.log(`[Browser-WS] ← SYNC: ${msg.table} (${msg.rows?.length || 0} rows)`);
+        notifyTableSync(msg.table, msg.rows || []);
+        return;
+      }
+      
+      // Handle request responses
+      if (msg.requestId && pendingBrowserRequests.has(msg.requestId)) {
+        const pending = pendingBrowserRequests.get(msg.requestId)!;
+        clearTimeout(pending.timer);
+        pendingBrowserRequests.delete(msg.requestId);
+        pending.resolve(msg);
+      }
+    } catch (e) {
+      console.error('[Browser-WS] Parse error:', e);
+    }
+  };
+  
+  browserWs.onclose = () => {
+    console.log('[Browser-WS] ❌ Disconnected');
+    browserWsConnected = false;
+    browserWs = null;
+    scheduleBrowserReconnect();
+  };
+  
+  browserWs.onerror = (err) => {
+    console.error('[Browser-WS] Error:', err);
+  };
+}
+
+function scheduleBrowserReconnect() {
+  if (browserWsReconnectTimer) return;
+  browserWsReconnectTimer = setTimeout(() => {
+    browserWsReconnectTimer = null;
+    if (!browserWsConnected && browserServerInfo) {
+      connectBrowserWebSocket();
+    }
+  }, 3000);
+}
+
+function sendBrowserRequest(request: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (!browserWs || browserWs.readyState !== WebSocket.OPEN) {
+      reject(new Error('Not connected to server'));
+      return;
+    }
+    
+    const requestId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const timer = setTimeout(() => {
+      pendingBrowserRequests.delete(requestId);
+      reject(new Error('Request timeout'));
+    }, 30000);
+    
+    pendingBrowserRequests.set(requestId, { resolve, reject, timer });
+    browserWs.send(JSON.stringify({ ...request, requestId }));
+  });
+}
+
+// Initialize browser WebSocket mode
+export async function initBrowserWSMode(): Promise<boolean> {
+  if (isElectron()) return false;
+  
+  const info = await fetchServerInfo();
+  if (!info) return false;
+  
+  connectBrowserWebSocket();
+  return true;
+}
+
 // ============= MOCK STORAGE (for browser preview testing) =============
 const MOCK_STORAGE_PREFIX = 'payroll_mock_';
 const MOCK_COMPANIES_KEY = 'payroll_mock_companies';
@@ -156,6 +290,16 @@ export function initMockData(): void {
 // ============= COMPANY MANAGEMENT =============
 
 export async function liveListCompanies(): Promise<Array<{ id: string; name: string; dbFile: string }>> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'listCompanies' });
+      return response.data || [];
+    } catch (e) {
+      console.error('[Browser-WS] listCompanies failed:', e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
     // Mock: return companies from localStorage
     try {
@@ -197,6 +341,14 @@ export async function liveListCompanies(): Promise<Array<{ id: string; name: str
 }
 
 export async function liveCreateCompany(name: string): Promise<{ success: boolean; company?: any; error?: string }> {
+  if (isBrowserRemoteMode()) {
+    try {
+      return await sendBrowserRequest({ action: 'createCompany', name });
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  }
+  
   if (!isElectron()) {
     // Mock: add to localStorage
     const companies = await liveListCompanies();
@@ -216,6 +368,16 @@ export async function liveCreateCompany(name: string): Promise<{ success: boolea
 
 export async function liveSetActiveCompany(companyId: string): Promise<boolean> {
   setActiveCompanyId(companyId);
+  
+  if (isBrowserRemoteMode()) {
+    try {
+      const result = await sendBrowserRequest({ action: 'setCompany', companyId });
+      return result?.success === true;
+    } catch (e) {
+      console.error('[Browser-WS] setCompany failed:', e);
+      return false;
+    }
+  }
   
   if (!isElectron()) return true;
   
@@ -328,8 +490,17 @@ export function initSyncListener() {
 // ============= LIVE READ OPERATIONS =============
 
 export async function liveGetAll<T>(table: string): Promise<T[]> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'getAll', table, companyId: activeCompanyId });
+      return response.data || [];
+    } catch (e) {
+      console.error(`[Browser-WS] getAll ${table} failed:`, e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const data = getMockData<T>(table);
     console.log(`[DB-Live/Mock] getAll ${table}:`, data.length, 'rows');
     return data;
@@ -345,8 +516,17 @@ export async function liveGetAll<T>(table: string): Promise<T[]> {
 }
 
 export async function liveGetById<T>(table: string, id: string): Promise<T | null> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'getById', table, id, companyId: activeCompanyId });
+      return response.data || null;
+    } catch (e) {
+      console.error(`[Browser-WS] getById ${table}/${id} failed:`, e);
+      return null;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const data = getMockData<any>(table);
     return data.find((row: any) => row.id === id) || null;
   }
@@ -361,6 +541,16 @@ export async function liveGetById<T>(table: string, id: string): Promise<T | nul
 }
 
 export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'query', sql, params, companyId: activeCompanyId });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (e) {
+      console.error(`[Browser-WS] query failed:`, e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
     return [];
   }
@@ -378,21 +568,26 @@ export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]
 // Note: After write, server will broadcast full table data - no local notification needed
 
 export async function liveInsert(table: string, data: Record<string, any>): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'insert', table, data, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] insert ${table} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const newData = { ...data, id: data.id || generateId() };
-    
-    // Check if record with same ID exists (upsert behavior)
     const existingIndex = existing.findIndex((row: any) => row.id === newData.id);
     if (existingIndex >= 0) {
       existing[existingIndex] = { ...existing[existingIndex], ...newData };
     } else {
       existing.push(newData);
     }
-    
     setMockData(table, existing);
-    console.log(`[DB-Live/Mock] insert ${table}:`, newData.id);
     return true;
   }
   
@@ -410,17 +605,24 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
 }
 
 export async function liveUpdate(table: string, id: string, data: Record<string, any>): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'update', table, id, data, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] update ${table}/${id} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const index = existing.findIndex((row: any) => row.id === id);
     if (index >= 0) {
       existing[index] = { ...existing[index], ...data };
       setMockData(table, existing);
-      console.log(`[DB-Live/Mock] update ${table}:`, id);
       return true;
     }
-    console.warn(`[DB-Live/Mock] update failed - not found: ${table}/${id}`);
     return false;
   }
   
@@ -438,13 +640,21 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
 }
 
 export async function liveDelete(table: string, id: string): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'delete', table, id, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] delete ${table}/${id} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const filtered = existing.filter((row: any) => row.id !== id);
     if (filtered.length < existing.length) {
       setMockData(table, filtered);
-      console.log(`[DB-Live/Mock] delete ${table}:`, id);
       return true;
     }
     return false;
