@@ -20,6 +20,10 @@ let activeCompanyId: string | null = null;
 export function setActiveCompanyId(id: string | null) {
   activeCompanyId = id;
   console.log('[DB-Live] Active company set to:', id);
+  // Persist for PWA reconnection
+  if (id) {
+    try { localStorage.setItem('payroll_active_company_id', id); } catch {}
+  }
 }
 
 export function getActiveCompanyId(): string | null {
