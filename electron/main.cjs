@@ -316,16 +316,20 @@ function startWebSocketServer() {
             if (msg.action === 'setCompany') {
               wsClientCompanies.set(ws, msg.companyId);
               const targetDb = getCompanyDb(msg.companyId);
-              if (targetDb) {
-                const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
-                for (const table of tables) {
-                  try {
-                    const rows = dbGetAll(table, targetDb);
-                    ws.send(JSON.stringify({ type: 'db-sync', table, rows, companyId: msg.companyId }));
-                    console.log(`[WS] → Sent initial ${table}: ${rows.length} rows (${msg.companyId}) to ${clientIP}`);
-                  } catch (e) {
-                    console.error(`[WS] Error sending initial ${table}:`, e);
-                  }
+              if (!targetDb) {
+                console.error(`[WS] ✗ setCompany FAILED: could not open database for company '${msg.companyId}' — registry:`, JSON.stringify(loadCompaniesRegistry().map(c => ({ id: c.id, name: c.name, dbFile: c.dbFile }))));
+                ws.send(JSON.stringify({ success: false, error: `Database not found for company ${msg.companyId}`, requestId: msg.requestId }));
+                return;
+              }
+              console.log(`[WS] ✓ setCompany '${msg.companyId}' OK for ${clientIP}`);
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
+              for (const table of tables) {
+                try {
+                  const rows = dbGetAll(table, targetDb);
+                  ws.send(JSON.stringify({ type: 'db-sync', table, rows, companyId: msg.companyId }));
+                  console.log(`[WS] → Sent initial ${table}: ${rows.length} rows (${msg.companyId}) to ${clientIP}`);
+                } catch (e) {
+                  console.error(`[WS] Error sending initial ${table}:`, e);
                 }
               }
               ws.send(JSON.stringify({ success: true, requestId: msg.requestId }));
