@@ -2413,6 +2413,10 @@ app.on('window-all-closed', () => {
     try { db.close(); } catch (e) {}
     db = null;
   }
+  if (httpServer) {
+    try { httpServer.close(); } catch (e) {}
+    httpServer = null;
+  }
   if (wss) {
     try { wss.close(); } catch (e) {}
     wss = null;
