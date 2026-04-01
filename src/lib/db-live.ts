@@ -516,8 +516,17 @@ export async function liveGetAll<T>(table: string): Promise<T[]> {
 }
 
 export async function liveGetById<T>(table: string, id: string): Promise<T | null> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'getById', table, id, companyId: activeCompanyId });
+      return response.data || null;
+    } catch (e) {
+      console.error(`[Browser-WS] getById ${table}/${id} failed:`, e);
+      return null;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const data = getMockData<any>(table);
     return data.find((row: any) => row.id === id) || null;
   }
