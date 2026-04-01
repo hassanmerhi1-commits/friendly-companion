@@ -355,11 +355,32 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           // Combine absence + delay deductions
           const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
-          // Calculate deductions if deduction store is provided
+          // Calculate payroll FIRST so we know the net salary for warehouse loss cap
+          const payrollResult = calculatePayroll({
+            baseSalary: emp.baseSalary,
+            mealAllowance: emp.mealAllowance,
+            transportAllowance: emp.transportAllowance,
+            otherAllowances: emp.otherAllowances,
+            familyAllowanceValue: emp.familyAllowance || 0,
+            isRetired: emp.isRetired,
+            isColaborador: emp.contractType === 'colaborador',
+            include13thMonth: false,
+            includeHolidaySubsidy: shouldPayHolidaySubsidy,
+            holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,
+          });
+
+          // === PRIORITY DEDUCTION SYSTEM ===
+          // 1. All non-warehouse deductions (advances, loans, absences, disciplinary, other) are deducted first
+          // 2. Warehouse losses are capped at 25% of the REMAINING salary after step 1
           let loanDeduction = 0;
           let advanceDeduction = 0;
           let otherDeductions = 0;
           const deductionBreakdown: { type: string; description: string; amount: number; deductionId: string }[] = [];
+
+          // Collect eligible deductions into two groups: non-warehouse and warehouse
+          interface EligibleDeduction { d: typeof import('@/types/deduction').Deduction.prototype; amount: number }
+          const nonWarehouseEligible: { d: any; amount: number }[] = [];
+          const warehouseEligible: { d: any; amount: number }[] = [];
 
           if (deductionStore) {
             const all = deductionStore.getDeductionsByEmployee(emp.id) || [];
@@ -421,6 +442,16 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // we must only deduct the remaining balance to avoid over-deduction
               const amount = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
 
+              // Separate warehouse losses from other deductions for priority processing
+              if (d.type === 'warehouse_loss') {
+                warehouseEligible.push({ d, amount });
+              } else {
+                nonWarehouseEligible.push({ d, amount });
+              }
+            }
+
+            // PASS 1: Apply all non-warehouse deductions first
+            for (const { d, amount } of nonWarehouseEligible) {
               if (d.type === 'loan') {
                 loanDeduction += amount;
               } else if (d.type === 'salary_advance') {
@@ -428,7 +459,6 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               } else {
                 otherDeductions += amount;
               }
-
               deductionBreakdown.push({
                 type: d.type,
                 description: d.description,
@@ -436,20 +466,29 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 deductionId: d.id,
               });
             }
-          }
 
-          const payrollResult = calculatePayroll({
-            baseSalary: emp.baseSalary,
-            mealAllowance: emp.mealAllowance,
-            transportAllowance: emp.transportAllowance,
-            otherAllowances: emp.otherAllowances,
-            familyAllowanceValue: emp.familyAllowance || 0,
-            isRetired: emp.isRetired,
-            isColaborador: emp.contractType === 'colaborador',
-            include13thMonth: false,
-            includeHolidaySubsidy: shouldPayHolidaySubsidy,
-            holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,
-          });
+            // PASS 2: Calculate remaining salary, then apply warehouse losses capped at 25%
+            const nonWarehouseTotal = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
+            const remainingSalaryAfterOthers = Math.max(0, payrollResult.netSalary - nonWarehouseTotal);
+            const warehouseCap = Math.round(remainingSalaryAfterOthers * 0.25);
+
+            for (const { d, amount } of warehouseEligible) {
+              // Cap warehouse loss at 25% of remaining salary
+              const cappedAmount = Math.min(amount, warehouseCap, d.remainingAmount > 0 ? d.remainingAmount : amount);
+              if (cappedAmount <= 0) {
+                console.log(`[Payroll] Warehouse loss ${d.id} skipped: no remaining salary after other deductions`);
+                continue;
+              }
+              otherDeductions += cappedAmount;
+              deductionBreakdown.push({
+                type: d.type,
+                description: d.description,
+                amount: cappedAmount,
+                deductionId: d.id,
+              });
+              console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, capped at ${cappedAmount} (25% of remaining ${remainingSalaryAfterOthers})`);
+            }
+          }
 
           const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
 
