@@ -1775,6 +1775,134 @@ function getDistPath() {
   return path.join(__dirname, '..', 'dist', 'index.html');
 }
 
+// ============= HTTP SERVER (serves web app for phones/browsers) =============
+function startHTTPServer() {
+  if (httpServer) {
+    console.log('[HTTP] Server already running');
+    return;
+  }
+
+  // Find the dist directory
+  const distPaths = [
+    path.join(path.dirname(app.getPath('exe')), 'resources', 'app', 'dist'),
+    path.join(app.getAppPath(), 'dist'),
+    path.join(__dirname, '..', 'dist'),
+  ];
+
+  let distDir = null;
+  for (const p of distPaths) {
+    if (fs.existsSync(path.join(p, 'index.html'))) {
+      distDir = p;
+      break;
+    }
+  }
+
+  if (!distDir) {
+    console.log('[HTTP] No dist directory found, HTTP server not started');
+    return;
+  }
+
+  const MIME_TYPES = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.webmanifest': 'application/manifest+json',
+    '.webp': 'image/webp',
+  };
+
+  httpServer = http.createServer((req, res) => {
+    // CORS headers so browser WebSocket and fetch work
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // Inject server config for browser clients
+    if (req.url === '/api/server-info') {
+      const localIPs = getLocalIPs();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        wsPort: actualWsPort,
+        computerName: os.hostname(),
+        localIPs,
+        isServer: true,
+      }));
+      return;
+    }
+
+    let urlPath = req.url.split('?')[0];
+    if (urlPath === '/') urlPath = '/index.html';
+
+    const filePath = path.join(distDir, urlPath);
+
+    // Security: prevent directory traversal
+    if (!filePath.startsWith(distDir)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    // Try to serve the file, fallback to index.html for SPA routing
+    const tryServe = (fp) => {
+      if (fs.existsSync(fp) && fs.statSync(fp).isFile()) {
+        const ext = path.extname(fp).toLowerCase();
+        const mime = MIME_TYPES[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': mime });
+        fs.createReadStream(fp).pipe(res);
+        return true;
+      }
+      return false;
+    };
+
+    if (!tryServe(filePath)) {
+      // SPA fallback: serve index.html for any unknown route
+      tryServe(path.join(distDir, 'index.html'));
+    }
+  });
+
+  httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+    const localIPs = getLocalIPs();
+    console.log(`✅ HTTP server running on port ${HTTP_PORT}`);
+    console.log(`📱 Phone access URLs:`);
+    localIPs.forEach(ip => {
+      console.log(`   http://${ip}:${HTTP_PORT}`);
+    });
+  });
+
+  httpServer.on('error', (err) => {
+    console.error('[HTTP] Server error:', err.message);
+    httpServer = null;
+  });
+}
+
+function getLocalIPs() {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name in interfaces) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips;
+}
+
 // ============= WINDOW =============
 function getAppIconPath() {
   return process.platform === 'win32'
