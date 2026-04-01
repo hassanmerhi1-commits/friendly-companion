@@ -33,6 +33,19 @@ import {
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useEmployeeStore } from '@/stores/employee-store';
+import { useBranchStore } from '@/stores/branch-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import { useDeductionStore } from '@/stores/deduction-store';
+import { useAbsenceStore } from '@/stores/absence-store';
+import { useHolidayStore } from '@/stores/holiday-store';
+import { useAttendanceStore } from '@/stores/attendance-store';
+import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
+import { useHRStore } from '@/stores/hr-store';
+import { useOvertimePaymentStore } from '@/stores/overtime-payment-store';
+import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
+import { useDisciplinaryStore } from '@/stores/disciplinary-store';
+import { useLoanStore } from '@/stores/loan-store';
 import { validateMasterPassword } from '@/lib/device-security';
 import { useLanguage } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -133,7 +146,7 @@ export function LoginPage() {
         throw new Error('set_active_company_failed');
       }
 
-      // Reset settings store to defaults before loading — prevents stale data from previous company
+      // Reset ALL stores to defaults before loading — prevents stale data from previous company
       useSettingsStore.setState({
         settings: {
           companyName: '', companyLogo: '', nif: '', address: '', city: '',
@@ -144,7 +157,38 @@ export function LoginPage() {
         isLoaded: false,
       });
 
-      await Promise.all([loadUsers(), loadSettings()]);
+      // Reload ALL stores with new company data
+      const { loadEmployees } = useEmployeeStore.getState();
+      const { loadBranches } = useBranchStore.getState();
+      const { loadPayroll } = usePayrollStore.getState();
+      const { loadDeductions } = useDeductionStore.getState();
+      const { loadAbsences } = useAbsenceStore.getState();
+      const { loadHolidays } = useHolidayStore.getState();
+      const { loadAttendance } = useAttendanceStore.getState();
+      const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
+      const { loadHRData } = useHRStore.getState();
+      const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+      const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
+      const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
+      const { loadLoans } = useLoanStore.getState();
+
+      await Promise.all([
+        loadUsers(),
+        loadSettings(),
+        loadEmployees(),
+        loadBranches(),
+        loadPayroll(),
+        loadDeductions(),
+        loadAbsences(),
+        loadHolidays(),
+        loadAttendance(),
+        loadBulkAttendance(),
+        loadHRData(),
+        loadOvertimePayments(),
+        loadDailyAttendance(),
+        loadDisciplinary(),
+        loadLoans(),
+      ]);
       localStorage.setItem('payroll_last_company_id', companyId);
       setCompanyReady(true);
     } catch (err) {
