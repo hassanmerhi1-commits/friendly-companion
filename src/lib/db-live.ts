@@ -640,13 +640,21 @@ export async function liveUpdate(table: string, id: string, data: Record<string,
 }
 
 export async function liveDelete(table: string, id: string): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'delete', table, id, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] delete ${table}/${id} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const filtered = existing.filter((row: any) => row.id !== id);
     if (filtered.length < existing.length) {
       setMockData(table, filtered);
-      console.log(`[DB-Live/Mock] delete ${table}:`, id);
       return true;
     }
     return false;
