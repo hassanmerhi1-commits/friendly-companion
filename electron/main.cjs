@@ -60,7 +60,9 @@ let wss = null;
 let wsClient = null;
 let wsReconnectTimer = null;
 let wsConnectingPromise = null;
+let httpServer = null;
 const WS_RECONNECT_DELAY = 3000;
+const HTTP_PORT = 8080;
 const companyDatabases = new Map(); // companyId -> { db, path, name }
 const wsClientCompanies = new WeakMap(); // ws client -> companyId
 
