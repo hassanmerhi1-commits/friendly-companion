@@ -605,17 +605,24 @@ export async function liveInsert(table: string, data: Record<string, any>): Prom
 }
 
 export async function liveUpdate(table: string, id: string, data: Record<string, any>): Promise<boolean> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'update', table, id, data, companyId: activeCompanyId });
+      return response?.success === true;
+    } catch (e) {
+      console.error(`[Browser-WS] update ${table}/${id} failed:`, e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) {
-    // Use mock storage in browser preview
     const existing = getMockData<any>(table);
     const index = existing.findIndex((row: any) => row.id === id);
     if (index >= 0) {
       existing[index] = { ...existing[index], ...data };
       setMockData(table, existing);
-      console.log(`[DB-Live/Mock] update ${table}:`, id);
       return true;
     }
-    console.warn(`[DB-Live/Mock] update failed - not found: ${table}/${id}`);
     return false;
   }
   
