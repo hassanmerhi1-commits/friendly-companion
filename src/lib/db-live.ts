@@ -341,6 +341,14 @@ export async function liveListCompanies(): Promise<Array<{ id: string; name: str
 }
 
 export async function liveCreateCompany(name: string): Promise<{ success: boolean; company?: any; error?: string }> {
+  if (isBrowserRemoteMode()) {
+    try {
+      return await sendBrowserRequest({ action: 'createCompany', name });
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  }
+  
   if (!isElectron()) {
     // Mock: add to localStorage
     const companies = await liveListCompanies();
