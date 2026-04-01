@@ -32,6 +32,140 @@ function isElectron(): boolean {
     (window as any).electronAPI?.isElectron === true;
 }
 
+// ============= BROWSER WEBSOCKET MODE =============
+// When accessing via HTTP from a phone/browser, connect directly via WebSocket
+let browserWs: WebSocket | null = null;
+let browserWsConnected = false;
+let browserWsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let browserServerInfo: { wsPort: number; computerName: string; localIPs: string[] } | null = null;
+const pendingBrowserRequests = new Map<string, { resolve: (value: any) => void; reject: (reason: any) => void; timer: ReturnType<typeof setTimeout> }>();
+
+function isBrowserRemoteMode(): boolean {
+  if (isElectron()) return false;
+  // We're in browser remote mode if we've successfully connected or have server info
+  // OR if the URL is not a lovable preview / localhost:5173 dev server
+  const host = window.location.hostname;
+  const isPreview = host.includes('lovable') || host.includes('localhost') || host === '127.0.0.1';
+  return !isPreview || browserWsConnected;
+}
+
+async function fetchServerInfo(): Promise<typeof browserServerInfo> {
+  try {
+    const origin = window.location.origin;
+    const res = await fetch(`${origin}/api/server-info`);
+    if (res.ok) {
+      browserServerInfo = await res.json();
+      console.log('[Browser-WS] Server info:', browserServerInfo);
+      return browserServerInfo;
+    }
+  } catch (e) {
+    console.log('[Browser-WS] Not served from PayrollAO server');
+  }
+  return null;
+}
+
+function connectBrowserWebSocket() {
+  if (browserWs && (browserWs.readyState === WebSocket.OPEN || browserWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const host = window.location.hostname;
+  const wsPort = browserServerInfo?.wsPort || 4545;
+  const url = `ws://${host}:${wsPort}`;
+  
+  console.log(`[Browser-WS] Connecting to ${url}`);
+  
+  browserWs = new WebSocket(url);
+  
+  browserWs.onopen = () => {
+    console.log('[Browser-WS] ✅ Connected');
+    browserWsConnected = true;
+    if (browserWsReconnectTimer) {
+      clearTimeout(browserWsReconnectTimer);
+      browserWsReconnectTimer = null;
+    }
+    
+    // If we have an active company, set it
+    if (activeCompanyId) {
+      sendBrowserRequest({ action: 'setCompany', companyId: activeCompanyId });
+    }
+  };
+  
+  browserWs.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      
+      // Handle sync broadcasts
+      if (msg.type === 'db-sync') {
+        if (msg.companyId && activeCompanyId && msg.companyId !== activeCompanyId) return;
+        console.log(`[Browser-WS] ← SYNC: ${msg.table} (${msg.rows?.length || 0} rows)`);
+        notifyTableSync(msg.table, msg.rows || []);
+        return;
+      }
+      
+      // Handle request responses
+      if (msg.requestId && pendingBrowserRequests.has(msg.requestId)) {
+        const pending = pendingBrowserRequests.get(msg.requestId)!;
+        clearTimeout(pending.timer);
+        pendingBrowserRequests.delete(msg.requestId);
+        pending.resolve(msg);
+      }
+    } catch (e) {
+      console.error('[Browser-WS] Parse error:', e);
+    }
+  };
+  
+  browserWs.onclose = () => {
+    console.log('[Browser-WS] ❌ Disconnected');
+    browserWsConnected = false;
+    browserWs = null;
+    scheduleBrowserReconnect();
+  };
+  
+  browserWs.onerror = (err) => {
+    console.error('[Browser-WS] Error:', err);
+  };
+}
+
+function scheduleBrowserReconnect() {
+  if (browserWsReconnectTimer) return;
+  browserWsReconnectTimer = setTimeout(() => {
+    browserWsReconnectTimer = null;
+    if (!browserWsConnected && browserServerInfo) {
+      connectBrowserWebSocket();
+    }
+  }, 3000);
+}
+
+function sendBrowserRequest(request: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (!browserWs || browserWs.readyState !== WebSocket.OPEN) {
+      reject(new Error('Not connected to server'));
+      return;
+    }
+    
+    const requestId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const timer = setTimeout(() => {
+      pendingBrowserRequests.delete(requestId);
+      reject(new Error('Request timeout'));
+    }, 30000);
+    
+    pendingBrowserRequests.set(requestId, { resolve, reject, timer });
+    browserWs.send(JSON.stringify({ ...request, requestId }));
+  });
+}
+
+// Initialize browser WebSocket mode
+export async function initBrowserWSMode(): Promise<boolean> {
+  if (isElectron()) return false;
+  
+  const info = await fetchServerInfo();
+  if (!info) return false;
+  
+  connectBrowserWebSocket();
+  return true;
+}
+
 // ============= MOCK STORAGE (for browser preview testing) =============
 const MOCK_STORAGE_PREFIX = 'payroll_mock_';
 const MOCK_COMPANIES_KEY = 'payroll_mock_companies';
