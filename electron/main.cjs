@@ -13,6 +13,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const http = require('http');
 const { WebSocketServer, WebSocket } = require('ws');
 const { autoUpdater } = require('electron-updater');
 
