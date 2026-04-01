@@ -879,6 +879,7 @@ function initDatabase() {
     ensureCompaniesRegistry();
     
     startWebSocketServer();
+    startHTTPServer();
     
     console.log('SERVER MODE: Connected to database at:', dbPath);
     return { success: true, mode: 'server', path: dbPath, wsPort: actualWsPort };
