@@ -185,6 +185,15 @@ export async function initBrowserWSMode(): Promise<boolean> {
   const info = await fetchServerInfo();
   if (!info) return false;
   
+  // Restore saved company ID for PWA reconnection
+  if (!activeCompanyId) {
+    const savedCompanyId = localStorage.getItem('payroll_active_company_id');
+    if (savedCompanyId) {
+      activeCompanyId = savedCompanyId;
+      console.log('[Browser-WS] Restored company ID:', savedCompanyId);
+    }
+  }
+  
   connectBrowserWebSocket();
   return true;
 }
