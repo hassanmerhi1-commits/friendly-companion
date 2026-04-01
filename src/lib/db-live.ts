@@ -541,6 +541,16 @@ export async function liveGetById<T>(table: string, id: string): Promise<T | nul
 }
 
 export async function liveQuery<T>(sql: string, params: any[] = []): Promise<T[]> {
+  if (isBrowserRemoteMode()) {
+    try {
+      const response = await sendBrowserRequest({ action: 'query', sql, params, companyId: activeCompanyId });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (e) {
+      console.error(`[Browser-WS] query failed:`, e);
+      return [];
+    }
+  }
+  
   if (!isElectron()) {
     return [];
   }
