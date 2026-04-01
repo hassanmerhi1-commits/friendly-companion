@@ -369,6 +369,16 @@ export async function liveCreateCompany(name: string): Promise<{ success: boolea
 export async function liveSetActiveCompany(companyId: string): Promise<boolean> {
   setActiveCompanyId(companyId);
   
+  if (isBrowserRemoteMode()) {
+    try {
+      const result = await sendBrowserRequest({ action: 'setCompany', companyId });
+      return result?.success === true;
+    } catch (e) {
+      console.error('[Browser-WS] setCompany failed:', e);
+      return false;
+    }
+  }
+  
   if (!isElectron()) return true;
   
   try {
