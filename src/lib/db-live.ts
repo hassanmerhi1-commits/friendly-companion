@@ -52,14 +52,37 @@ function isBrowserRemoteMode(): boolean {
 async function fetchServerInfo(): Promise<typeof browserServerInfo> {
   try {
     const origin = window.location.origin;
-    const res = await fetch(`${origin}/api/server-info`);
+    // Force bypass service worker cache
+    const res = await fetch(`${origin}/api/server-info`, { cache: 'no-store' });
     if (res.ok) {
       browserServerInfo = await res.json();
       console.log('[Browser-WS] Server info:', browserServerInfo);
+      // Persist server info so PWA can reconnect after home screen launch
+      try {
+        localStorage.setItem('payroll_server_info', JSON.stringify({
+          host: window.location.hostname,
+          wsPort: browserServerInfo!.wsPort,
+          computerName: browserServerInfo!.computerName,
+        }));
+      } catch {}
       return browserServerInfo;
     }
   } catch (e) {
-    console.log('[Browser-WS] Not served from PayrollAO server');
+    console.log('[Browser-WS] Not served from PayrollAO server, checking saved info...');
+    // Try to use saved server info (PWA launched from home screen)
+    try {
+      const saved = localStorage.getItem('payroll_server_info');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        browserServerInfo = {
+          wsPort: parsed.wsPort || 4545,
+          computerName: parsed.computerName || 'Server',
+          localIPs: [parsed.host],
+        };
+        console.log('[Browser-WS] Using saved server info:', browserServerInfo);
+        return browserServerInfo;
+      }
+    } catch {}
   }
   return null;
 }
