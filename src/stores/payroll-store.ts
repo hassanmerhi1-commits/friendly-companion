@@ -378,7 +378,6 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const deductionBreakdown: { type: string; description: string; amount: number; deductionId: string }[] = [];
 
           // Collect eligible deductions into two groups: non-warehouse and warehouse
-          interface EligibleDeduction { d: typeof import('@/types/deduction').Deduction.prototype; amount: number }
           const nonWarehouseEligible: { d: any; amount: number }[] = [];
           const warehouseEligible: { d: any; amount: number }[] = [];
 
