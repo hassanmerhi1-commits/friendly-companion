@@ -108,10 +108,16 @@ function connectBrowserWebSocket() {
   browserWs.onopen = () => {
     console.log('[Browser-WS] ✅ Connected');
     browserWsConnected = true;
+    browserReconnectAttempts = 0;
     if (browserWsReconnectTimer) {
       clearTimeout(browserWsReconnectTimer);
       browserWsReconnectTimer = null;
     }
+    
+    // Update connection state
+    useConnectionStore.getState().setState('connected');
+    useConnectionStore.getState().setRetryCount(0);
+    useConnectionStore.getState().setServerName(browserServerInfo?.computerName || null);
     
     // If we have an active company, set it
     if (activeCompanyId) {
