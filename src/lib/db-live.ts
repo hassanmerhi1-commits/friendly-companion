@@ -231,11 +231,29 @@ export async function initBrowserWSMode(): Promise<boolean> {
   if (isElectron()) return false;
   
   const info = await fetchServerInfo();
-  if (!info) return false;
+  if (!info) {
+    // Try resilient storage for saved server info
+    const savedInfo = await resilientGet('payroll_server_info');
+    if (savedInfo) {
+      try {
+        const parsed = JSON.parse(savedInfo);
+        browserServerInfo = {
+          wsPort: parsed.wsPort || 4545,
+          computerName: parsed.computerName || 'Server',
+          localIPs: [parsed.host],
+        };
+        console.log('[Browser-WS] Recovered server info from resilient storage');
+      } catch {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
   
-  // Restore saved company ID for PWA reconnection
+  // Restore saved company ID for PWA reconnection (resilient)
   if (!activeCompanyId) {
-    const savedCompanyId = localStorage.getItem('payroll_active_company_id');
+    const savedCompanyId = await resilientGet('payroll_active_company_id');
     if (savedCompanyId) {
       activeCompanyId = savedCompanyId;
       console.log('[Browser-WS] Restored company ID:', savedCompanyId);
