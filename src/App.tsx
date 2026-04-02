@@ -512,6 +512,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <TooltipProvider>
+        <ConnectionStatusBar />
         <Toaster />
         <Sonner />
         <AppContent />
