@@ -162,14 +162,50 @@ function connectBrowserWebSocket() {
   };
 }
 
+let browserReconnectAttempts = 0;
+
 function scheduleBrowserReconnect() {
   if (browserWsReconnectTimer) return;
+  browserReconnectAttempts++;
+  useConnectionStore.getState().setRetryCount(browserReconnectAttempts);
+  
+  // Aggressive: retry every 3s indefinitely as long as we have server info
   browserWsReconnectTimer = setTimeout(() => {
     browserWsReconnectTimer = null;
     if (!browserWsConnected && browserServerInfo) {
+      console.log(`[Browser-WS] Reconnect attempt #${browserReconnectAttempts}`);
       connectBrowserWebSocket();
     }
   }, 3000);
+}
+
+// Manual reconnect - called from UI
+export function forceReconnect(): void {
+  if (browserWsReconnectTimer) {
+    clearTimeout(browserWsReconnectTimer);
+    browserWsReconnectTimer = null;
+  }
+  browserReconnectAttempts = 0;
+  useConnectionStore.getState().setRetryCount(0);
+  useConnectionStore.getState().setState('reconnecting');
+  
+  if (browserWs) {
+    browserWs.close();
+    browserWs = null;
+  }
+  browserWsConnected = false;
+  
+  // Re-fetch server info and reconnect
+  fetchServerInfo().then((info) => {
+    if (info) {
+      connectBrowserWebSocket();
+    }
+  });
+}
+
+// Check if browser WS is connected
+export function isBrowserWSConnected(): boolean {
+  return browserWsConnected;
 }
 
 function sendBrowserRequest(request: any): Promise<any> {
