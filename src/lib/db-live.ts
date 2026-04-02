@@ -15,14 +15,17 @@
  */
 
 // ============= ACTIVE COMPANY =============
+import { resilientSet, resilientGet } from './resilient-storage';
+import { useConnectionStore } from './connection-store';
+
 let activeCompanyId: string | null = null;
 
 export function setActiveCompanyId(id: string | null) {
   activeCompanyId = id;
   console.log('[DB-Live] Active company set to:', id);
-  // Persist for PWA reconnection
+  // Persist for PWA reconnection (dual storage)
   if (id) {
-    try { localStorage.setItem('payroll_active_company_id', id); } catch {}
+    resilientSet('payroll_active_company_id', id);
   }
 }
 
