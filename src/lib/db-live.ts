@@ -64,14 +64,12 @@ async function fetchServerInfo(): Promise<typeof browserServerInfo> {
     if (res.ok) {
       browserServerInfo = await res.json();
       console.log('[Browser-WS] Server info:', browserServerInfo);
-      // Persist server info so PWA can reconnect after home screen launch
-      try {
-        localStorage.setItem('payroll_server_info', JSON.stringify({
-          host: window.location.hostname,
-          wsPort: browserServerInfo!.wsPort,
-          computerName: browserServerInfo!.computerName,
-        }));
-      } catch {}
+      // Persist server info so PWA can reconnect after home screen launch (dual storage)
+      resilientSet('payroll_server_info', JSON.stringify({
+        host: window.location.hostname,
+        wsPort: browserServerInfo!.wsPort,
+        computerName: browserServerInfo!.computerName,
+      }));
       return browserServerInfo;
     }
   } catch (e) {
