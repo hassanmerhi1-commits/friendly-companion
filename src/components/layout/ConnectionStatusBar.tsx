@@ -13,11 +13,6 @@ export function ConnectionStatusBar() {
   const { state, retryCount, serverName } = useConnectionStore();
   const [dismissed, setDismissed] = useState(false);
   
-  // Don't show in Electron or on lovable preview
-  if (isElectron()) return null;
-  const host = window.location.hostname;
-  if (host.includes('lovable') || host === 'localhost' || host === '127.0.0.1') return null;
-  
   // Auto-dismiss connected state after 3s
   useEffect(() => {
     if (state === 'connected') {
@@ -28,6 +23,11 @@ export function ConnectionStatusBar() {
       setDismissed(false);
     }
   }, [state]);
+
+  // Don't show in Electron or on lovable preview
+  if (isElectron()) return null;
+  const host = window.location.hostname;
+  if (host.includes('lovable') || host === 'localhost' || host === '127.0.0.1') return null;
   
   if (dismissed && state === 'connected') return null;
 
