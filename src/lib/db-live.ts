@@ -153,6 +153,7 @@ function connectBrowserWebSocket() {
     console.log('[Browser-WS] ❌ Disconnected');
     browserWsConnected = false;
     browserWs = null;
+    useConnectionStore.getState().setState('reconnecting');
     scheduleBrowserReconnect();
   };
   
