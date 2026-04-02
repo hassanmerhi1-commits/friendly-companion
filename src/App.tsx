@@ -38,6 +38,7 @@ import { ProvinceSelector } from "@/components/ProvinceSelector";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { TourProvider } from "@/components/AppTour";
 import { FirstRunSetup } from "@/components/FirstRunSetup";
+import { ConnectionStatusBar } from "@/components/layout/ConnectionStatusBar";
 import { LoginPage } from "./pages/Login";
 import Index from "./pages/Index";
 import Employees from "./pages/Employees";
@@ -511,6 +512,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <TooltipProvider>
+        <ConnectionStatusBar />
         <Toaster />
         <Sonner />
         <AppContent />

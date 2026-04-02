@@ -15,14 +15,17 @@
  */
 
 // ============= ACTIVE COMPANY =============
+import { resilientSet, resilientGet } from './resilient-storage';
+import { useConnectionStore } from './connection-store';
+
 let activeCompanyId: string | null = null;
 
 export function setActiveCompanyId(id: string | null) {
   activeCompanyId = id;
   console.log('[DB-Live] Active company set to:', id);
-  // Persist for PWA reconnection
+  // Persist for PWA reconnection (dual storage)
   if (id) {
-    try { localStorage.setItem('payroll_active_company_id', id); } catch {}
+    resilientSet('payroll_active_company_id', id);
   }
 }
 
@@ -61,14 +64,12 @@ async function fetchServerInfo(): Promise<typeof browserServerInfo> {
     if (res.ok) {
       browserServerInfo = await res.json();
       console.log('[Browser-WS] Server info:', browserServerInfo);
-      // Persist server info so PWA can reconnect after home screen launch
-      try {
-        localStorage.setItem('payroll_server_info', JSON.stringify({
-          host: window.location.hostname,
-          wsPort: browserServerInfo!.wsPort,
-          computerName: browserServerInfo!.computerName,
-        }));
-      } catch {}
+      // Persist server info so PWA can reconnect after home screen launch (dual storage)
+      resilientSet('payroll_server_info', JSON.stringify({
+        host: window.location.hostname,
+        wsPort: browserServerInfo!.wsPort,
+        computerName: browserServerInfo!.computerName,
+      }));
       return browserServerInfo;
     }
   } catch (e) {
@@ -107,10 +108,16 @@ function connectBrowserWebSocket() {
   browserWs.onopen = () => {
     console.log('[Browser-WS] ✅ Connected');
     browserWsConnected = true;
+    browserReconnectAttempts = 0;
     if (browserWsReconnectTimer) {
       clearTimeout(browserWsReconnectTimer);
       browserWsReconnectTimer = null;
     }
+    
+    // Update connection state
+    useConnectionStore.getState().setState('connected');
+    useConnectionStore.getState().setRetryCount(0);
+    useConnectionStore.getState().setServerName(browserServerInfo?.computerName || null);
     
     // If we have an active company, set it
     if (activeCompanyId) {
@@ -146,6 +153,7 @@ function connectBrowserWebSocket() {
     console.log('[Browser-WS] ❌ Disconnected');
     browserWsConnected = false;
     browserWs = null;
+    useConnectionStore.getState().setState('reconnecting');
     scheduleBrowserReconnect();
   };
   
@@ -154,14 +162,50 @@ function connectBrowserWebSocket() {
   };
 }
 
+let browserReconnectAttempts = 0;
+
 function scheduleBrowserReconnect() {
   if (browserWsReconnectTimer) return;
+  browserReconnectAttempts++;
+  useConnectionStore.getState().setRetryCount(browserReconnectAttempts);
+  
+  // Aggressive: retry every 3s indefinitely as long as we have server info
   browserWsReconnectTimer = setTimeout(() => {
     browserWsReconnectTimer = null;
     if (!browserWsConnected && browserServerInfo) {
+      console.log(`[Browser-WS] Reconnect attempt #${browserReconnectAttempts}`);
       connectBrowserWebSocket();
     }
   }, 3000);
+}
+
+// Manual reconnect - called from UI
+export function forceReconnect(): void {
+  if (browserWsReconnectTimer) {
+    clearTimeout(browserWsReconnectTimer);
+    browserWsReconnectTimer = null;
+  }
+  browserReconnectAttempts = 0;
+  useConnectionStore.getState().setRetryCount(0);
+  useConnectionStore.getState().setState('reconnecting');
+  
+  if (browserWs) {
+    browserWs.close();
+    browserWs = null;
+  }
+  browserWsConnected = false;
+  
+  // Re-fetch server info and reconnect
+  fetchServerInfo().then((info) => {
+    if (info) {
+      connectBrowserWebSocket();
+    }
+  });
+}
+
+// Check if browser WS is connected
+export function isBrowserWSConnected(): boolean {
+  return browserWsConnected;
 }
 
 function sendBrowserRequest(request: any): Promise<any> {
@@ -187,11 +231,29 @@ export async function initBrowserWSMode(): Promise<boolean> {
   if (isElectron()) return false;
   
   const info = await fetchServerInfo();
-  if (!info) return false;
+  if (!info) {
+    // Try resilient storage for saved server info
+    const savedInfo = await resilientGet('payroll_server_info');
+    if (savedInfo) {
+      try {
+        const parsed = JSON.parse(savedInfo);
+        browserServerInfo = {
+          wsPort: parsed.wsPort || 4545,
+          computerName: parsed.computerName || 'Server',
+          localIPs: [parsed.host],
+        };
+        console.log('[Browser-WS] Recovered server info from resilient storage');
+      } catch {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
   
-  // Restore saved company ID for PWA reconnection
+  // Restore saved company ID for PWA reconnection (resilient)
   if (!activeCompanyId) {
-    const savedCompanyId = localStorage.getItem('payroll_active_company_id');
+    const savedCompanyId = await resilientGet('payroll_active_company_id');
     if (savedCompanyId) {
       activeCompanyId = savedCompanyId;
       console.log('[Browser-WS] Restored company ID:', savedCompanyId);
