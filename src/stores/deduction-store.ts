@@ -108,11 +108,14 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
 
     addDeduction: async (data: DeductionFormData) => {
       const now = new Date().toISOString();
-      const installments = data.installments || 1;
-      // Use explicit monthlyAmount if provided (e.g. exact 25% for warehouse loss)
+      // Monthly amount is the primary input now (user sets prestação)
       const monthlyAmount = data.monthlyAmount && data.monthlyAmount > 0
         ? data.monthlyAmount
-        : data.totalAmount / installments;
+        : data.totalAmount;
+      // Installments derived from totalAmount / monthlyAmount
+      const installments = data.installments && data.installments > 0
+        ? data.installments
+        : (monthlyAmount > 0 ? Math.max(1, Math.ceil(data.totalAmount / monthlyAmount)) : 1);
 
       const newDeduction: Deduction = {
         id: crypto.randomUUID(),
