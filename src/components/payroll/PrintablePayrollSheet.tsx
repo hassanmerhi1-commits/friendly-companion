@@ -325,7 +325,7 @@ export function PrintablePayrollSheet({
                 <td style={{ fontSize: '7px', color: entry.advanceDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.advanceDeduction || 0)}</td>
                 <td style={{ fontSize: '7px' }}>{formatAOA(entry.otherDeductions || 0)}</td>
                 <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.totalDeductions)}</td>
-                <td className="net-salary" style={{ fontSize: '7px' }}>{entry.paidEarly ? `(PA) ${formatAOA(0)}` : formatAOA(entry.netSalary)}</td>
+                <td className="net-salary" style={{ fontSize: '7px' }}>{entry.paidEarly ? `(PA) ${formatAOA(0)}` : formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))}</td>
                 <td style={{ width: '60px' }}></td>
               </tr>
             ))}
