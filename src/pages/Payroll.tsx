@@ -956,11 +956,11 @@ const Payroll = () => {
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
                               {language === 'pt' ? 'Pago Antecip.' : 'Paid Early'}
                             </span>
-                            <span className="line-through text-muted-foreground">{formatAOA(entry.netSalary)}</span>
+                            <span className="line-through text-muted-foreground">{formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))}</span>
                             <span>{formatAOA(0)}</span>
                           </span>
                         ) : (
-                          formatAOA(entry.netSalary)
+                          formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))
                         )}
                       </td>
                       <td className="px-3 py-3 text-right flex items-center justify-end gap-1">
