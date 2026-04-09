@@ -54,6 +54,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     }
 
     const getTransferAmount = (entry: PayrollEntry) => {
+      if (entry.paidEarly) return 0;
       return (entry.netSalary || 0) + (entry.monthlyBonus || 0);
     };
 
