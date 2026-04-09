@@ -40,6 +40,8 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     installments: 1,
   });
 
+  // Monthly prestação amount (user sets this manually)
+  const [monthlyPrestacao, setMonthlyPrestacao] = useState<number>(0);
   const [manualOverride, setManualOverride] = useState(false);
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
         date: new Date().toISOString().split('T')[0],
         installments: 1,
       });
+      setMonthlyPrestacao(0);
       setManualOverride(false);
     }
   }, [open]);
@@ -82,37 +85,64 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
   // Auto-calculate installments for warehouse loss when not in manual mode
   const isWarehouseLoss = formData.type === 'warehouse_loss';
 
-  useEffect(() => {
+  // Auto-calculate installments from monthly prestação
+  const calculatedInstallments = useMemo(() => {
     if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0 && formData.totalAmount > 0) {
-      const installments = Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly));
-      setFormData(prev => ({ ...prev, installments }));
+      return Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly));
     }
-  }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, formData.totalAmount]);
+    if (monthlyPrestacao > 0 && formData.totalAmount > 0) {
+      return Math.max(1, Math.ceil(formData.totalAmount / monthlyPrestacao));
+    }
+    return 1;
+  }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, formData.totalAmount, monthlyPrestacao]);
 
-  // For warehouse loss auto mode, the monthly deduction is exactly the 25% cap value
-  // But the last installment should only be the remaining balance
-  const rawMonthlyAmount = (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
-    ? warehouseLossMaxMonthly
-    : (formData.installments > 0 ? formData.totalAmount / formData.installments : formData.totalAmount);
-  const monthlyAmount = rawMonthlyAmount;
-  
+  // Effective monthly amount
+  const effectiveMonthly = useMemo(() => {
+    if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0) {
+      return warehouseLossMaxMonthly;
+    }
+    return monthlyPrestacao > 0 ? monthlyPrestacao : formData.totalAmount;
+  }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, monthlyPrestacao, formData.totalAmount]);
+
   // Calculate what the last installment would be
-  const lastInstallmentAmount = (formData.installments > 1 && formData.totalAmount > 0)
-    ? Math.max(0, formData.totalAmount - (rawMonthlyAmount * (formData.installments - 1)))
-    : rawMonthlyAmount;
+  const lastInstallmentAmount = useMemo(() => {
+    if (calculatedInstallments > 1 && formData.totalAmount > 0) {
+      return Math.max(0, formData.totalAmount - (effectiveMonthly * (calculatedInstallments - 1)));
+    }
+    return effectiveMonthly;
+  }, [calculatedInstallments, formData.totalAmount, effectiveMonthly]);
+
+  // Duration display
+  const durationText = useMemo(() => {
+    if (calculatedInstallments <= 1) return '';
+    const years = Math.floor(calculatedInstallments / 12);
+    const months = calculatedInstallments % 12;
+    if (language === 'pt') {
+      if (years > 0 && months > 0) return `${years} ano${years > 1 ? 's' : ''} e ${months} ${months === 1 ? 'mês' : 'meses'}`;
+      if (years > 0) return `${years} ano${years > 1 ? 's' : ''}`;
+      return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+    }
+    if (years > 0 && months > 0) return `${years} year${years > 1 ? 's' : ''} and ${months} month${months > 1 ? 's' : ''}`;
+    if (years > 0) return `${years} year${years > 1 ? 's' : ''}`;
+    return `${months} month${months > 1 ? 's' : ''}`;
+  }, [calculatedInstallments, language]);
 
   // For warehouse loss, check if monthly exceeds 25% limit (only relevant in manual mode)
-  const exceedsLimit = isWarehouseLoss && manualOverride && formData.installments > 0 
-    && (formData.totalAmount / formData.installments) > warehouseLossMaxMonthly && warehouseLossMaxMonthly > 0;
+  const exceedsLimit = isWarehouseLoss && manualOverride && monthlyPrestacao > 0
+    && monthlyPrestacao > warehouseLossMaxMonthly && warehouseLossMaxMonthly > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // For warehouse loss in auto mode, pass the exact 25% monthly amount
+    if (!isWarehouseLoss || manualOverride) {
+      if (monthlyPrestacao <= 0 && formData.totalAmount > 0) {
+        toast.error(language === 'pt' ? 'Informe o valor da prestação mensal' : 'Enter the monthly installment amount');
+        return;
+      }
+    }
     const submitData: DeductionFormData = {
       ...formData,
-      monthlyAmount: (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0)
-        ? warehouseLossMaxMonthly
-        : undefined,
+      installments: calculatedInstallments,
+      monthlyAmount: effectiveMonthly,
     };
     addDeduction(submitData);
     toast.success(t.common.save);
@@ -229,41 +259,37 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
             </div>
           </div>
 
-          {/* Installments */}
+          {/* Monthly Prestação */}
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Número de Prestações' : 'Number of Installments'}</Label>
-            <div className={cn("flex items-center gap-2", !(isWarehouseLoss && !manualOverride) && "hidden")}>
+            <Label>
+              {language === 'pt' ? 'Prestação Mensal (Kz)' : 'Monthly Installment (Kz)'}
+            </Label>
+            {isWarehouseLoss && !manualOverride ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={warehouseLossMaxMonthly}
+                  readOnly
+                  className="bg-muted"
+                />
+                <Badge variant="outline" className="whitespace-nowrap text-xs">
+                  {language === 'pt' ? 'Auto (25%)' : 'Auto (25%)'}
+                </Badge>
+              </div>
+            ) : (
               <Input
                 type="number"
-                value={formData.installments}
-                readOnly
-                className="bg-muted"
+                min={1}
+                value={monthlyPrestacao || ''}
+                onChange={(e) => setMonthlyPrestacao(Number(e.target.value))}
+                placeholder={language === 'pt' ? 'Quanto por mês?' : 'How much per month?'}
+                required
               />
-              <Badge variant="outline" className="whitespace-nowrap text-xs">
-                {language === 'pt' ? 'Auto (25%)' : 'Auto (25%)'}
-              </Badge>
-            </div>
-            <div className={cn(isWarehouseLoss && !manualOverride && "hidden")}>
-              <Select 
-                value={String(formData.installments)} 
-                onValueChange={(v) => setFormData(prev => ({ ...prev, installments: Number(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}x {n === 1 ? (language === 'pt' ? '(pagamento único)' : '(single payment)') : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            )}
           </div>
 
-          {/* Show calculated monthly amount */}
-          {formData.totalAmount > 0 && (
+          {/* Show calculated summary */}
+          {formData.totalAmount > 0 && (effectiveMonthly > 0 || (isWarehouseLoss && !manualOverride)) && (
             <div className={`p-3 rounded-lg ${exceedsLimit ? 'bg-destructive/10 border border-destructive/20' : 'bg-muted'}`}>
               {exceedsLimit && (
                 <div className="flex items-center gap-2 text-sm text-destructive mb-2">
@@ -278,20 +304,20 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                   {language === 'pt' ? 'Desconto mensal:' : 'Monthly deduction:'}
                 </span>
                 <span className={`font-semibold ${exceedsLimit ? 'text-destructive' : 'text-foreground'}`}>
-                  {formatAOA(monthlyAmount)}
+                  {formatAOA(effectiveMonthly)}
                 </span>
               </div>
-              {formData.installments > 1 && (
+              {calculatedInstallments > 1 && (
                 <>
                   <div className="flex justify-between text-sm mt-1">
                     <span className="text-muted-foreground">
-                      {language === 'pt' ? 'Durante:' : 'Over:'}
+                      {language === 'pt' ? 'Prestações:' : 'Installments:'}
                     </span>
                     <span className="font-medium">
-                      {formData.installments} {language === 'pt' ? 'meses' : 'months'}
+                      {calculatedInstallments}x {durationText ? `(~${durationText})` : ''}
                     </span>
                   </div>
-                  {Math.abs(lastInstallmentAmount - monthlyAmount) > 1 && (
+                  {Math.abs(lastInstallmentAmount - effectiveMonthly) > 1 && (
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-muted-foreground">
                         {language === 'pt' ? 'Última prestação:' : 'Last installment:'}
