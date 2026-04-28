@@ -306,8 +306,14 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const newEntries: EntryWithDeductionIds[] = [];
       
       for (const emp of employees.filter((e) => e.status === 'active' && !e.isRetired)) {
+          const existingEntry = existingForPeriod.find((e: any) => e.employee_id === emp.id);
+          const preservedHolidaySubsidy = existingEntry?.subsidy_ferias || 0;
+          const preserved13thMonth = existingEntry?.subsidy_natal || 0;
+
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
-          const holidaySubsidyAmount = shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0;
+          const holidaySubsidyAmount = preservedHolidaySubsidy > 0
+            ? preservedHolidaySubsidy
+            : (shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0);
 
           // Calculate absence deduction from BULK ATTENDANCE (NEW - uses FULL salary including bonuses)
           let absenceDeduction = 0;
@@ -364,9 +370,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             familyAllowanceValue: emp.familyAllowance || 0,
             isRetired: emp.isRetired,
             isColaborador: emp.contractType === 'colaborador',
-            include13thMonth: false,
-            includeHolidaySubsidy: shouldPayHolidaySubsidy,
-            holidaySubsidyValue: shouldPayHolidaySubsidy ? holidaySubsidyAmount : 0,
+            include13thMonth: preserved13thMonth > 0,
+            thirteenthMonthValue: preserved13thMonth > 0 ? preserved13thMonth : 0,
+            includeHolidaySubsidy: holidaySubsidyAmount > 0,
+            holidaySubsidyValue: holidaySubsidyAmount,
           });
 
           // === PRIORITY DEDUCTION SYSTEM ===

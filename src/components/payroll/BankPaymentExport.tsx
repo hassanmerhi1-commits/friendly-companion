@@ -254,6 +254,29 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       }
     });
 
+    // Explicit single transfer total row for quick bank validation.
+    const totalTransfer = sumCol('total');
+    const transferRow = ws.addRow({});
+    ws.mergeCells(transferRow.number, 1, transferRow.number, 22);
+    ws.getCell(transferRow.number, 1).value = language === 'pt' ? 'TOTAL A TRANSFERIR' : 'TOTAL TO TRANSFER';
+    ws.getCell(transferRow.number, 1).font = { bold: true, size: 11 };
+    ws.getCell(transferRow.number, 1).alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell(transferRow.number, 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FBE5D6' } };
+    ws.getCell(transferRow.number, 1).border = thinBorder;
+
+    ws.mergeCells(transferRow.number, 23, transferRow.number, totalCols);
+    ws.getCell(transferRow.number, 23).value = totalTransfer;
+    ws.getCell(transferRow.number, 23).font = { bold: true, size: 12, color: { argb: '9C0006' } };
+    ws.getCell(transferRow.number, 23).alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell(transferRow.number, 23).numFmt = currencyFormat;
+    ws.getCell(transferRow.number, 23).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FBE5D6' } };
+    ws.getCell(transferRow.number, 23).border = {
+      top: { style: 'double' },
+      left: { style: 'thin' },
+      bottom: { style: 'double' },
+      right: { style: 'thin' },
+    };
+
     // ── Freeze header row ──
     ws.views = [{ state: 'frozen', ySplit: headerRowNum, xSplit: 3 }];
 
