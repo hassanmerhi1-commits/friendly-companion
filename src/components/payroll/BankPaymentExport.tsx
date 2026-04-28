@@ -205,7 +205,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     // ── Totals row ──
     const sumCol = (key: string) => bankableEntries.reduce((s, e: any) => {
       if (key === 'overtime') return s + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0);
-      if (key === 'total') return s + (e.netSalary || 0) + (e.monthlyBonus || 0);
+      if (key === 'total') return s + (e.paidEarly ? 0 : (e.netSalary || 0) + (e.monthlyBonus || 0));
       return s + (e[key] || 0);
     }, 0);
 
@@ -353,7 +353,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
                 </span>
               </div>
               <div className="font-medium text-right">
-                {bankableEntries.reduce((sum, e) => sum + (e.netSalary || 0) + (e.monthlyBonus || 0), 0).toLocaleString('pt-AO', { 
+                {bankableEntries.reduce((sum, e) => sum + (e.paidEarly ? 0 : (e.netSalary || 0) + (e.monthlyBonus || 0)), 0).toLocaleString('pt-AO', { 
                   style: 'currency', 
                   currency: 'AOA',
                   minimumFractionDigits: 2 

@@ -77,7 +77,7 @@ export function PrintablePayrollSheet({
     holidaySubsidy: acc.holidaySubsidy + e.holidaySubsidy,
     thirteenthMonth: acc.thirteenthMonth + e.thirteenthMonth,
     overtime: acc.overtime + (e.overtimeNormal || 0) + (e.overtimeNight || 0) + (e.overtimeHoliday || 0),
-    grossSalary: acc.grossSalary + e.grossSalary,
+    grossSalary: acc.grossSalary + e.grossSalary + (e.monthlyBonus || 0),
     irt: acc.irt + e.irt,
     inssEmployee: acc.inssEmployee + e.inssEmployee,
     loanDeduction: acc.loanDeduction + (e.loanDeduction || 0),
@@ -85,7 +85,7 @@ export function PrintablePayrollSheet({
     absenceDeduction: acc.absenceDeduction + (e.absenceDeduction || 0),
     otherDeductions: acc.otherDeductions + (e.otherDeductions || 0),
     totalDeductions: acc.totalDeductions + e.totalDeductions,
-    netSalary: acc.netSalary + (e.paidEarly ? 0 : e.netSalary),
+    netSalary: acc.netSalary + (e.paidEarly ? 0 : (e.netSalary || 0) + (e.monthlyBonus || 0)),
     inssEmployer: acc.inssEmployer + e.inssEmployer,
     daysAbsent: acc.daysAbsent + (e.daysAbsent || 0),
   }), {
@@ -204,6 +204,7 @@ export function PrintablePayrollSheet({
           <tbody>
             {entries.map((entry, idx) => {
               const totalOvertime = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
+              const rowGrossWithBonus = entry.grossSalary + (entry.monthlyBonus || 0);
               const fullName = `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim();
               return (
                 <tr key={entry.id}>
@@ -216,7 +217,7 @@ export function PrintablePayrollSheet({
                   <td style={{ color: totalOvertime > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(totalOvertime)}</td>
                   <td style={{ color: entry.holidaySubsidy > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(entry.holidaySubsidy)}</td>
                   <td style={{ color: entry.thirteenthMonth > 0 ? '#27ae60' : 'inherit', fontSize: '7px' }}>{formatAOA(entry.thirteenthMonth)}</td>
-                  <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.grossSalary)}</td>
+                  <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(rowGrossWithBonus)}</td>
                 </tr>
               );
             })}

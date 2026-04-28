@@ -328,16 +328,6 @@ const Payroll = () => {
     const freshStore = usePayrollStore.getState();
     const freshEntries = freshStore.entries.filter(e => e.payrollPeriodId === period.id);
     
-     // Mark subsidy as paid (deductions are only marked as applied on APPROVAL)
-     for (const entry of freshEntries) {
-       // If holiday subsidy was added, mark it as paid
-       if (entry.holidaySubsidy > 0) {
-         const nextMonth = period.month === 12 ? 1 : period.month + 1;
-         const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
-         await markSubsidyPaid(entry.employeeId, nextMonthYear, period.month, period.year);
-       }
-     }
-    
     // Show info about holiday subsidies
     const subsidyCount = freshEntries.filter(e => e.holidaySubsidy > 0).length;
     if (subsidyCount > 0) {
@@ -436,6 +426,15 @@ const Payroll = () => {
       const pending = getPendingDeductions(entry.employeeId).filter((d) => !periodEnd || !d.date || d.date <= periodEnd);
       for (const d of pending) {
         await applyDeductionToPayroll(d.id, currentPeriod.id);
+      }
+    }
+
+    // Mark holiday subsidy as paid only after payroll is approved.
+    for (const entry of currentEntries) {
+      if (entry.holidaySubsidy > 0) {
+        const nextMonth = currentPeriod.month === 12 ? 1 : currentPeriod.month + 1;
+        const nextMonthYear = currentPeriod.month === 12 ? currentPeriod.year + 1 : currentPeriod.year;
+        await markSubsidyPaid(entry.employeeId, nextMonthYear, currentPeriod.month, currentPeriod.year);
       }
     }
 
