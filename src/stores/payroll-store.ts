@@ -267,9 +267,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const period = get().getPeriod(periodId);
       if (!period) return;
 
-      // PROTECTION: Do not regenerate entries for approved or paid periods
-      // This preserves historical data and prevents deductions from reappearing
-      if (period.status === 'approved' || period.status === 'paid') {
+      // PROTECTION: Do not regenerate paid periods.
+      // Approved periods can be recalculated, but subsidy values are preserved from existing entries.
+      if (period.status === 'paid') {
         console.log('[Payroll] Skipping generation - period is already', period.status);
         return;
       }
@@ -575,11 +575,39 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         console.error('[Payroll] Some entries failed to save; no deletions performed to avoid data loss.');
       }
 
+      // Update period totals while preserving approved status when applicable.
+      if (allWritesOk) {
+        const totals = newEntries.reduce(
+          (acc, entry) => ({
+            totalGross: acc.totalGross + entry.grossSalary,
+            totalNet: acc.totalNet + entry.netSalary,
+            totalDeductions: acc.totalDeductions + entry.totalDeductions,
+            totalEmployerCosts: acc.totalEmployerCosts + entry.totalEmployerCost,
+          }),
+          { totalGross: 0, totalNet: 0, totalDeductions: 0, totalEmployerCosts: 0 }
+        );
+        const now = new Date().toISOString();
+        const currentPeriod = get().getPeriod(periodId);
+        const cutoffDate = currentPeriod?.cutoffDate || new Date().toISOString().split('T')[0];
+
+        if (currentPeriod?.status === 'approved') {
+          await liveUpdate('payroll_periods', periodId, {
+            total_gross: totals.totalGross,
+            total_net: totals.totalNet,
+            total_deductions: totals.totalDeductions,
+            total_employer_costs: totals.totalEmployerCosts,
+            status: 'approved',
+            cutoff_date: cutoffDate,
+            processed_at: now,
+            updated_at: now,
+          });
+        } else {
+          await get().calculatePeriod(periodId);
+        }
+      }
+
       // Reload data from DB to ensure fresh state
       await get().loadPayroll();
-      if (allWritesOk) {
-        await get().calculatePeriod(periodId);
-      }
     },
 
     toggle13thMonth: async (entryId, monthsWorked) => {

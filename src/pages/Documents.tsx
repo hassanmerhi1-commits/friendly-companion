@@ -15,6 +15,9 @@ import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useDisciplinaryStore } from "@/stores/disciplinary-store";
+import { useHolidayStore } from "@/stores/holiday-store";
+import type { DisciplinaryType } from "@/types/disciplinary";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
 import { useCompanyLogo } from '@/hooks/use-company-logo';
@@ -61,6 +64,8 @@ const Documents = () => {
   const { employees } = useEmployeeStore();
   const { branches } = useBranchStore();
   const { settings } = useSettingsStore();
+  const { records: disciplinaryRecords, addRecord, loadRecords, hasActiveProcess } = useDisciplinaryStore();
+  const { addOrUpdateRecord } = useHolidayStore();
   const printRef = useRef<HTMLDivElement>(null);
   
   const [selectedType, setSelectedType] = useState<DocumentType>('advertencia');
@@ -95,6 +100,10 @@ const Documents = () => {
   const contractPrintRef = useRef<HTMLDivElement>(null);
   const companyLogo = useCompanyLogo();
   const logoBase64 = companyLogo || '';
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
   const t = {
     title: language === 'pt' ? 'Documentos Disciplinares' : 'Disciplinary Documents',
     subtitle: language === 'pt' ? 'Gerar documentos oficiais para gestão de recursos humanos' : 'Generate official HR management documents',
@@ -165,6 +174,59 @@ const Documents = () => {
 
   const selectedEmployee = employees.find(e => e.id === documentData.employeeId);
 
+  const mapDocumentTypeToDisciplinaryType = (type: DocumentType): DisciplinaryType | null => {
+    switch (type) {
+      case 'advertencia':
+        return 'advertencia_escrita';
+      case 'suspensao':
+        return 'suspensao';
+      case 'disciplinar':
+        return 'processo_disciplinar';
+      default:
+        return null;
+    }
+  };
+
+  const registerDisciplinaryRecordFromDocument = async (): Promise<boolean> => {
+    if (!documentData.employeeId) return false;
+    const disciplinaryType = mapDocumentTypeToDisciplinaryType(selectedType);
+    if (!disciplinaryType) return false;
+
+    if (disciplinaryType === 'processo_disciplinar' && hasActiveProcess(documentData.employeeId)) {
+      toast.warning(
+        language === 'pt'
+          ? 'Este funcionário já tem um processo disciplinar activo'
+          : 'This employee already has an active disciplinary process'
+      );
+      return false;
+    }
+
+    const normalizedReason = (documentData.reason || '').trim().toLowerCase();
+    const duplicate = disciplinaryRecords.some((r) =>
+      r.employeeId === documentData.employeeId &&
+      r.type === disciplinaryType &&
+      r.date === documentData.date &&
+      r.description.trim().toLowerCase() === normalizedReason
+    );
+    if (duplicate) return false;
+
+    const description = documentData.reason.trim() || documentData.details.trim() || (
+      language === 'pt' ? 'Registo gerado a partir de documento' : 'Record generated from document'
+    );
+
+    const result = await addRecord({
+      employeeId: documentData.employeeId,
+      type: disciplinaryType,
+      status: 'pendente',
+      date: documentData.date,
+      description,
+      duration: disciplinaryType === 'suspensao' ? Number(documentData.duration || 0) || undefined : undefined,
+      createdBy: language === 'pt' ? 'Documentos RH' : 'HR Documents',
+    });
+
+    return !!result;
+  };
+
   const headquartersBranch = branches.find(b => b.isHeadquarters) || branches[0];
   const employeeBranch = selectedEmployee?.branchId ? branches.find(b => b.id === selectedEmployee.branchId) : undefined;
   const documentBranch = employeeBranch || headquartersBranch;
@@ -176,9 +238,63 @@ const Documents = () => {
 
   const documentLocation = documentBranch?.city || settings.city || settings.province || 'Luanda';
 
+  const countBusinessDays = (start: Date, end: Date): number => {
+    const cursor = new Date(start);
+    let days = 0;
+    while (cursor <= end) {
+      const dow = cursor.getDay();
+      // Monday-Friday only
+      if (dow !== 0 && dow !== 6) days++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  };
+
+  const persistHolidayGuideToRecord = async (): Promise<boolean> => {
+    if (selectedType !== 'ferias' || !selectedEmployee) return false;
+    if (!documentData.startDate || !documentData.endDate) {
+      toast.error(language === 'pt' ? 'Preencha início e fim das férias' : 'Fill holiday start and end dates');
+      return false;
+    }
+
+    const start = new Date(documentData.startDate);
+    const end = new Date(documentData.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      toast.error(language === 'pt' ? 'Período de férias inválido' : 'Invalid holiday period');
+      return false;
+    }
+
+    const parsedDuration = Number(documentData.duration || 0);
+    const daysUsed = parsedDuration > 0 ? parsedDuration : countBusinessDays(start, end);
+    const holidayYear = start.getFullYear();
+
+    const result = await addOrUpdateRecord({
+      employeeId: selectedEmployee.id,
+      year: holidayYear,
+      daysUsed,
+      startDate: documentData.startDate,
+      endDate: documentData.endDate,
+      holidayMonth: start.getMonth() + 1,
+      notes: documentData.details || undefined,
+    });
+
+    if (!result.success) {
+      toast.error(result.error || (language === 'pt' ? 'Erro ao guardar férias no dossier' : 'Failed to save holiday record'));
+      return false;
+    }
+
+    return true;
+  };
+
   const handlePrint = async () => {
     const content = printRef.current;
     if (!content) return;
+
+    if (selectedType === 'ferias') {
+      const saved = await persistHolidayGuideToRecord();
+      if (!saved) return;
+      toast.success(language === 'pt' ? 'Guia e dossier de férias sincronizados' : 'Holiday guide and dossier synced');
+    }
 
     if (!logoBase64) {
       toast.error(language === 'pt' ? 'A carregar o logotipo, tente novamente...' : 'Logo is loading, try again...');
@@ -981,8 +1097,25 @@ const Documents = () => {
                 <Button 
                   variant="accent" 
                   disabled={!isFormValid}
-                  onClick={() => {
+                  onClick={async () => {
+                    if (selectedType === 'ferias') {
+                      const savedHoliday = await persistHolidayGuideToRecord();
+                      if (!savedHoliday) return;
+                    }
                     setPreviewOpen(true);
+                    const saved = await registerDisciplinaryRecordFromDocument();
+                    if (saved) {
+                      toast.success(
+                        language === 'pt'
+                          ? 'Documento gerado e registado no dossier disciplinar'
+                          : 'Document generated and saved to disciplinary dossier'
+                      );
+                      return;
+                    }
+                    if (selectedType === 'ferias') {
+                      toast.success(language === 'pt' ? 'Guia e dossier de férias sincronizados' : 'Holiday guide and dossier synced');
+                      return;
+                    }
                     toast.success(language === 'pt' ? 'Documento gerado!' : 'Document generated!');
                   }}
                 >

@@ -161,6 +161,12 @@ const Payroll = () => {
   // Logic: Only allow current month OR next month if current month is archived
   // NEVER allow 2+ months ahead
   const getOrCreateCurrentPeriod = async () => {
+    // If user is currently viewing a period, keep working on that same period.
+    // This avoids silent month jumps after approval/recalculation.
+    if (currentPeriod && currentPeriod.status !== 'paid') {
+      return currentPeriod;
+    }
+
     // If we already have an active editable period, use it
     if (activePeriod) {
       return activePeriod;
@@ -297,12 +303,13 @@ const Payroll = () => {
       return;
     }
 
-    // PROTECTION: Block calculation on approved/paid periods
-    if (currentPeriod && (currentPeriod.status === 'approved' || currentPeriod.status === 'paid')) {
+    // PROTECTION: Block recalculation only for paid periods.
+    // Approved periods are allowed and preserve approved holiday subsidy values.
+    if (currentPeriod && currentPeriod.status === 'paid') {
       toast.error(
         language === 'pt' 
-          ? 'Não é possível recalcular um período aprovado/pago. Use "Reabrir" primeiro.'
-          : 'Cannot recalculate an approved/paid period. Use "Reopen" first.'
+          ? 'Não é possível recalcular um período pago.'
+          : 'Cannot recalculate a paid period.'
       );
       return;
     }
@@ -322,6 +329,7 @@ const Payroll = () => {
     // Pass absence store, deduction store and bulk attendance store to integrate calculations
     // Bulk attendance takes priority for absence/delay deductions (uses FULL salary including bonuses)
     await generateEntriesForPeriod(period.id, activeEmployees, holidayRecords, absenceStore, deductionStore, bulkAttendanceStore);
+    setSelectedPeriodId(period.id);
     
     // IMPORTANT: Get fresh entries from the store AFTER generation completes
     // The store.entries is now updated via loadPayroll() inside generateEntriesForPeriod
@@ -338,6 +346,14 @@ const Payroll = () => {
       );
     } else {
       toast.success(language === 'pt' ? 'Folha calculada com sucesso!' : 'Payroll calculated successfully!');
+    }
+
+    if (period.status === 'approved') {
+      toast.info(
+        language === 'pt'
+          ? 'Período aprovado recalculado com preservação do subsídio de férias já aprovado neste mês.'
+          : 'Approved period recalculated while preserving already approved holiday subsidy for this month.'
+      );
     }
   };
 
@@ -419,6 +435,8 @@ const Payroll = () => {
 
     // First approve period (history)
     await approvePeriod(currentPeriod.id);
+    // Keep UI focused on the approved period; do not auto-switch to next month.
+    setSelectedPeriodId(currentPeriod.id);
 
     // Then mark deductions as applied to THIS payroll period
     const periodEnd = currentPeriod.endDate;

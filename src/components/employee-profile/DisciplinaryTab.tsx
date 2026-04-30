@@ -41,7 +41,7 @@ const statusColors: Record<DisciplinaryStatus, string> = {
 
 export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
   const { language } = useLanguage();
-  const { records: allRecords, loadRecords } = useDisciplinaryStore();
+  const { records: allRecords, loadRecords, hasActiveProcess } = useDisciplinaryStore();
   const { employees } = useEmployeeStore();
   const { settings } = useSettingsStore();
   
@@ -79,6 +79,16 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
 
     return { total, pending, resolved, warnings, suspensions };
   }, [records]);
+
+  const escalationInfo = useMemo(() => {
+    const activeIncidents = records.filter((r) => r.status !== 'arquivado');
+    const warnings = activeIncidents.filter((r) => r.type === 'advertencia_escrita').length;
+    const suspensions = activeIncidents.filter((r) => r.type === 'suspensao').length;
+    const weightedIncidents = warnings + suspensions;
+    const hasProcess = hasActiveProcess(employeeId);
+    const shouldRecommendProcess = !hasProcess && weightedIncidents >= 2;
+    return { warnings, suspensions, weightedIncidents, shouldRecommendProcess };
+  }, [records, hasActiveProcess, employeeId]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -186,6 +196,22 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {escalationInfo.shouldRecommendProcess && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-destructive flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4" />
+              {language === 'pt' ? 'Alerta de Escalonamento Disciplinar' : 'Disciplinary Escalation Alert'}
+            </CardTitle>
+            <CardDescription>
+              {language === 'pt'
+                ? `Este funcionário acumula ${escalationInfo.weightedIncidents} ocorrência(s) activa(s) (${escalationInfo.warnings} advertência(s), ${escalationInfo.suspensions} suspensão(ões)). Considere abrir um Processo Disciplinar.`
+                : `This employee has ${escalationInfo.weightedIncidents} active incident(s) (${escalationInfo.warnings} warning(s), ${escalationInfo.suspensions} suspension(s)). Consider opening a disciplinary process.`}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Records Table */}
       <Card>

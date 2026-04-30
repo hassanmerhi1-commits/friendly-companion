@@ -80,28 +80,20 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
       const existingRecord = get().records.find(
         r => r.employeeId === record.employeeId && r.year === record.year
       );
-      
-      // If subsidy already paid, don't allow changes
-      if (existingRecord?.subsidyPaidInMonth) {
-        return { 
-          success: false, 
-          error: 'Férias já pagas para este ano / Holiday already paid for this year' 
-        };
-      }
-      
-      // If holiday dates already registered for this year, block duplicate registration
-      if (existingRecord?.startDate && record.startDate && existingRecord.startDate !== record.startDate) {
-        return {
-          success: false,
-          error: `Férias já registadas para ${record.year} (${new Date(existingRecord.startDate).toLocaleDateString('pt-AO')} - ${new Date(existingRecord.endDate!).toLocaleDateString('pt-AO')}). Não é possível registar novamente. / Holiday already registered for ${record.year}. Cannot register again.`
-        };
-      }
-      
+
       let holidayMonth = record.holidayMonth;
       if (record.startDate && !holidayMonth) {
         holidayMonth = new Date(record.startDate).getMonth() + 1;
       }
-      const updatedRecord = { ...record, holidayMonth };
+
+      // Merge with existing record to preserve subsidy payment metadata.
+      const updatedRecord = {
+        ...(existingRecord || {}),
+        ...record,
+        holidayMonth,
+        subsidyPaidInMonth: record.subsidyPaidInMonth ?? existingRecord?.subsidyPaidInMonth,
+        subsidyPaidInYear: record.subsidyPaidInYear ?? existingRecord?.subsidyPaidInYear,
+      };
       await liveInsert('holidays', mapHolidayToDbRow(updatedRecord));
       return { success: true };
     },
@@ -114,28 +106,21 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
       const errors: string[] = [];
       
       for (const newRecord of records) {
-        // Check if this is a new holiday registration (has dates) for someone who already has paid holiday
         const existingRecord = get().records.find(
           r => r.employeeId === newRecord.employeeId && r.year === newRecord.year
         );
-        
-        // If subsidy already paid, skip this record
-        if (existingRecord?.subsidyPaidInMonth && newRecord.startDate) {
-          errors.push(`Funcionário já tem férias pagas em ${newRecord.year}`);
-          continue;
-        }
-        
-        // If holiday dates already exist, block duplicate
-        if (existingRecord?.startDate && newRecord.startDate && existingRecord.startDate !== newRecord.startDate) {
-          errors.push(`Funcionário já tem férias registadas em ${newRecord.year} (${new Date(existingRecord.startDate).toLocaleDateString('pt-AO')})`);
-          continue;
-        }
-        
+
         let holidayMonth = newRecord.holidayMonth;
         if (newRecord.startDate && !holidayMonth) {
           holidayMonth = new Date(newRecord.startDate).getMonth() + 1;
         }
-        const recordWithMonth = { ...newRecord, holidayMonth };
+        const recordWithMonth = {
+          ...(existingRecord || {}),
+          ...newRecord,
+          holidayMonth,
+          subsidyPaidInMonth: newRecord.subsidyPaidInMonth ?? existingRecord?.subsidyPaidInMonth,
+          subsidyPaidInYear: newRecord.subsidyPaidInYear ?? existingRecord?.subsidyPaidInYear,
+        };
         await liveInsert('holidays', mapHolidayToDbRow(recordWithMonth));
       }
       
@@ -169,11 +154,11 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     canRegisterHoliday: (employeeId, year) => {
       const record = get().records.find((r) => r.employeeId === employeeId && r.year === year);
       
-      // If subsidy already paid, cannot register again
+      // If subsidy already paid, allow date adjustments but show status context.
       if (record?.subsidyPaidInMonth) {
         return { 
-          allowed: false, 
-          reason: `Férias já pagas (${record.subsidyPaidInMonth}/${record.subsidyPaidInYear})` 
+          allowed: true, 
+          reason: `Subsídio já pago (${record.subsidyPaidInMonth}/${record.subsidyPaidInYear})` 
         };
       }
       
