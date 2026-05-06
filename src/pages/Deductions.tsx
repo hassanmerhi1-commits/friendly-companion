@@ -250,7 +250,6 @@ export default function Deductions() {
     { value: 'salary_advance', icon: Wallet },
     { value: 'warehouse_loss', icon: Package },
     { value: 'unjustified_absence', icon: Wallet },
-    { value: 'loan', icon: Wallet },
     { value: 'disciplinary', icon: Wallet },
     { value: 'other', icon: Wallet },
   ];
@@ -515,10 +514,6 @@ export default function Deductions() {
             <Button variant={filterType === 'warehouse_loss' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('warehouse_loss')}>
               <Package className="h-4 w-4 mr-1" />
               {language === 'pt' ? 'Perdas Armazém' : 'Warehouse'}
-            </Button>
-            <Button variant={filterType === 'loan' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('loan')}>
-              <Wallet className="h-4 w-4 mr-1" />
-              {language === 'pt' ? 'Empréstimos' : 'Loans'}
             </Button>
 
             <div className="w-px h-6 bg-border mx-1" />

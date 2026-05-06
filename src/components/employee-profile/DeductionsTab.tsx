@@ -13,9 +13,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Receipt, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
-import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
+import { useDeductionStore, getDeductionTypeLabel, getPendingDeductionsEffectiveMonthlyTotal } from '@/stores/deduction-store';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
+import { useEmployeeStore } from '@/stores/employee-store';
 
 interface DeductionsTabProps {
   employeeId: string;
@@ -24,6 +25,7 @@ interface DeductionsTabProps {
 export function DeductionsTab({ employeeId }: DeductionsTabProps) {
   const { language } = useLanguage();
   const { deductions, loadDeductions } = useDeductionStore();
+  const { employees } = useEmployeeStore();
 
   useEffect(() => {
     loadDeductions();
@@ -31,14 +33,16 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
 
   const employeeDeductions = useMemo(() => {
     return deductions
-      .filter((d) => d.employeeId === employeeId)
+      // Loans are shown in the dedicated "Empréstimos" tab; hide them here to avoid duplication/confusion.
+      .filter((d) => d.employeeId === employeeId && String(d.type || '').trim() !== 'loan')
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [deductions, employeeId]);
 
   const stats = useMemo(() => {
     const pending = employeeDeductions.filter((d) => !d.isFullyPaid);
     const totalPending = pending.reduce((sum, d) => sum + d.remainingAmount, 0);
-    const monthlyDeduction = pending.reduce((sum, d) => sum + d.amount, 0);
+    const deductionsWithoutLoans = deductions.filter((d) => String(d.type || '').trim() !== 'loan');
+    const monthlyDeduction = getPendingDeductionsEffectiveMonthlyTotal(employeeId, deductionsWithoutLoans, employees);
     const totalPaid = employeeDeductions
       .filter((d) => d.isFullyPaid)
       .reduce((sum, d) => sum + d.totalAmount, 0);
@@ -50,7 +54,7 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
       totalPaid,
       totalDeductions: employeeDeductions.length,
     };
-  }, [employeeDeductions]);
+  }, [employeeDeductions, employeeId, deductions, employees]);
 
   return (
     <div className="space-y-6">

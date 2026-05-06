@@ -183,7 +183,6 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                 <SelectItem value="salary_advance">{t.deductions.salaryAdvance}</SelectItem>
                 <SelectItem value="warehouse_loss">{t.deductions.warehouseLoss}</SelectItem>
                 <SelectItem value="unjustified_absence">{language === 'pt' ? 'Falta Injustificada' : 'Unjustified Absence'}</SelectItem>
-                <SelectItem value="loan">{t.deductions.loan}</SelectItem>
                 <SelectItem value="disciplinary">{t.deductions.disciplinary}</SelectItem>
                 <SelectItem value="other">{t.deductions.other}</SelectItem>
               </SelectContent>

@@ -449,7 +449,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               const amount = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
 
               // Separate warehouse losses from other deductions for priority processing
-              if (d.type === 'warehouse_loss') {
+              if (String(d.type || '').trim() === 'warehouse_loss') {
                 warehouseEligible.push({ d, amount });
               } else {
                 nonWarehouseEligible.push({ d, amount });
@@ -473,18 +473,24 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               });
             }
 
-            // PASS 2: Calculate remaining salary, then apply warehouse losses capped at 25%
+            // PASS 2: Remaining salary after non-warehouse deductions; warehouse losses share ONE 25% cap per month (FIFO across multiple records).
             const nonWarehouseTotal = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
             const remainingSalaryAfterOthers = Math.max(0, payrollResult.netSalary - nonWarehouseTotal);
             const warehouseCap = Math.round(remainingSalaryAfterOthers * 0.25);
+            let warehouseCapRemaining = warehouseCap;
+
+            warehouseEligible.sort(
+              (a, b) => new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime()
+            );
 
             for (const { d, amount } of warehouseEligible) {
-              // Cap warehouse loss at 25% of remaining salary
-              const cappedAmount = Math.min(amount, warehouseCap, d.remainingAmount > 0 ? d.remainingAmount : amount);
+              const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
+              const cappedAmount = Math.min(installmentCap, warehouseCapRemaining);
               if (cappedAmount <= 0) {
-                console.log(`[Payroll] Warehouse loss ${d.id} skipped: no remaining salary after other deductions`);
+                console.log(`[Payroll] Warehouse loss ${d.id} skipped: no shared warehouse cap left (${warehouseCap} Kz total for ${remainingSalaryAfterOthers} Kz remaining after others)`);
                 continue;
               }
+              warehouseCapRemaining -= cappedAmount;
               otherDeductions += cappedAmount;
               deductionBreakdown.push({
                 type: d.type,
@@ -492,7 +498,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 amount: cappedAmount,
                 deductionId: d.id,
               });
-              console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, capped at ${cappedAmount} (25% of remaining ${remainingSalaryAfterOthers})`);
+              console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, applied ${cappedAmount} (shared cap ${warehouseCap} Kz, ${warehouseCapRemaining} Kz left this month)`);
             }
           }
 
