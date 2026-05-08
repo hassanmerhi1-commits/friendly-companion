@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,8 +59,9 @@ type SortOrder = 'asc' | 'desc';
 
 const Employees = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, language } = useLanguage();
-  const { employees, deleteEmployee, approveEmployee, rejectEmployee } = useEmployeeStore();
+  const { employees, deleteEmployee, approveEmployee, rejectEmployee, backfillCategoryFromPosition } = useEmployeeStore();
   const { updateEmployee } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
   const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
@@ -72,8 +73,45 @@ const Employees = () => {
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [nameColumnFilter, setNameColumnFilter] = useState<string>('all');
+  const [departmentColumnFilter, setDepartmentColumnFilter] = useState<string>('all');
+  const [categoryColumnFilter, setCategoryColumnFilter] = useState<string>('all');
+  const [branchColumnFilter, setBranchColumnFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const initialSearch = params.get('search');
+    const initialBranch = params.get('branch');
+    const initialStatus = params.get('status');
+    const initialSortField = params.get('sortField') as SortField | null;
+    const initialSortOrder = params.get('sortOrder') as SortOrder | null;
+
+    if (initialSearch !== null) setSearch(initialSearch);
+    if (initialBranch !== null) setSelectedBranchFilter(initialBranch);
+    if (initialStatus !== null) setStatusFilter(initialStatus);
+    if (initialSortField && ['name', 'department', 'branch', 'salary', 'hireDate'].includes(initialSortField)) {
+      setSortField(initialSortField);
+    }
+    if (initialSortOrder && (initialSortOrder === 'asc' || initialSortOrder === 'desc')) {
+      setSortOrder(initialSortOrder);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    void backfillCategoryFromPosition();
+  }, [backfillCategoryFromPosition]);
+
+  const buildEmployeesStateParams = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('search', search);
+    params.set('branch', selectedBranchFilter);
+    params.set('status', statusFilter);
+    params.set('sortField', sortField);
+    params.set('sortOrder', sortOrder);
+    return params.toString();
+  }, [search, selectedBranchFilter, statusFilter, sortField, sortOrder]);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
@@ -94,10 +132,18 @@ const Employees = () => {
     .filter(emp => {
       const searchNorm = normalizeText(search);
       const searchWords = searchNorm.split(/\s+/).filter(Boolean);
-      const empText = normalizeText(`${emp.firstName} ${emp.lastName} ${emp.email} ${emp.department} ${emp.employeeNumber || ''} ${emp.position || ''}`);
+      const empText = normalizeText(`${emp.firstName} ${emp.lastName} ${emp.email} ${emp.department} ${emp.category || ''} ${emp.employeeNumber || ''} ${emp.position || ''}`);
       const matchesSearch = searchWords.length === 0 || searchWords.every(word => empText.includes(word));
       
       const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
+      const matchesNameHeader = nameColumnFilter === 'all' ||
+        `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === nameColumnFilter;
+      const matchesDepartmentHeader = departmentColumnFilter === 'all' ||
+        (emp.department || '').toLowerCase().trim() === departmentColumnFilter;
+      const matchesCategoryHeader = categoryColumnFilter === 'all' ||
+        (emp.category || '').toLowerCase().trim() === categoryColumnFilter;
+      const matchesBranchHeader = branchColumnFilter === 'all' ||
+        (emp.branchId || '') === branchColumnFilter;
       
       const matchesStatus = statusFilter === 'all' 
         ? true 
@@ -107,7 +153,7 @@ const Employees = () => {
             ? emp.status === 'pending_approval'
             : (emp.status === 'active' && !emp.isRetired);
       
-      return matchesSearch && matchesBranch && matchesStatus;
+      return matchesSearch && matchesBranch && matchesStatus && matchesNameHeader && matchesDepartmentHeader && matchesCategoryHeader && matchesBranchHeader;
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -137,6 +183,32 @@ const Employees = () => {
     if (!branchId) return '-';
     const branch = branches.find(b => b.id === branchId);
     return branch ? `${branch.name}` : '-';
+  };
+
+  const nameHeaderOptions = useMemo(() => {
+    const names = Array.from(new Set(
+      employees.map((e) => `${e.firstName} ${e.lastName}`.trim()).filter(Boolean)
+    ));
+    return names.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
+  }, [employees, language]);
+
+  const departmentHeaderOptions = useMemo(() => {
+    const values = Array.from(new Set(
+      employees.map((e) => (e.department || '').trim()).filter(Boolean)
+    ));
+    return values.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
+  }, [employees, language]);
+
+  const categoryHeaderOptions = useMemo(() => {
+    const values = Array.from(new Set(
+      employees.map((e) => (e.category || '').trim()).filter(Boolean)
+    ));
+    return values.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
+  }, [employees, language]);
+
+  const getCategoryLabel = (category?: string) => {
+    if (!category) return '-';
+    return category;
   };
 
   function getStatusLabel(status: Employee["status"]): string {
@@ -202,7 +274,10 @@ const Employees = () => {
       toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
       return;
     }
-    exportEmployeesToCSV(employees, language);
+    const employeesToExport = selectedBranchFilter === 'all'
+      ? employees
+      : employees.filter((emp) => emp.branchId === selectedBranchFilter);
+    exportEmployeesToCSV(employeesToExport, language, branches);
     toast.success(t.export.success);
   };
 
@@ -325,12 +400,87 @@ const Employees = () => {
               <tr>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Nome' : 'Name'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Departamento' : 'Department'}</th>
+                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Categoria' : 'Category'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Filial' : 'Branch'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Contrato' : 'Contract'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Estado' : 'Status'}</th>
                 <th className="px-3 py-3 text-right">{language === 'pt' ? 'Salário' : 'Salary'}</th>
                 <th className="px-3 py-3 text-right">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
                 <th className="px-3 py-3 text-right">{language === 'pt' ? 'Ações' : 'Actions'}</th>
+              </tr>
+              <tr className="border-t border-border">
+                <th className="px-3 py-2 text-left">
+                  <Select value={nameColumnFilter} onValueChange={setNameColumnFilter}>
+                    <SelectTrigger className="h-8 min-w-[170px]">
+                      <SelectValue placeholder={language === 'pt' ? 'Filtrar nome' : 'Filter name'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
+                      {nameHeaderOptions.map((name) => (
+                        <SelectItem key={name} value={name.toLowerCase().trim()}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <Select value={departmentColumnFilter} onValueChange={setDepartmentColumnFilter}>
+                    <SelectTrigger className="h-8 min-w-[160px]">
+                      <SelectValue placeholder={language === 'pt' ? 'Filtrar depto' : 'Filter dept'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
+                      {departmentHeaderOptions.map((value) => (
+                        <SelectItem key={value} value={value.toLowerCase().trim()}>{value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <Select value={categoryColumnFilter} onValueChange={setCategoryColumnFilter}>
+                    <SelectTrigger className="h-8 min-w-[180px]">
+                      <SelectValue placeholder={language === 'pt' ? 'Filtrar categoria' : 'Filter category'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
+                      {categoryHeaderOptions.map((value) => (
+                        <SelectItem key={value} value={value.toLowerCase().trim()}>{value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <Select value={branchColumnFilter} onValueChange={setBranchColumnFilter}>
+                    <SelectTrigger className="h-8 min-w-[170px]">
+                      <SelectValue placeholder={language === 'pt' ? 'Filtrar filial' : 'Filter branch'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{language === 'pt' ? '(Todas)' : '(All)'}</SelectItem>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </th>
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2" />
+                <th className="px-3 py-2 text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNameColumnFilter('all');
+                      setDepartmentColumnFilter('all');
+                      setCategoryColumnFilter('all');
+                      setBranchColumnFilter('all');
+                    }}
+                  >
+                    {language === 'pt' ? 'Limpar' : 'Clear'}
+                  </Button>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -341,6 +491,7 @@ const Employees = () => {
                     <div className="text-xs text-muted-foreground">{employee.employeeNumber}</div>
                   </td>
                   <td className="px-3 py-3">{employee.department || '-'}</td>
+                  <td className="px-3 py-3">{getCategoryLabel(employee.category)}</td>
                   <td className="px-3 py-3">{getBranchName(employee.branchId)}</td>
                   <td className="px-3 py-3">{getContractLabel(employee.contractType)}</td>
                   <td className="px-3 py-3">
@@ -391,7 +542,7 @@ const Employees = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/employee-profile/${employee.id}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`/employee-profile/${employee.id}?${buildEmployeesStateParams}`)}>
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
                           </DropdownMenuItem>

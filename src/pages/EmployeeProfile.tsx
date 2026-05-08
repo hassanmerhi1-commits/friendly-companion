@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,8 +17,10 @@ import { AuditHistoryTab } from '@/components/employee-profile/AuditHistoryTab';
 const EmployeeProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { language } = useLanguage();
   const { employees } = useEmployeeStore();
+  const backTarget = location.search ? `/employees${location.search}` : '/employees';
 
   const employee = employees.find((e) => e.id === id);
 
@@ -30,7 +32,7 @@ const EmployeeProfile = () => {
           <h2 className="text-xl font-semibold mb-2">
             {language === 'pt' ? 'Funcionário não encontrado' : 'Employee not found'}
           </h2>
-          <Button variant="outline" onClick={() => navigate('/employees')}>
+          <Button variant="outline" onClick={() => navigate(backTarget)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {language === 'pt' ? 'Voltar aos Funcionários' : 'Back to Employees'}
           </Button>
@@ -43,7 +45,7 @@ const EmployeeProfile = () => {
     <TopNavLayout>
       {/* Back button */}
       <div className="mb-6">
-        <Button variant="ghost" onClick={() => navigate('/employees')} className="gap-2">
+        <Button variant="ghost" onClick={() => navigate(backTarget)} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
           {language === 'pt' ? 'Voltar aos Funcionários' : 'Back to Employees'}
         </Button>

@@ -34,6 +34,7 @@ export interface Employee {
   // Employment Details
   employeeNumber: string;
   department: string;
+  category?: string;
   position: string;
   contractType: ContractType;
   hireDate: string;
@@ -90,6 +91,7 @@ export interface EmployeeFormData {
   inssNumber: string;
   employeeNumber: string;
   department: string;
+  category?: string;
   position: string;
   contractType: ContractType;
   hireDate: string;

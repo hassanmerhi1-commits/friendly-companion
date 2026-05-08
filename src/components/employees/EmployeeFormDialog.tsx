@@ -34,6 +34,7 @@ const defaultFormData: EmployeeFormData = {
   inssNumber: '',
   employeeNumber: '',
   department: '',
+  category: '',
   position: '',
   contractType: 'permanent',
   hireDate: new Date().toISOString().split('T')[0],
@@ -74,6 +75,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         inssNumber: employee.inssNumber,
         employeeNumber: employee.employeeNumber,
         department: employee.department,
+        category: employee.category || employee.position || '',
         position: employee.position,
         contractType: employee.contractType,
         hireDate: employee.hireDate,
@@ -350,7 +352,19 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                 <Label>{t.employees.position}</Label>
                 <Input
                   value={formData.position}
-                  onChange={(e) => updateField('position', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData(prev => ({ ...prev, position: value, category: value }));
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{language === 'pt' ? 'Categoria' : 'Category'}</Label>
+                <Input
+                  value={formData.category || ''}
+                  onChange={(e) => updateField('category', e.target.value)}
+                  placeholder={language === 'pt' ? 'Igual ao cargo (editável se necessário)' : 'Same as position (editable if needed)'}
                 />
               </div>
 

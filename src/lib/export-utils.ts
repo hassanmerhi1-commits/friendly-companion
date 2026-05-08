@@ -6,6 +6,7 @@
 import { formatAOA } from './angola-labor-law';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
+import type { Branch } from '@/types/branch';
 
 // Export payroll data to CSV (Excel-compatible)
 export function exportPayrollToCSV(
@@ -77,12 +78,13 @@ export function exportPayrollToCSV(
 // Export employees to CSV
 export function exportEmployeesToCSV(
   employees: Employee[],
-  language: string = 'pt'
+  language: string = 'pt',
+  branches: Branch[] = []
 ): void {
   const isPt = language === 'pt';
   const headers = isPt
-    ? ['Nome', 'Email', 'Telefone', 'Departamento', 'Cargo', 'Contrato', 'Data Admissão', 'Salário Base', 'Estado']
-    : ['Name', 'Email', 'Phone', 'Department', 'Position', 'Contract', 'Hire Date', 'Base Salary', 'Status'];
+    ? ['Nome', 'Email', 'Telefone', 'Departamento', 'Categoria', 'Filial', 'Cargo', 'Contrato', 'Data Admissão', 'Salário Base', 'Estado']
+    : ['Name', 'Email', 'Phone', 'Department', 'Category', 'Branch', 'Position', 'Contract', 'Hire Date', 'Base Salary', 'Status'];
 
   const contractLabels = language === 'pt'
     ? { permanent: 'Efectivo', fixed_term: 'Prazo Det.', part_time: 'Part-Time', probation: 'Experimental' }
@@ -92,11 +94,21 @@ export function exportEmployeesToCSV(
     ? { active: 'Ativo', inactive: 'Inativo', on_leave: 'De Licença', terminated: 'Desligado' }
     : { active: 'Active', inactive: 'Inactive', on_leave: 'On Leave', terminated: 'Terminated' };
 
+  const categoryLabel = (category?: string) => category || '-';
+
+  const branchName = (branchId?: string) => {
+    if (!branchId) return '-';
+    const b = branches.find((x) => x.id === branchId);
+    return b ? b.name : '-';
+  };
+
   const rows = employees.map(emp => [
     `${emp.firstName} ${emp.lastName}`,
     emp.email,
     emp.phone,
     emp.department,
+    categoryLabel(emp.category),
+    branchName(emp.branchId),
     emp.position,
     contractLabels[emp.contractType],
     new Date(emp.hireDate).toLocaleDateString('pt-AO'),

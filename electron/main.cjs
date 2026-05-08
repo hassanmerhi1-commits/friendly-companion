@@ -912,6 +912,7 @@ function createNewDatabaseInternal(targetPath) {
         name TEXT NOT NULL,
         position TEXT,
         department TEXT,
+        category TEXT DEFAULT 'other',
         branch_id TEXT,
         hire_date TEXT,
         birth_date TEXT,
@@ -1304,6 +1305,7 @@ function runMigrations() {
     addColumnIfMissing('employees', 'employee_number', "ALTER TABLE employees ADD COLUMN employee_number TEXT");
     addColumnIfMissing('employees', 'position', "ALTER TABLE employees ADD COLUMN position TEXT");
     addColumnIfMissing('employees', 'department', "ALTER TABLE employees ADD COLUMN department TEXT");
+    addColumnIfMissing('employees', 'category', "ALTER TABLE employees ADD COLUMN category TEXT DEFAULT 'other'");
     addColumnIfMissing('employees', 'branch_id', "ALTER TABLE employees ADD COLUMN branch_id TEXT");
     addColumnIfMissing('employees', 'hire_date', "ALTER TABLE employees ADD COLUMN hire_date TEXT");
     addColumnIfMissing('employees', 'birth_date', "ALTER TABLE employees ADD COLUMN birth_date TEXT");

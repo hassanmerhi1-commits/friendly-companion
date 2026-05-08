@@ -19,6 +19,7 @@ interface EmployeeState {
   
   // Load/refresh from database
   loadEmployees: () => Promise<void>;
+  backfillCategoryFromPosition: () => Promise<number>;
   
   // Database operations
   getEmployee: (id: string) => Employee | undefined;
@@ -51,6 +52,7 @@ function mapDbRowToEmployee(row: any): Employee {
     lastName: row.name?.split(' ').slice(1).join(' ') || '',
     position: row.position || '',
     department: row.department || '',
+    category: row.category || row.position || '',
     branchId: row.branch_id || '',
     hireDate: row.hire_date || '',
     dateOfBirth: row.birth_date || '',
@@ -93,6 +95,7 @@ function mapEmployeeToDbRow(emp: Employee): Record<string, any> {
     name: `${emp.firstName} ${emp.lastName}`.trim(),
     position: emp.position,
     department: emp.department,
+    category: emp.category || emp.position || '',
     branch_id: emp.branchId,
     hire_date: emp.hireDate,
     birth_date: emp.dateOfBirth,
@@ -142,6 +145,30 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       console.error('[Employees] Error loading:', error);
       set({ isLoaded: true });
     }
+  },
+
+  backfillCategoryFromPosition: async () => {
+    const rows = await liveGetAll<any>('employees');
+    let updatedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const row of rows) {
+      const currentCategory = (row.category || '').toString().trim();
+      const position = (row.position || '').toString().trim();
+      if (!currentCategory && position) {
+        const ok = await liveUpdate('employees', row.id, {
+          category: position,
+          updated_at: now,
+        });
+        if (ok) updatedCount++;
+      }
+    }
+
+    if (updatedCount > 0) {
+      await get().loadEmployees();
+      console.log(`[Employees] Backfilled category from cargo for ${updatedCount} employees`);
+    }
+    return updatedCount;
   },
   
   getEmployee: (id: string) => {
@@ -249,6 +276,7 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       nif: data.nif,
       inssNumber: data.inssNumber,
       department: data.department,
+      category: data.category || data.position || '',
       position: data.position,
       contractType: data.contractType,
       hireDate: data.hireDate,
