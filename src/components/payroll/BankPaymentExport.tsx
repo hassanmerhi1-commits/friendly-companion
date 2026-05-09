@@ -30,6 +30,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
   const { branches } = useBranchStore();
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
   const [paymentReference, setPaymentReference] = useState<string>(`SAL-${periodLabel.replace(/\s/g, '-')}`);
+  const [exportFormat, setExportFormat] = useState<'bank_simple' | 'full_internal'>('bank_simple');
 
   const activeBranches = branches.filter(b => b.isActive);
 
@@ -67,9 +68,112 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     wb.creator = settings.companyName || 'PayrollAO';
     wb.created = new Date();
 
-    const ws = wb.addWorksheet('Pagamentos', {
+    const ws = wb.addWorksheet(exportFormat === 'bank_simple' ? 'Ficheiro Banco' : 'Pagamentos', {
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
     });
+
+    if (exportFormat === 'bank_simple') {
+      const transferEntries = bankableEntries.filter((entry) => getTransferAmount(entry) > 0);
+      if (transferEntries.length === 0) {
+        toast.error(
+          language === 'pt'
+            ? 'Nenhum valor positivo para transferir (verifique pagamentos antecipados)'
+            : 'No positive amount to transfer (check early payments)'
+        );
+        return;
+      }
+
+      ws.columns = [
+        { header: language === 'pt' ? 'Beneficiário' : 'Beneficiary', key: 'beneficiary', width: 40 },
+        { header: language === 'pt' ? 'IBAN do Beneficiário' : 'Beneficiary IBAN', key: 'iban', width: 34 },
+        { header: language === 'pt' ? 'VALOR' : 'AMOUNT', key: 'amount', width: 16 },
+        { header: language === 'pt' ? 'Descritivo' : 'Description', key: 'description', width: 40 },
+      ];
+
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+      // Bank compact template requires plain numeric format (e.g., 200000.00), no thousand separators.
+      const currencyFormat = '0.00';
+
+      const headerRow = ws.getRow(1);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, size: 11, color: { argb: '000000' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'EAEAEA' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = thinBorder;
+      });
+      headerRow.height = 24;
+
+      transferEntries.forEach((entry, index) => {
+        const bankLabel = entry.employee?.bankName?.trim() || paymentReference;
+        const amountText = getTransferAmount(entry).toFixed(2);
+        const row = ws.addRow({
+          beneficiary: `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
+          iban: entry.employee?.iban || entry.employee?.bankAccountNumber || '',
+          amount: amountText,
+          description: bankLabel,
+        });
+
+        row.eachCell((cell, colNumber) => {
+          cell.border = thinBorder;
+          cell.alignment = { vertical: 'middle' };
+          if (colNumber === 3) {
+            cell.numFmt = '@';
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          }
+        });
+
+        if (index % 2 === 1) {
+          row.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F7F7F7' } };
+          });
+        }
+      });
+
+      const totalTransfer = transferEntries.reduce((sum, entry) => sum + getTransferAmount(entry), 0);
+      const totalRow = ws.addRow({
+        beneficiary: '',
+        iban: '',
+        amount: totalTransfer.toFixed(2),
+        description: language === 'pt' ? 'TOTAL A TRANSFERIR' : 'TOTAL TO TRANSFER',
+      });
+      totalRow.eachCell((cell, colNumber) => {
+        cell.font = { bold: true };
+        cell.border = {
+          top: { style: 'double' },
+          left: { style: 'thin' },
+          bottom: { style: 'double' },
+          right: { style: 'thin' },
+        };
+        if (colNumber === 3) {
+          cell.numFmt = '@';
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+      });
+
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ficheiro-banco-${periodLabel.replace(/\s/g, '-')}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast.success(
+        language === 'pt'
+          ? `Ficheiro bancário exportado: ${transferEntries.length} transferência(s)`
+          : `Bank file exported: ${transferEntries.length} transfer(s)`
+      );
+      onOpenChange(false);
+      return;
+    }
 
     // ── Column definitions ──
     const columns = [
@@ -320,6 +424,30 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
               {language === 'pt' 
                 ? `${entries.length} funcionários na folha salarial`
                 : `${entries.length} employees in payroll`}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Formato de Exportação' : 'Export Format'}</Label>
+            <Select value={exportFormat} onValueChange={(value) => setExportFormat(value as 'bank_simple' | 'full_internal')}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bank_simple">
+                  {language === 'pt' ? 'Banco (4 colunas)' : 'Bank (4 columns)'}
+                </SelectItem>
+                <SelectItem value="full_internal">
+                  {language === 'pt' ? 'Completo (interno)' : 'Full (internal)'}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {exportFormat === 'bank_simple'
+                ? (language === 'pt'
+                    ? 'Modelo compacto: Beneficiário, IBAN, Valor e Descritivo (igual ao layout do banco).'
+                    : 'Compact model: Beneficiary, IBAN, Amount and Description (same as bank layout).')
+                : (language === 'pt'
+                    ? 'Modelo detalhado para controlo interno com colunas completas da folha.'
+                    : 'Detailed model for internal control with full payroll columns.')}
             </p>
           </div>
 
