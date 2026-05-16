@@ -162,7 +162,7 @@ export function LoansTab({ employeeId }: LoansTabProps) {
               </p>
             </div>
           ) : (
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>

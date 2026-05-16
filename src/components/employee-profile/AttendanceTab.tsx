@@ -170,7 +170,7 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
               {language === 'pt' ? 'Nenhuma ausência registada' : 'No absences recorded'}
             </div>
           ) : (
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>
@@ -220,7 +220,7 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Período' : 'Period'}</TableHead>

@@ -131,7 +131,7 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
               {language === 'pt' ? 'Sem registos de férias' : 'No holiday records'}
             </p>
           ) : (
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Ano' : 'Year'}</TableHead>

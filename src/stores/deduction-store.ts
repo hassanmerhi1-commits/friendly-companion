@@ -5,6 +5,108 @@ import { logAudit } from '@/lib/audit-helper';
 import { calculatePayroll } from '@/lib/angola-labor-law';
 
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
+const BALANCE_EPSILON = 0.01;
+
+export interface DeductionBalanceSnapshot {
+  remainingAmount: number;
+  installments: number;
+  isFullyPaid: boolean;
+}
+
+/**
+ * Single source of truth for deduction balances.
+ * "Paid" status follows remaining balance, not installmentsPaid >= installments alone.
+ */
+export function computeDeductionBalances(
+  totalAmount: number,
+  monthlyAmount: number,
+  installmentsPaid: number,
+  remainingOverride?: number
+): DeductionBalanceSnapshot {
+  const total = Math.max(0, totalAmount);
+  const monthly = Math.max(0, monthlyAmount);
+  const paidCount = Math.max(0, installmentsPaid);
+
+  let remainingAmount =
+    remainingOverride !== undefined && !Number.isNaN(remainingOverride)
+      ? Math.max(0, remainingOverride)
+      : Math.max(0, total - paidCount * monthly);
+
+  if (remainingAmount > total + BALANCE_EPSILON) {
+    remainingAmount = Math.max(0, total - paidCount * monthly);
+  }
+
+  const futureInstallments =
+    remainingAmount <= BALANCE_EPSILON
+      ? 0
+      : monthly > BALANCE_EPSILON
+        ? Math.max(1, Math.ceil(remainingAmount / monthly))
+        : 1;
+
+  const installments = Math.max(paidCount + futureInstallments, paidCount, 1);
+  const isFullyPaid = remainingAmount <= BALANCE_EPSILON;
+
+  return {
+    remainingAmount: isFullyPaid ? 0 : remainingAmount,
+    installments,
+    isFullyPaid,
+  };
+}
+
+/** Apply one payroll installment (monthly amount capped by remaining). */
+export function creditOneInstallment(deduction: Deduction): Partial<Deduction> | null {
+  if (deduction.isFullyPaid || deduction.remainingAmount <= BALANCE_EPSILON) {
+    return {
+      remainingAmount: 0,
+      isFullyPaid: true,
+      installments: Math.max(deduction.installments, deduction.installmentsPaid),
+    };
+  }
+
+  const monthly = deduction.amount > 0 ? deduction.amount : deduction.remainingAmount;
+  const payment = Math.min(monthly, deduction.remainingAmount);
+  if (payment <= BALANCE_EPSILON) return null;
+
+  const newInstallmentsPaid = (deduction.installmentsPaid || 0) + 1;
+  const newRemaining = Math.max(0, deduction.remainingAmount - payment);
+  const balances = computeDeductionBalances(
+    deduction.totalAmount,
+    deduction.amount,
+    newInstallmentsPaid,
+    newRemaining
+  );
+
+  return {
+    installmentsPaid: newInstallmentsPaid,
+    remainingAmount: balances.remainingAmount,
+    installments: balances.installments,
+    isFullyPaid: balances.isFullyPaid,
+  };
+}
+
+/** After payroll approval: count installments and release deductions for the next period. */
+export async function finalizeApprovedPeriodDeductions(periodId: string) {
+  const store = useDeductionStore.getState();
+  const linked = store.deductions.filter(
+    (d) => d.payrollPeriodId === periodId && d.isApplied && !d.isFullyPaid
+  );
+
+  if (linked.length === 0) return;
+
+  for (const deduction of linked) {
+    const credit = creditOneInstallment(deduction);
+    const patch: Partial<Deduction> = {
+      ...(credit || {}),
+      isApplied: false,
+      payrollPeriodId: undefined,
+    };
+    await store.updateDeduction(deduction.id, patch);
+  }
+
+  console.log(
+    `[Deductions] Finalized ${linked.length} deduction(s) for approved period ${periodId}`
+  );
+}
 
 /** Calculate net salary for an employee to determine 25% warehouse loss limit */
 function getEmployeeNetSalary(emp: any): number {
@@ -47,8 +149,17 @@ function mapDbRowToDeduction(row: any): Deduction {
   const monthlyAmount = (storedAmount && storedAmount > 0 && storedAmount !== totalAmount)
     ? storedAmount
     : (installments > 0 ? totalAmount / installments : totalAmount);
-  const remainingAmount = row.remaining_amount ?? (totalAmount - (installmentsPaid * monthlyAmount));
-  
+  const storedRemaining =
+    row.remaining_amount !== null && row.remaining_amount !== undefined
+      ? Number(row.remaining_amount)
+      : undefined;
+  const balances = computeDeductionBalances(
+    totalAmount,
+    monthlyAmount,
+    installmentsPaid,
+    storedRemaining
+  );
+
   return {
     id: row.id,
     employeeId: row.employee_id,
@@ -59,10 +170,10 @@ function mapDbRowToDeduction(row: any): Deduction {
     date: row.date || '',
     payrollPeriodId: row.payroll_period_id || undefined,
     isApplied: row.is_applied === 1,
-    isFullyPaid: row.is_fully_paid === 1 || installmentsPaid >= installments,
-    installments: installments,
+    isFullyPaid: balances.isFullyPaid,
+    installments: balances.installments,
     installmentsPaid: installmentsPaid,
-    remainingAmount: remainingAmount,
+    remainingAmount: balances.remainingAmount,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -154,7 +265,20 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const current = get().deductions.find((d) => d.id === id);
       if (!current) return;
 
-      const updated: Deduction = { ...current, ...data, updatedAt: now };
+      const merged = { ...current, ...data };
+      const balances = computeDeductionBalances(
+        merged.totalAmount,
+        merged.amount,
+        merged.installmentsPaid,
+        merged.remainingAmount
+      );
+      const updated: Deduction = {
+        ...merged,
+        remainingAmount: balances.remainingAmount,
+        installments: balances.installments,
+        isFullyPaid: balances.isFullyPaid,
+        updatedAt: now,
+      };
       const { id: _, ...row } = mapDeductionToDbRow(updated);
       await liveUpdate('deductions', id, row);
       await get().loadDeductions();
@@ -342,18 +466,27 @@ export async function normalizeWarehouseLossDeductions() {
         const newAmount = Math.min(installmentCap, pool);
         pool -= newAmount;
 
-        const newInstallments =
-          newAmount > 0 ? Math.max(1, Math.ceil(rem / newAmount)) : ded.installments;
+        const balances = computeDeductionBalances(
+          ded.totalAmount,
+          newAmount,
+          ded.installmentsPaid,
+          rem
+        );
 
-        const needsAmountFix = Math.abs(ded.amount - newAmount) > 0.01;
-        const needsInstFix = newAmount > 0 && ded.installments !== newInstallments;
+        const needsAmountFix = Math.abs(ded.amount - newAmount) > BALANCE_EPSILON;
+        const needsInstFix = balances.installments !== ded.installments;
+        const needsRemainingFix = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
+        const needsPaidFix = ded.isFullyPaid !== balances.isFullyPaid;
 
-        if (needsAmountFix || needsInstFix) {
+        if (needsAmountFix || needsInstFix || needsRemainingFix || needsPaidFix) {
           updates.push({
             id: ded.id,
             payload: {
               amount: newAmount,
-              installments: newInstallments,
+              installments: balances.installments,
+              remaining_amount: balances.remainingAmount,
+              is_fully_paid: balances.isFullyPaid ? 1 : 0,
+              installments_paid: ded.installmentsPaid,
               current_installment: ded.installmentsPaid,
               updated_at: now,
             },
@@ -386,6 +519,65 @@ export async function normalizeWarehouseLossDeductions() {
     console.error('[Deductions] Error normalizing warehouse losses:', error);
   }
 }
+
+/**
+ * Safe one-time reconciliation for legacy rows (e.g. 3/2 + Paid while balance remains).
+ * Only writes when stored values are materially inconsistent.
+ */
+export async function reconcileDeductionBalances() {
+  try {
+    const { deductions } = useDeductionStore.getState();
+    const now = new Date().toISOString();
+    let fixed = 0;
+
+    for (const ded of deductions) {
+      const balances = computeDeductionBalances(
+        ded.totalAmount,
+        ded.amount,
+        ded.installmentsPaid,
+        ded.remainingAmount
+      );
+
+      const wrongPaidFlag = ded.isFullyPaid !== balances.isFullyPaid;
+      const wrongRemaining = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
+      const wrongInstallments = ded.installments !== balances.installments;
+      const impossibleProgress = ded.installmentsPaid > ded.installments && balances.remainingAmount > BALANCE_EPSILON;
+
+      if (!wrongPaidFlag && !wrongRemaining && !wrongInstallments && !impossibleProgress) {
+        continue;
+      }
+
+      await liveUpdate('deductions', ded.id, {
+        remaining_amount: balances.remainingAmount,
+        installments: balances.installments,
+        is_fully_paid: balances.isFullyPaid ? 1 : 0,
+        installments_paid: ded.installmentsPaid,
+        current_installment: ded.installmentsPaid,
+        updated_at: now,
+      });
+      fixed++;
+    }
+
+    if (fixed > 0) {
+      await useDeductionStore.getState().loadDeductions();
+      console.log(`[Deductions] Reconciled balances for ${fixed} deduction row(s)`);
+    } else {
+      console.log('[Deductions] Balance reconciliation: no inconsistent rows found');
+    }
+  } catch (error) {
+    console.error('[Deductions] Error reconciling balances:', error);
+  }
+}
+
+/** Display order for dossier / reports (matches Deduções page filters). */
+export const DEDUCTION_TYPE_ORDER: DeductionType[] = [
+  'salary_advance',
+  'warehouse_loss',
+  'unjustified_absence',
+  'loan',
+  'disciplinary',
+  'other',
+];
 
 export function getDeductionTypeLabel(type: DeductionType, lang: string = 'pt'): string {
   const labels: Record<DeductionType, { pt: string; en: string; es: string; fr: string; ar: string }> = {

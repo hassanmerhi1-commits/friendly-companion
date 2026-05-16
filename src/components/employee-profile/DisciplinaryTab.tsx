@@ -245,7 +245,7 @@ export function DisciplinaryTab({ employeeId }: DisciplinaryTabProps) {
               </p>
             </div>
           ) : (
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>

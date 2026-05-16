@@ -1,17 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen, ChevronDown, Search } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useEmployeeStore } from "@/stores/employee-store";
-import { useDeductionStore } from "@/stores/deduction-store";
+import { useDeductionStore, finalizeApprovedPeriodDeductions } from "@/stores/deduction-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useHolidayStore } from "@/stores/holiday-store";
@@ -28,6 +29,7 @@ import { PrintableColaboradorSheet } from "@/components/payroll/PrintableColabor
 import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
 import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
+import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
@@ -94,6 +96,8 @@ const Payroll = () => {
   // Early payment dialog
   const [earlyPaymentDialogOpen, setEarlyPaymentDialogOpen] = useState(false);
   const [earlyPaymentEntry, setEarlyPaymentEntry] = useState<PayrollEntry | null>(null);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const pendingAbsences = getPendingAbsences();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
   const selectedBranch = branches.find(b => b.id === selectedBranchId) || headquarters;
@@ -233,6 +237,29 @@ const Payroll = () => {
             : e;
         })
     : regularEntries;
+
+  const normalizeText = (text: string) =>
+    text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+  const filterEntriesBySearch = (list: typeof regularEntries) => {
+    const query = normalizeText(employeeSearch);
+    if (!query) return list;
+    const words = query.split(/\s+/).filter(Boolean);
+    return list.filter((entry) => {
+      const emp = entry.employee || employees.find((e) => e.id === entry.employeeId);
+      if (!emp) return false;
+      const haystack = normalizeText(
+        `${emp.firstName} ${emp.lastName} ${emp.employeeNumber || ''} ${emp.department || ''} ${emp.category || ''} ${emp.position || ''}`
+      );
+      return words.every((word) => haystack.includes(word));
+    });
+  };
+
+  const tableSourceEntries = selectedBranchId ? payrollSheetEntries : regularEntries;
+  const tableEntries = useMemo(
+    () => filterEntriesBySearch(tableSourceEntries),
+    [tableSourceEntries, employeeSearch, employees]
+  );
 
   // Filter colaborador entries by branch
   const colaboradorBranch = branches.find(b => b.id === colaboradorBranchId);
@@ -447,6 +474,9 @@ const Payroll = () => {
       }
     }
 
+    // Credit installments when payroll is approved (one approved month = one installment).
+    await finalizeApprovedPeriodDeductions(currentPeriod.id);
+
     // Mark holiday subsidy as paid only after payroll is approved.
     for (const entry of currentEntries) {
       if (entry.holidaySubsidy > 0) {
@@ -490,7 +520,9 @@ const Payroll = () => {
 
   return (
     <TopNavLayout>
-      <div className="flex items-center justify-between mb-8 animate-fade-in">
+      <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen} className={FIXED_TOOLBAR_PAGE}>
+      <div className="shrink-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border pb-3 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">{t.payroll.title}</h1>
           <p className="text-muted-foreground mt-1">
@@ -540,27 +572,13 @@ const Payroll = () => {
         </div>
       </div>
 
-      {/* Period History Selector */}
-      {sortedPeriods.length > 0 && (
-        <div className="stat-card mb-6">
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                {language === 'pt' ? 'Histórico de Períodos' : 'Period History'}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {language === 'pt' 
-                  ? 'Seleccione um período para ver dados guardados' 
-                  : 'Select a period to view saved data'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label>{language === 'pt' ? 'Período:' : 'Period:'}</Label>
-              <Select 
-                value={selectedPeriodId || currentPeriod?.id || ''} 
+        <div className="flex flex-wrap items-center gap-2">
+          {sortedPeriods.length > 0 && (
+            <>
+              <Label className="text-xs shrink-0">{language === 'pt' ? 'Período:' : 'Period:'}</Label>
+              <Select
+                value={selectedPeriodId || currentPeriod?.id || ''}
                 onValueChange={(v) => {
-                  // Selecting the active period should behave like "Current" (no explicit selection)
                   if (activePeriod && v === activePeriod.id) {
                     setSelectedPeriodId('');
                     return;
@@ -568,11 +586,11 @@ const Payroll = () => {
                   setSelectedPeriodId(v);
                 }}
               >
-                <SelectTrigger className="w-[250px]">
+                <SelectTrigger className="w-[220px] h-8 text-sm">
                   <SelectValue placeholder={language === 'pt' ? 'Período actual' : 'Current period'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedPeriods.map(period => (
+                  {sortedPeriods.map((period) => (
                     <SelectItem key={period.id} value={period.id}>
                       <div className="flex items-center gap-2">
                         <span>{monthNames[period.month - 1]} {period.year}</span>
@@ -582,83 +600,50 @@ const Payroll = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            {isViewingSelectedPeriod && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSelectedPeriodId('')}
-              >
-                {language === 'pt' ? 'Voltar ao Actual' : 'Back to Current'}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Attendance status indicator */}
-      {!isHistoricalView && currentPeriod && (
-        <div className={`stat-card mb-4 border-l-4 ${
-          isAttendanceClosedForPeriod 
-            ? 'border-l-emerald-500 bg-emerald-500/5' 
-            : 'border-l-amber-500 bg-amber-500/5'
-        }`}>
-          <div className="flex items-center gap-2 text-sm">
-            {isAttendanceClosedForPeriod ? (
-              <>
-                <Lock className="h-4 w-4 text-emerald-600" />
-                <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                  {language === 'pt' 
-                    ? `Presenças fechadas (${attendanceCutoffForPeriod})` 
-                    : `Attendance closed (${attendanceCutoffForPeriod})`}
-                </span>
-              </>
-            ) : (
-              <>
-                <LockOpen className="h-4 w-4 text-amber-600" />
-                <span className="font-medium text-amber-700 dark:text-amber-400">
-                  {language === 'pt' 
-                    ? 'Presenças ainda não foram fechadas para este mês' 
-                    : 'Attendance has not been closed for this month yet'}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Ausências button - always visible */}
-      <div className="stat-card mb-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <div>
-            <h3 className="font-semibold text-foreground">
-              {language === 'pt' ? 'Gerar Folha Salarial' : 'Generate Payroll'}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {language === 'pt' 
-                ? 'Ausências e descontos pendentes serão incluídos automaticamente.' 
-                : 'Absences and pending deductions will be included automatically.'}
-            </p>
-          </div>
-          {/* Calculate button only when not viewing historical data */}
-          {!isHistoricalView && (
-            <Button variant="accent" onClick={handleCalculate}>
-              <Calculator className="h-4 w-4 mr-2" />
-              {t.payroll.calculatePayroll}
-            </Button>
+              {isViewingSelectedPeriod && (
+                <Button variant="outline" size="sm" onClick={() => setSelectedPeriodId('')}>
+                  {language === 'pt' ? 'Actual' : 'Current'}
+                </Button>
+              )}
+              {currentPeriod && getStatusBadge(currentPeriod.status)}
+            </>
           )}
-          {/* Ausências button always visible */}
-          <Button variant="outline" onClick={() => setAbsenceDialogOpen(true)}>
-            <UserX className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Ausências' : 'Absences'}
-            {pendingAbsences.length > 0 && (
-              <span className="ml-2 bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
-                {pendingAbsences.length}
-              </span>
-            )}
-          </Button>
+          {!isHistoricalView && (
+            <>
+              <Button variant="accent" size="sm" onClick={handleCalculate}>
+                <Calculator className="h-4 w-4 mr-1" />
+                {t.payroll.calculatePayroll}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setAbsenceDialogOpen(true)}>
+                <UserX className="h-4 w-4 mr-1" />
+                {language === 'pt' ? 'Ausências' : 'Absences'}
+                {pendingAbsences.length > 0 && (
+                  <span className="ml-1 bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">
+                    {pendingAbsences.length}
+                  </span>
+                )}
+              </Button>
+            </>
+          )}
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" type="button">
+              {language === 'pt' ? 'Mais opções' : 'More options'}
+              <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
         </div>
+        {!isHistoricalView && currentPeriod && (
+          <p className={`text-xs flex items-center gap-1.5 ${isAttendanceClosedForPeriod ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+            {isAttendanceClosedForPeriod ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+            {isAttendanceClosedForPeriod
+              ? (language === 'pt' ? `Presenças fechadas (${attendanceCutoffForPeriod})` : `Attendance closed (${attendanceCutoffForPeriod})`)
+              : (language === 'pt' ? 'Presenças ainda não fechadas para este mês' : 'Attendance not closed for this month yet')}
+          </p>
+        )}
       </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 space-y-3">
+        <CollapsibleContent className="space-y-3">
 
       {/* Branch and Warehouse Selection for Print */}
       <div className="stat-card mb-6">
@@ -777,9 +762,11 @@ const Payroll = () => {
         </div>
       )}
 
+        </CollapsibleContent>
+
       {/* Stats based on filtered entries when branch is selected */}
       {(() => {
-        const displayEntries = selectedBranchId ? payrollSheetEntries : regularEntries;
+        const displayEntries = employeeSearch.trim() ? tableEntries : tableSourceEntries;
         const displayTotals = displayEntries.reduce((acc, e) => ({
           gross: acc.gross + e.grossSalary,
           deductions: acc.deductions + e.totalDeductions,
@@ -788,7 +775,7 @@ const Payroll = () => {
         }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
         
         return (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
             <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
             <StatCard title={language === 'pt' ? 'Total Bónus' : 'Total Bonus'} value={formatAOA(displayTotals.bonus)} icon={Gift} delay={50} />
             <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={100} />
@@ -799,13 +786,22 @@ const Payroll = () => {
       })()}
 
       {regularEntries.length > 0 && (
-        <div className="stat-card p-0 overflow-hidden mb-6">
-          <div className="p-4 border-b border-border">
+        <div className="stat-card p-0 overflow-hidden mb-3 flex flex-col min-h-[280px]">
+          <div className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-semibold">{t.payroll.employeeDetails}</h2>
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={language === 'pt' ? 'Pesquisar funcionário...' : 'Search employee...'}
+                className="pl-9 h-9"
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full min-w-[1200px]">
-              <thead className="bg-muted/30">
+              <thead className="bg-muted/30 sticky top-0 z-10 shadow-[0_1px_0_0_hsl(var(--border))]">
                 <tr className="border-b border-border">
                   <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase">{t.employees.employee}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.employees.baseSalary}</th>
@@ -823,7 +819,7 @@ const Payroll = () => {
               </thead>
               <tbody className="divide-y divide-border">
                 {/* Show only entries for selected branch, or all if no branch selected */}
-                {(selectedBranchId ? payrollSheetEntries : regularEntries).map(entry => {
+                {tableEntries.map(entry => {
                   const totalOvertimeHours = (entry.overtimeHoursNormal || 0) + (entry.overtimeHoursNight || 0) + (entry.overtimeHoursHoliday || 0);
                   const totalOvertimeValue = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
                   return (
@@ -1024,29 +1020,31 @@ const Payroll = () => {
         </div>
       )}
 
+
+      </div>
+
+      <div className="shrink-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm py-3 space-y-2">
       {/* Approve section - only show when not viewing historical data */}
       {!isHistoricalView && currentEntries.length > 0 && (
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-foreground">{t.payroll.readyToProcess}</h3>
-              <p className="text-sm text-muted-foreground">
-                {language === 'pt' 
-                  ? 'Após aprovação, os dados ficam guardados no histórico. Pode reabrir para editar e aprovar novamente.' 
-                  : 'After approval, data is saved in history. You can reopen it to edit and approve again.'}
-              </p>
-            </div>
-            <Button variant="accent" size="lg" onClick={handleApprove}>
-              <Send className="h-4 w-4 mr-2" />
-              {t.payroll.approveAndProcess}
-            </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div>
+            <h3 className="font-semibold text-foreground">{t.payroll.readyToProcess}</h3>
+            <p className="text-sm text-muted-foreground">
+              {language === 'pt'
+                ? 'Após aprovação, os dados ficam guardados no histórico.'
+                : 'After approval, data is saved in history.'}
+            </p>
           </div>
+          <Button variant="accent" size="lg" onClick={handleApprove}>
+            <Send className="h-4 w-4 mr-2" />
+            {t.payroll.approveAndProcess}
+          </Button>
         </div>
       )}
 
        {/* Historical view info */}
        {isHistoricalView && currentEntries.length > 0 && (
-         <div className="stat-card border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+         <div className="rounded-lg border border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2">
            <div className="flex flex-wrap items-center justify-between gap-3">
              <div>
                <h3 className="font-semibold text-amber-700 dark:text-amber-400">
@@ -1108,6 +1106,9 @@ const Payroll = () => {
            </div>
          </div>
        )}
+
+      </div>
+      </Collapsible>
 
       {/* Individual Receipt Dialog */}
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>

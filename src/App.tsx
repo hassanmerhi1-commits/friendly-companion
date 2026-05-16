@@ -10,7 +10,7 @@ import { getSavedSession } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
-import { useDeductionStore, normalizeWarehouseLossDeductions } from "@/stores/deduction-store";
+import { useDeductionStore, normalizeWarehouseLossDeductions, reconcileDeductionBalances } from "@/stores/deduction-store";
 import { detectDuplicateEmployeeNumbers } from "@/stores/employee-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
@@ -254,7 +254,7 @@ function AppContent() {
           
           // Load stores from mock localStorage data
           const { loadUsers } = useAuthStore.getState();
-          const { loadEmployees } = useEmployeeStore.getState();
+          const { loadEmployees, backfillCategoryFromPosition } = useEmployeeStore.getState();
           const { loadBranches } = useBranchStore.getState();
           const { loadPayroll } = usePayrollStore.getState();
           const { loadDeductions } = useDeductionStore.getState();
@@ -284,9 +284,12 @@ function AppContent() {
             loadDisciplinary(),
             loadLoans(),
           ]);
+
+          await backfillCategoryFromPosition();
           
           // Retroactive: normalize warehouse loss deductions to 25% rule
           await normalizeWarehouseLossDeductions();
+          await reconcileDeductionBalances();
           
           // Diagnostic: detect duplicate employee numbers
           detectDuplicateEmployeeNumbers();
@@ -372,7 +375,7 @@ function AppContent() {
 
             // Load ALL stores from database
             const { loadUsers } = useAuthStore.getState();
-            const { loadEmployees } = useEmployeeStore.getState();
+            const { loadEmployees, backfillCategoryFromPosition } = useEmployeeStore.getState();
             const { loadBranches } = useBranchStore.getState();
             const { loadPayroll } = usePayrollStore.getState();
             const { loadDeductions } = useDeductionStore.getState();
@@ -405,6 +408,8 @@ function AppContent() {
               loadLoans(),
             ]);
 
+            await backfillCategoryFromPosition();
+
             console.log('[App] All stores loaded from database');
             
             // Restore saved session after all stores are loaded
@@ -412,6 +417,7 @@ function AppContent() {
             
             // Retroactive: normalize warehouse loss deductions to 25% rule
             await normalizeWarehouseLossDeductions();
+            await reconcileDeductionBalances();
             
             // Diagnostic: detect duplicate employee numbers
             detectDuplicateEmployeeNumbers();

@@ -12,6 +12,8 @@ import { useBranchStore } from "@/stores/branch-store";
 import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
 import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
 import { formatAOA } from "@/lib/angola-labor-law";
+import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
+import { cn } from "@/lib/utils";
 import { exportEmployeesToCSV } from "@/lib/export-utils";
 import type { Employee } from "@/types/employee";
 import {
@@ -313,8 +315,9 @@ const Employees = () => {
 
   return (
     <TopNavLayout>
+      <div className={`${FIXED_TOOLBAR_PAGE} gap-4`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 animate-fade-in">
+      <div className="shrink-0 flex items-center justify-between animate-fade-in">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">
             {t.employees.title}
@@ -338,7 +341,7 @@ const Employees = () => {
       </div>
 
       {/* Search, Filters and Sorting */}
-      <div className="flex flex-wrap items-center gap-4 mb-6 animate-slide-up">
+      <div className="shrink-0 flex flex-wrap items-center gap-4 animate-slide-up">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -393,10 +396,10 @@ const Employees = () => {
         </Button>
       </div>
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="flex-1 min-h-0 flex flex-col rounded-lg border bg-card overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50">
+            <thead className="sticky top-0 z-10 bg-muted shadow-[0_1px_0_0_hsl(var(--border))] [&_th]:bg-muted">
               <tr>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Nome' : 'Name'}</th>
                 <th className="px-3 py-3 text-left">{language === 'pt' ? 'Departamento' : 'Department'}</th>
@@ -586,11 +589,13 @@ const Employees = () => {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
           <p className="text-sm text-muted-foreground">
             {t.common.showing} <span className="font-medium">{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
           </p>
         </div>
+      </div>
+
       </div>
 
       {/* Form Dialog */}

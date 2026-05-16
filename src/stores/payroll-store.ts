@@ -408,25 +408,21 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 const oldPeriod = allPeriods.find(p => p.id === d.payrollPeriodId);
                 
                 if (oldPeriod && (oldPeriod.status === 'approved' || oldPeriod.status === 'paid')) {
-                  // Previous period was finalized — count as paid installment
+                  // Previous period finalized — release for this period (installment credited on approve).
                   isAutoCarry = true;
-                  const newInstallmentsPaid = (d.installmentsPaid || 0) + 1;
-                  const newRemaining = d.totalAmount - (newInstallmentsPaid * d.amount);
-                  const isNowFullyPaid = newInstallmentsPaid >= d.installments || newRemaining <= 0;
-                  
+                  const { creditOneInstallment } = await import('./deduction-store');
+                  const credit = creditOneInstallment(d);
                   await deductionStore.updateDeduction(d.id, {
-                    installmentsPaid: newInstallmentsPaid,
-                    remainingAmount: Math.max(0, newRemaining),
-                    isFullyPaid: isNowFullyPaid,
+                    ...(credit || {}),
                     isApplied: false,
                     payrollPeriodId: undefined,
                   });
-                  
-                  if (isNowFullyPaid) {
-                    console.log(`[Payroll] Auto-carry: Deduction ${d.id} fully paid after ${newInstallmentsPaid} installments`);
+
+                  if (credit?.isFullyPaid) {
+                    console.log(`[Payroll] Auto-carry: Deduction ${d.id} fully paid, released for ${periodId}`);
                     continue;
                   }
-                  console.log(`[Payroll] Auto-carry: Deduction ${d.id} ${newInstallmentsPaid}/${d.installments} paid, carrying to ${periodId}`);
+                  console.log(`[Payroll] Auto-carry: Deduction ${d.id} released from ${d.payrollPeriodId} to ${periodId}`);
                 } else {
                   // Previous period is still draft/calculated — just release the deduction
                   // so it can be picked up by the current period (no installment increment)
@@ -1064,26 +1060,42 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       // 1. Get all deductions applied to this period and update their installment tracking
       const appliedDeductions = deductionStore.getDeductionsForPeriod(periodId);
       
-      for (const deduction of appliedDeductions) {
-        const newInstallmentsPaid = (deduction.installmentsPaid || 0) + 1;
-        const newRemainingAmount = deduction.totalAmount - (newInstallmentsPaid * deduction.amount);
-        const isNowFullyPaid = newInstallmentsPaid >= deduction.installments || newRemainingAmount <= 0;
+      const { creditOneInstallment, computeDeductionBalances } = await import('./deduction-store');
 
-        // Update the deduction with the new installment count
+      for (const deduction of appliedDeductions) {
+        // Legacy rows may still be linked here if approve finalization did not run.
+        const credit = creditOneInstallment(deduction);
+        const balances = credit
+          ? computeDeductionBalances(
+              deduction.totalAmount,
+              deduction.amount,
+              credit.installmentsPaid ?? deduction.installmentsPaid,
+              credit.remainingAmount
+            )
+          : computeDeductionBalances(
+              deduction.totalAmount,
+              deduction.amount,
+              deduction.installmentsPaid,
+              deduction.remainingAmount
+            );
+
         await deductionStore.updateDeduction(deduction.id, {
-          installmentsPaid: newInstallmentsPaid,
-          remainingAmount: Math.max(0, newRemainingAmount),
-          isFullyPaid: isNowFullyPaid,
-          isApplied: false, // Reset applied status so it can be picked up in next period (if not fully paid)
-          payrollPeriodId: undefined, // Clear the period link
+          ...(credit || {}),
+          remainingAmount: balances.remainingAmount,
+          installments: balances.installments,
+          isFullyPaid: balances.isFullyPaid,
+          isApplied: false,
+          payrollPeriodId: undefined,
         });
 
-        if (isNowFullyPaid) {
+        if (balances.isFullyPaid) {
           archivedDeductions++;
-          console.log(`[Payroll] Deduction ${deduction.id} fully paid after ${newInstallmentsPaid} installments`);
+          console.log(`[Payroll] Archived deduction ${deduction.id} as fully paid`);
         } else {
           installmentsCarried++;
-          console.log(`[Payroll] Deduction ${deduction.id}: ${newInstallmentsPaid}/${deduction.installments} paid, ${newRemainingAmount} remaining`);
+          console.log(
+            `[Payroll] Archived deduction ${deduction.id}: ${deduction.installmentsPaid}/${balances.installments} paid, ${balances.remainingAmount} remaining`
+          );
         }
       }
 

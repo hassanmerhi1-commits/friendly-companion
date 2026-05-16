@@ -198,7 +198,7 @@ const EmployeeCards = () => {
                 </div>
 
                 {/* Card Display */}
-                <div className="flex justify-center overflow-auto py-4">
+                <div className="flex justify-center overflow-y-auto max-h-[min(65vh,560px)] py-4">
                   <PrintableEmployeeCard ref={cardRef} employee={selectedEmployee} />
                 </div>
 

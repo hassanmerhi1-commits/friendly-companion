@@ -217,7 +217,7 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
             <TableHeader>
               <TableRow>
                 <TableHead>{language === 'pt' ? 'Período' : 'Period'}</TableHead>

@@ -153,9 +153,15 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     const now = new Date().toISOString();
 
     for (const row of rows) {
-      const currentCategory = (row.category || '').toString().trim();
       const position = (row.position || '').toString().trim();
-      if (!currentCategory && position) {
+      if (!position) continue;
+
+      const currentCategory = (row.category || '').toString().trim();
+      const normalizedCategory = currentCategory.toLowerCase();
+      // Migrate when category missing or still default "other" while cargo/position is set
+      const shouldMigrate = !currentCategory || normalizedCategory === 'other';
+
+      if (shouldMigrate && currentCategory !== position) {
         const ok = await liveUpdate('employees', row.id, {
           category: position,
           updated_at: now,
@@ -166,7 +172,7 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
 
     if (updatedCount > 0) {
       await get().loadEmployees();
-      console.log(`[Employees] Backfilled category from cargo for ${updatedCount} employees`);
+      console.log(`[Employees] Migrated category from cargo for ${updatedCount} employee(s)`);
     }
     return updatedCount;
   },

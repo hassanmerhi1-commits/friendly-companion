@@ -2,10 +2,35 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Keep column headers visible while scrolling long tables */
+  stickyHeader?: boolean;
+  /** Max height of scroll area, e.g. "32rem" or "min(70vh, 36rem)" */
+  scrollMaxHeight?: string;
+  /** Parent handles scroll — use inside flex-1 overflow-auto containers */
+  embedded?: boolean;
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, stickyHeader, scrollMaxHeight, embedded, ...props }, ref) => (
+    <div
+      className={cn(
+        "relative w-full",
+        !embedded && "overflow-auto",
+        scrollMaxHeight && "rounded-md border border-border/60",
+      )}
+      style={scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
+    >
+      <table
+        ref={ref}
+        className={cn(
+          "w-full caption-bottom text-sm",
+          stickyHeader &&
+            "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted [&_thead_th]:shadow-[0_1px_0_0_hsl(var(--border))]",
+          className,
+        )}
+        {...props}
+      />
     </div>
   ),
 );

@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
+import { format } from 'date-fns';
+import { pt } from 'date-fns/locale';
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,7 @@ import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduct
 import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { FIXED_TOOLBAR_PAGE } from '@/lib/page-layout';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 
@@ -240,6 +243,37 @@ export default function Deductions() {
     return `${monthNames[p.month - 1]} ${p.year}`;
   };
 
+  const getBranchName = (branchId?: string) => {
+    if (!branchId) return '—';
+    return allBranches.find((b) => b.id === branchId)?.name ?? '—';
+  };
+
+  const formatDeductionDate = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '—';
+    return format(d, 'dd/MM/yyyy', { locale: pt });
+  };
+
+  const getAppliedPeriodLabel = (deduction: Deduction) => {
+    if (deduction.payrollPeriodId) {
+      const label = getPeriodLabel(deduction.payrollPeriodId);
+      if (
+        label &&
+        deduction.installmentsPaid > 0 &&
+        !deduction.isFullyPaid &&
+        deduction.installments > 1
+      ) {
+        return language === 'pt' ? `Últ.: ${label}` : `Last: ${label}`;
+      }
+      return label || '—';
+    }
+    if (deduction.installmentsPaid > 0) {
+      return language === 'pt' ? 'Parcial' : 'Partial';
+    }
+    return language === 'pt' ? 'Pendente' : 'Pending';
+  };
+
   const pageTitle = language === 'pt' ? 'Deduções' : 'Deductions';
   const pageSubtitle = language === 'pt' 
     ? 'Adiantamentos salariais, perdas no armazém e outras deduções' 
@@ -418,7 +452,8 @@ export default function Deductions() {
 
   return (
     <TopNavLayout>
-      <div className="space-y-6">
+      <div className={`${FIXED_TOOLBAR_PAGE} gap-4`}>
+        <div className="shrink-0 space-y-4">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -515,6 +550,15 @@ export default function Deductions() {
               <Package className="h-4 w-4 mr-1" />
               {language === 'pt' ? 'Perdas Armazém' : 'Warehouse'}
             </Button>
+            <Button variant={filterType === 'unjustified_absence' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('unjustified_absence')}>
+              {language === 'pt' ? 'Faltas' : 'Absences'}
+            </Button>
+            <Button variant={filterType === 'disciplinary' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('disciplinary')}>
+              {language === 'pt' ? 'Disciplinar' : 'Disciplinary'}
+            </Button>
+            <Button variant={filterType === 'other' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('other')}>
+              {language === 'pt' ? 'Outros' : 'Other'}
+            </Button>
 
             <div className="w-px h-6 bg-border mx-1" />
 
@@ -563,25 +607,36 @@ export default function Deductions() {
             )}
           </div>
         </div>
+        </div>
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
+        {/* Table — only this area scrolls; header and filters stay fixed */}
+        <Card className="flex-1 min-h-0 flex flex-col overflow-hidden border shadow-sm">
+          <CardContent className="flex-1 min-h-0 p-0 overflow-auto">
+            <Table stickyHeader embedded>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{language === 'pt' ? 'Funcionário' : 'Employee'}</TableHead>
+                  <TableHead className="min-w-[140px]">{language === 'pt' ? 'Funcionário' : 'Employee'}</TableHead>
+                  <TableHead className="min-w-[100px]">{language === 'pt' ? 'Filial' : 'Branch'}</TableHead>
                   <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Descrição' : 'Description'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Total' : 'Total'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Mensal' : 'Monthly'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Progresso' : 'Progress'}</TableHead>
+                  <TableHead className="min-w-[140px]">{language === 'pt' ? 'Descrição' : 'Description'}</TableHead>
+                  <TableHead className="whitespace-nowrap">{language === 'pt' ? 'Data' : 'Date'}</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Total' : 'Total'}</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Mensal' : 'Monthly'}</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Restante' : 'Remaining'}</TableHead>
+                  <TableHead className="min-w-[90px]">{language === 'pt' ? 'Progresso' : 'Progress'}</TableHead>
+                  <TableHead className="min-w-[110px] whitespace-nowrap">{language === 'pt' ? 'Período' : 'Period'}</TableHead>
                   <TableHead>{t.common.status}</TableHead>
                   <TableHead className="text-right">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDeductions.map((deduction) => {
+                {filteredDeductions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
+                      {language === 'pt' ? 'Nenhuma dedução encontrada' : 'No deductions found'}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredDeductions.map((deduction) => {
                   const employee = getEmployee(deduction.employeeId);
                   const progressPercent = deduction.installments > 0 
                     ? (deduction.installmentsPaid / deduction.installments) * 100 
@@ -597,26 +652,37 @@ export default function Deductions() {
                           {employee?.department}
                         </div>
                       </TableCell>
+                      <TableCell className="text-sm">{getBranchName(employee?.branchId)}</TableCell>
                       <TableCell>
                         <Badge variant={deduction.type === 'salary_advance' ? 'default' : 'secondary'}>
                           {getDeductionTypeLabel(deduction.type, language)}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{deduction.description}</TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="max-w-[200px] truncate" title={deduction.description}>
+                        {deduction.description}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        {formatDeductionDate(deduction.date)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium font-mono">
                         {formatAOA(deduction.totalAmount)}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-destructive">
+                      <TableCell className="text-right font-medium font-mono">
                         {formatAOA(deduction.amount)}
                       </TableCell>
+                      <TableCell className="text-right font-mono text-destructive font-medium">
+                        {formatAOA(deduction.remainingAmount)}
+                      </TableCell>
                       <TableCell>
-                        <div className="space-y-1 min-w-[120px]">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>{deduction.installmentsPaid}/{deduction.installments}</span>
-                            <span>{formatAOA(deduction.remainingAmount)}</span>
+                        <div className="space-y-1 min-w-[80px]">
+                          <div className="text-xs text-muted-foreground text-center">
+                            {deduction.installmentsPaid}/{deduction.installments}
                           </div>
                           <Progress value={progressPercent} className="h-2" />
                         </div>
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {getAppliedPeriodLabel(deduction)}
                       </TableCell>
                       <TableCell>
                         {deduction.isFullyPaid ? (

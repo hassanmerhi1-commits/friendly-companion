@@ -109,7 +109,7 @@ export function AuditHistoryTab({ employeeId }: AuditHistoryTabProps) {
           </div>
         ) : (
           <ScrollArea className="h-[500px]">
-            <Table>
+            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[150px]">{t.date}</TableHead>

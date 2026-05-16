@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import { PrintableINSSMap } from "@/components/reports/PrintableINSSMap";
 import { PrintableIRTMap } from "@/components/reports/PrintableIRTMap";
 import { PrintableHolidayReport } from "@/components/reports/PrintableHolidayReport";
 import { PrintableOvertimeReport } from "@/components/reports/PrintableOvertimeReport";
-import { PrintableLoanReport } from "@/components/reports/PrintableLoanReport";
+import { PrintableDeductionBalanceReport } from "@/components/reports/PrintableDeductionBalanceReport";
+import { useDeductionStore } from "@/stores/deduction-store";
 import { PrintableAnnualSummary } from "@/components/reports/PrintableAnnualSummary";
 import { PrintableBranchCostAnalysis } from "@/components/reports/PrintableBranchCostAnalysis";
 import { PrintableIncomeDeclaration } from "@/components/reports/PrintableIncomeDeclaration";
@@ -40,6 +41,13 @@ const Reports = () => {
   const branches = allBranches.filter(b => b.isActive);
   const { records: holidayRecords, saveRecords } = useHolidayStore();
   const { loans } = useLoanStore();
+  const { deductions, loadDeductions } = useDeductionStore();
+  const { loadLoans } = useLoanStore();
+
+  useEffect(() => {
+    void loadDeductions();
+    void loadLoans();
+  }, [loadDeductions, loadLoans]);
   const { settings } = useSettingsStore();
   const [openReport, setOpenReport] = useState<ReportType>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
@@ -173,6 +181,18 @@ const Reports = () => {
       color: 'bg-green-500',
       available: filteredEmployees.length > 0
     },
+    {
+      id: "4b",
+      type: 'loans' as ReportType,
+      name: language === 'pt' ? 'Descontos e Empréstimos (Geral)' : 'Deductions & Loans (Company-wide)',
+      description:
+        language === 'pt'
+          ? 'Todos os funcionários: motivo/tipo, já descontado, por descontar — exportar Excel'
+          : 'All employees: type, deducted, remaining — Excel export',
+      icon: CreditCard,
+      color: 'bg-pink-600',
+      available: true,
+    },
   ];
 
   // New fiscal/compliance reports
@@ -216,15 +236,6 @@ const Reports = () => {
       icon: Clock, 
       color: 'bg-indigo-500',
       available: filteredEntries.length > 0
-    },
-    { 
-      id: "9", 
-      type: 'loans' as ReportType,
-      name: 'Relatório de Empréstimos', 
-      description: 'Empréstimos e adiantamentos activos e histórico', 
-      icon: CreditCard, 
-      color: 'bg-pink-500',
-      available: true
     },
     { 
       id: "10", 
@@ -652,14 +663,17 @@ const Reports = () => {
       <Dialog open={openReport === 'loans'} onOpenChange={() => setOpenReport(null)}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
           <DialogHeader>
-            <DialogTitle>Relatório de Empréstimos</DialogTitle>
+            <DialogTitle>Relatório de Empréstimos e Descontos</DialogTitle>
           </DialogHeader>
-          <PrintableLoanReport
+          <PrintableDeductionBalanceReport
             employees={employees}
+            deductions={deductions}
             loans={loans}
+            branches={branches}
             companyName={settings.companyName}
             companyNif={settings.nif}
             branch={selectedBranch}
+            language={language}
             onClose={() => setOpenReport(null)}
           />
         </DialogContent>
