@@ -27,7 +27,7 @@ win:
     - target: portable
       arch:
         - x64
-  icon: public/pwa-512x512.png
+  icon: public/payrollao-icon.ico
 nsis:
   artifactName: ${productName} Setup ${version}.${ext}
   oneClick: false
@@ -46,4 +46,6 @@ mac:
     - dmg
   icon: public/pwa-512x512.png
   category: public.app-category.business
+npmRebuild: false
+buildDependenciesFromSource: false
 electronVersion: 40.0.0

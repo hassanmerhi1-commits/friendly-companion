@@ -410,8 +410,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 if (oldPeriod && (oldPeriod.status === 'approved' || oldPeriod.status === 'paid')) {
                   // Previous period finalized — release for this period (installment credited on approve).
                   isAutoCarry = true;
-                  const { creditOneInstallment } = await import('./deduction-store');
-                  const credit = creditOneInstallment(d);
+                  const { creditDeductionPayment, getDeductionAppliedAmount } = await import('./deduction-store');
+                  const appliedAmount = await getDeductionAppliedAmount(d.payrollPeriodId, d.id);
+                  const credit = creditDeductionPayment(
+                    d,
+                    appliedAmount ?? (d.amount > 0 ? d.amount : d.remainingAmount)
+                  );
                   await deductionStore.updateDeduction(d.id, {
                     ...(credit || {}),
                     isApplied: false,

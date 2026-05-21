@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Database, FolderOpen, Plus, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { Database, FolderOpen, Plus, RefreshCw, CheckCircle, XCircle, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/lib/i18n';
+import { runDeductionBalanceMaintenance } from '@/stores/deduction-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import { useDeductionStore } from '@/stores/deduction-store';
 
 function isElectron() {
   return typeof window !== 'undefined' && (window as any).electronAPI?.isElectron === true;
@@ -80,6 +83,40 @@ export function DatabaseSettings() {
   const handleRestart = async () => {
     if (!isElectron()) return;
     await (window as any).electronAPI.app.relaunch();
+  };
+
+  const handleRebuildDeductionBalances = async () => {
+    if (!isElectron() || !dbStatus?.connected) {
+      toast.error(
+        language === 'pt'
+          ? 'Ligue a base de dados primeiro'
+          : 'Connect to the database first'
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await usePayrollStore.getState().loadPayroll();
+      await useDeductionStore.getState().loadDeductions();
+
+      const result = await runDeductionBalanceMaintenance();
+
+      toast.success(
+        language === 'pt'
+          ? `Saldos recalculados a partir do histórico da folha (${result.updated} de ${result.scanned} deduções actualizadas).`
+          : `Balances rebuilt from payroll history (${result.updated} of ${result.scanned} deductions updated).`
+      );
+    } catch (error) {
+      console.error('[DatabaseSettings] Deduction rebuild failed:', error);
+      toast.error(
+        language === 'pt'
+          ? 'Erro ao recalcular saldos de deduções'
+          : 'Failed to rebuild deduction balances'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!isElectron()) {
@@ -165,8 +202,33 @@ export function DatabaseSettings() {
           </div>
         </div>
 
+        {/* Deduction balance rebuild */}
+        {dbStatus?.connected && (
+          <div className="border-t pt-4 space-y-2">
+            <Label>
+              {language === 'pt' ? 'Deduções e empréstimos' : 'Deductions and loans'}
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              {language === 'pt'
+                ? 'Recalcula saldos e prestações pagas somando todas as folhas aprovadas ou pagas (histórico completo desde o início do sistema).'
+                : 'Rebuilds balances and paid installments by summing all approved or paid payroll sheets (full history).'}
+            </p>
+            <Button
+              onClick={handleRebuildDeductionBalances}
+              disabled={loading}
+              variant="secondary"
+              size="sm"
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              {language === 'pt'
+                ? 'Recalcular saldos do histórico'
+                : 'Rebuild balances from history'}
+            </Button>
+          </div>
+        )}
+
         {/* Actions */}
-        <div className="flex gap-2 border-t pt-4">
+        <div className="flex flex-wrap gap-2 border-t pt-4">
           {dbStatus?.configured && !dbStatus?.exists && !dbStatus?.isClient && (
             <Button onClick={handleCreateDatabase} disabled={loading}>
               <Plus className="h-4 w-4 mr-2" />

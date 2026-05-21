@@ -11,8 +11,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus, Wallet } from 'lucide-react';
 import { usePayrollStore } from '@/stores/payroll-store';
+import { getDeductionTypeLabel } from '@/stores/deduction-store';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
+import {
+  parsePayrollEntryDeductionBreakdown,
+  PAYROLL_HISTORY_DEDUCTION_COLUMNS,
+  type PayrollDeductionBreakdown,
+} from '@/lib/payroll-deduction-breakdown';
 
 interface PayrollHistoryTabProps {
   employeeId: string;
@@ -20,27 +26,38 @@ interface PayrollHistoryTabProps {
 
 const monthNames = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
+
+type HistoryRow = {
+  periodId: string;
+  year: number;
+  month: number;
+  status: string;
+  grossSalary: number;
+  netSalary: number;
+  totalDeductions: number;
+  deductionBreakdown: PayrollDeductionBreakdown;
+  approvedAt?: string;
+};
+
+function DeductionAmountCell({ amount }: { amount: number }) {
+  if (amount <= 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  return (
+    <span className="text-destructive font-mono text-xs whitespace-nowrap">
+      -{formatAOA(amount)}
+    </span>
+  );
+}
 
 export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
   const { language } = useLanguage();
   const { periods, entries } = usePayrollStore();
 
-  // Get all payroll entries for this employee across all periods
   const employeePayrollHistory = useMemo(() => {
-    const history: Array<{
-      periodId: string;
-      year: number;
-      month: number;
-      status: string;
-      grossSalary: number;
-      netSalary: number;
-      totalDeductions: number;
-      irt: number;
-      inssEmployee: number;
-      approvedAt?: string;
-    }> = [];
+    const history: HistoryRow[] = [];
 
     periods.forEach((period) => {
       const employeeEntry = entries.find(
@@ -56,21 +73,18 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
           grossSalary: employeeEntry.grossSalary,
           netSalary: employeeEntry.netSalary,
           totalDeductions: employeeEntry.totalDeductions,
-          irt: employeeEntry.irt,
-          inssEmployee: employeeEntry.inssEmployee,
+          deductionBreakdown: parsePayrollEntryDeductionBreakdown(employeeEntry),
           approvedAt: period.approvedAt,
         });
       }
     });
 
-    // Sort by date descending (most recent first)
     return history.sort((a, b) => {
       if (a.year !== b.year) return b.year - a.year;
       return b.month - a.month;
     });
   }, [periods, entries, employeeId]);
 
-  // Calculate summary stats
   const stats = useMemo(() => {
     if (employeePayrollHistory.length === 0) {
       return { totalGross: 0, totalNet: 0, avgNet: 0, months: 0 };
@@ -87,7 +101,6 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
     };
   }, [employeePayrollHistory]);
 
-  // Calculate trend (comparing last 2 months if available)
   const trend = useMemo(() => {
     if (employeePayrollHistory.length < 2) return null;
 
@@ -131,7 +144,6 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -189,8 +201,8 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
                     trend.diff > 0
                       ? 'text-accent'
                       : trend.diff < 0
-                      ? 'text-destructive'
-                      : 'text-muted-foreground'
+                        ? 'text-destructive'
+                        : 'text-muted-foreground'
                   }`}
                 >
                   {trend.percent >= 0 ? '+' : ''}
@@ -198,13 +210,12 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
                 </span>
               </div>
             ) : (
-              <span className="text-muted-foreground">-</span>
+              <span className="text-muted-foreground">—</span>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* History Table */}
       <Card>
         <CardHeader>
           <CardTitle>
@@ -212,23 +223,34 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
           </CardTitle>
           <CardDescription>
             {language === 'pt'
-              ? `${stats.months} meses de histórico`
-              : `${stats.months} months of history`}
+              ? `${stats.months} meses — deduções por tipo conforme folhas processadas`
+              : `${stats.months} months — deductions by type from processed payroll`}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
+        <CardContent className="overflow-x-auto">
+          <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)" className="min-w-[56rem]">
             <TableHeader>
               <TableRow>
-                <TableHead>{language === 'pt' ? 'Período' : 'Period'}</TableHead>
-                <TableHead>{language === 'pt' ? 'Estado' : 'Status'}</TableHead>
-                <TableHead className="text-right">
+                <TableHead className="sticky left-0 z-20 bg-background min-w-[7rem]">
+                  {language === 'pt' ? 'Período' : 'Period'}
+                </TableHead>
+                <TableHead className="min-w-[5.5rem]">
+                  {language === 'pt' ? 'Estado' : 'Status'}
+                </TableHead>
+                <TableHead className="text-right min-w-[6rem]">
                   {language === 'pt' ? 'Bruto' : 'Gross'}
                 </TableHead>
-                <TableHead className="text-right">
-                  {language === 'pt' ? 'Deduções' : 'Deductions'}
+                {PAYROLL_HISTORY_DEDUCTION_COLUMNS.map(({ key, type }) => (
+                  <TableHead key={key} className="text-right min-w-[5.5rem]">
+                    <span className="text-xs leading-tight block">
+                      {getDeductionTypeLabel(type, language)}
+                    </span>
+                  </TableHead>
+                ))}
+                <TableHead className="text-right min-w-[6rem]">
+                  {language === 'pt' ? 'Total ded.' : 'Total ded.'}
                 </TableHead>
-                <TableHead className="text-right">
+                <TableHead className="text-right min-w-[6rem]">
                   {language === 'pt' ? 'Líquido' : 'Net'}
                 </TableHead>
               </TableRow>
@@ -236,17 +258,22 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
             <TableBody>
               {employeePayrollHistory.map((record) => (
                 <TableRow key={record.periodId}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium sticky left-0 z-10 bg-background">
                     {monthNames[record.month - 1]} {record.year}
                   </TableCell>
                   <TableCell>{getStatusBadge(record.status)}</TableCell>
-                  <TableCell className="text-right font-mono">
+                  <TableCell className="text-right font-mono text-sm">
                     {formatAOA(record.grossSalary)}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-destructive">
+                  {PAYROLL_HISTORY_DEDUCTION_COLUMNS.map(({ key }) => (
+                    <TableCell key={key} className="text-right">
+                      <DeductionAmountCell amount={record.deductionBreakdown[key]} />
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right font-mono text-sm text-destructive">
                     -{formatAOA(record.totalDeductions)}
                   </TableCell>
-                  <TableCell className="text-right font-mono font-semibold text-primary">
+                  <TableCell className="text-right font-mono text-sm font-semibold text-primary">
                     {formatAOA(record.netSalary)}
                   </TableCell>
                 </TableRow>

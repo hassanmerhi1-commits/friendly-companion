@@ -55,6 +55,11 @@ export function computeDeductionBalances(
 
 /** Apply one payroll installment (monthly amount capped by remaining). */
 export function creditOneInstallment(deduction: Deduction): Partial<Deduction> | null {
+  return creditDeductionPayment(deduction, deduction.amount > 0 ? deduction.amount : deduction.remainingAmount);
+}
+
+/** Credit one installment using the real amount deducted in the payroll entry. */
+export function creditDeductionPayment(deduction: Deduction, paidAmount: number): Partial<Deduction> | null {
   if (deduction.isFullyPaid || deduction.remainingAmount <= BALANCE_EPSILON) {
     return {
       remainingAmount: 0,
@@ -63,8 +68,7 @@ export function creditOneInstallment(deduction: Deduction): Partial<Deduction> |
     };
   }
 
-  const monthly = deduction.amount > 0 ? deduction.amount : deduction.remainingAmount;
-  const payment = Math.min(monthly, deduction.remainingAmount);
+  const payment = Math.min(Math.max(0, paidAmount), deduction.remainingAmount);
   if (payment <= BALANCE_EPSILON) return null;
 
   const newInstallmentsPaid = (deduction.installmentsPaid || 0) + 1;
@@ -84,6 +88,64 @@ export function creditOneInstallment(deduction: Deduction): Partial<Deduction> |
   };
 }
 
+function parseDeductionDetails(raw: unknown): Array<{ deductionId?: string; amount?: number }> {
+  if (!raw || typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function getDeductionHistoryCredits(finalizedOnly = true): Promise<Map<string, { count: number; amount: number }>> {
+  const [entryRows, periodRows] = await Promise.all([
+    liveGetAll<any>('payroll_entries'),
+    liveGetAll<any>('payroll_periods'),
+  ]);
+  const periodStatus = new Map<string, string>(
+    periodRows.map((p: any) => [p.id, p.status])
+  );
+  const credits = new Map<string, { count: number; amount: number }>();
+
+  for (const entry of entryRows) {
+    const periodId = entry.period_id || entry.payroll_period_id;
+    const status = periodStatus.get(periodId);
+    if (finalizedOnly && status !== 'approved' && status !== 'paid') continue;
+
+    for (const detail of parseDeductionDetails(entry.deduction_details)) {
+      const deductionId = detail.deductionId || (detail as any).deduction_id || (detail as any).id;
+      if (!deductionId) continue;
+      const amount = Number(detail.amount || 0);
+      if (amount <= BALANCE_EPSILON) continue;
+
+      const current = credits.get(deductionId) || { count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += amount;
+      credits.set(deductionId, current);
+    }
+  }
+
+  return credits;
+}
+
+export async function getDeductionAppliedAmount(periodId: string, deductionId: string): Promise<number | undefined> {
+  const entryRows = await liveGetAll<any>('payroll_entries');
+  let total = 0;
+  for (const entry of entryRows) {
+    const rowPeriodId = entry.period_id || entry.payroll_period_id;
+    if (rowPeriodId !== periodId) continue;
+
+    for (const detail of parseDeductionDetails(entry.deduction_details)) {
+      const detailId = detail.deductionId || (detail as any).deduction_id || (detail as any).id;
+      if (detailId !== deductionId) continue;
+      total += Number(detail.amount || 0);
+    }
+  }
+
+  return total > BALANCE_EPSILON ? total : undefined;
+}
+
 /** After payroll approval: count installments and release deductions for the next period. */
 export async function finalizeApprovedPeriodDeductions(periodId: string) {
   const store = useDeductionStore.getState();
@@ -94,7 +156,11 @@ export async function finalizeApprovedPeriodDeductions(periodId: string) {
   if (linked.length === 0) return;
 
   for (const deduction of linked) {
-    const credit = creditOneInstallment(deduction);
+    const appliedAmount = await getDeductionAppliedAmount(periodId, deduction.id);
+    const credit = creditDeductionPayment(
+      deduction,
+      appliedAmount ?? (deduction.amount > 0 ? deduction.amount : deduction.remainingAmount)
+    );
     const patch: Partial<Deduction> = {
       ...(credit || {}),
       isApplied: false,
@@ -520,53 +586,89 @@ export async function normalizeWarehouseLossDeductions() {
   }
 }
 
+export type DeductionRebuildResult = {
+  scanned: number;
+  updated: number;
+};
+
 /**
- * Safe one-time reconciliation for legacy rows (e.g. 3/2 + Paid while balance remains).
- * Only writes when stored values are materially inconsistent.
+ * Rebuild every deduction balance from approved/paid payroll sheets only.
+ * Sum of deduction_details amounts is the source of truth (force write when different).
  */
-export async function reconcileDeductionBalances() {
-  try {
-    const { deductions } = useDeductionStore.getState();
-    const now = new Date().toISOString();
-    let fixed = 0;
+export async function rebuildDeductionBalancesFromPayrollHistory(): Promise<DeductionRebuildResult> {
+  const { deductions } = useDeductionStore.getState();
+  const historyCredits = await getDeductionHistoryCredits(true);
+  const now = new Date().toISOString();
+  let updated = 0;
 
-    for (const ded of deductions) {
-      const balances = computeDeductionBalances(
-        ded.totalAmount,
-        ded.amount,
-        ded.installmentsPaid,
-        ded.remainingAmount
-      );
+  for (const ded of deductions) {
+    const history = historyCredits.get(ded.id);
+    const historyPaidAmount = history?.amount ?? 0;
+    const historyInstallments = history?.count ?? 0;
+    const hasHistory = historyPaidAmount > BALANCE_EPSILON;
 
-      const wrongPaidFlag = ded.isFullyPaid !== balances.isFullyPaid;
-      const wrongRemaining = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
-      const wrongInstallments = ded.installments !== balances.installments;
-      const impossibleProgress = ded.installmentsPaid > ded.installments && balances.remainingAmount > BALANCE_EPSILON;
+    const historyRemaining = hasHistory
+      ? Math.max(0, ded.totalAmount - historyPaidAmount)
+      : ded.totalAmount;
 
-      if (!wrongPaidFlag && !wrongRemaining && !wrongInstallments && !impossibleProgress) {
-        continue;
-      }
+    const reconciledInstallmentsPaid = hasHistory ? historyInstallments : 0;
 
-      await liveUpdate('deductions', ded.id, {
-        remaining_amount: balances.remainingAmount,
-        installments: balances.installments,
-        is_fully_paid: balances.isFullyPaid ? 1 : 0,
-        installments_paid: ded.installmentsPaid,
-        current_installment: ded.installmentsPaid,
-        updated_at: now,
-      });
-      fixed++;
-    }
+    const balances = computeDeductionBalances(
+      ded.totalAmount,
+      ded.amount,
+      reconciledInstallmentsPaid,
+      historyRemaining
+    );
 
-    if (fixed > 0) {
-      await useDeductionStore.getState().loadDeductions();
-      console.log(`[Deductions] Reconciled balances for ${fixed} deduction row(s)`);
-    } else {
-      console.log('[Deductions] Balance reconciliation: no inconsistent rows found');
-    }
-  } catch (error) {
-    console.error('[Deductions] Error reconciling balances:', error);
+    const needsUpdate =
+      Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON ||
+      ded.installments !== balances.installments ||
+      ded.isFullyPaid !== balances.isFullyPaid ||
+      (ded.installmentsPaid || 0) !== reconciledInstallmentsPaid;
+
+    if (!needsUpdate) continue;
+
+    await liveUpdate('deductions', ded.id, {
+      remaining_amount: balances.remainingAmount,
+      installments: balances.installments,
+      is_fully_paid: balances.isFullyPaid ? 1 : 0,
+      installments_paid: reconciledInstallmentsPaid,
+      current_installment: reconciledInstallmentsPaid,
+      updated_at: now,
+    });
+    updated++;
   }
+
+  if (updated > 0) {
+    await useDeductionStore.getState().loadDeductions();
+  }
+
+  console.log(
+    `[Deductions] History rebuild (approved/paid only): ${updated}/${deductions.length} row(s) updated`
+  );
+
+  return { scanned: deductions.length, updated };
+}
+
+/** Startup / manual: rebuild from history, normalize warehouse caps, rebuild again. */
+export async function runDeductionBalanceMaintenance(): Promise<DeductionRebuildResult> {
+  try {
+    const first = await rebuildDeductionBalancesFromPayrollHistory();
+    await normalizeWarehouseLossDeductions();
+    const second = await rebuildDeductionBalancesFromPayrollHistory();
+    return {
+      scanned: first.scanned,
+      updated: first.updated + second.updated,
+    };
+  } catch (error) {
+    console.error('[Deductions] Balance maintenance failed:', error);
+    return { scanned: 0, updated: 0 };
+  }
+}
+
+/** @deprecated Use rebuildDeductionBalancesFromPayrollHistory or runDeductionBalanceMaintenance */
+export async function reconcileDeductionBalances() {
+  return rebuildDeductionBalancesFromPayrollHistory();
 }
 
 /** Display order for dossier / reports (matches Deduções page filters). */
