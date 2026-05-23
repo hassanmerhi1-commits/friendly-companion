@@ -10,8 +10,10 @@ import {
   Building2, 
   Calendar, 
   CreditCard,
-  Briefcase
+  Briefcase,
+  LogOut,
 } from 'lucide-react';
+import { getExitReasonLabel } from '@/lib/employee-exit';
 import { Employee } from '@/types/employee';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
@@ -32,13 +34,13 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
       active: 'bg-accent/10 text-accent border-accent/20',
       inactive: 'bg-destructive/10 text-destructive border-destructive/20',
       on_leave: 'bg-warning/10 text-warning border-warning/20',
-      terminated: 'bg-muted text-muted-foreground',
+      terminated: 'bg-destructive/10 text-destructive border-destructive/20',
     };
     const labels = {
       active: t.common.active,
       inactive: t.common.inactive,
       on_leave: t.common.onLeave,
-      terminated: t.common.inactive,
+      terminated: language === 'pt' ? 'Fora da empresa' : 'Left company',
     };
     return (
       <Badge variant="outline" className={colors[status]}>
@@ -156,6 +158,23 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
           </div>
         </div>
       </div>
+
+      {employee.status === 'terminated' && (employee.exitDate || employee.exitNote) && (
+        <div className="mx-6 mb-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <div className="flex items-start gap-2 font-medium text-destructive">
+            <LogOut className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{language === 'pt' ? 'Saída da empresa' : 'Left the company'}</span>
+          </div>
+          {employee.exitDate && (
+            <p className="mt-2 text-muted-foreground">
+              {language === 'pt' ? 'Data' : 'Date'}:{' '}
+              {format(new Date(employee.exitDate), 'dd MMM yyyy', { locale: pt })}
+              {employee.exitReason && ` · ${getExitReasonLabel(employee.exitReason, language)}`}
+            </p>
+          )}
+          {employee.exitNote && <p className="mt-1 text-foreground">{employee.exitNote}</p>}
+        </div>
+      )}
 
       <CardContent className="p-6 pt-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

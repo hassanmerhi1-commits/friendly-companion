@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Employee, EmployeeFormData } from '@/types/employee';
+import type { Employee, EmployeeExitReason, EmployeeFormData } from '@/types/employee';
+import { formatFormerEmployeeBlockMessage } from '@/lib/employee-exit';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
@@ -30,6 +31,19 @@ interface EmployeeState {
   approveEmployee: (id: string) => Promise<{ success: boolean; error?: string }>;
   rejectEmployee: (id: string) => Promise<{ success: boolean; error?: string }>;
   deleteEmployee: (id: string) => Promise<void>;
+  offboardEmployee: (
+    id: string,
+    data: { exitDate: string; exitReason: EmployeeExitReason; exitNote: string; processedBy: string }
+  ) => Promise<{ success: boolean; error?: string }>;
+  rehireEmployee: (
+    id: string,
+    data: { note?: string; processedBy: string }
+  ) => Promise<{ success: boolean; error?: string }>;
+  findFormerEmployeeByIdentity: (data: {
+    bilheteIdentidade?: string;
+    nif?: string;
+    employeeNumber?: string;
+  }) => Employee | undefined;
   
   // Validation helpers
   isEmployeeNumberTaken: (employeeNumber: string, excludeId?: string) => boolean;
@@ -82,9 +96,22 @@ function mapDbRowToEmployee(row: any): Employee {
     transportAllowance: row.transport_allowance || 0,
     otherAllowances: row.other_allowances || 0,
     isRetired: row.is_retired === 1,
+    exitDate: row.exit_date || undefined,
+    exitReason: row.exit_reason || undefined,
+    exitNote: row.exit_note || undefined,
+    exitProcessedBy: row.exit_processed_by || undefined,
+    exitProcessedAt: row.exit_processed_at || undefined,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
+}
+
+function normalizeIdentity(value: string): string {
+  return value.replace(/\s/g, '').toLowerCase();
+}
+
+function formatIdentityConflict(employee: Employee, language = 'pt'): string {
+  return formatFormerEmployeeBlockMessage(employee, language);
 }
 
 // Map Employee object to database row
@@ -125,6 +152,11 @@ function mapEmployeeToDbRow(emp: Employee): Record<string, any> {
     transport_allowance: emp.transportAllowance,
     other_allowances: emp.otherAllowances,
     is_retired: emp.isRetired ? 1 : 0,
+    exit_date: emp.exitDate || null,
+    exit_reason: emp.exitReason || null,
+    exit_note: emp.exitNote || null,
+    exit_processed_by: emp.exitProcessedBy || null,
+    exit_processed_at: emp.exitProcessedAt || null,
     created_at: emp.createdAt,
     updated_at: emp.updatedAt,
   };
@@ -189,11 +221,39 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     return get().employees.filter((emp) => emp.status === 'pending_approval');
   },
   
+  findFormerEmployeeByIdentity: (data) => {
+    const { employees } = get();
+    const bi = data.bilheteIdentidade?.trim();
+    const nif = data.nif?.trim();
+    const num = data.employeeNumber?.trim();
+
+    return employees.find((e) => {
+      if (e.status !== 'terminated') return false;
+      if (bi && e.bilheteIdentidade && normalizeIdentity(e.bilheteIdentidade) === normalizeIdentity(bi)) {
+        return true;
+      }
+      if (nif && e.nif && normalizeIdentity(e.nif) === normalizeIdentity(nif)) return true;
+      if (num && e.employeeNumber && e.employeeNumber.toLowerCase() === num.toLowerCase()) return true;
+      return false;
+    });
+  },
+
   addEmployee: async (data: EmployeeFormData) => {
-    // Check for duplicate employee number
+    const former = get().findFormerEmployeeByIdentity({
+      bilheteIdentidade: data.bilheteIdentidade,
+      nif: data.nif,
+      employeeNumber: data.employeeNumber,
+    });
+    if (former) {
+      return { success: false, error: formatIdentityConflict(former, 'pt') };
+    }
+
+    // Check for duplicate employee number (active or other non-terminated)
     if (data.employeeNumber) {
       const existingByNumber = get().employees.find(
-        e => e.employeeNumber.toLowerCase() === data.employeeNumber!.toLowerCase()
+        (e) =>
+          e.employeeNumber.toLowerCase() === data.employeeNumber!.toLowerCase() &&
+          e.status !== 'terminated'
       );
       if (existingByNumber) {
         return { success: false, error: 'Número de funcionário já existe / Employee number already exists' };
@@ -242,27 +302,30 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     // Check for duplicate BI (Bilhete de Identidade)
     if (data.bilheteIdentidade && data.bilheteIdentidade.trim()) {
       const existingByBI = get().employees.find(
-        e => e.bilheteIdentidade && 
-             e.bilheteIdentidade.replace(/\s/g, '').toLowerCase() === data.bilheteIdentidade!.replace(/\s/g, '').toLowerCase()
+        (e) =>
+          e.bilheteIdentidade &&
+          normalizeIdentity(e.bilheteIdentidade) === normalizeIdentity(data.bilheteIdentidade!) &&
+          e.status !== 'terminated'
       );
       if (existingByBI) {
-        return { 
-          success: false, 
-          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName} / ID already registered for ${existingByBI.firstName} ${existingByBI.lastName}` 
+        return {
+          success: false,
+          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName} / ID already registered for ${existingByBI.firstName} ${existingByBI.lastName}`,
         };
       }
     }
-    
-    // Check for duplicate NIF
+
     if (data.nif && data.nif.trim()) {
       const existingByNIF = get().employees.find(
-        e => e.nif && 
-             e.nif.replace(/\s/g, '').toLowerCase() === data.nif!.replace(/\s/g, '').toLowerCase()
+        (e) =>
+          e.nif &&
+          normalizeIdentity(e.nif) === normalizeIdentity(data.nif!) &&
+          e.status !== 'terminated'
       );
       if (existingByNIF) {
-        return { 
-          success: false, 
-          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName} / NIF already registered for ${existingByNIF.firstName} ${existingByNIF.lastName}` 
+        return {
+          success: false,
+          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName} / NIF already registered for ${existingByNIF.firstName} ${existingByNIF.lastName}`,
         };
       }
     }
@@ -405,29 +468,36 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     // Check for duplicate BI if being updated
     if (data.bilheteIdentidade && data.bilheteIdentidade.trim()) {
       const existingByBI = get().employees.find(
-        e => e.bilheteIdentidade && 
-             e.bilheteIdentidade.replace(/\s/g, '').toLowerCase() === data.bilheteIdentidade!.replace(/\s/g, '').toLowerCase() &&
-             e.id !== id
+        (e) =>
+          e.bilheteIdentidade &&
+          normalizeIdentity(e.bilheteIdentidade) === normalizeIdentity(data.bilheteIdentidade!) &&
+          e.id !== id
       );
       if (existingByBI) {
-        return { 
-          success: false, 
-          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName}` 
+        if (existingByBI.status === 'terminated') {
+          return { success: false, error: formatIdentityConflict(existingByBI, 'pt') };
+        }
+        return {
+          success: false,
+          error: `BI já registado para ${existingByBI.firstName} ${existingByBI.lastName}`,
         };
       }
     }
-    
-    // Check for duplicate NIF if being updated
+
     if (data.nif && data.nif.trim()) {
       const existingByNIF = get().employees.find(
-        e => e.nif && 
-             e.nif.replace(/\s/g, '').toLowerCase() === data.nif!.replace(/\s/g, '').toLowerCase() &&
-             e.id !== id
+        (e) =>
+          e.nif &&
+          normalizeIdentity(e.nif) === normalizeIdentity(data.nif!) &&
+          e.id !== id
       );
       if (existingByNIF) {
-        return { 
-          success: false, 
-          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName}` 
+        if (existingByNIF.status === 'terminated') {
+          return { success: false, error: formatIdentityConflict(existingByNIF, 'pt') };
+        }
+        return {
+          success: false,
+          error: `NIF já registado para ${existingByNIF.firstName} ${existingByNIF.lastName}`,
         };
       }
     }
@@ -513,6 +583,153 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     );
   },
   
+  offboardEmployee: async (id, data) => {
+    const employee = get().employees.find((e) => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    if (employee.status === 'terminated') {
+      return { success: false, error: 'Funcionário já está fora da empresa' };
+    }
+    if (employee.status === 'pending_approval') {
+      return { success: false, error: 'Aprove ou rejeite o registo pendente antes de registar a saída' };
+    }
+
+    const note = data.exitNote.trim();
+    if (!note) return { success: false, error: 'Indique o motivo da saída' };
+
+    const now = new Date().toISOString();
+    const terminationId = `exit-${crypto.randomUUID()}`;
+
+    try {
+      await liveInsert('terminations', {
+        id: terminationId,
+        employee_id: id,
+        employee_name: `${employee.firstName} ${employee.lastName}`.trim(),
+        termination_date: data.exitDate,
+        reason: data.exitReason,
+        reason_details: note,
+        years_of_service: 0,
+        final_base_salary: employee.baseSalary || 0,
+        severance_pay: 0,
+        proportional_leave: 0,
+        proportional_13th: 0,
+        proportional_holiday_subsidy: 0,
+        notice_period_days: 0,
+        notice_compensation: 0,
+        unused_leave_days: 0,
+        unused_leave_compensation: 0,
+        total_package: 0,
+        processed_by: data.processedBy,
+        processed_at: now,
+        letter_generated: 0,
+        is_light_exit: 1,
+        created_at: now,
+        updated_at: now,
+      });
+
+      const updated: Employee = {
+        ...employee,
+        status: 'terminated',
+        exitDate: data.exitDate,
+        exitReason: data.exitReason,
+        exitNote: note,
+        exitProcessedBy: data.processedBy,
+        exitProcessedAt: now,
+        updatedAt: now,
+      };
+
+      const { id: _empId, ...updateRow } = mapEmployeeToDbRow(updated);
+      const ok = await liveUpdate('employees', id, updateRow);
+      if (!ok) return { success: false, error: 'Erro ao guardar saída no banco de dados' };
+
+      try {
+        const { useDeductionStore } = await import('@/stores/deduction-store');
+        const deductionStore = useDeductionStore.getState();
+        const pending = deductionStore.deductions.filter(
+          (d) => d.employeeId === id && (d.isApplied || !d.isFullyPaid)
+        );
+        for (const d of pending) {
+          await deductionStore.updateDeduction(d.id, {
+            isApplied: false,
+            payrollPeriodId: undefined,
+          });
+        }
+      } catch (dedErr) {
+        console.warn('[Employees] Could not release deductions on offboard:', dedErr);
+      }
+
+      logAudit({
+        action: 'employee_offboarded',
+        entityType: 'employee',
+        entityId: id,
+        employeeId: id,
+        description: `Saída da empresa: ${updated.firstName} ${updated.lastName} — ${data.exitReason}`,
+        previousValue: employee as any,
+        newValue: updated as any,
+      });
+
+      await get().loadEmployees();
+      return { success: true };
+    } catch (error) {
+      console.error('[Employees] offboard failed:', error);
+      return { success: false, error: 'Erro ao registar saída da empresa' };
+    }
+  },
+
+  rehireEmployee: async (id, data) => {
+    const employee = get().employees.find((e) => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    if (employee.status !== 'terminated') {
+      return { success: false, error: 'Funcionário não está arquivado' };
+    }
+
+    const now = new Date().toISOString();
+    const rehireNote = data.note?.trim()
+      ? `Recontratado em ${new Date(now).toLocaleDateString('pt-AO')} por ${data.processedBy}: ${data.note.trim()}`
+      : `Recontratado em ${new Date(now).toLocaleDateString('pt-AO')} por ${data.processedBy}`;
+
+    try {
+      const termRows = await liveGetAll<any>('terminations');
+      const lightTerm = termRows.find(
+        (t) => t.employee_id === id && (t.is_light_exit === 1 || t.total_package === 0)
+      );
+      if (lightTerm) {
+        await liveDelete('terminations', lightTerm.id);
+      }
+
+      const updated: Employee = {
+        ...employee,
+        status: 'active',
+        exitDate: undefined,
+        exitReason: undefined,
+        exitNote: undefined,
+        exitProcessedBy: undefined,
+        exitProcessedAt: undefined,
+        notes: employee.notes ? `${employee.notes}\n${rehireNote}` : rehireNote,
+        updatedAt: now,
+      };
+
+      const { id: _empId, ...updateRow } = mapEmployeeToDbRow(updated);
+      const ok = await liveUpdate('employees', id, updateRow);
+      if (!ok) return { success: false, error: 'Erro ao reactivar funcionário' };
+
+      logAudit({
+        action: 'employee_rehired',
+        entityType: 'employee',
+        entityId: id,
+        employeeId: id,
+        description: `Recontratação: ${updated.firstName} ${updated.lastName}`,
+        previousValue: employee as any,
+        newValue: updated as any,
+      });
+
+      await get().loadEmployees();
+      return { success: true };
+    } catch (error) {
+      console.error('[Employees] rehire failed:', error);
+      return { success: false, error: 'Erro ao recontratar funcionário' };
+    }
+  },
+
   deleteEmployee: async (id: string) => {
     const employee = get().employees.find(e => e.id === id);
     

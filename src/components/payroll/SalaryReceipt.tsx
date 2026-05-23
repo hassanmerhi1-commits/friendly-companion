@@ -4,6 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, calculateIRT, getIRTTaxableAllowance } from '@/lib/angola-labor-law';
+import {
+  getHolidayBuyoutPayout,
+  getMonthlyBonusPayout,
+  getOneOffExtraPayout,
+  getTotalPaidToEmployee,
+} from '@/lib/payroll-payout';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
@@ -48,18 +54,26 @@ export function SalaryReceipt({
 
     const receiptHtml = clonedContent.innerHTML;
     
-    // Generate bonus section for employee copy only
-    const bonus = entry.monthlyBonus || 0;
-    const totalReceived = entry.netSalary + bonus;
+    const bonus = getMonthlyBonusPayout(entry);
+    const oneOff = getOneOffExtraPayout(entry);
+    const holidayBuyout = getHolidayBuyoutPayout(entry);
+    const totalReceived = getTotalPaidToEmployee(entry);
     const bonusLabel = language === 'pt' ? 'Bónus' : 'Bonus';
+    const oneOffLabel = language === 'pt' ? 'Extra pontual' : 'One-off extra';
+    const buyoutLabel = language === 'pt' ? 'Compra de férias' : 'Holiday buyout';
     const totalReceivedLabel = language === 'pt' ? 'Total Recebido' : 'Total Received';
-    
-    const bonusSectionHtml = bonus > 0 ? `
+
+    const bonusSectionHtml =
+      bonus > 0 || oneOff > 0 || holidayBuyout > 0
+        ? `
       <div class="bonus-section">
-        <div class="bonus-line"><span class="label">${bonusLabel}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>
+        ${bonus > 0 ? `<div class="bonus-line"><span class="label">${bonusLabel}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>` : ''}
+        ${holidayBuyout > 0 ? `<div class="bonus-line"><span class="label">${buyoutLabel}</span><span class="amount bonus-amount">+${formatAOA(holidayBuyout)}</span></div>` : ''}
+        ${oneOff > 0 ? `<div class="bonus-line"><span class="label">${oneOffLabel}</span><span class="amount bonus-amount">+${formatAOA(oneOff)}</span></div>` : ''}
         <div class="total-received"><span>${totalReceivedLabel}</span><span class="total-amount">${formatAOA(totalReceived)}</span></div>
       </div>
-    ` : '';
+    `
+        : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -430,21 +444,48 @@ export function SalaryReceipt({
               <span className="net-amount text-xl font-bold text-primary">{formatAOA(entry.netSalary)}</span>
             </div>
 
-            {/* Bonus Section (Preview - Employee only sees this) */}
-            {(entry.monthlyBonus || 0) > 0 && (
+            {(getMonthlyBonusPayout(entry) > 0 ||
+              getOneOffExtraPayout(entry) > 0 ||
+              getHolidayBuyoutPayout(entry) > 0) && (
               <div className="bonus-section bg-amber-50 dark:bg-amber-950/30 p-3 mt-2 rounded-lg border border-dashed border-amber-400">
-                <div className="flex justify-between py-1">
-                  <span className="text-sm font-medium">{language === 'pt' ? 'Bónus' : 'Bonus'}</span>
-                  <span className="text-sm font-mono text-amber-600 font-bold">+{formatAOA(entry.monthlyBonus)}</span>
-                </div>
+                {getMonthlyBonusPayout(entry) > 0 && (
+                  <div className="flex justify-between py-1">
+                    <span className="text-sm font-medium">{language === 'pt' ? 'Bónus' : 'Bonus'}</span>
+                    <span className="text-sm font-mono text-amber-600 font-bold">
+                      +{formatAOA(getMonthlyBonusPayout(entry))}
+                    </span>
+                  </div>
+                )}
+                {getHolidayBuyoutPayout(entry) > 0 && (
+                  <div className="flex justify-between py-1">
+                    <span className="text-sm font-medium">{language === 'pt' ? 'Compra de férias' : 'Holiday buyout'}</span>
+                    <span className="text-sm font-mono text-violet-700 font-bold">
+                      +{formatAOA(getHolidayBuyoutPayout(entry))}
+                    </span>
+                  </div>
+                )}
+                {entry.holidayBuyoutNote && (
+                  <p className="text-[9px] text-muted-foreground italic">{entry.holidayBuyoutNote}</p>
+                )}
+                {getOneOffExtraPayout(entry) > 0 && (
+                  <div className="flex justify-between py-1">
+                    <span className="text-sm font-medium">{language === 'pt' ? 'Extra pontual' : 'One-off extra'}</span>
+                    <span className="text-sm font-mono text-violet-600 font-bold">
+                      +{formatAOA(getOneOffExtraPayout(entry))}
+                    </span>
+                  </div>
+                )}
+                {entry.oneOffExtraNote && (
+                  <p className="text-[9px] text-muted-foreground italic">{entry.oneOffExtraNote}</p>
+                )}
                 <div className="flex justify-between pt-2 border-t border-amber-400 mt-2">
                   <span className="text-sm font-bold">{language === 'pt' ? 'Total Recebido' : 'Total Received'}</span>
-                  <span className="text-lg font-bold text-amber-600">{formatAOA(entry.netSalary + entry.monthlyBonus)}</span>
+                  <span className="text-lg font-bold text-amber-600">{formatAOA(getTotalPaidToEmployee(entry))}</span>
                 </div>
                 <p className="text-[9px] text-muted-foreground mt-1 italic">
-                  {language === 'pt' 
-                    ? '* Bónus não sujeito a impostos - apenas na via do funcionário' 
-                    : '* Bonus not subject to taxes - employee copy only'}
+                  {language === 'pt'
+                    ? '* Bónus e extra pontual fora do bruto/IRT/INSS — via do funcionário'
+                    : '* Bonus and one-off extra outside gross/tax — employee copy only'}
                 </p>
               </div>
             )}

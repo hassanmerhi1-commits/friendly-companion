@@ -17,6 +17,7 @@ import { useBranchStore } from "@/stores/branch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useDisciplinaryStore } from "@/stores/disciplinary-store";
 import { useHolidayStore } from "@/stores/holiday-store";
+import { DEFAULT_ANNUAL_LEAVE_DAYS, getTotalDaysBought, validateDaysAllocation } from "@/lib/holiday-utils";
 import type { DisciplinaryType } from "@/types/disciplinary";
 import { toast } from "sonner";
 import { printHtml } from "@/lib/print";
@@ -267,6 +268,16 @@ const Documents = () => {
     const parsedDuration = Number(documentData.duration || 0);
     const daysUsed = parsedDuration > 0 ? parsedDuration : countBusinessDays(start, end);
     const holidayYear = start.getFullYear();
+
+    const { getRecordForEmployee } = useHolidayStore.getState();
+    const existing = getRecordForEmployee(selectedEmployee.id, holidayYear);
+    const daysBought = getTotalDaysBought(existing);
+    const entitled = DEFAULT_ANNUAL_LEAVE_DAYS;
+    const check = validateDaysAllocation(existing, entitled, daysUsed, daysBought);
+    if (!check.ok) {
+      toast.error(check.message || (language === 'pt' ? 'Dias de férias excedem o direito' : 'Leave days exceed entitlement'));
+      return false;
+    }
 
     const result = await addOrUpdateRecord({
       employeeId: selectedEmployee.id,

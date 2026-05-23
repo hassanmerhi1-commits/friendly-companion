@@ -14,6 +14,7 @@ import { usePayrollStore } from '@/stores/payroll-store';
 import { getDeductionTypeLabel } from '@/stores/deduction-store';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
+import { getHolidayBuyoutPayout, getOneOffExtraPayout } from '@/lib/payroll-payout';
 import {
   parsePayrollEntryDeductionBreakdown,
   PAYROLL_HISTORY_DEDUCTION_COLUMNS,
@@ -36,6 +37,8 @@ type HistoryRow = {
   status: string;
   grossSalary: number;
   netSalary: number;
+  oneOffExtra: number;
+  holidayBuyout: number;
   totalDeductions: number;
   deductionBreakdown: PayrollDeductionBreakdown;
   approvedAt?: string;
@@ -72,6 +75,8 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
           status: period.status,
           grossSalary: employeeEntry.grossSalary,
           netSalary: employeeEntry.netSalary,
+          oneOffExtra: getOneOffExtraPayout(employeeEntry),
+          holidayBuyout: getHolidayBuyoutPayout(employeeEntry),
           totalDeductions: employeeEntry.totalDeductions,
           deductionBreakdown: parsePayrollEntryDeductionBreakdown(employeeEntry),
           approvedAt: period.approvedAt,
@@ -250,6 +255,9 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
                 <TableHead className="text-right min-w-[6rem]">
                   {language === 'pt' ? 'Total ded.' : 'Total ded.'}
                 </TableHead>
+                <TableHead className="text-right min-w-[5.5rem]">
+                  {language === 'pt' ? 'Extra / Compra' : 'Extra / Buyout'}
+                </TableHead>
                 <TableHead className="text-right min-w-[6rem]">
                   {language === 'pt' ? 'Líquido' : 'Net'}
                 </TableHead>
@@ -272,6 +280,11 @@ export function PayrollHistoryTab({ employeeId }: PayrollHistoryTabProps) {
                   ))}
                   <TableCell className="text-right font-mono text-sm text-destructive">
                     -{formatAOA(record.totalDeductions)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-violet-600">
+                    {record.oneOffExtra + record.holidayBuyout > 0
+                      ? formatAOA(record.oneOffExtra + record.holidayBuyout)
+                      : '—'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm font-semibold text-primary">
                     {formatAOA(record.netSalary)}

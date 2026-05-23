@@ -3,6 +3,14 @@
  */
 
 export type EmployeeStatus = 'active' | 'inactive' | 'on_leave' | 'terminated' | 'pending_approval';
+
+/** Mirrors HR termination reasons for light offboarding from the employees list. */
+export type EmployeeExitReason =
+  | 'dismissal'
+  | 'voluntary'
+  | 'contract_end'
+  | 'retirement'
+  | 'mutual_agreement';
 export type ContractType = 'permanent' | 'fixed_term' | 'part_time' | 'probation' | 'colaborador';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'mobile_money';
 
@@ -67,7 +75,15 @@ export interface Employee {
   iban?: string;
   
   // Additional Info
-  isRetired: boolean; // For retired employees returning to work
+  isRetired: boolean; // For retired employees returning to work (INSS rate) — not "left company"
+
+  /** Set when status is terminated via «Saída da empresa». */
+  exitDate?: string;
+  exitReason?: EmployeeExitReason;
+  exitNote?: string;
+  exitProcessedBy?: string;
+  exitProcessedAt?: string;
+
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   notes?: string;

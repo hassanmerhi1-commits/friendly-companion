@@ -3,25 +3,29 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive, CheckCircle, XCircle, Clock, LogOut, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
+import { EmployeeOffboardDialog } from "@/components/employees/EmployeeOffboardDialog";
 import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
 import { formatAOA } from "@/lib/angola-labor-law";
 import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
-import { cn } from "@/lib/utils";
 import { exportEmployeesToCSV } from "@/lib/export-utils";
+import { getExitReasonLabel } from "@/lib/employee-exit";
 import type { Employee } from "@/types/employee";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +39,8 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -63,8 +69,15 @@ const Employees = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language } = useLanguage();
-  const { employees, deleteEmployee, approveEmployee, rejectEmployee, backfillCategoryFromPosition } = useEmployeeStore();
-  const { updateEmployee } = useEmployeeStore();
+  const {
+    employees,
+    deleteEmployee,
+    approveEmployee,
+    rejectEmployee,
+    backfillCategoryFromPosition,
+    updateEmployee,
+    rehireEmployee,
+  } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
   const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
   const { branches: allBranches } = useBranchStore();
@@ -118,6 +131,12 @@ const Employees = () => {
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
   const [employeeForCard, setEmployeeForCard] = useState<Employee | null>(null);
+  const [offboardOpen, setOffboardOpen] = useState(false);
+  const [employeeToOffboard, setEmployeeToOffboard] = useState<Employee | null>(null);
+  const [rehireOpen, setRehireOpen] = useState(false);
+  const [employeeToRehire, setEmployeeToRehire] = useState<Employee | null>(null);
+  const [rehireNote, setRehireNote] = useState('');
+  const [rehireLoading, setRehireLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Get branch name helper for sorting
@@ -147,13 +166,16 @@ const Employees = () => {
       const matchesBranchHeader = branchColumnFilter === 'all' ||
         (emp.branchId || '') === branchColumnFilter;
       
-      const matchesStatus = statusFilter === 'all' 
-        ? true 
-        : statusFilter === 'terminated' 
-          ? (emp.status === 'terminated' || emp.isRetired)
-          : statusFilter === 'pending'
-            ? emp.status === 'pending_approval'
-            : (emp.status === 'active' && !emp.isRetired);
+      const matchesStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'left'
+            ? emp.status === 'terminated'
+            : statusFilter === 'retired'
+              ? emp.status === 'active' && emp.isRetired
+              : statusFilter === 'pending'
+                ? emp.status === 'pending_approval'
+                : emp.status === 'active';
       
       return matchesSearch && matchesBranch && matchesStatus && matchesNameHeader && matchesDepartmentHeader && matchesCategoryHeader && matchesBranchHeader;
     })
@@ -218,7 +240,7 @@ const Employees = () => {
       active: t.common.active,
       inactive: t.common.inactive,
       on_leave: t.common.onLeave,
-      terminated: language === 'pt' ? 'Despedido' : 'Terminated',
+      terminated: language === 'pt' ? 'Fora da empresa' : 'Left company',
       pending_approval: language === 'pt' ? 'Pendente' : 'Pending',
     };
     return labels[status] || status;
@@ -379,7 +401,8 @@ const Employees = () => {
                 {language === 'pt' ? `Pendentes (${pendingCount})` : `Pending (${pendingCount})`}
               </SelectItem>
             )}
-            <SelectItem value="terminated">{language === 'pt' ? 'Arquivados / Despedidos' : 'Archived / Terminated'}</SelectItem>
+            <SelectItem value="left">{language === 'pt' ? 'Saída da empresa' : 'Left company'}</SelectItem>
+            <SelectItem value="retired">{language === 'pt' ? 'Reformados (activos)' : 'Retired (active)'}</SelectItem>
             <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
           </SelectContent>
         </Select>
@@ -498,14 +521,23 @@ const Employees = () => {
                   <td className="px-3 py-3">{getBranchName(employee.branchId)}</td>
                   <td className="px-3 py-3">{getContractLabel(employee.contractType)}</td>
                   <td className="px-3 py-3">
-                    <span className={cn(
-                      "inline-flex rounded-full px-2 py-1 text-xs",
-                      employee.status === "active" && "bg-primary/10 text-primary",
-                      employee.status === "pending_approval" && "bg-secondary text-secondary-foreground",
-                      employee.status === "terminated" && "bg-destructive/10 text-destructive"
-                    )}>
-                      {getStatusLabel(employee.status)}
-                    </span>
+                    <div className="flex flex-col gap-1 items-start">
+                      <span
+                        className={cn(
+                          'inline-flex rounded-full px-2 py-1 text-xs',
+                          employee.status === 'active' && 'bg-primary/10 text-primary',
+                          employee.status === 'pending_approval' && 'bg-secondary text-secondary-foreground',
+                          employee.status === 'terminated' && 'bg-destructive/10 text-destructive'
+                        )}
+                      >
+                        {getStatusLabel(employee.status)}
+                      </span>
+                      {employee.status === 'active' && employee.isRetired && (
+                        <span className="text-xs text-muted-foreground">
+                          {language === 'pt' ? 'Reformado' : 'Retired'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-3 text-right">{formatAOA(employee.baseSalary || 0)}</td>
                   <td className="px-3 py-3 text-right">
@@ -559,7 +591,34 @@ const Employees = () => {
                             <CreditCard className="h-4 w-4 mr-2" />
                             {t.nav?.idCards || 'Cartão ID'}
                           </DropdownMenuItem>
-                          {hasPermission('employees.edit') && (
+                          {hasPermission('employees.edit') && employee.status !== 'terminated' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setEmployeeToOffboard(employee);
+                                  setOffboardOpen(true);
+                                }}
+                              >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                {language === 'pt' ? 'Saída da empresa' : 'Left company'}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {hasPermission('employees.edit') && employee.status === 'terminated' && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEmployeeToRehire(employee);
+                                setRehireNote('');
+                                setRehireOpen(true);
+                              }}
+                            >
+                              <UserCheck className="h-4 w-4 mr-2" />
+                              {language === 'pt' ? 'Recontratar' : 'Rehire'}
+                            </DropdownMenuItem>
+                          )}
+                          {hasPermission('employees.edit') && employee.status === 'active' && (
                             <DropdownMenuItem onClick={() => {
                               const newValue = !employee.isRetired;
                               updateEmployee(employee.id, { isRetired: newValue });
@@ -604,6 +663,86 @@ const Employees = () => {
         onOpenChange={setFormOpen}
         employee={selectedEmployee}
       />
+
+      <EmployeeOffboardDialog
+        open={offboardOpen}
+        onOpenChange={setOffboardOpen}
+        employee={employeeToOffboard}
+        processedBy={currentUser?.name || currentUser?.username || 'System'}
+        onSuccess={() => setEmployeeToOffboard(null)}
+      />
+
+      <Dialog open={rehireOpen} onOpenChange={setRehireOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'pt' ? 'Recontratar funcionário' : 'Rehire employee'}
+            </DialogTitle>
+            <DialogDescription>
+              {employeeToRehire && (
+                <>
+                  {employeeToRehire.firstName} {employeeToRehire.lastName}
+                  {employeeToRehire.exitDate && (
+                    <span className="block mt-1 text-xs">
+                      {language === 'pt' ? 'Saída' : 'Exit'}:{' '}
+                      {formatDate(employeeToRehire.exitDate)}
+                      {employeeToRehire.exitReason &&
+                        ` · ${getExitReasonLabel(employeeToRehire.exitReason, language)}`}
+                    </span>
+                  )}
+                  {employeeToRehire.exitNote && (
+                    <span className="block mt-1 text-xs italic">{employeeToRehire.exitNote}</span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="rehireNote">
+              {language === 'pt' ? 'Nota (opcional)' : 'Note (optional)'}
+            </Label>
+            <Textarea
+              id="rehireNote"
+              value={rehireNote}
+              onChange={(e) => setRehireNote(e.target.value)}
+              rows={3}
+              placeholder={
+                language === 'pt' ? 'Motivo da recontratação…' : 'Reason for rehire…'
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRehireOpen(false)} disabled={rehireLoading}>
+              {language === 'pt' ? 'Cancelar' : 'Cancel'}
+            </Button>
+            <Button
+              disabled={rehireLoading || !employeeToRehire}
+              onClick={async () => {
+                if (!employeeToRehire) return;
+                setRehireLoading(true);
+                const result = await rehireEmployee(employeeToRehire.id, {
+                  note: rehireNote,
+                  processedBy: currentUser?.name || currentUser?.username || 'System',
+                });
+                setRehireLoading(false);
+                if (result.success) {
+                  toast.success(
+                    language === 'pt'
+                      ? 'Funcionário reactivado'
+                      : 'Employee reactivated'
+                  );
+                  setRehireOpen(false);
+                  setEmployeeToRehire(null);
+                } else {
+                  toast.error(result.error);
+                }
+              }}
+            >
+              {language === 'pt' ? 'Confirmar recontratação' : 'Confirm rehire'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

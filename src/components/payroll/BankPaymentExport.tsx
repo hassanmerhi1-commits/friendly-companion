@@ -16,6 +16,7 @@ import { Download, Building2, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import ExcelJS from 'exceljs';
 import type { PayrollEntry } from '@/types/payroll';
+import { getTotalPaidToEmployee } from '@/lib/payroll-payout';
 
 interface BankPaymentExportProps {
   entries: PayrollEntry[];
@@ -54,10 +55,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       return;
     }
 
-    const getTransferAmount = (entry: PayrollEntry) => {
-      if (entry.paidEarly) return 0;
-      return (entry.netSalary || 0) + (entry.monthlyBonus || 0);
-    };
+    const getTransferAmount = (entry: PayrollEntry) => getTotalPaidToEmployee(entry);
 
     const branchName = selectedBranchId === 'all' 
       ? (language === 'pt' ? 'Todas as Filiais' : 'All Branches')

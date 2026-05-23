@@ -34,6 +34,9 @@ export interface TerminationRecord {
   processedBy: string;
   processedAt: string;
   letterGenerated: boolean;
+
+  /** True when registered from Funcionários «Saída da empresa» (no severance package). */
+  isLightExit?: boolean;
   
   // Timestamps
   createdAt: string;

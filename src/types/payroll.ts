@@ -40,6 +40,12 @@ export interface PayrollEntry {
   otherAllowances: number;
   familyAllowance: number; // Abono de Família
   monthlyBonus: number; // Bónus Mensal - user-defined
+  /** Extra pontual só neste mês — não entra em bruto, IRT, INSS, faltas nem subsídios fixos */
+  oneOffExtra?: number;
+  oneOffExtraNote?: string;
+  /** Compra de férias ligada a esta folha — fora do bruto/IRT/INSS */
+  holidayBuyoutAmount?: number;
+  holidayBuyoutNote?: string;
   overtimeNormal: number; // Calculated overtime value for normal hours
   overtimeNight: number; // Calculated overtime value for night hours
   overtimeHoliday: number; // Calculated overtime value for holiday hours

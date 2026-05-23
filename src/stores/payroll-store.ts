@@ -129,6 +129,10 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     otherAllowances: row.other_allowances || 0,
     familyAllowance: row.family_allowance || 0,
     monthlyBonus: row.monthly_bonus || 0,
+    oneOffExtra: row.one_off_extra || 0,
+    oneOffExtraNote: row.one_off_extra_note || undefined,
+    holidayBuyoutAmount: row.holiday_buyout_amount || 0,
+    holidayBuyoutNote: row.holiday_buyout_note || undefined,
     overtimeNormal: row.overtime_normal || row.overtime_amount || 0,
     overtimeNight: row.overtime_night || 0,
     overtimeHoliday: row.overtime_holiday || 0,
@@ -184,6 +188,10 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     subsidy_natal: e.thirteenthMonth,
     family_allowance: e.familyAllowance,
     monthly_bonus: e.monthlyBonus,
+    one_off_extra: e.oneOffExtra || 0,
+    one_off_extra_note: e.oneOffExtraNote || null,
+    holiday_buyout_amount: e.holidayBuyoutAmount || 0,
+    holiday_buyout_note: e.holidayBuyoutNote || null,
     overtime_hours_normal: e.overtimeHoursNormal,
     overtime_hours_night: e.overtimeHoursNight,
     overtime_hours_holiday: e.overtimeHoursHoliday,
@@ -309,6 +317,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const existingEntry = existingForPeriod.find((e: any) => e.employee_id === emp.id);
           const preservedHolidaySubsidy = existingEntry?.subsidy_ferias || 0;
           const preserved13thMonth = existingEntry?.subsidy_natal || 0;
+          const preservedOneOffExtra = existingEntry?.one_off_extra || 0;
+          const preservedOneOffExtraNote = existingEntry?.one_off_extra_note || undefined;
+          const preservedHolidayBuyout = existingEntry?.holiday_buyout_amount || 0;
+          const preservedHolidayBuyoutNote = existingEntry?.holiday_buyout_note || undefined;
 
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = preservedHolidaySubsidy > 0
@@ -515,6 +527,10 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               netSalary: payrollResult.netSalary - totalExtraDeductions,
               totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
               monthlyBonus: emp.monthlyBonus || 0,
+              oneOffExtra: preservedOneOffExtra,
+              oneOffExtraNote: preservedOneOffExtraNote,
+              holidayBuyoutAmount: preservedHolidayBuyout,
+              holidayBuyoutNote: preservedHolidayBuyoutNote,
               absenceDeduction: totalAbsenceDeduction,
               loanDeduction,
               advanceDeduction,

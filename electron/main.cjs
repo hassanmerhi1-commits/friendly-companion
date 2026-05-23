@@ -1337,6 +1337,13 @@ function runMigrations() {
     addColumnIfMissing('employees', 'transport_allowance', "ALTER TABLE employees ADD COLUMN transport_allowance REAL DEFAULT 0");
     addColumnIfMissing('employees', 'other_allowances', "ALTER TABLE employees ADD COLUMN other_allowances REAL DEFAULT 0");
     addColumnIfMissing('employees', 'is_retired', "ALTER TABLE employees ADD COLUMN is_retired INTEGER DEFAULT 0");
+    addColumnIfMissing('employees', 'exit_date', "ALTER TABLE employees ADD COLUMN exit_date TEXT");
+    addColumnIfMissing('employees', 'exit_reason', "ALTER TABLE employees ADD COLUMN exit_reason TEXT");
+    addColumnIfMissing('employees', 'exit_note', "ALTER TABLE employees ADD COLUMN exit_note TEXT");
+    addColumnIfMissing('employees', 'exit_processed_by', "ALTER TABLE employees ADD COLUMN exit_processed_by TEXT");
+    addColumnIfMissing('employees', 'exit_processed_at', "ALTER TABLE employees ADD COLUMN exit_processed_at TEXT");
+
+    addColumnIfMissing('terminations', 'is_light_exit', "ALTER TABLE terminations ADD COLUMN is_light_exit INTEGER DEFAULT 0");
     
     // Branch columns
     addColumnIfMissing('branches', 'code', "ALTER TABLE branches ADD COLUMN code TEXT");
@@ -1430,6 +1437,10 @@ function runMigrations() {
     addColumnIfMissing('holidays', 'subsidy_paid', "ALTER TABLE holidays ADD COLUMN subsidy_paid INTEGER DEFAULT 0");
     addColumnIfMissing('holidays', 'subsidy_paid_month', "ALTER TABLE holidays ADD COLUMN subsidy_paid_month INTEGER");
     addColumnIfMissing('holidays', 'subsidy_paid_year', "ALTER TABLE holidays ADD COLUMN subsidy_paid_year INTEGER");
+    addColumnIfMissing('holidays', 'notes', "ALTER TABLE holidays ADD COLUMN notes TEXT");
+    addColumnIfMissing('holidays', 'days_bought', "ALTER TABLE holidays ADD COLUMN days_bought INTEGER DEFAULT 0");
+    addColumnIfMissing('holidays', 'buyout_total_amount', "ALTER TABLE holidays ADD COLUMN buyout_total_amount REAL DEFAULT 0");
+    addColumnIfMissing('holidays', 'buyout_entries', "ALTER TABLE holidays ADD COLUMN buyout_entries TEXT");
     
     // Payroll period columns
     addColumnIfMissing('payroll_periods', 'type', "ALTER TABLE payroll_periods ADD COLUMN type TEXT DEFAULT 'monthly'");
@@ -1470,6 +1481,10 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'subsidy_natal', "ALTER TABLE payroll_entries ADD COLUMN subsidy_natal REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'family_allowance', "ALTER TABLE payroll_entries ADD COLUMN family_allowance REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'monthly_bonus', "ALTER TABLE payroll_entries ADD COLUMN monthly_bonus REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'one_off_extra', "ALTER TABLE payroll_entries ADD COLUMN one_off_extra REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'one_off_extra_note', "ALTER TABLE payroll_entries ADD COLUMN one_off_extra_note TEXT");
+    addColumnIfMissing('payroll_entries', 'holiday_buyout_amount', "ALTER TABLE payroll_entries ADD COLUMN holiday_buyout_amount REAL DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'holiday_buyout_note', "ALTER TABLE payroll_entries ADD COLUMN holiday_buyout_note TEXT");
 
     // Overtime (legacy totals + detailed breakdown used by the app)
     addColumnIfMissing('payroll_entries', 'overtime_hours', "ALTER TABLE payroll_entries ADD COLUMN overtime_hours REAL DEFAULT 0");

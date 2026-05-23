@@ -3,23 +3,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Save, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Printer, Save, CheckCircle, AlertTriangle, Banknote } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
-import { useHolidayStore } from '@/stores/holiday-store';
+import { useHolidayStore, type HolidayRecord as StoreHolidayRecord } from '@/stores/holiday-store';
 import { printHtml } from '@/lib/print';
 import { toast } from 'sonner';
 import type { Employee } from '@/types/employee';
 import type { Branch } from '@/types/branch';
 import { useCompanyLogo } from '@/hooks/use-company-logo';
+import { HolidayBuyoutDialog } from '@/components/holidays/HolidayBuyoutDialog';
+import {
+  calculateHolidayEntitlement,
+  getDaysRemaining,
+  getDaysSettled,
+  getTotalBuyoutAmount,
+  getTotalDaysBought,
+  getHolidayBadges,
+  canBuyHolidayForYear,
+} from '@/lib/holiday-utils';
 
-export interface HolidayRecord {
-  employeeId: string;
-  year: number;
-  daysUsed: number;
-  startDate?: string;
-  endDate?: string;
-  notes?: string;
-}
+export type HolidayRecord = Pick<
+  StoreHolidayRecord,
+  'employeeId' | 'year' | 'daysUsed' | 'startDate' | 'endDate' | 'notes'
+>;
 
 interface PrintableHolidayMapProps {
   employees: Employee[];
@@ -43,10 +49,15 @@ export function PrintableHolidayMap({
   onClose,
 }: PrintableHolidayMapProps) {
   const { language } = useLanguage();
-  const { canRegisterHoliday, isSubsidyPaid, getHolidayStatus } = useHolidayStore();
+  const { records: storeRecords, canRegisterHoliday, isSubsidyPaid } = useHolidayStore();
   const printRef = useRef<HTMLDivElement>(null);
   const [editableRecords, setEditableRecords] = useState<HolidayRecord[]>(holidayRecords);
   const [selectedYear, setSelectedYear] = useState(year);
+
+  useEffect(() => {
+    setEditableRecords(holidayRecords);
+  }, [holidayRecords, selectedYear]);
+  const [buyoutEmployee, setBuyoutEmployee] = useState<Employee | null>(null);
   const companyLogo = useCompanyLogo();
   const logoBase64 = companyLogo || '';
 
@@ -58,7 +69,10 @@ export function PrintableHolidayMap({
     yearsWorked: language === 'pt' ? 'Tempo Serviço' : 'Service Time',
     daysEntitled: language === 'pt' ? 'Dias de Direito' : 'Days Entitled',
     daysUsed: language === 'pt' ? 'Dias Gozados' : 'Days Used',
+    daysBought: language === 'pt' ? 'Dias Comprados' : 'Days Bought',
+    buyoutAmount: language === 'pt' ? 'Valor Compra' : 'Buyout',
     daysRemaining: language === 'pt' ? 'Dias Restantes' : 'Days Remaining',
+    buyHoliday: language === 'pt' ? 'Comprar' : 'Buy',
     holidayPeriod: language === 'pt' ? 'Período de Férias' : 'Holiday Period',
     print: language === 'pt' ? 'Imprimir Mapa' : 'Print Map',
     save: language === 'pt' ? 'Guardar Alterações' : 'Save Changes',
@@ -81,66 +95,24 @@ export function PrintableHolidayMap({
 
   const activeEmployees = employees.filter(e => e.status === 'active');
 
-  // Calculate holiday entitlement based on Angolan Labor Law (Lei 12/23)
   const calculateHolidayData = (emp: Employee) => {
-    const hireDate = new Date(emp.hireDate);
-    const referenceDate = new Date(selectedYear, 0, 1); // January 1st of selected year
-    const endOfPreviousYear = new Date(selectedYear - 1, 11, 31); // December 31st of previous year
-    
-    // Check if employee was hired before the selected year
-    const wasHiredBeforeYear = hireDate < referenceDate;
-    
-    // Calculate years and months of service until end of previous year
-    let yearsWorked = 0;
-    let monthsWorked = 0;
-    let isFirstYear = false;
-    let daysEntitled = 0;
-    
-    if (wasHiredBeforeYear) {
-      // Employee worked in previous year - entitled to full 22 days or proportional
-      const hireYear = hireDate.getFullYear();
-      
-      if (hireYear < selectedYear - 1) {
-        // Worked full previous year - entitled to 22 days
-        daysEntitled = 22;
-        yearsWorked = selectedYear - hireYear;
-      } else {
-        // Was hired in the previous year - proportional calculation
-        // 2 days per complete month worked in the previous year
-        isFirstYear = true;
-        const monthsInPreviousYear = 12 - hireDate.getMonth();
-        daysEntitled = Math.max(6, monthsInPreviousYear * 2); // Minimum 6 days
-        if (daysEntitled > 22) daysEntitled = 22;
-        yearsWorked = 0;
-        monthsWorked = monthsInPreviousYear;
-      }
-    } else {
-      // Hired in current year - rights vest on July 1st
-      isFirstYear = true;
-      const vestingDate = new Date(selectedYear, 6, 1); // July 1st
-      const today = new Date();
-      
-      if (today >= vestingDate && hireDate < vestingDate) {
-        // Calculate months from hire date to June 30th
-        const monthsWorkedFirstHalf = Math.max(0, 6 - hireDate.getMonth());
-        daysEntitled = Math.max(6, monthsWorkedFirstHalf * 2);
-        if (daysEntitled > 22) daysEntitled = 22;
-        monthsWorked = monthsWorkedFirstHalf;
-      } else {
-        // Rights not yet vested
-        daysEntitled = 0;
-        monthsWorked = 0;
-      }
-    }
-
-    // Get used days from records
-    const record = editableRecords.find(r => r.employeeId === emp.id && r.year === selectedYear);
-    const daysUsed = record?.daysUsed || 0;
-    
-    // Check if holiday is already paid for this year
+    const { daysEntitled, isFirstYear, yearsWorked, monthsWorked } = calculateHolidayEntitlement(
+      emp,
+      selectedYear
+    );
+    const storeRecord = storeRecords.find((r) => r.employeeId === emp.id && r.year === selectedYear);
+    const editable = editableRecords.find((r) => r.employeeId === emp.id && r.year === selectedYear);
+    const daysUsed = editable?.daysUsed ?? storeRecord?.daysUsed ?? 0;
+    const daysBought = getTotalDaysBought(storeRecord);
+    const buyoutTotal = getTotalBuyoutAmount(storeRecord);
+    const recordForRemaining = storeRecord
+      ? { ...storeRecord, daysUsed }
+      : ({ employeeId: emp.id, year: selectedYear, daysUsed } as StoreHolidayRecord);
+    const daysRemaining = getDaysRemaining(recordForRemaining, daysEntitled);
     const isPaid = isSubsidyPaid(emp.id, selectedYear);
-    const registrationStatus = canRegisterHoliday(emp.id, selectedYear);
-    
+    const registrationStatus = canRegisterHoliday(emp.id, selectedYear, daysEntitled);
+    const badges = getHolidayBadges(storeRecord, isPaid);
+
     return {
       ...emp,
       yearsWorked,
@@ -148,12 +120,16 @@ export function PrintableHolidayMap({
       isFirstYear,
       daysEntitled,
       daysUsed,
-      daysRemaining: Math.max(0, daysEntitled - daysUsed),
-      startDate: record?.startDate || '',
-      endDate: record?.endDate || '',
+      daysBought,
+      buyoutTotal,
+      daysRemaining,
+      startDate: editable?.startDate ?? storeRecord?.startDate ?? '',
+      endDate: editable?.endDate ?? storeRecord?.endDate ?? '',
       isPaid,
-      canEdit: registrationStatus.allowed && !isPaid,
+      canEdit: registrationStatus.allowed && daysRemaining > 0,
+      canBuy: daysRemaining > 0 && canBuyHolidayForYear(selectedYear),
       statusReason: registrationStatus.reason,
+      badges,
     };
   };
 
@@ -165,16 +141,20 @@ export function PrintableHolidayMap({
   const totalPaid = holidayData.filter(e => e.isPaid).length;
 
   const handleDaysUsedChange = (employeeId: string, daysUsed: number) => {
-    // Check if employee can be edited
-    const empData = holidayData.find(e => e.id === employeeId);
-    if (empData?.isPaid) {
-      toast.error(language === 'pt' 
-        ? 'Férias já pagas - não pode ser alterado' 
-        : 'Holiday already paid - cannot be changed');
+    const empData = holidayData.find((e) => e.id === employeeId);
+    if (!empData) return;
+    const settled =
+      daysUsed + empData.daysBought;
+    if (settled > empData.daysEntitled) {
+      toast.error(
+        language === 'pt'
+          ? `Máximo ${empData.daysEntitled} dias (gozado + comprado = ${settled})`
+          : `Maximum ${empData.daysEntitled} days (taken + bought = ${settled})`
+      );
       return;
     }
-    
-    setEditableRecords(prev => {
+
+    setEditableRecords((prev) => {
       const existing = prev.findIndex(r => r.employeeId === employeeId && r.year === selectedYear);
       if (existing >= 0) {
         const updated = [...prev];
@@ -186,16 +166,7 @@ export function PrintableHolidayMap({
   };
 
   const handleDateChange = (employeeId: string, field: 'startDate' | 'endDate', value: string) => {
-    // Check if employee can be edited
-    const empData = holidayData.find(e => e.id === employeeId);
-    if (empData?.isPaid) {
-      toast.error(language === 'pt' 
-        ? 'Férias já pagas - não pode ser alterado' 
-        : 'Holiday already paid - cannot be changed');
-      return;
-    }
-    
-    setEditableRecords(prev => {
+    setEditableRecords((prev) => {
       const existing = prev.findIndex(r => r.employeeId === employeeId && r.year === selectedYear);
       if (existing >= 0) {
         const updated = [...prev];
@@ -328,18 +299,21 @@ export function PrintableHolidayMap({
               <th style={{ width: '70px' }}>{t.hireDate}</th>
               <th style={{ width: '60px' }}>{t.yearsWorked}</th>
               <th style={{ width: '50px' }} className="days-entitled">{t.daysEntitled}</th>
-              <th style={{ width: '50px' }}>{t.daysUsed}</th>
-              <th style={{ width: '50px' }} className="days-remaining">{t.daysRemaining}</th>
-              <th style={{ width: '150px' }}>{t.holidayPeriod}</th>
-              <th style={{ width: '60px' }}>Status</th>
+              <th style={{ width: '45px' }}>{t.daysUsed}</th>
+              <th style={{ width: '45px' }}>{t.daysBought}</th>
+              <th style={{ width: '45px' }} className="days-remaining">{t.daysRemaining}</th>
+              <th style={{ width: '70px' }}>{t.buyoutAmount}</th>
+              <th style={{ width: '140px' }}>{t.holidayPeriod}</th>
+              <th style={{ width: '90px' }}>Status</th>
+              <th style={{ width: '55px' }} className="print:hidden">{t.buyHoliday}</th>
             </tr>
           </thead>
           <tbody>
             {holidayData.map((emp, idx) => (
               <tr 
                 key={emp.id} 
-                className={`${emp.isFirstYear ? 'first-year' : ''} ${emp.isPaid ? 'opacity-70' : ''}`}
-                style={emp.isPaid ? { backgroundColor: '#d5f5e3' } : undefined}
+                className={emp.isFirstYear ? 'first-year' : ''}
+                style={emp.isPaid ? { backgroundColor: '#eafaf1' } : undefined}
               >
                 <td>{idx + 1}</td>
                 <td style={{ textAlign: 'left' }}>
@@ -363,59 +337,71 @@ export function PrintableHolidayMap({
                     max={emp.daysEntitled}
                     value={emp.daysUsed}
                     onChange={(e) => handleDaysUsedChange(emp.id, Number(e.target.value))}
-                    disabled={emp.isPaid}
-                    className={`w-14 h-6 text-xs p-1 text-center print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
+                    className="w-12 h-6 text-xs p-1 text-center print:border-none print:bg-transparent"
                   />
                 </td>
+                <td>{emp.daysBought}</td>
                 <td className="days-remaining">{emp.daysRemaining}</td>
+                <td className="text-xs">
+                  {emp.buyoutTotal > 0 ? emp.buyoutTotal.toLocaleString('pt-AO') : '-'}
+                </td>
                 <td>
                   <div className="flex gap-1 items-center text-xs">
                     <Input
                       type="date"
                       value={emp.startDate}
                       onChange={(e) => handleDateChange(emp.id, 'startDate', e.target.value)}
-                      disabled={emp.isPaid}
-                      className={`w-24 h-6 text-xs p-1 print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
+                      className="w-[5.5rem] h-6 text-xs p-1 print:border-none print:bg-transparent"
                     />
                     <span>-</span>
                     <Input
                       type="date"
                       value={emp.endDate}
                       onChange={(e) => handleDateChange(emp.id, 'endDate', e.target.value)}
-                      disabled={emp.isPaid}
-                      className={`w-24 h-6 text-xs p-1 print:border-none print:bg-transparent ${emp.isPaid ? 'bg-muted cursor-not-allowed' : ''}`}
+                      className="w-[5.5rem] h-6 text-xs p-1 print:border-none print:bg-transparent"
                     />
                   </div>
                 </td>
                 <td>
-                  {(() => {
-                    const status = getHolidayStatus(emp.id, selectedYear);
-                    if (status === 'gozado') {
-                      return (
-                        <Badge variant="default" className="text-xs bg-green-600 print:bg-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
-                          Gozado
-                        </Badge>
-                      );
-                    } else if (status === 'pago') {
-                      return (
-                        <Badge variant="default" className="text-xs bg-blue-600 print:bg-blue-600">
-                          <CheckCircle className="h-3 w-3 mr-1 print:hidden" />
-                          {t.holidayPaid}
-                        </Badge>
-                      );
-                    } else if (emp.startDate) {
-                      return (
-                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
-                          <AlertTriangle className="h-3 w-3 mr-1 print:hidden" />
-                          {t.holidayRegistered}
-                        </Badge>
-                      );
-                    }
-                    return (
+                  <div className="flex flex-wrap gap-0.5 justify-center">
+                    {emp.badges.includes('gozado') && (
+                      <Badge variant="default" className="text-[10px] px-1 bg-green-600">
+                        Gozado
+                      </Badge>
+                    )}
+                    {emp.badges.includes('comprado') && (
+                      <Badge variant="default" className="text-[10px] px-1 bg-violet-600">
+                        Comprado
+                      </Badge>
+                    )}
+                    {emp.badges.includes('subsídio_pago') && (
+                      <Badge variant="default" className="text-[10px] px-1 bg-blue-600">
+                        {t.holidayPaid}
+                      </Badge>
+                    )}
+                    {emp.badges.includes('registado') && (
+                      <Badge variant="outline" className="text-[10px] px-1 text-amber-600 border-amber-600">
+                        <AlertTriangle className="h-2 w-2 mr-0.5 print:hidden" />
+                        {t.holidayRegistered}
+                      </Badge>
+                    )}
+                    {emp.badges.includes('pendente') && (
                       <span className="text-xs text-muted-foreground">Pendente</span>
-                    );
-                  })()}
+                    )}
+                  </div>
+                </td>
+                <td className="print:hidden">
+                  {emp.canBuy && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => setBuyoutEmployee(emp)}
+                    >
+                      <Banknote className="h-3 w-3" />
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -459,6 +445,14 @@ export function PrintableHolidayMap({
           {t.legalNote}
         </div>
       </div>
+
+      <HolidayBuyoutDialog
+        open={!!buyoutEmployee}
+        onOpenChange={(open) => !open && setBuyoutEmployee(null)}
+        employee={buyoutEmployee}
+        year={selectedYear}
+        onSuccess={() => setBuyoutEmployee(null)}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES } from '@/lib/angola-labor-law';
+import { getTotalPaidToEmployee } from '@/lib/payroll-payout';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Branch } from '@/types/branch';
@@ -85,7 +86,7 @@ export function PrintablePayrollSheet({
     absenceDeduction: acc.absenceDeduction + (e.absenceDeduction || 0),
     otherDeductions: acc.otherDeductions + (e.otherDeductions || 0),
     totalDeductions: acc.totalDeductions + e.totalDeductions,
-    netSalary: acc.netSalary + (e.paidEarly ? 0 : (e.netSalary || 0) + (e.monthlyBonus || 0)),
+    netSalary: acc.netSalary + getTotalPaidToEmployee(e),
     inssEmployer: acc.inssEmployer + e.inssEmployer,
     daysAbsent: acc.daysAbsent + (e.daysAbsent || 0),
   }), {
@@ -326,7 +327,7 @@ export function PrintablePayrollSheet({
                 <td style={{ fontSize: '7px', color: entry.advanceDeduction ? '#c0392b' : 'inherit' }}>{formatAOA(entry.advanceDeduction || 0)}</td>
                 <td style={{ fontSize: '7px' }}>{formatAOA(entry.otherDeductions || 0)}</td>
                 <td style={{ fontWeight: 'bold', fontSize: '7px' }}>{formatAOA(entry.totalDeductions)}</td>
-                <td className="net-salary" style={{ fontSize: '7px' }}>{entry.paidEarly ? `(PA) ${formatAOA(0)}` : formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))}</td>
+                <td className="net-salary" style={{ fontSize: '7px' }}>{entry.paidEarly ? `(PA) ${formatAOA(0)}` : formatAOA(getTotalPaidToEmployee(entry))}</td>
                 <td style={{ width: '60px' }}></td>
               </tr>
             ))}

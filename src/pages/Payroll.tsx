@@ -5,7 +5,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen, ChevronDown, Search } from "lucide-react";
+import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen, ChevronDown, Search, Coins } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,9 @@ import { BankPaymentExport } from "@/components/payroll/BankPaymentExport";
 import { PrintableColaboradorSheet } from "@/components/payroll/PrintableColaboradorSheet";
 import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
 import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
+import { PayrollOneOffExtraDialog } from "@/components/payroll/PayrollOneOffExtraDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
+import { getHolidayBuyoutPayout, getOneOffExtraPayout, getTotalPaidToEmployee } from "@/lib/payroll-payout";
 import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
@@ -96,6 +98,8 @@ const Payroll = () => {
   // Early payment dialog
   const [earlyPaymentDialogOpen, setEarlyPaymentDialogOpen] = useState(false);
   const [earlyPaymentEntry, setEarlyPaymentEntry] = useState<PayrollEntry | null>(null);
+  const [oneOffExtraDialogOpen, setOneOffExtraDialogOpen] = useState(false);
+  const [oneOffExtraEntry, setOneOffExtraEntry] = useState<PayrollEntry | null>(null);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const pendingAbsences = getPendingAbsences();
@@ -302,7 +306,8 @@ const Payroll = () => {
     deductions: acc.deductions + e.totalDeductions,
     net: acc.net + (e.paidEarly ? 0 : e.netSalary),
     bonus: acc.bonus + (e.monthlyBonus || 0),
-  }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
+    oneOffExtra: acc.oneOffExtra + getOneOffExtraPayout(e),
+  }), { gross: 0, deductions: 0, net: 0, bonus: 0, oneOffExtra: 0 });
 
   // Calculate months worked for an employee
   const getMonthsWorked = (hireDate: string): number => {
@@ -772,12 +777,14 @@ const Payroll = () => {
           deductions: acc.deductions + e.totalDeductions,
           net: acc.net + (e.paidEarly ? 0 : e.netSalary),
           bonus: acc.bonus + (e.monthlyBonus || 0),
-        }), { gross: 0, deductions: 0, net: 0, bonus: 0 });
+          oneOffExtra: acc.oneOffExtra + getOneOffExtraPayout(e),
+        }), { gross: 0, deductions: 0, net: 0, bonus: 0, oneOffExtra: 0 });
         
         return (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
             <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
             <StatCard title={language === 'pt' ? 'Total Bónus' : 'Total Bonus'} value={formatAOA(displayTotals.bonus)} icon={Gift} delay={50} />
+            <StatCard title={language === 'pt' ? 'Extras Pontuais' : 'One-off Extras'} value={formatAOA(displayTotals.oneOffExtra)} icon={Coins} delay={75} />
             <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={100} />
             <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={150} />
             <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={200} />
@@ -810,6 +817,7 @@ const Payroll = () => {
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Férias' : 'Holiday'}</th>
                    <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
                    <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
+                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Extra' : 'Extra'}</th>
                    <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
@@ -960,6 +968,42 @@ const Payroll = () => {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </td>
+                      <td className="px-3 py-3 text-right font-mono text-sm">
+                        {(() => {
+                          const oneOff = getOneOffExtraPayout(entry);
+                          const buyout = getHolidayBuyoutPayout(entry);
+                          const extraTotal = oneOff + buyout;
+                          const tip = [
+                            buyout > 0 ? `${language === 'pt' ? 'Compra férias' : 'Holiday buyout'}: ${formatAOA(buyout)}` : '',
+                            oneOff > 0 ? `${language === 'pt' ? 'Extra pontual' : 'One-off'}: ${formatAOA(oneOff)}` : '',
+                            entry.holidayBuyoutNote,
+                            entry.oneOffExtraNote,
+                          ].filter(Boolean).join(' | ');
+                          if (extraTotal > 0) {
+                            return (
+                              <span className="text-violet-600" title={tip}>
+                                {formatAOA(extraTotal)}
+                              </span>
+                            );
+                          }
+                          if (!isHistoricalView) {
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground"
+                                onClick={() => {
+                                  setOneOffExtraEntry(entry);
+                                  setOneOffExtraDialogOpen(true);
+                                }}
+                              >
+                                <Coins className="h-3.5 w-3.5" />
+                              </Button>
+                            );
+                          }
+                          return <span className="text-muted-foreground">-</span>;
+                        })()}
+                      </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
@@ -969,11 +1013,11 @@ const Payroll = () => {
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
                               {language === 'pt' ? 'Pago Antecip.' : 'Paid Early'}
                             </span>
-                            <span className="line-through text-muted-foreground">{formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))}</span>
+                            <span className="line-through text-muted-foreground">{formatAOA(getTotalPaidToEmployee(entry))}</span>
                             <span>{formatAOA(0)}</span>
                           </span>
                         ) : (
-                          formatAOA((entry.netSalary || 0) + (entry.monthlyBonus || 0))
+                          formatAOA(getTotalPaidToEmployee(entry))
                         )}
                       </td>
                       <td className="px-3 py-3 text-right flex items-center justify-end gap-1">
@@ -1307,6 +1351,18 @@ const Payroll = () => {
           await usePayrollStore.getState().loadPayroll();
           toast.success(language === 'pt' ? 'Pagamento antecipado registado com sucesso' : 'Early payment registered successfully');
           setEarlyPaymentEntry(null);
+        }}
+      />
+
+      <PayrollOneOffExtraDialog
+        open={oneOffExtraDialogOpen}
+        onOpenChange={setOneOffExtraDialogOpen}
+        entry={oneOffExtraEntry}
+        periodLabel={periodLabel}
+        readOnly={isHistoricalView}
+        onSuccess={() => {
+          void usePayrollStore.getState().loadPayroll();
+          setOneOffExtraEntry(null);
         }}
       />
     </TopNavLayout>

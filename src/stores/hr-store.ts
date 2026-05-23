@@ -52,6 +52,7 @@ function mapDbRowToTermination(row: any): TerminationRecord {
     processedBy: row.processed_by || '',
     processedAt: row.processed_at || '',
     letterGenerated: row.letter_generated === 1,
+    isLightExit: row.is_light_exit === 1,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -79,6 +80,7 @@ function mapTerminationToDbRow(t: TerminationRecord): Record<string, any> {
     processed_by: t.processedBy,
     processed_at: t.processedAt,
     letter_generated: t.letterGenerated ? 1 : 0,
+    is_light_exit: t.isLightExit ? 1 : 0,
     created_at: t.createdAt,
     updated_at: t.updatedAt,
   };
@@ -188,9 +190,15 @@ export const useHRStore = create<HRState>()((set, get) => ({
       const dbRow = mapTerminationToDbRow(record);
       await liveInsert('terminations', dbRow);
       
-      // Update employee status to terminated
       const { updateEmployee } = useEmployeeStore.getState();
-      await updateEmployee(employee.id, { status: 'terminated' } as any);
+      await updateEmployee(employee.id, {
+        status: 'terminated',
+        exitDate: terminationData.terminationDate,
+        exitReason: terminationData.reason,
+        exitNote: terminationData.reasonDetails || undefined,
+        exitProcessedBy: terminationData.processedBy,
+        exitProcessedAt: terminationData.processedAt,
+      } as any);
       
       // Log audit entry
       const { logAction } = useAuditStore.getState();
@@ -210,9 +218,15 @@ export const useHRStore = create<HRState>()((set, get) => ({
     } catch (error) {
       console.error('[HR] Error processing termination:', error);
       
-      // Fallback: just update employee and keep in memory
       const { updateEmployee } = useEmployeeStore.getState();
-      await updateEmployee(employee.id, { status: 'terminated' } as any);
+      await updateEmployee(employee.id, {
+        status: 'terminated',
+        exitDate: terminationData.terminationDate,
+        exitReason: terminationData.reason,
+        exitNote: terminationData.reasonDetails || undefined,
+        exitProcessedBy: terminationData.processedBy,
+        exitProcessedAt: terminationData.processedAt,
+      } as any);
       
       set(state => ({
         terminations: [...state.terminations, record],
@@ -240,9 +254,16 @@ export const useHRStore = create<HRState>()((set, get) => ({
         console.warn('[HR] Could not delete termination from DB:', e);
       }
       
-      // Reactivate the employee
-      const { updateEmployee } = useEmployeeStore.getState();
-      await updateEmployee(employeeId, { status: 'active' } as any);
+      const { updateEmployee, loadEmployees } = useEmployeeStore.getState();
+      await updateEmployee(employeeId, {
+        status: 'active',
+        exitDate: undefined,
+        exitReason: undefined,
+        exitNote: undefined,
+        exitProcessedBy: undefined,
+        exitProcessedAt: undefined,
+      } as any);
+      await loadEmployees();
       
       // Log audit
       const { logAction } = useAuditStore.getState();

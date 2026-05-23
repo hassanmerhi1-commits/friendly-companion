@@ -5,7 +5,14 @@ import { useReactToPrint } from 'react-to-print';
 import type { Employee } from '@/types/employee';
 import type { HolidayRecord } from '@/stores/holiday-store';
 import type { Branch } from '@/types/branch';
-import { useHolidayStore } from '@/stores/holiday-store';
+import {
+  getDaysRemaining,
+  getHolidayBadges,
+  getTotalBuyoutAmount,
+  getTotalDaysBought,
+  hasGozadoHoliday,
+  hasHolidayScheduled,
+} from '@/lib/holiday-utils';
 
 interface PrintableHolidayReportProps {
   employees: Employee[];
@@ -32,7 +39,6 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
   onClose,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
-  const { getHolidayStatus } = useHolidayStore();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -46,39 +52,46 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
   const employeeHolidays = employees.map(emp => {
     const record = holidayRecords.find(r => r.employeeId === emp.id && r.year === year);
     const daysUsed = record?.daysUsed || 0;
-    const daysRemaining = ANNUAL_ENTITLEMENT - daysUsed;
+    const daysBought = getTotalDaysBought(record);
+    const buyoutTotal = getTotalBuyoutAmount(record);
+    const daysRemaining = getDaysRemaining(record, ANNUAL_ENTITLEMENT);
     
     // Calculate tenure
     const hireDate = new Date(emp.hireDate);
     const now = new Date();
     const yearsWorked = Math.floor((now.getTime() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     
-    // Use centralized status logic
-    const status = getHolidayStatus(emp.id, year);
-    
+    const badges = getHolidayBadges(record, !!record?.subsidyPaidInMonth);
+
     return {
       employee: emp,
       record,
       daysEntitled: ANNUAL_ENTITLEMENT,
       daysUsed,
+      daysBought,
+      buyoutTotal,
       daysRemaining,
       yearsWorked,
       startDate: record?.startDate,
       endDate: record?.endDate,
       subsidyPaid: !!record?.subsidyPaidInMonth,
       subsidyMonth: record?.subsidyPaidInMonth,
-      status,
+      badges,
     };
   });
 
   // Group by status
-  const gozado = employeeHolidays.filter(e => e.status === 'gozado');
-  const pago = employeeHolidays.filter(e => e.status === 'pago');
-  const pendente = employeeHolidays.filter(e => e.status === 'pendente');
+  const gozado = employeeHolidays.filter((e) => hasGozadoHoliday(e.record));
+  const comprado = employeeHolidays.filter((e) => e.badges.includes('comprado'));
+  const registado = employeeHolidays.filter((e) => hasHolidayScheduled(e.record));
+  const pago = employeeHolidays.filter((e) => e.subsidyPaid);
+  const pendente = employeeHolidays.filter((e) => e.badges.includes('pendente'));
 
   // Totals
   const totalEntitled = employeeHolidays.reduce((sum, e) => sum + e.daysEntitled, 0);
   const totalUsed = employeeHolidays.reduce((sum, e) => sum + e.daysUsed, 0);
+  const totalBought = employeeHolidays.reduce((sum, e) => sum + e.daysBought, 0);
+  const totalBuyout = employeeHolidays.reduce((sum, e) => sum + e.buyoutTotal, 0);
   const totalRemaining = employeeHolidays.reduce((sum, e) => sum + e.daysRemaining, 0);
 
   const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString('pt-AO') : '-';
@@ -117,7 +130,7 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-6">
           <div className="border border-black p-3 text-center">
             <p className="text-2xl font-bold">{employees.length}</p>
             <p className="text-sm">Total de Trabalhadores</p>
@@ -131,8 +144,16 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
             <p className="text-sm">Dias Gozados</p>
           </div>
           <div className="border border-black p-3 text-center">
+            <p className="text-2xl font-bold">{totalBought}</p>
+            <p className="text-sm">Dias Comprados</p>
+          </div>
+          <div className="border border-black p-3 text-center">
+            <p className="text-2xl font-bold">{totalBuyout.toLocaleString('pt-AO')}</p>
+            <p className="text-sm">Total Compra (Kz)</p>
+          </div>
+          <div className="border border-black p-3 text-center">
             <p className="text-2xl font-bold">{totalRemaining}</p>
-            <p className="text-sm">Dias por Gozar</p>
+            <p className="text-sm">Dias Restantes</p>
           </div>
         </div>
 
@@ -146,6 +167,8 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
               <th className="border border-black p-1 text-center">Anos</th>
               <th className="border border-black p-1 text-center">Dias Direito</th>
               <th className="border border-black p-1 text-center">Gozados</th>
+              <th className="border border-black p-1 text-center">Comprados</th>
+              <th className="border border-black p-1 text-center">Valor Compra</th>
               <th className="border border-black p-1 text-center">Saldo</th>
               <th className="border border-black p-1 text-center">Início</th>
               <th className="border border-black p-1 text-center">Fim</th>
@@ -164,6 +187,10 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
                 <td className="border border-black p-1 text-center">{item.yearsWorked}</td>
                 <td className="border border-black p-1 text-center">{item.daysEntitled}</td>
                 <td className="border border-black p-1 text-center">{item.daysUsed}</td>
+                <td className="border border-black p-1 text-center">{item.daysBought}</td>
+                <td className="border border-black p-1 text-center">
+                  {item.buyoutTotal > 0 ? item.buyoutTotal.toLocaleString('pt-AO') : '-'}
+                </td>
                 <td className="border border-black p-1 text-center font-medium">
                   {item.daysRemaining}
                 </td>
@@ -172,13 +199,21 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
                 <td className="border border-black p-1 text-center">
                   {item.subsidyPaid ? `✓ (${item.subsidyMonth}/${year})` : '-'}
                 </td>
-                <td className="border border-black p-1 text-center">
-                  {item.status === 'gozado' ? (
-                    <span style={{ color: '#27ae60', fontWeight: 'bold' }}>✓ Gozado</span>
-                  ) : item.status === 'pago' ? (
-                    <span style={{ color: '#2980b9', fontWeight: 'bold' }}>💰 Pago</span>
-                  ) : (
-                    <span style={{ color: '#e67e22' }}>○ Pendente</span>
+                <td className="border border-black p-1 text-center text-[10px]">
+                  {item.badges.includes('gozado') && (
+                    <span style={{ color: '#27ae60', fontWeight: 'bold' }}>Gozado </span>
+                  )}
+                  {item.badges.includes('comprado') && (
+                    <span style={{ color: '#7d3c98', fontWeight: 'bold' }}>Comprado </span>
+                  )}
+                  {item.badges.includes('subsídio_pago') && (
+                    <span style={{ color: '#2980b9', fontWeight: 'bold' }}>Subsídio </span>
+                  )}
+                  {item.badges.includes('registado') && (
+                    <span style={{ color: '#d68910', fontWeight: 'bold' }}>Registado </span>
+                  )}
+                  {item.badges.includes('pendente') && (
+                    <span style={{ color: '#e67e22' }}>Pendente</span>
                   )}
                 </td>
               </tr>
@@ -187,7 +222,7 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
         </table>
 
         {/* Status Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
           <div className="border border-black p-3">
             <h4 className="font-bold mb-2" style={{ color: '#e67e22' }}>Pendentes ({pendente.length})</h4>
             {pendente.length === 0 ? (
@@ -230,6 +265,40 @@ export const PrintableHolidayReport: React.FC<PrintableHolidayReportProps> = ({
                   </li>
                 ))}
                 {gozado.length > 5 && <li>... e mais {gozado.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#d68910' }}>Registado ({registado.length})</h4>
+            {registado.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {registado.slice(0, 5).map((e) => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName}
+                    {e.startDate && e.endDate
+                      ? ` — ${formatDate(e.startDate)} a ${formatDate(e.endDate)}`
+                      : ''}
+                  </li>
+                ))}
+                {registado.length > 5 && <li>... e mais {registado.length - 5}</li>}
+              </ul>
+            )}
+          </div>
+          <div className="border border-black p-3">
+            <h4 className="font-bold mb-2" style={{ color: '#7d3c98' }}>Comprado ({comprado.length})</h4>
+            {comprado.length === 0 ? (
+              <p className="text-gray-500">Nenhum</p>
+            ) : (
+              <ul className="space-y-1">
+                {comprado.slice(0, 5).map((e) => (
+                  <li key={e.employee.id}>
+                    {e.employee.firstName} {e.employee.lastName}
+                    {e.buyoutTotal > 0 ? ` - ${e.buyoutTotal.toLocaleString('pt-AO')} Kz` : ''}
+                  </li>
+                ))}
+                {comprado.length > 5 && <li>... e mais {comprado.length - 5}</li>}
               </ul>
             )}
           </div>
