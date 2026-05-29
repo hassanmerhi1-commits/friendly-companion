@@ -7,6 +7,7 @@ import { useEmployeeStore } from "@/stores/employee-store";
 import { useHolidayStore } from "@/stores/holiday-store";
 import { useLanguage } from "@/lib/i18n";
 import { ABSENCE_TYPE_INFO } from "@/types/absence";
+import { isAbsenceActiveToday, isDashboardLeaveAbsence, parseDateOnly } from "@/lib/absence-utils";
 
 export function ActiveLeavesWidget() {
   const { language } = useLanguage();
@@ -21,14 +22,7 @@ export function ActiveLeavesWidget() {
 
     // Active absences (maternity, paternity, sick, other approved)
     const leaveAbsences = absences
-      .filter(a => {
-        const end = new Date(a.endDate);
-        end.setHours(23, 59, 59, 999);
-        const start = new Date(a.startDate);
-        return start <= today && end >= today &&
-          (a.status === 'approved' || a.status === 'justified') &&
-          ['maternity', 'paternity', 'sick_leave', 'work_accident', 'marriage', 'bereavement'].includes(a.type);
-      })
+      .filter(a => isDashboardLeaveAbsence(a) && isAbsenceActiveToday(a))
       .map(a => {
         const emp = employees.find(e => e.id === a.employeeId);
         const info = ABSENCE_TYPE_INFO[a.type];
@@ -50,10 +44,7 @@ export function ActiveLeavesWidget() {
     const activeHolidays = holidayRecords
       .filter(h => {
         if (!h.startDate || !h.endDate) return false;
-        const end = new Date(h.endDate);
-        end.setHours(23, 59, 59, 999);
-        const start = new Date(h.startDate);
-        return start <= today && end >= today;
+        return isAbsenceActiveToday({ startDate: h.startDate, endDate: h.endDate });
       })
       .map(h => {
         const emp = employees.find(e => e.id === h.employeeId);
@@ -99,8 +90,11 @@ export function ActiveLeavesWidget() {
   };
 
   const daysUntilReturn = (endDate: string) => {
-    const diff = Math.ceil((new Date(endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return diff;
+    const end = parseDateOnly(endDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    return Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   return (

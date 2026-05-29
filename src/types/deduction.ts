@@ -25,6 +25,8 @@ export interface Deduction {
   installments: number; // Total number of installments (1 = single payment)
   installmentsPaid: number; // Number of installments already paid
   remainingAmount: number; // Amount still to be deducted
+  /** When true (warehouse loss only), folha deducts full installment — not capped at 25%. */
+  ignoreWarehouseCap?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +39,7 @@ export interface DeductionFormData {
   monthlyAmount?: number; // Optional explicit monthly installment amount
   date: string;
   installments: number; // Number of installments to spread over
+  ignoreWarehouseCap?: boolean;
 }
 
 // Salary advance specific

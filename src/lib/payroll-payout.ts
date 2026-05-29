@@ -25,3 +25,12 @@ export function getTotalPaidToEmployee(entry: PayrollEntry): number {
   if (entry.paidEarly) return 0;
   return (entry.netSalary || 0) + getPayoutExtras(entry);
 }
+
+/** Ficheiro banco (4 colunas): vírgula decimal, sem separador de milhares — ex. 200000,00 */
+export function formatBankFileAmount(amount: number): string {
+  return amount.toFixed(2).replace('.', ',');
+}
+
+export function isExcludedFromBankTransferExport(paymentMethod?: string): boolean {
+  return paymentMethod === 'cash' || paymentMethod === 'mobile_money';
+}

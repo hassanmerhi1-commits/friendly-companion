@@ -16,7 +16,11 @@ import { Download, Building2, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import ExcelJS from 'exceljs';
 import type { PayrollEntry } from '@/types/payroll';
-import { getTotalPaidToEmployee } from '@/lib/payroll-payout';
+import {
+  formatBankFileAmount,
+  getTotalPaidToEmployee,
+  isExcludedFromBankTransferExport,
+} from '@/lib/payroll-payout';
 
 interface BankPaymentExportProps {
   entries: PayrollEntry[];
@@ -39,18 +43,30 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
     ? entries 
     : entries.filter(e => e.employee?.branchId === selectedBranchId);
 
-  const bankableEntries = filteredEntries.filter(e => 
-    e.employee && 
-    e.employee.paymentMethod === 'bank_transfer' && 
-    (e.employee.bankAccountNumber || e.employee.iban)
+  // All employees on this folha except numerário (cash) and mobile money
+  const bankableEntries = filteredEntries.filter(
+    (e) => e.employee && !isExcludedFromBankTransferExport(e.employee.paymentMethod)
+  );
+
+  const excludedCashOrMobile = filteredEntries.filter(
+    (e) => e.employee && isExcludedFromBankTransferExport(e.employee.paymentMethod)
+  );
+
+  const missingBankDetails = bankableEntries.filter(
+    (e) => !e.employee?.iban?.trim() && !e.employee?.bankAccountNumber?.trim()
+  );
+
+  const previewTransferTotal = bankableEntries.reduce(
+    (sum, e) => sum + getTotalPaidToEmployee(e),
+    0
   );
 
   const handleExport = async () => {
     if (bankableEntries.length === 0) {
       toast.error(
-        language === 'pt' 
-          ? 'Nenhum funcionário com dados bancários para exportar' 
-          : 'No employees with bank details to export'
+        language === 'pt'
+          ? 'Nenhum funcionário na folha para exportar (excluídos: numerário e mobile money)'
+          : 'No payroll employees to export (cash and mobile money excluded)'
       );
       return;
     }
@@ -94,9 +110,6 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
         bottom: { style: 'thin' },
         right: { style: 'thin' },
       };
-      // Bank compact template requires plain numeric format (e.g., 200000.00), no thousand separators.
-      const currencyFormat = '0.00';
-
       const headerRow = ws.getRow(1);
       headerRow.eachCell((cell) => {
         cell.font = { bold: true, size: 11, color: { argb: '000000' } };
@@ -108,7 +121,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
 
       transferEntries.forEach((entry, index) => {
         const bankLabel = entry.employee?.bankName?.trim() || paymentReference;
-        const amountText = getTransferAmount(entry).toFixed(2);
+        const amountText = formatBankFileAmount(getTransferAmount(entry));
         const row = ws.addRow({
           beneficiary: `${entry.employee?.firstName || ''} ${entry.employee?.lastName || ''}`.trim(),
           iban: entry.employee?.iban || entry.employee?.bankAccountNumber || '',
@@ -136,7 +149,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
       const totalRow = ws.addRow({
         beneficiary: '',
         iban: '',
-        amount: totalTransfer.toFixed(2),
+        amount: formatBankFileAmount(totalTransfer),
         description: language === 'pt' ? 'TOTAL A TRANSFERIR' : 'TOTAL TO TRANSFER',
       });
       totalRow.eachCell((cell, colNumber) => {
@@ -441,8 +454,8 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
             <p className="text-xs text-muted-foreground">
               {exportFormat === 'bank_simple'
                 ? (language === 'pt'
-                    ? 'Modelo compacto: Beneficiário, IBAN, Valor e Descritivo (igual ao layout do banco).'
-                    : 'Compact model: Beneficiary, IBAN, Amount and Description (same as bank layout).')
+                    ? 'Modelo compacto: Beneficiário, IBAN, Valor (ex. 200000,00) e Descritivo. Inclui todos na folha excepto numerário e mobile money.'
+                    : 'Compact model: Beneficiary, IBAN, Amount (e.g. 200000,00) and Description. All on payroll except cash and mobile money.')
                 : (language === 'pt'
                     ? 'Modelo detalhado para controlo interno com colunas completas da folha.'
                     : 'Detailed model for internal control with full payroll columns.')}
@@ -490,7 +503,7 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-muted-foreground">
-                  {language === 'pt' ? 'Com dados bancários:' : 'With bank details:'}
+                  {language === 'pt' ? 'Na transferência bancária:' : 'Bank transfer:'}
                 </span>
               </div>
               <div className="font-medium text-right">
@@ -498,22 +511,35 @@ export function BankPaymentExport({ entries, periodLabel, open, onOpenChange }: 
               </div>
               <div>
                 <span className="text-muted-foreground">
+                  {language === 'pt' ? 'Excluídos (numerário/mobile):' : 'Excluded (cash/mobile):'}
+                </span>
+              </div>
+              <div className="font-medium text-right text-amber-700">
+                {excludedCashOrMobile.length}
+              </div>
+              <div>
+                <span className="text-muted-foreground">
                   {language === 'pt' ? 'Total a transferir:' : 'Total to transfer:'}
                 </span>
               </div>
               <div className="font-medium text-right">
-                {bankableEntries.reduce((sum, e) => sum + (e.paidEarly ? 0 : (e.netSalary || 0) + (e.monthlyBonus || 0)), 0).toLocaleString('pt-AO', { 
-                  style: 'currency', 
-                  currency: 'AOA',
-                  minimumFractionDigits: 2 
-                })}
+                {formatBankFileAmount(previewTransferTotal)} Kz
               </div>
             </div>
-            {filteredEntries.length > bankableEntries.length && (
+            {excludedCashOrMobile.length > 0 && (
               <p className="text-xs text-amber-600 mt-2">
-                ⚠️ {filteredEntries.length - bankableEntries.length} {language === 'pt' 
-                  ? 'funcionário(s) sem dados bancários (pagamento em numerário ou mobile money)'
-                  : 'employee(s) without bank details (cash or mobile money payment)'}
+                ⚠️ {excludedCashOrMobile.length}{' '}
+                {language === 'pt'
+                  ? 'funcionário(s) excluído(s): pagamento em numerário ou mobile money.'
+                  : 'employee(s) excluded: cash or mobile money payment.'}
+              </p>
+            )}
+            {missingBankDetails.length > 0 && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ {missingBankDetails.length}{' '}
+                {language === 'pt'
+                  ? 'sem IBAN/conta no cadastro — incluído(s) na lista; preencha IBAN antes de enviar ao banco.'
+                  : 'without IBAN/account on file — included in list; add IBAN before bank upload.'}
               </p>
             )}
           </div>

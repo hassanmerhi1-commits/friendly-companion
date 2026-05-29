@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
+import { buildPayrollLeaveNotes, leaveNotesAreEqual } from '@/lib/absence-utils';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { useAbsenceStore } from '@/stores/absence-store';
 
 
 interface PayrollState {
@@ -12,6 +14,8 @@ interface PayrollState {
   isLoaded: boolean;
 
   loadPayroll: () => Promise<void>;
+  /** Fix stored leave_notes on payroll entries when absences have ended. */
+  reconcilePayrollLeaveNotes: () => Promise<number>;
 
   createPeriod: (year: number, month: number) => Promise<PayrollPeriod>;
   getPeriod: (id: string) => PayrollPeriod | undefined;
@@ -229,10 +233,56 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         const entries = entryRows.map(mapDbRowToEntry);
         set({ periods, entries, isLoaded: true });
         console.log('[Payroll] Loaded', periods.length, 'periods and', entries.length, 'entries from DB');
+        void get().reconcilePayrollLeaveNotes();
       } catch (error) {
         console.error('[Payroll] Error loading:', error);
         set({ isLoaded: true });
       }
+    },
+
+    reconcilePayrollLeaveNotes: async () => {
+      const { entries, periods, isLoaded } = get();
+      const absenceState = useAbsenceStore.getState();
+      if (!isLoaded || !absenceState.isLoaded) return 0;
+
+      const { absences } = absenceState;
+      let updated = 0;
+      const patchedEntries: PayrollEntry[] = [];
+
+      for (const entry of entries) {
+        const period = periods.find((p) => p.id === entry.payrollPeriodId);
+        if (!period) continue;
+
+        const nextNotes = buildPayrollLeaveNotes(
+          entry.employeeId,
+          period.year,
+          period.month,
+          absences
+        );
+
+        if (!leaveNotesAreEqual(entry.leaveNotes, nextNotes)) {
+          const now = new Date().toISOString();
+          const updatedEntry: PayrollEntry = {
+            ...entry,
+            leaveNotes: nextNotes,
+            updatedAt: now,
+          };
+          const { id: _, ...row } = mapEntryToDbRow(updatedEntry);
+          await liveUpdate('payroll_entries', entry.id, row);
+          patchedEntries.push(updatedEntry);
+          updated++;
+        }
+      }
+
+      if (updated > 0) {
+        const patchById = new Map(patchedEntries.map((e) => [e.id, e]));
+        set((state) => ({
+          entries: state.entries.map((e) => patchById.get(e.id) ?? e),
+        }));
+        console.log('[Payroll] Reconciled leave_notes on', updated, 'entries (ended licences marked as past)');
+      }
+
+      return updated;
     },
 
     createPeriod: async (year: number, month: number) => {
@@ -349,24 +399,17 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             absenceDeduction = absenceStore.calculateDeductionForEmployee(emp.id, emp.baseSalary, period.month - 1, period.year);
           }
           
-          // Check absence store for active leaves (maternity, paternity, etc.) - informational
+          // Licenças no período (maternidade, etc.) — active flag = still on leave at month end
           let leaveNotes: string | undefined;
           if (absenceStore) {
-            const monthStart = new Date(period.year, period.month - 1, 1).toISOString().split('T')[0];
-            const monthEnd = new Date(period.year, period.month, 0).toISOString().split('T')[0];
-            const periodAbsences = absenceStore.getAbsencesByPeriod(monthStart, monthEnd);
-            const empLeaves = periodAbsences.filter(
-              (a: any) => a.employeeId === emp.id && (a.status === 'justified' || a.status === 'approved') &&
-              ['maternity', 'paternity', 'marriage', 'bereavement', 'sick_leave'].includes(a.type)
+            leaveNotes = buildPayrollLeaveNotes(
+              emp.id,
+              period.year,
+              period.month,
+              absenceStore.absences ?? []
             );
-            if (empLeaves.length > 0) {
-              leaveNotes = JSON.stringify(empLeaves.map((l: any) => ({
-                type: l.type,
-                days: l.days,
-                startDate: l.startDate,
-                endDate: l.endDate,
-              })));
-              console.log(`[Payroll] Active leave for ${emp.firstName}:`, leaveNotes);
+            if (leaveNotes) {
+              console.log(`[Payroll] Leave notes for ${emp.firstName}:`, leaveNotes);
             }
           }
           
@@ -398,7 +441,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
           // Collect eligible deductions into two groups: non-warehouse and warehouse
           const nonWarehouseEligible: { d: any; amount: number }[] = [];
-          const warehouseEligible: { d: any; amount: number }[] = [];
+          const warehouseCappedEligible: { d: any; amount: number }[] = [];
+          const warehouseUncappedEligible: { d: any; amount: number }[] = [];
 
           if (deductionStore) {
             const all = deductionStore.getDeductionsByEmployee(emp.id) || [];
@@ -460,9 +504,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // we must only deduct the remaining balance to avoid over-deduction
               const amount = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
 
-              // Separate warehouse losses from other deductions for priority processing
+              // Warehouse: uncapped (user chose full/custom) vs 25% legal cap
               if (String(d.type || '').trim() === 'warehouse_loss') {
-                warehouseEligible.push({ d, amount });
+                if (d.ignoreWarehouseCap || d.ignore_warehouse_cap) {
+                  warehouseUncappedEligible.push({ d, amount });
+                } else {
+                  warehouseCappedEligible.push({ d, amount });
+                }
               } else {
                 nonWarehouseEligible.push({ d, amount });
               }
@@ -485,21 +533,43 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               });
             }
 
-            // PASS 2: Remaining salary after non-warehouse deductions; warehouse losses share ONE 25% cap per month (FIFO across multiple records).
             const nonWarehouseTotal = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
             const remainingSalaryAfterOthers = Math.max(0, payrollResult.netSalary - nonWarehouseTotal);
-            const warehouseCap = Math.round(remainingSalaryAfterOthers * 0.25);
+            let salaryPoolForWarehouse = remainingSalaryAfterOthers;
+
+            const warehouseSort = (a: { d: any }, b: { d: any }) =>
+              new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime();
+
+            // PASS 2a: Custom/full warehouse loss (no 25% cap) — up to remaining net salary
+            warehouseUncappedEligible.sort(warehouseSort);
+            for (const { d, amount } of warehouseUncappedEligible) {
+              const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
+              const applied = Math.min(installmentCap, salaryPoolForWarehouse);
+              if (applied <= 0) {
+                console.log(`[Payroll] Warehouse loss ${d.id} (custom): skipped — no net salary left after other deductions`);
+                continue;
+              }
+              salaryPoolForWarehouse -= applied;
+              otherDeductions += applied;
+              deductionBreakdown.push({
+                type: d.type,
+                description: d.description,
+                amount: applied,
+                deductionId: d.id,
+              });
+              console.log(`[Payroll] Warehouse loss ${d.id} (custom): applied ${applied} of ${installmentCap} requested`);
+            }
+
+            // PASS 2b: Standard warehouse losses — share ONE 25% cap per month (FIFO)
+            const warehouseCap = Math.round(salaryPoolForWarehouse * 0.25);
             let warehouseCapRemaining = warehouseCap;
 
-            warehouseEligible.sort(
-              (a, b) => new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime()
-            );
-
-            for (const { d, amount } of warehouseEligible) {
+            warehouseCappedEligible.sort(warehouseSort);
+            for (const { d, amount } of warehouseCappedEligible) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
               const cappedAmount = Math.min(installmentCap, warehouseCapRemaining);
               if (cappedAmount <= 0) {
-                console.log(`[Payroll] Warehouse loss ${d.id} skipped: no shared warehouse cap left (${warehouseCap} Kz total for ${remainingSalaryAfterOthers} Kz remaining after others)`);
+                console.log(`[Payroll] Warehouse loss ${d.id} skipped: no shared warehouse cap left (${warehouseCap} Kz)`);
                 continue;
               }
               warehouseCapRemaining -= cappedAmount;
@@ -510,7 +580,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 amount: cappedAmount,
                 deductionId: d.id,
               });
-              console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, applied ${cappedAmount} (shared cap ${warehouseCap} Kz, ${warehouseCapRemaining} Kz left this month)`);
+              console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, applied ${cappedAmount} (25% cap ${warehouseCap} Kz)`);
             }
           }
 

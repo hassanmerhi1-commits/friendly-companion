@@ -176,10 +176,7 @@ export default function Deductions() {
     });
 
     if (deduction.type === 'warehouse_loss') {
-      const netSalary = getEmployeeNetSalary(deduction.employeeId);
-      const monthlyCap = Math.round(netSalary * WAREHOUSE_LOSS_MAX_RATE);
-      const isAutoMode = monthlyCap > 0 && Math.abs(deduction.amount - monthlyCap) < 0.01;
-      setManualOverride(!isAutoMode);
+      setManualOverride(Boolean(deduction.ignoreWarehouseCap));
     } else {
       setManualOverride(false);
     }
@@ -214,6 +211,7 @@ export default function Deductions() {
       installments: normalizedInstallments,
       remainingAmount: Math.max(0, newRemainingAmount),
       isFullyPaid: newRemainingAmount <= 0,
+      ignoreWarehouseCap: isWarehouseLoss && manualOverride,
     });
     setIsEditDialogOpen(false);
     setEditingDeduction(null);
@@ -350,7 +348,15 @@ export default function Deductions() {
           <Switch
             id="manual-override-edit"
             checked={manualOverride}
-            onCheckedChange={setManualOverride}
+            onCheckedChange={(checked) => {
+              setManualOverride(checked);
+              if (checked && formData.totalAmount > 0) {
+                setFormData((prev) => ({
+                  ...prev,
+                  installments: 1,
+                }));
+              }
+            }}
           />
         </div>
       </div>
@@ -402,7 +408,11 @@ export default function Deductions() {
             placeholder={language === 'pt' ? 'Ex: 1, 6, 24...' : 'E.g.: 1, 6, 24...'}
           />
           {formData.installments === 1 && (
-            <p className="text-xs text-muted-foreground mt-1">{language === 'pt' ? 'Pagamento único' : 'Single payment'}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {language === 'pt'
+                ? 'Pagamento único — desconto total no mês (com valor personalizado activo)'
+                : 'Single payment — full amount this month (custom mode on)'}
+            </p>
           )}
         </div>
       </div>

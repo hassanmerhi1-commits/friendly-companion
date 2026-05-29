@@ -15,6 +15,12 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAbsenceStore } from '@/stores/absence-store';
 import { useBulkAttendanceStore, calculateBulkAttendanceDeduction, calculateFullMonthlySalary, type BulkAttendanceEntry as BulkEntry } from '@/stores/bulk-attendance-store';
 import { ABSENCE_TYPE_INFO } from '@/types/absence';
+import {
+  absenceOverlapsRange,
+  getMonthDateRange,
+  isAbsenceActiveToday,
+  isPayrollLeaveAbsence,
+} from '@/lib/absence-utils';
 import { toast } from 'sonner';
 
 interface LocalEntry {
@@ -37,7 +43,7 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   const { getActiveBranches, getBranch } = useBranchStore();
   const { currentUser } = useAuthStore();
   const { entries: savedEntries, saveBulkEntries, getEntriesForPeriod, isLoaded, loadEntries, deleteEntry } = useBulkAttendanceStore();
-  const { absences, getAbsencesByPeriod } = useAbsenceStore();
+  const { absences } = useAbsenceStore();
   
   // Auto-set branch filter based on user's assigned branch
   const userBranchId = currentUser?.branchId;
@@ -53,28 +59,27 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
   // If user has a branch assigned, lock the filter
   const isBranchLocked = !!userBranchId && currentUser?.role !== 'admin';
 
-  // Get active leaves (maternity, paternity, etc.) for the selected period
+  // Only leaves still active today (ended licences are past — not shown)
   const activeLeaves = useMemo(() => {
-    const monthStart = new Date(year, month - 1, 1).toISOString().split('T')[0];
-    const monthEnd = new Date(year, month, 0).toISOString().split('T')[0];
-    const periodAbsences = getAbsencesByPeriod(monthStart, monthEnd);
-    
-    // Group by employee, only justified/approved leaves (not unjustified)
+    const { monthStart, monthEnd } = getMonthDateRange(year, month);
     const leaveMap: Record<string, { type: string; label: string; days: number; status: string }[]> = {};
-    for (const absence of periodAbsences) {
-      if (absence.status === 'justified' || absence.status === 'approved') {
-        if (!leaveMap[absence.employeeId]) leaveMap[absence.employeeId] = [];
-        const typeInfo = ABSENCE_TYPE_INFO[absence.type];
-        leaveMap[absence.employeeId].push({
-          type: absence.type,
-          label: language === 'pt' ? typeInfo.labelPt : typeInfo.labelEn,
-          days: absence.days,
-          status: absence.status,
-        });
-      }
+
+    for (const absence of absences) {
+      if (!isPayrollLeaveAbsence(absence)) continue;
+      if (!absenceOverlapsRange(absence, monthStart, monthEnd)) continue;
+      if (!isAbsenceActiveToday(absence)) continue;
+
+      if (!leaveMap[absence.employeeId]) leaveMap[absence.employeeId] = [];
+      const typeInfo = ABSENCE_TYPE_INFO[absence.type];
+      leaveMap[absence.employeeId].push({
+        type: absence.type,
+        label: language === 'pt' ? typeInfo.labelPt : typeInfo.labelEn,
+        days: absence.days,
+        status: absence.status,
+      });
     }
     return leaveMap;
-  }, [absences, month, year, language, getAbsencesByPeriod]);
+  }, [absences, month, year, language]);
 
   // Load saved entries when component mounts or month/year changes
   useEffect(() => {

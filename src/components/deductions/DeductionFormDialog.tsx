@@ -90,6 +90,12 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0 && formData.totalAmount > 0) {
       return Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly));
     }
+    if (isWarehouseLoss && manualOverride && formData.totalAmount > 0) {
+      if (monthlyPrestacao <= 0 || monthlyPrestacao >= formData.totalAmount - 0.01) {
+        return 1;
+      }
+      return Math.max(1, Math.ceil(formData.totalAmount / monthlyPrestacao));
+    }
     if (monthlyPrestacao > 0 && formData.totalAmount > 0) {
       return Math.max(1, Math.ceil(formData.totalAmount / monthlyPrestacao));
     }
@@ -143,6 +149,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       ...formData,
       installments: calculatedInstallments,
       monthlyAmount: effectiveMonthly,
+      ignoreWarehouseCap: isWarehouseLoss && manualOverride,
     };
     addDeduction(submitData);
     toast.success(t.common.save);
@@ -219,7 +226,12 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
                 <Switch
                   id="manual-override"
                   checked={manualOverride}
-                  onCheckedChange={setManualOverride}
+                  onCheckedChange={(checked) => {
+                    setManualOverride(checked);
+                    if (checked && formData.totalAmount > 0) {
+                      setMonthlyPrestacao(formData.totalAmount);
+                    }
+                  }}
                 />
               </div>
           </div>

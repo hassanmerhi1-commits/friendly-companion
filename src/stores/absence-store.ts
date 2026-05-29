@@ -3,6 +3,7 @@ import type { Absence, AbsenceType, AbsenceStatus } from '@/types/absence';
 import { calculateAbsenceDeduction } from '@/lib/angola-labor-law';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { logAudit } from '@/lib/audit-helper';
+import { usePayrollStore } from '@/stores/payroll-store';
 
 function generateId(): string {
   return `abs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -112,6 +113,9 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
         const absences = rows.map(mapDbRowToAbsence);
         set({ absences, isLoaded: true });
         console.log('[Absences] Loaded', absences.length, 'absences from DB');
+        if (usePayrollStore.getState().isLoaded) {
+          void usePayrollStore.getState().reconcilePayrollLeaveNotes();
+        }
       } catch (error) {
         console.error('[Absences] Error loading:', error);
         set({ isLoaded: true });

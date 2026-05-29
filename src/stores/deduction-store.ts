@@ -17,11 +17,17 @@ export interface DeductionBalanceSnapshot {
  * Single source of truth for deduction balances.
  * "Paid" status follows remaining balance, not installmentsPaid >= installments alone.
  */
+export type DeductionBalanceOptions = {
+  /** Keep planned installment count (do not auto-expand after partial payroll). */
+  fixedInstallments?: number;
+};
+
 export function computeDeductionBalances(
   totalAmount: number,
   monthlyAmount: number,
   installmentsPaid: number,
-  remainingOverride?: number
+  remainingOverride?: number,
+  options?: DeductionBalanceOptions
 ): DeductionBalanceSnapshot {
   const total = Math.max(0, totalAmount);
   const monthly = Math.max(0, monthlyAmount);
@@ -43,7 +49,10 @@ export function computeDeductionBalances(
         ? Math.max(1, Math.ceil(remainingAmount / monthly))
         : 1;
 
-  const installments = Math.max(paidCount + futureInstallments, paidCount, 1);
+  const installments =
+    options?.fixedInstallments !== undefined
+      ? Math.max(options.fixedInstallments, paidCount, 1)
+      : Math.max(paidCount + futureInstallments, paidCount, 1);
   const isFullyPaid = remainingAmount <= BALANCE_EPSILON;
 
   return {
@@ -77,7 +86,8 @@ export function creditDeductionPayment(deduction: Deduction, paidAmount: number)
     deduction.totalAmount,
     deduction.amount,
     newInstallmentsPaid,
-    newRemaining
+    newRemaining,
+    balanceOptionsForDeduction(deduction)
   );
 
   return {
@@ -205,8 +215,18 @@ interface DeductionState {
   getTotalPendingByEmployee: (employeeId: string) => number;
 }
 
+function balanceOptionsForDeduction(
+  ded: Pick<Deduction, 'ignoreWarehouseCap' | 'installments'>
+): DeductionBalanceOptions | undefined {
+  if (ded.ignoreWarehouseCap && ded.installments > 0) {
+    return { fixedInstallments: ded.installments };
+  }
+  return undefined;
+}
+
 function mapDbRowToDeduction(row: any): Deduction {
   const totalAmount = row.total_amount || row.amount || 0;
+  const ignoreWarehouseCap = row.ignore_warehouse_cap === 1 || row.ignore_warehouse_cap === true;
   const installments = row.installments || 1;
   // Legacy compatibility: older DBs stored installment progress in `current_installment`
   const installmentsPaid = row.installments_paid ?? row.current_installment ?? 0;
@@ -219,11 +239,13 @@ function mapDbRowToDeduction(row: any): Deduction {
     row.remaining_amount !== null && row.remaining_amount !== undefined
       ? Number(row.remaining_amount)
       : undefined;
+  const balanceOpts = ignoreWarehouseCap ? { fixedInstallments: installments } : undefined;
   const balances = computeDeductionBalances(
     totalAmount,
     monthlyAmount,
     installmentsPaid,
-    storedRemaining
+    storedRemaining,
+    balanceOpts
   );
 
   return {
@@ -237,9 +259,10 @@ function mapDbRowToDeduction(row: any): Deduction {
     payrollPeriodId: row.payroll_period_id || undefined,
     isApplied: row.is_applied === 1,
     isFullyPaid: balances.isFullyPaid,
-    installments: balances.installments,
+    installments: ignoreWarehouseCap ? installments : balances.installments,
     installmentsPaid: installmentsPaid,
     remainingAmount: balances.remainingAmount,
+    ignoreWarehouseCap,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -262,6 +285,7 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
     // Legacy compatibility
     current_installment: d.installmentsPaid,
     remaining_amount: d.remainingAmount,
+    ignore_warehouse_cap: d.ignoreWarehouseCap ? 1 : 0,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
   };
@@ -294,6 +318,9 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         ? data.installments
         : (monthlyAmount > 0 ? Math.max(1, Math.ceil(data.totalAmount / monthlyAmount)) : 1);
 
+      const ignoreWarehouseCap =
+        data.type === 'warehouse_loss' && Boolean(data.ignoreWarehouseCap);
+
       const newDeduction: Deduction = {
         id: crypto.randomUUID(),
         employeeId: data.employeeId,
@@ -307,6 +334,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         installments: installments,
         installmentsPaid: 0,
         remainingAmount: data.totalAmount,
+        ignoreWarehouseCap,
         createdAt: now,
         updatedAt: now,
       };
@@ -336,12 +364,13 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         merged.totalAmount,
         merged.amount,
         merged.installmentsPaid,
-        merged.remainingAmount
+        merged.remainingAmount,
+        balanceOptionsForDeduction(merged)
       );
       const updated: Deduction = {
         ...merged,
         remainingAmount: balances.remainingAmount,
-        installments: balances.installments,
+        installments: merged.ignoreWarehouseCap ? merged.installments : balances.installments,
         isFullyPaid: balances.isFullyPaid,
         updatedAt: now,
       };
@@ -466,14 +495,20 @@ export function getPendingDeductionsEffectiveMonthlyTotal(
   let total = 0;
 
   const nonWarehouse = pending.filter((d) => String(d.type || '').trim() !== 'warehouse_loss');
-  const warehouse = pending
-    .filter((d) => String(d.type || '').trim() === 'warehouse_loss')
+  const warehouseCapped = pending
+    .filter((d) => String(d.type || '').trim() === 'warehouse_loss' && !d.ignoreWarehouseCap)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const warehouseUncapped = pending
+    .filter((d) => String(d.type || '').trim() === 'warehouse_loss' && d.ignoreWarehouseCap)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   for (const d of nonWarehouse) {
     total += Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
   }
-  for (const d of warehouse) {
+  for (const d of warehouseUncapped) {
+    total += Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
+  }
+  for (const d of warehouseCapped) {
     const inst = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
     const applied = Math.min(inst, warehousePool);
     total += applied;
@@ -493,7 +528,11 @@ export async function normalizeWarehouseLossDeductions() {
     const { deductions } = useDeductionStore.getState();
 
     const warehouseLosses = deductions.filter(
-      (d) => String(d.type || '').trim() === 'warehouse_loss' && !d.isFullyPaid && d.remainingAmount > 0
+      (d) =>
+        String(d.type || '').trim() === 'warehouse_loss' &&
+        !d.ignoreWarehouseCap &&
+        !d.isFullyPaid &&
+        d.remainingAmount > 0
     );
 
     const byEmployee = new Map<string, Deduction[]>();
@@ -536,7 +575,8 @@ export async function normalizeWarehouseLossDeductions() {
           ded.totalAmount,
           newAmount,
           ded.installmentsPaid,
-          rem
+          rem,
+          balanceOptionsForDeduction(ded)
         );
 
         const needsAmountFix = Math.abs(ded.amount - newAmount) > BALANCE_EPSILON;
@@ -617,7 +657,8 @@ export async function rebuildDeductionBalancesFromPayrollHistory(): Promise<Dedu
       ded.totalAmount,
       ded.amount,
       reconciledInstallmentsPaid,
-      historyRemaining
+      historyRemaining,
+      balanceOptionsForDeduction(ded)
     );
 
     const needsUpdate =

@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { formatAOA } from '@/lib/angola-labor-law';
 import type { Employee } from '@/types/employee';
 import type { PayrollEntry } from '@/types/payroll';
+import { parseLeaveNotes } from '@/lib/absence-utils';
 
 interface PayslipPDFProps {
   employee: Employee;
@@ -55,6 +56,7 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
     totalDeductions: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
     netSalary: language === 'pt' ? 'SALÁRIO LÍQUIDO' : 'NET SALARY',
     activeLeave: language === 'pt' ? 'LICENÇAS ACTIVAS' : 'ACTIVE LEAVES',
+    periodLeave: language === 'pt' ? 'LICENÇAS NO PERÍODO' : 'LEAVES IN PERIOD',
     noDeduction: language === 'pt' ? 'Sem desconto salarial' : 'No salary deduction',
     employeeSignature: language === 'pt' ? 'Assinatura do Funcionário' : 'Employee Signature',
     companySignature: language === 'pt' ? 'Assinatura da Empresa' : 'Company Signature',
@@ -63,8 +65,9 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
     generatedOn: language === 'pt' ? 'Gerado em' : 'Generated on',
   };
 
-  // Parse leave notes
-  const leaveInfo = entry.leaveNotes ? JSON.parse(entry.leaveNotes) as { type: string; days: number; startDate: string; endDate: string }[] : [];
+  const leaveInfo = parseLeaveNotes(entry.leaveNotes);
+  const hasActiveLeave = leaveInfo.some((l) => l.active);
+  const leaveSectionTitle = hasActiveLeave ? t.activeLeave : t.periodLeave;
 
   const leaveTypeLabels: Record<string, string> = {
     maternity: language === 'pt' ? 'Licença de Maternidade' : 'Maternity Leave',
@@ -211,11 +214,14 @@ export function PayslipPDF({ employee, entry, periodMonth, periodYear }: Payslip
           {/* Active Leave Information */}
           {leaveInfo.length > 0 && (
             <div className="mb-4 p-3 border border-pink-300 rounded bg-pink-50">
-              <h3 className="font-bold text-sm mb-1" style={{ color: '#be185d' }}>{t.activeLeave}</h3>
+              <h3 className="font-bold text-sm mb-1" style={{ color: '#be185d' }}>{leaveSectionTitle}</h3>
               {leaveInfo.map((leave, i) => (
                 <p key={i} className="text-sm">
-                  • {leaveTypeLabels[leave.type] || leave.type}: {leave.days} {language === 'pt' ? 'dias' : 'days'} 
-                  {' '}({leave.startDate} → {leave.endDate}) — <em>{t.noDeduction}</em>
+                  • {leaveTypeLabels[leave.type] || leave.type}: {leave.days} {language === 'pt' ? 'dias' : 'days'}
+                  {' '}({leave.startDate} → {leave.endDate})
+                  {leave.active
+                    ? <> — <em>{t.noDeduction}</em></>
+                    : <> — <em>{language === 'pt' ? 'Terminada' : 'Ended'}</em></>}
                 </p>
               ))}
             </div>
