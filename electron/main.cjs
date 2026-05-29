@@ -1371,6 +1371,7 @@ function runMigrations() {
     addColumnIfMissing('deductions', 'remaining_amount', "ALTER TABLE deductions ADD COLUMN remaining_amount REAL");
     addColumnIfMissing('deductions', 'is_fully_paid', "ALTER TABLE deductions ADD COLUMN is_fully_paid INTEGER DEFAULT 0");
     addColumnIfMissing('deductions', 'ignore_warehouse_cap', "ALTER TABLE deductions ADD COLUMN ignore_warehouse_cap INTEGER DEFAULT 0");
+    addColumnIfMissing('deductions', 'deduct_from_period_id', "ALTER TABLE deductions ADD COLUMN deduct_from_period_id TEXT");
 
     // Backfill new installment-tracking columns for existing DBs (safe no-op if already populated)
     try {

@@ -3,6 +3,10 @@ import type { PayrollPeriod, PayrollEntry, PayrollSummary } from '@/types/payrol
 import type { Employee } from '@/types/employee';
 import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calculateHourlyRate } from '@/lib/angola-labor-law';
 import { buildPayrollLeaveNotes, leaveNotesAreEqual } from '@/lib/absence-utils';
+import {
+  applySalaryAdvanceFifoForPeriod,
+  isDeductionBlockedByStartPeriod,
+} from '@/lib/salary-advance-scheduling';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useAbsenceStore } from '@/stores/absence-store';
@@ -440,7 +444,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const deductionBreakdown: { type: string; description: string; amount: number; deductionId: string }[] = [];
 
           // Collect eligible deductions into two groups: non-warehouse and warehouse
-          const nonWarehouseEligible: { d: any; amount: number }[] = [];
+          let nonWarehouseEligible: { d: any; amount: number }[] = [];
           const warehouseCappedEligible: { d: any; amount: number }[] = [];
           const warehouseUncappedEligible: { d: any; amount: number }[] = [];
 
@@ -500,6 +504,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // Basic time filter for pending deductions (don't pull future-dated items)
               if (isPending && !isAutoCarry && period.endDate && d.date && d.date > period.endDate) continue;
 
+              // Optional: do not deduct before user-chosen first folha month
+              if (isDeductionBlockedByStartPeriod(d, periodId, allPeriods)) continue;
+
               // d.amount is the monthly installment amount, but for the LAST installment
               // we must only deduct the remaining balance to avoid over-deduction
               const amount = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
@@ -515,6 +522,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
                 nonWarehouseEligible.push({ d, amount });
               }
             }
+
+            // One salary advance per employee per folha (FIFO queue)
+            nonWarehouseEligible = applySalaryAdvanceFifoForPeriod(
+              nonWarehouseEligible,
+              periodId,
+              allPeriods
+            );
 
             // PASS 1: Apply all non-warehouse deductions first
             for (const { d, amount } of nonWarehouseEligible) {

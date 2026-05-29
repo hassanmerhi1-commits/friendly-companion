@@ -20,6 +20,8 @@ export interface Deduction {
   amount: number; // Monthly installment amount (totalAmount / installments)
   date: string;
   payrollPeriodId?: string; // If already applied to a payroll
+  /** Optional: first payroll period to start deducting (any type). */
+  deductFromPeriodId?: string;
   isApplied: boolean;
   isFullyPaid: boolean; // True when all installments are paid
   installments: number; // Total number of installments (1 = single payment)
@@ -39,6 +41,8 @@ export interface DeductionFormData {
   monthlyAmount?: number; // Optional explicit monthly installment amount
   date: string;
   installments: number; // Number of installments to spread over
+  /** Optional: first folha month to start deducting (leave empty for default behaviour). */
+  deductFromPeriodId?: string;
   ignoreWarehouseCap?: boolean;
 }
 

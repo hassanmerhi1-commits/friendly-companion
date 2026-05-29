@@ -20,6 +20,11 @@ import {
   getPendingDeductionsEffectiveMonthlyTotal,
   DEDUCTION_TYPE_ORDER,
 } from '@/stores/deduction-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import {
+  formatPeriodLabel,
+  isSalaryAdvanceQueued,
+} from '@/lib/salary-advance-scheduling';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -52,7 +57,13 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
   const { language } = useLanguage();
   const { deductions, loadDeductions } = useDeductionStore();
   const { employees } = useEmployeeStore();
+  const { periods } = usePayrollStore();
   const [typeFilter, setTypeFilter] = useState<DeductionType | 'all'>('all');
+
+  const monthNames =
+    language === 'pt'
+      ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   useEffect(() => {
     loadDeductions();
@@ -102,11 +113,47 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
     { value: 'other', labelPt: 'Outros', labelEn: 'Other' },
   ];
 
+  const employeeAllDeductions = useMemo(
+    () => deductions.filter((d) => d.employeeId === employeeId),
+    [deductions, employeeId]
+  );
+
+  const getDeductionFolhaNote = (ded: Deduction): string | null => {
+    if (ded.isFullyPaid) return null;
+    if (ded.type === 'salary_advance' && isSalaryAdvanceQueued(ded, employeeAllDeductions)) {
+      if (ded.deductFromPeriodId) {
+        const label = formatPeriodLabel(ded.deductFromPeriodId, periods, monthNames);
+        return language === 'pt'
+          ? label
+            ? `Na fila — início ${label}`
+            : 'Na fila — aguarda adiantamento anterior'
+          : label
+            ? `Queued — starts ${label}`
+            : 'Queued — waiting for prior advance';
+      }
+      return language === 'pt' ? 'Na fila' : 'Queued';
+    }
+    if (ded.deductFromPeriodId && ded.installmentsPaid === 0 && !ded.payrollPeriodId) {
+      const label = formatPeriodLabel(ded.deductFromPeriodId, periods, monthNames);
+      return language === 'pt'
+        ? label
+          ? `Início: ${label}`
+          : null
+        : label
+          ? `Starts: ${label}`
+          : null;
+    }
+    return null;
+  };
+
   const renderRow = (ded: Deduction) => {
     const progressPercent =
       ded.totalAmount > 0 ? ((ded.totalAmount - ded.remainingAmount) / ded.totalAmount) * 100 : 0;
     const paidAmount = Math.max(0, ded.totalAmount - ded.remainingAmount);
     const motive = getDeductionTypeLabel(ded.type, language);
+    const folhaNote = getDeductionFolhaNote(ded);
+    const advanceQueued =
+      !ded.isFullyPaid && ded.type === 'salary_advance' && isSalaryAdvanceQueued(ded, employeeAllDeductions);
 
     return (
       <TableRow key={ded.id}>
@@ -134,17 +181,27 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
           </div>
         </TableCell>
         <TableCell>
-          {ded.isFullyPaid ? (
-            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              {language === 'pt' ? 'Pago' : 'Paid'}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
-              <AlertTriangle className="h-3 w-3 mr-1" />
-              {language === 'pt' ? 'Pendente' : 'Pending'}
-            </Badge>
-          )}
+          <div className="space-y-1">
+            {ded.isFullyPaid ? (
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                {language === 'pt' ? 'Pago' : 'Paid'}
+              </Badge>
+            ) : advanceQueued ? (
+              <Badge variant="outline" className="bg-amber-500/10 text-amber-800 border-amber-500/30">
+                <Clock className="h-3 w-3 mr-1" />
+                {language === 'pt' ? 'Na fila' : 'Queued'}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                {language === 'pt' ? 'Em curso' : 'Active'}
+              </Badge>
+            )}
+            {folhaNote && (
+              <p className="text-xs text-muted-foreground max-w-[200px] leading-snug">{folhaNote}</p>
+            )}
+          </div>
         </TableCell>
       </TableRow>
     );
@@ -181,7 +238,7 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>
-              {language === 'pt' ? 'Dedução Mensal' : 'Monthly Deduction'}
+              {language === 'pt' ? 'Dedução Mensal (folha)' : 'Monthly Deduction (payroll)'}
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 import { FIXED_TOOLBAR_PAGE } from '@/lib/page-layout';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
+import { formatPeriodLabel } from '@/lib/salary-advance-scheduling';
+import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 
@@ -173,6 +175,7 @@ export default function Deductions() {
       totalAmount: deduction.totalAmount,
       date: deduction.date,
       installments: deduction.installments || 1,
+      deductFromPeriodId: deduction.deductFromPeriodId,
     });
 
     if (deduction.type === 'warehouse_loss') {
@@ -201,7 +204,7 @@ export default function Deductions() {
 
     const newRemainingAmount = formData.totalAmount - (editingDeduction.installmentsPaid * newMonthlyAmount);
     
-    await updateDeduction(editingDeduction.id, {
+    const patch: Partial<Deduction> = {
       employeeId: formData.employeeId,
       type: formData.type as DeductionType,
       description: formData.description,
@@ -212,7 +215,11 @@ export default function Deductions() {
       remainingAmount: Math.max(0, newRemainingAmount),
       isFullyPaid: newRemainingAmount <= 0,
       ignoreWarehouseCap: isWarehouseLoss && manualOverride,
-    });
+    };
+    if (editingDeduction.installmentsPaid === 0 && !editingDeduction.isApplied) {
+      patch.deductFromPeriodId = formData.deductFromPeriodId || undefined;
+    }
+    await updateDeduction(editingDeduction.id, patch);
     setIsEditDialogOpen(false);
     setEditingDeduction(null);
     resetForm();
@@ -234,12 +241,8 @@ export default function Deductions() {
     ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
     : ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  const getPeriodLabel = (periodId?: string) => {
-    if (!periodId) return '';
-    const p = periods.find((x) => x.id === periodId);
-    if (!p) return periodId;
-    return `${monthNames[p.month - 1]} ${p.year}`;
-  };
+  const getPeriodLabel = (periodId?: string) =>
+    formatPeriodLabel(periodId, periods, monthNames);
 
   const getBranchName = (branchId?: string) => {
     if (!branchId) return '—';
@@ -266,11 +269,20 @@ export default function Deductions() {
       }
       return label || '—';
     }
+    if (deduction.deductFromPeriodId && deduction.installmentsPaid === 0) {
+      const start = getPeriodLabel(deduction.deductFromPeriodId);
+      return language === 'pt' ? `Início: ${start}` : `Starts: ${start}`;
+    }
     if (deduction.installmentsPaid > 0) {
       return language === 'pt' ? 'Parcial' : 'Partial';
     }
     return language === 'pt' ? 'Pendente' : 'Pending';
   };
+
+  const selectablePayrollMonths = useMemo(
+    () => buildSelectablePayrollMonths(periods, monthNames),
+    [periods, monthNames]
+  );
 
   const pageTitle = language === 'pt' ? 'Deduções' : 'Deductions';
   const pageSubtitle = language === 'pt' 
@@ -383,6 +395,40 @@ export default function Deductions() {
           />
         </div>
       </div>
+
+      {isEditDialogOpen &&
+        editingDeduction &&
+        editingDeduction.installmentsPaid === 0 &&
+        !editingDeduction.isApplied && (
+        <div className="space-y-2">
+          <Label>
+            {language === 'pt' ? 'Iniciar desconto na folha de (opcional)' : 'Start deduction on payroll (optional)'}
+          </Label>
+          <Select
+            value={formData.deductFromPeriodId || '__none__'}
+            onValueChange={(v) =>
+              setFormData((prev) => ({
+                ...prev,
+                deductFromPeriodId: v === '__none__' ? undefined : v,
+              }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">
+                {language === 'pt' ? 'Padrão (regras habituais)' : 'Default (usual rules)'}
+              </SelectItem>
+              {selectablePayrollMonths.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       
       {/* Flexible Installments - free numeric input */}
       <div className="space-y-2">

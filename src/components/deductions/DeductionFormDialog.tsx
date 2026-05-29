@@ -11,6 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/lib/i18n';
 import { useDeductionStore } from '@/stores/deduction-store';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import {
+  formatPeriodLabel,
+  getOpenSalaryAdvancesForEmployee,
+  suggestDeductFromPeriodIdForNewAdvance,
+} from '@/lib/salary-advance-scheduling';
+import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import type { DeductionFormData, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
@@ -27,8 +34,9 @@ interface DeductionFormDialogProps {
 
 export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogProps) {
   const { t, language } = useLanguage();
-  const { addDeduction } = useDeductionStore();
+  const { addDeduction, deductions } = useDeductionStore();
   const { employees } = useEmployeeStore();
+  const { periods } = usePayrollStore();
   const activeEmployees = employees.filter(emp => emp.status === 'active');
 
   const [formData, setFormData] = useState<DeductionFormData>({
@@ -43,6 +51,18 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
   // Monthly prestação amount (user sets this manually)
   const [monthlyPrestacao, setMonthlyPrestacao] = useState<number>(0);
   const [manualOverride, setManualOverride] = useState(false);
+  /** 'auto' = queue after open advances; 'pick' = user-selected folha month */
+  const [deductStartMode, setDeductStartMode] = useState<'auto' | 'pick'>('auto');
+  const [deductFromPeriodId, setDeductFromPeriodId] = useState<string>('');
+
+  const monthNames = language === 'pt'
+    ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const selectableMonths = useMemo(
+    () => buildSelectablePayrollMonths(periods, monthNames),
+    [periods, monthNames]
+  );
 
   useEffect(() => {
     if (open) {
@@ -56,8 +76,25 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       });
       setMonthlyPrestacao(0);
       setManualOverride(false);
+      setDeductStartMode('auto');
+      setDeductFromPeriodId('');
     }
   }, [open]);
+
+  const openAdvances = useMemo(() => {
+    if (!formData.employeeId || formData.type !== 'salary_advance') return [];
+    return getOpenSalaryAdvancesForEmployee(formData.employeeId, deductions);
+  }, [formData.employeeId, formData.type, deductions]);
+
+  const suggestedDeductFromPeriodId = useMemo(() => {
+    if (!formData.employeeId || formData.type !== 'salary_advance') return undefined;
+    return suggestDeductFromPeriodIdForNewAdvance(
+      formData.employeeId,
+      deductions,
+      periods,
+      formData.date
+    );
+  }, [formData.employeeId, formData.type, formData.date, deductions, periods]);
 
   // Calculate net salary for selected employee
   const employeeNetSalary = useMemo(() => {
@@ -145,11 +182,25 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
         return;
       }
     }
+    let resolvedDeductFrom: string | undefined;
+    if (deductStartMode === 'pick') {
+      if (!deductFromPeriodId) {
+        toast.error(
+          language === 'pt'
+            ? 'Seleccione o mês da folha para iniciar o desconto'
+            : 'Select the payroll month to start deductions'
+        );
+        return;
+      }
+      resolvedDeductFrom = deductFromPeriodId;
+    }
+
     const submitData: DeductionFormData = {
       ...formData,
       installments: calculatedInstallments,
       monthlyAmount: effectiveMonthly,
       ignoreWarehouseCap: isWarehouseLoss && manualOverride,
+      deductFromPeriodId: resolvedDeductFrom,
     };
     addDeduction(submitData);
     toast.success(t.common.save);
@@ -243,6 +294,70 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               required
             />
+          </div>
+
+          {formData.type === 'salary_advance' && formData.employeeId && openAdvances.length > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 text-sm">
+              <div className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {language === 'pt'
+                  ? `${openAdvances.length} adiantamento(s) em curso`
+                  : `${openAdvances.length} advance(s) in progress`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {language === 'pt'
+                  ? 'O desconto deste adiantamento só começa depois dos anteriores. O antigo continua na folha até terminar.'
+                  : 'This advance starts after previous ones finish. The older advance keeps deducting until paid.'}
+              </p>
+              {suggestedDeductFromPeriodId && (
+                <p className="text-xs">
+                  {language === 'pt' ? 'Início sugerido na folha: ' : 'Suggested payroll start: '}
+                  <span className="font-semibold">
+                    {formatPeriodLabel(suggestedDeductFromPeriodId, periods, monthNames) ||
+                      (language === 'pt' ? '(crie o período na Folha)' : '(create payroll period)')}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>
+              {language === 'pt' ? 'Iniciar desconto na folha de (opcional)' : 'Start deduction on payroll (optional)'}
+            </Label>
+            <Select
+              value={deductStartMode === 'auto' ? 'auto' : deductFromPeriodId || 'pick-none'}
+              onValueChange={(v) => {
+                if (v === 'auto') {
+                  setDeductStartMode('auto');
+                  setDeductFromPeriodId('');
+                } else {
+                  setDeductStartMode('pick');
+                  setDeductFromPeriodId(v);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  {language === 'pt'
+                    ? 'Padrão (regras habituais — data da dedução)'
+                    : 'Default (usual rules — deduction date)'}
+                </SelectItem>
+                {selectableMonths.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {language === 'pt'
+                ? 'Deixe em Padrão se o desconto deve seguir o comportamento normal. Escolha um mês só se quiser adiar o início na folha.'
+                : 'Leave as Default for normal behaviour. Pick a month only to delay when payroll starts deducting.'}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
