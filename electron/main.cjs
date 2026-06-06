@@ -50,6 +50,89 @@ if (!fs.existsSync(IP_FILE_PATH)) {
   }
 }
 
+// ============= PATH & NATIVE SQLITE HELPERS =============
+function getAppRoot() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'app');
+  }
+  return path.join(__dirname, '..');
+}
+
+function normalizeIpFileContent(raw) {
+  let content = String(raw || '').trim().replace(/^\uFEFF/, '');
+  content = content.replace(/^["']|["']$/g, '');
+  content = content.split(/\r?\n/)[0].trim();
+  if (process.platform === 'win32') {
+    content = content.replace(/\//g, '\\');
+  }
+  return content;
+}
+
+function isWindowsDbPath(content) {
+  return /^[A-Za-z]:\\.+$/i.test(content) || /^\\\\[^\\]+\\.+/.test(content);
+}
+
+function getBetterSqliteNodePath() {
+  return path.join(getAppRoot(), 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+}
+
+function ensureBetterSqliteNative() {
+  const dest = getBetterSqliteNodePath();
+  if (fs.existsSync(dest)) {
+    return { ok: true };
+  }
+
+  const exeDir = path.dirname(app.getPath('exe'));
+  const sources = [
+    path.join(process.resourcesPath, 'better_sqlite3.node'),
+    path.join(INSTALL_DIR, 'better_sqlite3.node'),
+    path.join(__dirname, '..', 'native-modules', 'better-sqlite3', 'Release', 'better_sqlite3.node'),
+    path.join(exeDir, 'resources', 'better_sqlite3.node'),
+    path.join(exeDir, 'resources', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    path.join('C:', 'Program Files', 'PayrollAO', 'resources', 'better_sqlite3.node'),
+    path.join('C:', 'Program Files', 'PayrollAO', 'resources', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+  ];
+
+  for (const src of sources) {
+    try {
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(src, dest);
+        console.log('[DB] Restored better_sqlite3.node from:', src);
+        return { ok: true };
+      }
+    } catch (copyErr) {
+      console.warn('[DB] Could not copy native module from', src, copyErr.message);
+    }
+  }
+
+  return {
+    ok: false,
+    error:
+      'Módulo nativo da base de dados em falta (better_sqlite3.node). ' +
+      'Feche o PayrollAO, reinstale a versão mais recente, ou copie better_sqlite3.node para C:\\PayrollAO\\',
+  };
+}
+
+function loadBetterSqlite3() {
+  const nativeCheck = ensureBetterSqliteNative();
+  if (!nativeCheck.ok) {
+    throw new Error(nativeCheck.error);
+  }
+  try {
+    return require('better-sqlite3');
+  } catch (error) {
+    const msg = error?.message || String(error);
+    if (msg.includes('better_sqlite3.node') || msg.includes('Cannot find module')) {
+      throw new Error(
+        'Não foi possível carregar o módulo SQLite. Reinstale o PayrollAO ou execute a actualização completa (não só o patch). ' +
+        `Detalhe: ${msg}`
+      );
+    }
+    throw error;
+  }
+}
+
 // ============= GLOBALS =============
 let mainWindow = null;
 let db = null;
@@ -94,7 +177,8 @@ function saveCompaniesRegistry(companies) {
 
 function getCompanyDb(companyId) {
   if (!companyId) return db;
-  
+  if (companyId === 'company-default' && db) return db;
+
   // Check if already open
   const entry = companyDatabases.get(companyId);
   if (entry?.db) return entry.db;
@@ -224,14 +308,14 @@ function parseIPFile() {
       return { valid: false, error: 'IP file not found', path: null, isServer: false };
     }
 
-    const content = fs.readFileSync(IP_FILE_PATH, 'utf-8').trim();
+    const content = normalizeIpFileContent(fs.readFileSync(IP_FILE_PATH, 'utf-8'));
     
     if (!content) {
       return { valid: false, error: 'IP file is empty. Configure database path.', path: null, isServer: false };
     }
 
     // Server mode - local path like C:\PayrollAO\payroll.db
-    if (/^[A-Za-z]:\\.+$/.test(content)) {
+    if (isWindowsDbPath(content)) {
       console.log('SERVER MODE: Local database path:', content);
       return { valid: true, path: content, isServer: true };
     }
@@ -654,7 +738,7 @@ function handleDBRequest(request) {
 // ============= DATABASE OPERATIONS (SERVER ONLY) =============
 function openDatabase(filePath) {
   try {
-    const Database = require('better-sqlite3');
+    const Database = loadBetterSqlite3();
     const database = new Database(filePath, { timeout: 30000 });
     
     database.pragma('journal_mode = WAL');
@@ -905,7 +989,7 @@ function createNewDatabaseInternal(targetPath) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
-    const Database = require('better-sqlite3');
+    const Database = loadBetterSqlite3();
     const newDb = new Database(targetPath);
     
     newDb.pragma('journal_mode = WAL');
@@ -1782,7 +1866,8 @@ function readIPFile() {
 
 function writeIPFile(content) {
   try {
-    fs.writeFileSync(IP_FILE_PATH, content, 'utf-8');
+    const normalized = normalizeIpFileContent(content);
+    fs.writeFileSync(IP_FILE_PATH, normalized, 'utf-8');
     return { success: true, path: IP_FILE_PATH };
   } catch (error) {
     return { success: false, error: error.message };
@@ -2041,8 +2126,23 @@ ipcMain.handle('company:setActive', async (event, companyId) => {
     }
   }
   // Server mode - just ensure the db is opened
+  if (!db) {
+    const reinit = initDatabase();
+    if (!reinit.success) {
+      return { success: false, error: reinit.error || 'Base de dados não ligada' };
+    }
+  }
   const targetDb = getCompanyDb(companyId);
-  return { success: !!targetDb };
+  if (!targetDb) {
+    const companies = loadCompaniesRegistry();
+    const company = companies.find((c) => c.id === companyId);
+    const dbFile = company?.dbFile || 'desconhecido';
+    return {
+      success: false,
+      error: `Base de dados da empresa não encontrada (${dbFile}). Verifique o ficheiro IP e o caminho da BD.`,
+    };
+  }
+  return { success: true };
 });
 
 ipcMain.handle('db:getStatus', async () => {

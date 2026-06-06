@@ -17,8 +17,12 @@
     "electron/**/*",
     "index.cjs",
     "public/pwa-192x192.png",
-    "public/pwa-512x512.png"
+    "public/pwa-512x512.png",
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/bindings/**/*",
+    "node_modules/file-uri-to-path/**/*"
   ],
+  "afterPack": "scripts/electron-after-pack.cjs",
   "publish": {
     "provider": "github",
     "owner": "hassanmerhi1-commits",

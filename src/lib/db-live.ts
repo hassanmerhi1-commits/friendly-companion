@@ -464,27 +464,32 @@ export async function liveCreateCompany(name: string): Promise<{ success: boolea
   }
 }
 
-export async function liveSetActiveCompany(companyId: string): Promise<boolean> {
+export async function liveSetActiveCompany(
+  companyId: string
+): Promise<{ success: boolean; error?: string }> {
   setActiveCompanyId(companyId);
-  
+
   if (isBrowserRemoteMode()) {
     try {
       const result = await sendBrowserRequest({ action: 'setCompany', companyId });
-      return result?.success === true;
+      if (result?.success === true) return { success: true };
+      return { success: false, error: result?.error || 'setCompany failed' };
     } catch (e) {
       console.error('[Browser-WS] setCompany failed:', e);
-      return false;
+      return { success: false, error: String(e) };
     }
   }
-  
-  if (!isElectron()) return true;
-  
+
+  if (!isElectron()) return { success: true };
+
   try {
     const result = await (window as any).electronAPI.company.setActive(companyId);
-    return result?.success === true;
+    if (result?.success === true) return { success: true };
+    console.error('[DB-Live] setActive failed:', result?.error);
+    return { success: false, error: result?.error || 'setActive failed' };
   } catch (error) {
     console.error('[DB-Live] Error setting active company:', error);
-    return false;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 

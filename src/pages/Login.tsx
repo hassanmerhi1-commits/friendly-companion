@@ -141,9 +141,9 @@ export function LoginPage() {
     setSelectedCompanyId(companyId);
 
     try {
-      const success = await liveSetActiveCompany(companyId);
-      if (!success) {
-        throw new Error('set_active_company_failed');
+      const setResult = await liveSetActiveCompany(companyId);
+      if (!setResult.success) {
+        throw new Error(setResult.error || 'set_active_company_failed');
       }
 
       // Reset ALL stores to defaults before loading — prevents stale data from previous company
@@ -193,10 +193,15 @@ export function LoginPage() {
       setCompanyReady(true);
     } catch (err) {
       setCompanyReady(false);
+      const detail = err instanceof Error ? err.message : '';
       toast.error(
         language === 'pt'
-          ? 'Erro ao conectar à base de dados da empresa'
-          : 'Error connecting to company database'
+          ? (detail && detail !== 'set_active_company_failed'
+              ? `Erro na base de dados: ${detail}`
+              : 'Erro ao conectar à base de dados da empresa')
+          : (detail && detail !== 'set_active_company_failed'
+              ? `Database error: ${detail}`
+              : 'Error connecting to company database')
       );
     }
   };
