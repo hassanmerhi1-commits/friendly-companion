@@ -5,6 +5,7 @@
   "asar": false,
   "npmRebuild": false,
   "buildDependenciesFromSource": false,
+  "electronVersion": "33.4.11",
   "directories": {
     "output": "release",
     "buildResources": "public"

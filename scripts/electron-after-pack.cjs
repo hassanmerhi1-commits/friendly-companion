@@ -1,6 +1,7 @@
 /**
- * electron-builder afterPack — ensure better_sqlite3.node is bundled for server mode.
+ * electron-builder afterPack — install Electron-matched better-sqlite3 prebuild.
  */
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,24 +10,19 @@ module.exports = async function afterPack(context) {
   if (electronPlatformName !== 'win32') return;
 
   const projectDir = packager.projectDir;
-  const appRoot = path.join(appOutDir, 'resources', 'app');
-  const dest = path.join(appRoot, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-  const resourceCopy = path.join(appOutDir, 'resources', 'better_sqlite3.node');
+  const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, 'package.json'), 'utf8'));
+  const electronVersion = String(pkg.devDependencies?.electron || '33.4.11').replace(/^[\^~]/, '');
 
-  const sources = [
-    path.join(projectDir, 'native-modules', 'better-sqlite3', 'Release', 'better_sqlite3.node'),
-    path.join(projectDir, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-    path.join(projectDir, 'release-test', 'win-unpacked', 'resources', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-  ];
-
-  for (const src of sources) {
-    if (!fs.existsSync(src)) continue;
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-    fs.copyFileSync(src, resourceCopy);
-    console.log('[afterPack] Installed better_sqlite3.node from', src);
+  const sqliteDir = path.join(appOutDir, 'resources', 'app', 'node_modules', 'better-sqlite3');
+  if (!fs.existsSync(path.join(sqliteDir, 'package.json'))) {
+    console.warn('[afterPack] better-sqlite3 not in packed app — skipping native install');
     return;
   }
 
-  console.warn('[afterPack] WARNING: better_sqlite3.node not found — server database mode will fail until native module is installed.');
+  console.log(`[afterPack] prebuild-install better-sqlite3 for Electron ${electronVersion}`);
+  execSync(`npx prebuild-install --runtime electron --target ${electronVersion}`, {
+    cwd: sqliteDir,
+    stdio: 'inherit',
+    shell: true,
+  });
 };

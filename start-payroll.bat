@@ -16,12 +16,12 @@ if not exist "node_modules" (
     call npm install
 )
 
-if not exist "node_modules\better-sqlite3\build\Release\better_sqlite3.node" (
-    if exist "native-modules\better-sqlite3\Release\better_sqlite3.node" (
-        echo Copying SQLite native module for dev...
-        if not exist "node_modules\better-sqlite3\build\Release" mkdir "node_modules\better-sqlite3\build\Release"
-        copy /Y "native-modules\better-sqlite3\Release\better_sqlite3.node" "node_modules\better-sqlite3\build\Release\better_sqlite3.node" >nul
-    )
+echo Ensuring better-sqlite3 matches Electron...
+node scripts\install-native-sqlite.cjs
+if errorlevel 1 (
+    echo ERROR: SQLite native module install failed.
+    pause
+    exit /b 1
 )
 
 echo Starting Vite on http://localhost:8080 ...

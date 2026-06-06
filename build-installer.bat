@@ -34,6 +34,11 @@ echo Building web app...
 call npm run build
 if errorlevel 1 goto :build_failed
 
+echo.
+echo Installing better-sqlite3 prebuild for Electron...
+node scripts\install-native-sqlite.cjs
+if errorlevel 1 goto :native_failed
+
 if not exist "dist\index.html" (
     echo ERROR: Build finished but dist\index.html was not found.
     echo Something prevented the Vite build from outputting files.
@@ -56,7 +61,7 @@ echo Building Electron installer...
 call npx electron-builder --config electron-builder.json --win
 if errorlevel 1 goto :electron_retry
 
-call :install_native_sqlite
+call :install_native_sqlite_packed
 if errorlevel 1 goto :native_failed
 goto :success_end
 
@@ -101,26 +106,20 @@ goto :end
 
 :electron_retry
 echo.
-echo Primary Electron build failed.
-echo Trying fallback build (skip native rebuild)...
-echo.
-call npx electron-builder --config electron-builder.json --win --config.npmRebuild=false --config.buildDependenciesFromSource=false
-if errorlevel 1 goto :electron_failed
+echo Primary Electron build failed. See errors above.
+goto :electron_failed
 
-call :install_native_sqlite
-if errorlevel 1 goto :native_failed
-goto :success_end
-
-:install_native_sqlite
+:install_native_sqlite_packed
 echo.
-echo Installing better-sqlite3 native module (required for local database)...
-call scripts\install-native-sqlite.bat
+echo Installing better-sqlite3 prebuild into packed app...
+node scripts\install-native-sqlite.cjs --packed
 exit /b %ERRORLEVEL%
 
 :native_failed
 echo.
-echo ERROR: PayrollAO cannot open the database without better_sqlite3.node.
-echo Fix: ensure native-modules\better-sqlite3\Release\better_sqlite3.node exists, then re-run this script.
+echo ERROR: Could not install better-sqlite3 prebuild for Electron.
+echo Run: npm install
+echo Then: node scripts\install-native-sqlite.cjs
 goto :end
 
 :success_end

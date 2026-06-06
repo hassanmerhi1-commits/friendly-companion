@@ -72,60 +72,21 @@ function isWindowsDbPath(content) {
   return /^[A-Za-z]:\\.+$/i.test(content) || /^\\\\[^\\]+\\.+/.test(content);
 }
 
-function getBetterSqliteNodePath() {
-  return path.join(getAppRoot(), 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-}
-
-function ensureBetterSqliteNative() {
-  const dest = getBetterSqliteNodePath();
-  if (fs.existsSync(dest)) {
-    return { ok: true };
-  }
-
-  const exeDir = path.dirname(app.getPath('exe'));
-  const sources = [
-    path.join(process.resourcesPath, 'better_sqlite3.node'),
-    path.join(INSTALL_DIR, 'better_sqlite3.node'),
-    path.join(__dirname, '..', 'native-modules', 'better-sqlite3', 'Release', 'better_sqlite3.node'),
-    path.join(exeDir, 'resources', 'better_sqlite3.node'),
-    path.join(exeDir, 'resources', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-    path.join('C:', 'Program Files', 'PayrollAO', 'resources', 'better_sqlite3.node'),
-    path.join('C:', 'Program Files', 'PayrollAO', 'resources', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-  ];
-
-  for (const src of sources) {
-    try {
-      if (fs.existsSync(src)) {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.copyFileSync(src, dest);
-        console.log('[DB] Restored better_sqlite3.node from:', src);
-        return { ok: true };
-      }
-    } catch (copyErr) {
-      console.warn('[DB] Could not copy native module from', src, copyErr.message);
-    }
-  }
-
-  return {
-    ok: false,
-    error:
-      'Módulo nativo da base de dados em falta (better_sqlite3.node). ' +
-      'Feche o PayrollAO, reinstale a versão mais recente, ou copie better_sqlite3.node para C:\\PayrollAO\\',
-  };
-}
-
 function loadBetterSqlite3() {
-  const nativeCheck = ensureBetterSqliteNative();
-  if (!nativeCheck.ok) {
-    throw new Error(nativeCheck.error);
-  }
   try {
     return require('better-sqlite3');
   } catch (error) {
     const msg = error?.message || String(error);
+    if (msg.includes('NODE_MODULE_VERSION')) {
+      throw new Error(
+        'Módulo SQLite incompatível com esta versão do PayrollAO. ' +
+        'Instale a versão 1.0.74 ou superior (instalador completo, não patch parcial). ' +
+        `Detalhe: ${msg}`
+      );
+    }
     if (msg.includes('better_sqlite3.node') || msg.includes('Cannot find module')) {
       throw new Error(
-        'Não foi possível carregar o módulo SQLite. Reinstale o PayrollAO ou execute a actualização completa (não só o patch). ' +
+        'Módulo nativo da base de dados em falta. Reinstale o PayrollAO com o instalador completo. ' +
         `Detalhe: ${msg}`
       );
     }

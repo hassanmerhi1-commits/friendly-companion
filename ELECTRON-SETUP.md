@@ -63,10 +63,11 @@ After building, you can:
 
 ## Troubleshooting
 
-**Local database / connection fails after build (app hangs or never connects):**
-- The Windows build needs `better_sqlite3.node` inside `release\win-unpacked\resources\app\node_modules\better-sqlite3\build\Release\`.
-- `build-installer.bat` copies it automatically from `native-modules\better-sqlite3\` (or `release-test\`).
-- Quick fix on an existing build: run `scripts\install-native-sqlite.bat` after closing PayrollAO.
+**Local database / NODE_MODULE_VERSION error:**
+- PayrollAO pins **Electron 33.4.11**; `better-sqlite3` must use the matching prebuild (not system Node).
+- `build-installer.bat` runs `node scripts/install-native-sqlite.cjs` before and after packaging.
+- After `npm install`, `postinstall` downloads the correct prebuild automatically.
+- Do **not** copy `better_sqlite3.node` from an old install — wrong ABI breaks the database.
 
 **App shows blank screen:**
 - Make sure you ran `npm run build` before `electron-builder`
