@@ -96,6 +96,14 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     );
   }, [formData.employeeId, formData.type, formData.date, deductions, periods]);
 
+  useEffect(() => {
+    if (!open || formData.type !== 'salary_advance' || !formData.employeeId) return;
+    if (openAdvances.length > 0 && suggestedDeductFromPeriodId) {
+      setDeductStartMode('pick');
+      setDeductFromPeriodId(suggestedDeductFromPeriodId);
+    }
+  }, [open, formData.employeeId, formData.type, openAdvances.length, suggestedDeductFromPeriodId]);
+
   // Calculate net salary for selected employee
   const employeeNetSalary = useMemo(() => {
     if (!formData.employeeId) return 0;
@@ -193,6 +201,12 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
         return;
       }
       resolvedDeductFrom = deductFromPeriodId;
+    } else if (
+      formData.type === 'salary_advance' &&
+      openAdvances.length > 0 &&
+      suggestedDeductFromPeriodId
+    ) {
+      resolvedDeductFrom = suggestedDeductFromPeriodId;
     }
 
     const submitData: DeductionFormData = {
@@ -202,9 +216,15 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       ignoreWarehouseCap: isWarehouseLoss && manualOverride,
       deductFromPeriodId: resolvedDeductFrom,
     };
-    addDeduction(submitData);
-    toast.success(t.common.save);
-    onOpenChange(false);
+    void (async () => {
+      try {
+        await addDeduction(submitData);
+        toast.success(t.common.save);
+        onOpenChange(false);
+      } catch {
+        toast.error(language === 'pt' ? 'Erro ao guardar dedução' : 'Failed to save deduction');
+      }
+    })();
   };
 
   return (
@@ -306,8 +326,8 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
               </div>
               <p className="text-xs text-muted-foreground">
                 {language === 'pt'
-                  ? 'O desconto deste adiantamento só começa depois dos anteriores. O antigo continua na folha até terminar.'
-                  : 'This advance starts after previous ones finish. The older advance keeps deducting until paid.'}
+                  ? 'O adiantamento antigo continua na folha até terminar. O novo só entra na fila a partir do mês escolhido abaixo (não use só «Padrão» se quiser Junho).'
+                  : 'The older advance keeps deducting until paid. The new one only joins the queue from the month you pick below (do not leave «Default» if you want a specific month).'}
               </p>
               {suggestedDeductFromPeriodId && (
                 <p className="text-xs">

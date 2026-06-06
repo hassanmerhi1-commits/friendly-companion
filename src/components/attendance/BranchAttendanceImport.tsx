@@ -1,42 +1,78 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { useAttendanceStore } from '@/stores/attendance-store';
-import { useBranchStore } from '@/stores/branch-store';
+import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
+import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
+import { useEmployeeStore } from '@/stores/employee-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import { useAuthStore } from '@/stores/auth-store';
 import { useLanguage } from '@/lib/i18n';
-import { Upload, Check, X, FileJson, Building2 } from 'lucide-react';
+import { buildBulkEntriesFromDailyMarks } from '@/lib/daily-attendance-aggregate';
+import { Upload, Check, X, FileJson, Building2, Inbox } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseISO } from 'date-fns';
 import type { BranchAttendanceData } from '@/pages/BranchAttendance';
-import type { AttendanceRecord } from '@/types/attendance';
+
+const INBOX_KEY = 'branch_attendance_inbox';
 
 interface BranchAttendanceImportProps {
   onImported?: () => void;
+  compact?: boolean;
 }
 
-export function BranchAttendanceImport({ onImported }: BranchAttendanceImportProps) {
+export function BranchAttendanceImport({ onImported, compact }: BranchAttendanceImportProps) {
   const { language } = useLanguage();
-  const { clockIn, updateAttendance, records, loadAttendance } = useAttendanceStore();
-  const { getBranch } = useBranchStore();
+  const { markAttendance, loadRecords } = useDailyAttendanceStore();
+  const { saveBulkEntries } = useBulkAttendanceStore();
+  const { employees } = useEmployeeStore();
+  const { periods } = usePayrollStore();
+  const { currentUser } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [importData, setImportData] = useState<BranchAttendanceData | null>(null);
   const [importing, setImporting] = useState(false);
+  const [inboxCount, setInboxCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const pt = language === 'pt';
+
+  const refreshInboxCount = () => {
+    try {
+      const existing = JSON.parse(localStorage.getItem(INBOX_KEY) || '[]') as BranchAttendanceData[];
+      setInboxCount(existing.length);
+    } catch {
+      setInboxCount(0);
+    }
+  };
+
+  useEffect(() => {
+    refreshInboxCount();
+  }, []);
+
   const t = {
-    importBtn: language === 'pt' ? 'Importar Presenças Filial' : 'Import Branch Attendance',
-    title: language === 'pt' ? 'Importar Presenças da Filial' : 'Import Branch Attendance',
-    selectFile: language === 'pt' ? 'Selecionar Ficheiro' : 'Select File',
-    branch: language === 'pt' ? 'Filial' : 'Branch',
-    date: language === 'pt' ? 'Data' : 'Date',
-    present: language === 'pt' ? 'Presentes' : 'Present',
-    absent: language === 'pt' ? 'Ausentes' : 'Absent',
-    import: language === 'pt' ? 'Importar' : 'Import',
-    cancel: language === 'pt' ? 'Cancelar' : 'Cancel',
-    success: language === 'pt' ? 'Presenças importadas com sucesso!' : 'Attendance imported successfully!',
-    error: language === 'pt' ? 'Erro ao importar ficheiro' : 'Error importing file',
-    invalidFile: language === 'pt' ? 'Ficheiro inválido' : 'Invalid file',
-    submittedAt: language === 'pt' ? 'Enviado em' : 'Submitted at',
+    importBtn: pt ? 'Importar Filial' : 'Import Branch',
+    inboxBtn: pt ? 'Caixa de Entrada' : 'Inbox',
+    title: pt ? 'Importar Presenças da Filial' : 'Import Branch Attendance',
+    branch: pt ? 'Filial' : 'Branch',
+    date: pt ? 'Data' : 'Date',
+    present: pt ? 'Presentes' : 'Present',
+    absent: pt ? 'Ausentes' : 'Absent',
+    import: pt ? 'Importar' : 'Import',
+    cancel: pt ? 'Cancelar' : 'Cancel',
+    success: pt ? 'Presenças importadas e agregadas à folha!' : 'Attendance imported and aggregated to payroll!',
+    error: pt ? 'Erro ao importar ficheiro' : 'Error importing file',
+    invalidFile: pt ? 'Ficheiro inválido' : 'Invalid file',
+    submittedAt: pt ? 'Enviado em' : 'Submitted at',
+    pending: pt ? 'pendentes' : 'pending',
+  };
+
+  const openImportPreview = (data: BranchAttendanceData) => {
+    if (!data.branchId || !data.date || !data.entries) {
+      toast.error(t.invalidFile);
+      return;
+    }
+    setImportData(data);
+    setOpen(true);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,69 +83,72 @@ export function BranchAttendanceImport({ onImported }: BranchAttendanceImportPro
     reader.onload = (evt) => {
       try {
         const data = JSON.parse(evt.target?.result as string) as BranchAttendanceData;
-        if (!data.branchId || !data.date || !data.entries) {
-          toast.error(t.invalidFile);
-          return;
-        }
-        setImportData(data);
-        setOpen(true);
+        openImportPreview(data);
       } catch {
         toast.error(t.invalidFile);
       }
     };
     reader.readAsText(file);
-    // Reset input
     e.target.value = '';
   };
 
-  const handleImport = async () => {
-    if (!importData) return;
+  const handleOpenInbox = () => {
+    try {
+      const existing = JSON.parse(localStorage.getItem(INBOX_KEY) || '[]') as BranchAttendanceData[];
+      if (existing.length === 0) {
+        toast.info(pt ? 'Nenhuma presença pendente' : 'No pending attendance');
+        return;
+      }
+      openImportPreview(existing[0]);
+    } catch {
+      toast.error(t.invalidFile);
+    }
+  };
+
+  const runImport = async (data: BranchAttendanceData, removeFromInbox = false) => {
     setImporting(true);
 
     try {
-      for (const entry of importData.entries) {
-        // Check if attendance record already exists for this employee on this date
-        const existing = records.find(
-          r => r.employeeId === entry.employeeId && r.date === importData.date
-        );
+      const markedBy = currentUser?.id || 'branch-import';
+      const employeeIds = [...new Set(data.entries.map((e) => e.employeeId))];
 
-        if (entry.status === 'present') {
-          if (!existing) {
-            // Create a clocked-in record
-            await clockIn(entry.employeeId);
-          }
-        } else {
-          // Mark as absent
-          if (existing) {
-            await updateAttendance(existing.id, { status: 'absent', notes: `Marked absent by branch: ${importData.branchName}` });
-          } else {
-            // We need to create an absent record directly via the store
-            const { liveInsert } = await import('@/lib/db-live');
-            const now = new Date().toISOString();
-            const absentRecord: Record<string, any> = {
-              id: `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              employee_id: entry.employeeId,
-              date: importData.date,
-              clock_in: null,
-              clock_out: null,
-              status: 'absent',
-              scheduled_start: '08:00',
-              scheduled_end: '17:00',
-              break_duration_minutes: 60,
-              late_minutes: 0,
-              early_leave_minutes: 0,
-              worked_minutes: 0,
-              overtime_minutes: 0,
-              notes: `Marked absent by branch: ${importData.branchName}`,
-              created_at: now,
-              updated_at: now,
-            };
-            await liveInsert('attendance', absentRecord);
-          }
-        }
+      for (const entry of data.entries) {
+        await markAttendance({
+          employeeId: entry.employeeId,
+          date: data.date,
+          status: entry.status === 'absent' ? 'absent' : 'present',
+          delayHours: 0,
+          notes: `Branch import: ${data.branchName}`,
+          markedBy,
+          branchId: data.branchId,
+        });
       }
 
-      await loadAttendance();
+      await loadRecords();
+
+      const referenceDate = parseISO(data.date);
+      const bulkEntries = buildBulkEntriesFromDailyMarks(
+        employeeIds,
+        referenceDate,
+        employees,
+        periods,
+        'Auto-aggregated from branch import'
+      );
+
+      if (bulkEntries.length > 0) {
+        await saveBulkEntries(bulkEntries);
+      }
+
+      if (removeFromInbox) {
+        const existing = JSON.parse(localStorage.getItem(INBOX_KEY) || '[]') as BranchAttendanceData[];
+        const next = existing.filter(
+          (item) =>
+            !(item.branchId === data.branchId && item.date === data.date && item.submittedAt === data.submittedAt)
+        );
+        localStorage.setItem(INBOX_KEY, JSON.stringify(next));
+        refreshInboxCount();
+      }
+
       toast.success(t.success);
       setOpen(false);
       setImportData(null);
@@ -122,21 +161,47 @@ export function BranchAttendanceImport({ onImported }: BranchAttendanceImportPro
     }
   };
 
-  const branch = importData ? getBranch(importData.branchId) : null;
-  const presentCount = importData?.entries.filter(e => e.status === 'present').length || 0;
-  const absentCount = importData?.entries.filter(e => e.status === 'absent').length || 0;
+  const handleImport = async () => {
+    if (!importData) return;
+
+    let fromInbox = false;
+    try {
+      const existing = JSON.parse(localStorage.getItem(INBOX_KEY) || '[]') as BranchAttendanceData[];
+      fromInbox = existing.some(
+        (item) =>
+          item.branchId === importData.branchId &&
+          item.date === importData.date &&
+          item.submittedAt === importData.submittedAt
+      );
+    } catch {
+      fromInbox = false;
+    }
+
+    await runImport(importData, fromInbox);
+  };
+
+  const presentCount = importData?.entries.filter((e) => e.status === 'present').length || 0;
+  const absentCount = importData?.entries.filter((e) => e.status === 'absent').length || 0;
+
+  const btnSize = compact ? 'sm' : 'default';
+  const btnClass = compact ? 'h-8 text-xs shrink-0' : '';
 
   return (
     <>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".json"
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-      <Button variant="outline" onClick={() => fileRef.current?.click()}>
-        <Upload className="h-4 w-4 mr-2" />
+      <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleFileSelect} />
+
+      {inboxCount > 0 && (
+        <Button variant="outline" size={btnSize} className={btnClass} onClick={handleOpenInbox}>
+          <Inbox className="h-3.5 w-3.5 mr-1.5" />
+          {t.inboxBtn}
+          <Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-[10px]">
+            {inboxCount}
+          </Badge>
+        </Button>
+      )}
+
+      <Button variant="outline" size={btnSize} className={btnClass} onClick={() => fileRef.current?.click()}>
+        <Upload className="h-3.5 w-3.5 mr-1.5" />
         {t.importBtn}
       </Button>
 
@@ -157,7 +222,9 @@ export function BranchAttendanceImport({ onImported }: BranchAttendanceImportPro
                     <Building2 className="h-3 w-3" />
                     {t.branch}
                   </span>
-                  <span className="font-medium">{importData.branchName} ({importData.branchCode})</span>
+                  <span className="font-medium">
+                    {importData.branchName} ({importData.branchCode})
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t.date}</span>
@@ -177,18 +244,25 @@ export function BranchAttendanceImport({ onImported }: BranchAttendanceImportPro
                 </div>
               </div>
 
-              {/* Absent list */}
               {absentCount > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">{language === 'pt' ? 'Ausentes:' : 'Absent:'}</p>
-                  {importData.entries.filter(e => e.status === 'absent').map(e => (
-                    <div key={e.employeeId} className="text-sm flex items-center gap-1">
-                      <X className="h-3 w-3 text-destructive" />
-                      {e.employeeName}
-                    </div>
-                  ))}
+                  <p className="text-xs font-medium text-muted-foreground">{pt ? 'Ausentes:' : 'Absent:'}</p>
+                  {importData.entries
+                    .filter((e) => e.status === 'absent')
+                    .map((e) => (
+                      <div key={e.employeeId} className="text-sm flex items-center gap-1">
+                        <X className="h-3 w-3 text-destructive" />
+                        {e.employeeName}
+                      </div>
+                    ))}
                 </div>
               )}
+
+              <p className="text-xs text-muted-foreground">
+                {pt
+                  ? 'Os dados serão gravados na marcação diária e agregados automaticamente à folha.'
+                  : 'Data will be saved to daily marking and auto-aggregated to payroll.'}
+              </p>
 
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">

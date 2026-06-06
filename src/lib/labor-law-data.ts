@@ -1,12 +1,15 @@
 /**
- * Lei Geral de Trabalho de Angola (Lei n.º 12/23)
- * Organized by chapters and articles for easy reference
+ * Lei Geral do Trabalho de Angola (Lei n.º 12/23, de 27 de Dezembro)
+ * Payroll-relevant index — NOT the full legal text (322 articles).
+ * Summaries aligned to Lei 12/23 article numbering.
  */
 
 export interface LaborLawArticle {
   number: string;
   title: string;
+  titleEn?: string;
   content: string;
+  contentEn?: string;
   keywords: string[];
 }
 
@@ -18,346 +21,636 @@ export interface LaborLawChapter {
   articles: LaborLawArticle[];
 }
 
+export interface ComplementaryArticle {
+  id: string;
+  title: string;
+  titleEn: string;
+  content: string;
+  contentEn?: string;
+  keywords: string[];
+  reference: string;
+}
+
+export interface ComplementarySection {
+  id: string;
+  title: string;
+  titleEn: string;
+  reference: string;
+  articles: ComplementaryArticle[];
+}
+
+export const LAW_METADATA = {
+  number: '12/23',
+  published: '27 de Dezembro de 2023',
+  effective: '27 de Março de 2024',
+  totalArticles: 322,
+  totalChapters: 12,
+  revokes: 'Lei n.º 7/15',
+} as const;
+
 export const laborLawChapters: LaborLawChapter[] = [
   {
     id: 'cap1',
     number: 'I',
-    title: 'Disposições Gerais',
-    titleEn: 'General Provisions',
+    title: 'Princípios Gerais',
+    titleEn: 'General Principles',
     articles: [
       {
         number: '1',
-        title: 'Âmbito de Aplicação',
-        content: 'A presente Lei aplica-se às relações jurídico-laborais de trabalho subordinado estabelecidas entre trabalhadores e empregadores, nacionais ou estrangeiros.',
-        keywords: ['aplicação', 'âmbito', 'trabalhador', 'empregador']
+        title: 'Âmbito de aplicação',
+        titleEn: 'Scope of application',
+        content:
+          'Aplica-se a todos os contratos de trabalho entre pessoas singulares e entidades empregadoras (públicas, privadas, cooperativas, ONG, representações diplomáticas). Aplica-se supletivamente a contratos para execução em Angola celebrados entre estrangeiros não residentes.',
+        contentEn:
+          'Applies to all employment contracts between individuals and employers. Supplementarily applies to contracts to be performed in Angola.',
+        keywords: ['âmbito', 'aplicação', 'contrato', 'trabalhador', 'empregador'],
       },
       {
         number: '2',
-        title: 'Conceito de Contrato de Trabalho',
-        content: 'Contrato de trabalho é aquele pelo qual um trabalhador se obriga, mediante retribuição, a prestar a sua actividade a um empregador, sob a autoridade e direcção deste.',
-        keywords: ['contrato', 'trabalho', 'retribuição', 'subordinação']
+        title: 'Exclusão do âmbito',
+        titleEn: 'Exclusions',
+        content:
+          'Ficam excluídos do âmbito da Lei os trabalhadores que exerçam funções de natureza administrativa no Estado, magistrados, militares em serviço activo e outras categorias expressamente previstas.',
+        keywords: ['exclusão', 'funções públicas', 'militares', 'magistrados'],
       },
       {
-        number: '3',
-        title: 'Princípios Fundamentais',
-        content: 'As relações de trabalho regem-se pelos princípios da igualdade, não discriminação, boa-fé, cooperação e respeito mútuo entre as partes.',
-        keywords: ['princípios', 'igualdade', 'discriminação', 'boa-fé']
+        number: '4',
+        title: 'Direito ao trabalho',
+        titleEn: 'Right to work',
+        content:
+          'O trabalho é um direito fundamental. O Estado promove políticas de emprego, formação profissional e protecção dos trabalhadores.',
+        keywords: ['direito', 'trabalho', 'emprego', 'formação'],
       },
-    ]
+      {
+        number: '7',
+        title: 'Fontes de regulação',
+        titleEn: 'Sources of regulation',
+        content:
+          'As relações de trabalho regem-se pela Constituição, pela presente Lei, convenções colectivas, contratos individuais, regulamentos internos e usos compatíveis com a lei.',
+        keywords: ['fontes', 'convenção colectiva', 'regulamento interno', 'contrato'],
+      },
+    ],
   },
   {
     id: 'cap2',
     number: 'II',
-    title: 'Formação do Contrato de Trabalho',
-    titleEn: 'Employment Contract Formation',
+    title: 'Estabelecimento da Relação Jurídico-Laboral',
+    titleEn: 'Establishment of the Employment Relationship',
     articles: [
       {
-        number: '12',
-        title: 'Forma do Contrato',
-        content: 'O contrato de trabalho não está sujeito a forma especial, salvo disposição legal em contrário. Deve ser celebrado por escrito quando: a) for por tempo determinado; b) for celebrado com trabalhador estrangeiro; c) a lei o exigir.',
-        keywords: ['forma', 'escrito', 'contrato', 'estrangeiro']
+        number: '8',
+        title: 'Constituição do contrato',
+        titleEn: 'Formation of the contract',
+        content:
+          'O contrato de trabalho constitui-se pelo acordo de vontades entre trabalhador e empregador sobre a prestação de trabalho subordinado, mediante retribuição.',
+        keywords: ['contrato', 'constituição', 'acordo', 'retribuição'],
       },
       {
-        number: '13',
-        title: 'Período Experimental',
-        content: 'O período experimental corresponde aos primeiros dias de execução do contrato: a) 60 dias para trabalhadores em geral; b) 120 dias para cargos de direcção; c) 180 dias para cargos de alta direcção.',
-        keywords: ['período', 'experimental', 'probatório', 'dias']
+        number: '12',
+        title: 'Forma do contrato',
+        titleEn: 'Form of the contract',
+        content:
+          'O contrato não está sujeito a forma especial, salvo disposição legal. Deve ser escrito quando: for por tempo determinado; envolver trabalhador estrangeiro; ou a lei o exigir.',
+        keywords: ['forma', 'escrito', 'contrato', 'estrangeiro', 'termo'],
       },
       {
         number: '14',
-        title: 'Contrato a Termo Certo',
-        content: 'O contrato de trabalho a termo certo pode ser celebrado pelo prazo máximo de 5 anos, incluindo renovações. Após este prazo, converte-se automaticamente em contrato por tempo indeterminado.',
-        keywords: ['termo', 'certo', 'determinado', 'prazo', 'renovação']
+        title: 'Duração do contrato',
+        titleEn: 'Contract duration',
+        content:
+          'O contrato pode ser por tempo indeterminado ou determinado. O contrato por tempo determinado só é admissível em situações expressamente previstas na lei.',
+        keywords: ['duração', 'indeterminado', 'determinado', 'termo'],
       },
       {
-        number: '15',
-        title: 'Contrato a Termo Incerto',
-        content: 'Admite-se a celebração de contrato a termo incerto nas situações de substituição temporária de trabalhador ausente ou para execução de obra ou serviço determinado.',
-        keywords: ['termo', 'incerto', 'substituição', 'temporário']
+        number: '16',
+        title: 'Duração do contrato por tempo determinado',
+        titleEn: 'Fixed-term contract duration',
+        content:
+          'O contrato por tempo determinado tem duração máxima de 5 anos, incluindo renovações. Ultrapassado esse prazo, converte-se em contrato por tempo indeterminado.',
+        keywords: ['termo', 'determinado', '5 anos', 'renovação', 'conversão'],
       },
-    ]
+      {
+        number: '18',
+        title: 'Período experimental',
+        titleEn: 'Probation period',
+        content:
+          'No contrato por tempo indeterminado: 60 dias (podendo acordar até 120 dias, ou 180 dias para funções de direcção). No contrato por tempo determinado: máximo 30 dias se acordado por escrito. Durante o período experimental qualquer parte pode cessar o contrato sem aviso prévio nem indemnização.',
+        keywords: ['período', 'experimental', 'probatório', '60 dias', '120 dias', '180 dias'],
+      },
+      {
+        number: '31',
+        title: 'Licença de maternidade',
+        titleEn: 'Maternity leave',
+        content:
+          'A trabalhadora tem direito a licença de maternidade de três meses, podendo iniciar até quatro semanas antes do parto previsto. Em parto múltiplo, a parte pós-parto alarga-se em mais quatro semanas.',
+        keywords: ['maternidade', 'licença', '90 dias', 'parto', 'gravidez'],
+      },
+      {
+        number: '35',
+        title: 'Protecção contra despedimento',
+        titleEn: 'Protection against dismissal',
+        content:
+          'A trabalhadora grávida, puérpera ou em licença de maternidade não pode ser despedida por causas objectivas, salvo autorização da Inspecção Geral do Trabalho.',
+        keywords: ['protecção', 'despedimento', 'grávida', 'maternidade', 'inspecção'],
+      },
+      {
+        number: '62',
+        title: 'Modalidades do teletrabalho',
+        titleEn: 'Remote work modalities',
+        content:
+          'O teletrabalho pode ser a tempo completo ou parcial, permanente ou temporário. O trabalhador em teletrabalho tem os mesmos direitos dos demais trabalhadores.',
+        keywords: ['teletrabalho', 'remoto', 'modalidades', 'direitos'],
+      },
+    ],
   },
   {
     id: 'cap3',
     number: 'III',
-    title: 'Direitos e Deveres das Partes',
-    titleEn: 'Rights and Duties of the Parties',
+    title: 'Conteúdo da Relação Jurídico-Laboral',
+    titleEn: 'Content of the Employment Relationship',
     articles: [
       {
-        number: '41',
-        title: 'Deveres do Trabalhador',
-        content: 'São deveres do trabalhador: a) comparecer ao serviço com assiduidade e pontualidade; b) realizar o trabalho com zelo e diligência; c) cumprir ordens e instruções do empregador; d) guardar lealdade ao empregador; e) velar pela conservação dos bens da empresa.',
-        keywords: ['deveres', 'trabalhador', 'assiduidade', 'pontualidade', 'lealdade']
+        number: '81',
+        title: 'Deveres da entidade empregadora',
+        titleEn: 'Employer duties',
+        content:
+          'São deveres do empregador: respeitar e tratar com urbanidade o trabalhador; pagar pontualmente a retribuição; proporcionar boas condições de trabalho; contribuir para a segurança social; passar certificado de trabalho.',
+        keywords: ['deveres', 'empregador', 'pagamento', 'condições', 'INSS'],
       },
       {
-        number: '42',
-        title: 'Deveres do Empregador',
-        content: 'São deveres do empregador: a) respeitar e tratar com urbanidade o trabalhador; b) pagar pontualmente a retribuição; c) proporcionar boas condições de trabalho; d) contribuir para a segurança social; e) passar certificado de trabalho.',
-        keywords: ['deveres', 'empregador', 'pagamento', 'condições', 'respeito']
+        number: '84',
+        title: 'Deveres do trabalhador',
+        titleEn: 'Employee duties',
+        content:
+          'São deveres do trabalhador: comparecer com assiduidade e pontualidade; realizar o trabalho com zelo; cumprir ordens legítimas; guardar lealdade; velar pela conservação dos bens da empresa.',
+        keywords: ['deveres', 'trabalhador', 'assiduidade', 'pontualidade', 'lealdade'],
       },
       {
-        number: '43',
-        title: 'Poder Disciplinar',
-        content: 'O empregador tem poder disciplinar sobre o trabalhador ao seu serviço, podendo aplicar sanções disciplinares em caso de infracção disciplinar, dentro dos limites estabelecidos na lei.',
-        keywords: ['disciplinar', 'poder', 'sanção', 'infracção']
-      },
-    ]
-  },
-  {
-    id: 'cap4',
-    number: 'IV',
-    title: 'Duração e Organização do Tempo de Trabalho',
-    titleEn: 'Working Hours and Organization',
-    articles: [
-      {
-        number: '95',
-        title: 'Período Normal de Trabalho',
-        content: 'O período normal de trabalho não pode exceder 8 horas diárias e 44 horas semanais. Pode ser reduzido por instrumento de regulamentação colectiva de trabalho.',
-        keywords: ['horário', 'horas', 'diário', 'semanal', 'normal']
+        number: '86',
+        title: 'Poder disciplinar',
+        titleEn: 'Disciplinary power',
+        content:
+          'O empregador tem poder disciplinar sobre o trabalhador, podendo aplicar medidas disciplinares por infracções, nos limites e forma estabelecidos na lei.',
+        keywords: ['disciplinar', 'poder', 'medidas', 'infracção'],
       },
       {
-        number: '96',
-        title: 'Trabalho Extraordinário',
-        content: 'Considera-se trabalho extraordinário o prestado fora do período normal de trabalho. Não pode exceder 2 horas diárias, 40 horas mensais e 200 horas anuais.',
-        keywords: ['extraordinário', 'horas', 'extra', 'limite']
+        number: '87',
+        title: 'Medidas disciplinares',
+        titleEn: 'Disciplinary measures',
+        content:
+          'Medidas aplicáveis: admoestação oral; admoestação registada; despromoção temporária; redução temporária de salário; suspensão com perda parcial de retribuição; despedimento disciplinar.',
+        keywords: ['medidas', 'advertência', 'suspensão', 'despedimento', 'disciplinar'],
       },
       {
-        number: '97',
-        title: 'Remuneração do Trabalho Extraordinário',
-        content: 'O trabalho extraordinário é remunerado com acréscimo de: a) 50% nas duas primeiras horas; b) 75% nas horas seguintes; c) 100% em dias de descanso ou feriados.',
-        keywords: ['remuneração', 'extra', 'acréscimo', 'percentagem']
+        number: '88',
+        title: 'Procedimento disciplinar',
+        titleEn: 'Disciplinary procedure',
+        content:
+          'A medida disciplinar (excepto admoestação oral) exige procedimento com convocatória escrita, descrição dos factos, qualificação jurídica, data da entrevista e direito a defesa com acompanhante e testemunhas.',
+        keywords: ['procedimento', 'disciplinar', 'entrevista', 'defesa', 'convocatória'],
       },
       {
-        number: '98',
-        title: 'Trabalho Nocturno',
-        content: 'Considera-se trabalho nocturno o prestado entre as 20 horas de um dia e as 6 horas do dia seguinte. A remuneração tem acréscimo mínimo de 25%.',
-        keywords: ['nocturno', 'noite', 'acréscimo', 'remuneração']
+        number: '101',
+        title: 'Prazo de prescrição e caducidade',
+        titleEn: 'Prescription and lapse',
+        content:
+          'O procedimento disciplinar deve iniciar-se no prazo legal após conhecimento da infracção. A medida não pode ser decidida antes de 3 dias úteis nem depois de 30 dias sobre a data da entrevista.',
+        keywords: ['prescrição', 'caducidade', 'prazo', '30 dias', 'disciplinar'],
       },
-    ]
-  },
-  {
-    id: 'cap5',
-    number: 'V',
-    title: 'Férias, Faltas e Licenças',
-    titleEn: 'Holidays, Absences and Leaves',
-    articles: [
-      {
-        number: '115',
-        title: 'Direito a Férias',
-        content: 'O trabalhador tem direito a um período de férias remuneradas em cada ano civil, que vence no dia 1 de Janeiro. O período mínimo é de 22 dias úteis.',
-        keywords: ['férias', 'direito', 'dias', 'remuneradas']
-      },
-      {
-        number: '116',
-        title: 'Duração das Férias',
-        content: 'A duração das férias é de 22 dias úteis, acrescida de 1 dia útil por cada 3 anos de antiguidade, até ao máximo de 30 dias úteis.',
-        keywords: ['férias', 'duração', 'antiguidade', 'dias']
-      },
-      {
-        number: '117',
-        title: 'Subsídio de Férias',
-        content: 'O trabalhador tem direito a subsídio de férias de valor igual à retribuição correspondente ao período de férias, a pagar antes do início destas.',
-        keywords: ['subsídio', 'férias', 'retribuição', 'pagamento']
-      },
-      {
-        number: '120',
-        title: 'Faltas Justificadas',
-        content: 'São consideradas faltas justificadas: a) casamento (até 8 dias); b) falecimento de familiar (até 5 dias); c) nascimento de filho (3 dias para o pai); d) doença comprovada; e) cumprimento de obrigações legais.',
-        keywords: ['faltas', 'justificadas', 'casamento', 'falecimento', 'doença']
-      },
-      {
-        number: '121',
-        title: 'Efeitos das Faltas Injustificadas',
-        content: 'As faltas injustificadas implicam: a) perda de retribuição; b) desconto na antiguidade; c) eventual procedimento disciplinar. Três faltas seguidas ou cinco interpoladas no ano podem constituir justa causa de despedimento.',
-        keywords: ['faltas', 'injustificadas', 'desconto', 'disciplinar', 'despedimento']
-      },
-    ]
+    ],
   },
   {
     id: 'cap6',
     number: 'VI',
-    title: 'Retribuição',
-    titleEn: 'Remuneration',
+    title: 'Organização e Duração Temporal do Trabalho',
+    titleEn: 'Organization and Working Time',
     articles: [
       {
-        number: '162',
-        title: 'Retribuição Mínima',
-        content: 'O salário mínimo nacional é fixado pelo Governo, ouvidas as organizações sindicais e patronais. A retribuição não pode ser inferior ao salário mínimo legalmente estabelecido.',
-        keywords: ['salário', 'mínimo', 'retribuição', 'nacional']
+        number: '148',
+        title: 'Duração do período normal de trabalho',
+        titleEn: 'Normal working hours',
+        content:
+          'O período normal não pode exceder 44 horas semanais nem 8 horas diárias. Excepções: até 9h/dia (trabalho intermitente, 5 dias/semana) ou até 10h/dia (horário modulado/variável ou recuperação).',
+        keywords: ['horário', 'horas', '44', '8', 'diário', 'semanal'],
       },
       {
-        number: '163',
-        title: 'Componentes da Retribuição',
-        content: 'A retribuição compreende: a) a retribuição base; b) as prestações complementares regulares (subsídios); c) as prestações complementares eventuais (prémios, gratificações).',
-        keywords: ['retribuição', 'componentes', 'base', 'subsídios', 'prémios']
+        number: '179',
+        title: 'Noção de trabalho nocturno',
+        titleEn: 'Night work',
+        content:
+          'Considera-se trabalho nocturno o prestado entre as 20h00 de um dia e as 6h00 do dia seguinte.',
+        keywords: ['nocturno', 'noite', '22h', '6h'],
       },
       {
-        number: '164',
-        title: 'Tempo e Forma de Pagamento',
-        content: 'A retribuição deve ser paga em dinheiro, até ao último dia útil do mês a que respeita. O pagamento pode ser feito por transferência bancária ou cheque, com acordo do trabalhador.',
-        keywords: ['pagamento', 'prazo', 'dinheiro', 'transferência', 'mensal']
+        number: '182',
+        title: 'Remuneração do trabalho nocturno',
+        titleEn: 'Night work pay',
+        content:
+          'O trabalho nocturno confere remuneração adicional de 20% sobre o salário de base (substituível por redução de tempo por convenção colectiva).',
+        keywords: ['nocturno', '20%', 'acréscimo', 'remuneração'],
       },
       {
-        number: '170',
-        title: 'Subsídio de Natal (13º Mês)',
-        content: 'O trabalhador tem direito a subsídio de Natal de valor igual a um mês de retribuição, a pagar até 15 de Dezembro de cada ano. Em caso de admissão ou cessação durante o ano, o subsídio é proporcional.',
-        keywords: ['natal', 'subsídio', '13º', 'décimo terceiro', 'dezembro']
+        number: '183',
+        title: 'Noção de trabalho extraordinário',
+        titleEn: 'Overtime definition',
+        content:
+          'É trabalho extraordinário o exercido fora do período normal diário, no prolongamento deste, no intervalo de refeição/descanso ou em dia/meio-dia de descanso complementar ou semanal.',
+        keywords: ['extraordinário', 'horas extra', 'prolongamento', 'descanso'],
       },
-    ]
+      {
+        number: '185',
+        title: 'Limites do trabalho extraordinário',
+        titleEn: 'Overtime limits',
+        content:
+          'Limites: 2 horas por dia normal de trabalho; 40 horas por mês; 200 horas por ano.',
+        keywords: ['extraordinário', 'limite', '40 horas', '200 horas', '2 horas'],
+      },
+      {
+        number: '186',
+        title: 'Descanso compensatório',
+        titleEn: 'Compensatory rest',
+        content:
+          'Trabalho extraordinário que impeça repouso diário: direito a descanso compensatório remunerado no dia útil seguinte. Em dia de descanso semanal: um dia de descanso compensatório remunerado.',
+        keywords: ['descanso', 'compensatório', 'extraordinário', 'repouso'],
+      },
+      {
+        number: '187',
+        title: 'Registo de trabalho extraordinário',
+        titleEn: 'Overtime records',
+        content:
+          'O empregador deve manter registo do início e fim do trabalho extraordinário. Violação do registo garante ao trabalhador retribuição equivalente a duas horas de extraordinário por cada dia.',
+        keywords: ['registo', 'extraordinário', 'folha', 'efectividade'],
+      },
+      {
+        number: '188',
+        title: 'Remuneração do trabalho extraordinário',
+        titleEn: 'Overtime pay',
+        content:
+          'Para pagamento: fracções inferiores a 15 minutos não contam; 15–44 minutos contam como meia hora; 45–60 minutos como uma hora. O dia/meio-dia de descanso complementar semanal conta como dia normal para efeito de remuneração.',
+        keywords: ['remuneração', 'extraordinário', 'fracções', 'pagamento'],
+      },
+    ],
   },
   {
     id: 'cap7',
     number: 'VII',
-    title: 'Regime Disciplinar',
-    titleEn: 'Disciplinary Regime',
+    title: 'Interrupção da Prestação do Trabalho',
+    titleEn: 'Interruption of Work',
     articles: [
       {
-        number: '43',
-        title: 'Infracção Disciplinar',
-        content: 'Constitui infracção disciplinar todo o comportamento culposo do trabalhador que viole os deveres decorrentes do contrato de trabalho ou da lei.',
-        keywords: ['infracção', 'disciplinar', 'comportamento', 'deveres']
+        number: '191',
+        title: 'Direito ao descanso semanal',
+        titleEn: 'Weekly rest',
+        content:
+          'O trabalhador tem direito a um dia de descanso semanal, normalmente ao domingo, salvo actividades em regime de laboração contínua ou por turnos.',
+        keywords: ['descanso', 'semanal', 'domingo', 'repouso'],
       },
       {
-        number: '44',
-        title: 'Sanções Disciplinares',
-        content: 'São sanções disciplinares aplicáveis ao trabalhador: a) admoestação verbal; b) admoestação registada (advertência); c) suspensão do trabalho com perda de retribuição até 20 dias; d) despedimento com justa causa.',
-        keywords: ['sanções', 'advertência', 'suspensão', 'despedimento', 'admoestação']
+        number: '200',
+        title: 'Remuneração em feriados',
+        titleEn: 'Holiday pay',
+        content:
+          'Feriados e tolerâncias de ponto são dias normais para efeito de salário. Trabalho em feriado (fora de turnos): acréscimo de mais de um dia de salário normal + descanso compensatório nos 3 dias seguintes.',
+        keywords: ['feriado', 'remuneração', 'tolerância', 'descanso compensatório'],
       },
       {
-        number: '45',
-        title: 'Processo Disciplinar',
-        content: 'A aplicação de sanção disciplinar, com excepção da admoestação verbal, deve ser precedida de processo disciplinar escrito com comunicação da intenção de aplicar sanção e concessão de prazo não inferior a 5 dias úteis para defesa.',
-        keywords: ['processo', 'disciplinar', 'defesa', 'prazo', 'comunicação']
-      },
-      {
-        number: '46',
-        title: 'Prescrição',
-        content: 'O procedimento disciplinar deve iniciar-se nos 30 dias seguintes ao conhecimento da infracção pelo empregador. A sanção não pode ser aplicada sem audiência prévia do trabalhador.',
-        keywords: ['prescrição', 'prazo', '30 dias', 'audiência']
+        number: '201',
+        title: 'Direito a férias',
+        titleEn: 'Right to annual leave',
+        content:
+          'O trabalhador tem direito, em cada ano civil, a férias remuneradas. O direito reporta-se ao trabalho do ano anterior e vence a 1 de Janeiro. No ano de admissão, após 6 meses de trabalho efectivo, o gozo é proporcional.',
+        keywords: ['férias', 'direito', '22 dias', 'remuneradas', 'janeiro'],
       },
       {
         number: '204',
-        title: 'Justa Causa de Despedimento',
-        content: 'Constituem justa causa de despedimento: a) desobediência grave; b) violação de direitos de colegas; c) provocação de conflitos; d) lesões corporais; e) furto ou roubo; f) abandono do trabalho; g) faltas injustificadas; h) embriaguez habitual.',
-        keywords: ['justa causa', 'despedimento', 'desobediência', 'furto', 'faltas']
+        title: 'Duração das férias',
+        titleEn: 'Leave duration',
+        content:
+          'Período de férias: 22 dias úteis por ano (não contam descanso semanal, complementar nem feriados). No ano de admissão: 2 dias úteis por mês completo, mínimo 6 dias. Idêntico cálculo se o contrato esteve suspenso por facto do trabalhador.',
+        keywords: ['férias', 'duração', '22 dias', 'antiguidade', 'admissão'],
       },
-    ]
+      {
+        number: '206',
+        title: 'Plano de férias',
+        titleEn: 'Leave schedule',
+        content:
+          'Cada centro de trabalho organiza plano de férias com datas de início e fim. Deve ser afixado até 31 de Janeiro e permanecer visível enquanto houver trabalhadores a gozar férias no ano.',
+        keywords: ['plano', 'férias', 'marcação', '31 janeiro'],
+      },
+      {
+        number: '212',
+        title: 'Remuneração de férias por cessação',
+        titleEn: 'Leave pay on termination',
+        content:
+          'Na cessação do contrato, o trabalhador tem direito à remuneração de férias vencidas e não gozadas, e ainda a 2 dias úteis por mês completo desde 1 de Janeiro (ou desde admissão se cessação antes do vencimento).',
+        keywords: ['férias', 'cessação', 'remuneração', 'rescisão', 'indemnização'],
+      },
+      {
+        number: '213',
+        title: 'Remuneração e gratificação de férias',
+        titleEn: 'Holiday pay and subsidy',
+        content:
+          'Remuneração de férias = salário-base + complementos técnicos e de disponibilidade. Subsídios de transporte/alimentação não são pagos durante férias salvo acordo. Pagamento até 15 dias antes do início do gozo.',
+        keywords: ['subsídio', 'férias', 'gratificação', 'remuneração', '15 dias'],
+      },
+      {
+        number: '216',
+        title: 'Licença sem remuneração',
+        titleEn: 'Unpaid leave',
+        content:
+          'A pedido do trabalhador, o empregador pode autorizar licença sem remuneração. Conta para antiguidade. Até 30 dias conta como tempo efectivo para férias; superior a 30 dias aplica regras de suspensão (Art. 204.º n.º 3).',
+        keywords: ['licença', 'sem remuneração', 'antiguidade', 'férias'],
+      },
+      {
+        number: '218',
+        title: 'Licença de paternidade',
+        titleEn: 'Paternity leave',
+        content:
+          'O pai tem direito a licença de paternidade nos termos regulamentados (incluindo substituição da mãe em casos de incapacidade ou morte da mãe). Consulte também regulamentação do INSS sobre subsídio parental.',
+        keywords: ['paternidade', 'licença', 'pai', 'nascimento', 'parental'],
+      },
+      {
+        number: '219',
+        title: 'Conceito de falta',
+        titleEn: 'Absence definition',
+        content:
+          'Falta é a ausência do trabalhador no local de trabalho durante o período normal diário. Ausências parciais somam-se para determinar dias de falta. Faltas injustificadas permitem desconto no salário do mês.',
+        keywords: ['falta', 'ausência', 'desconto', 'assiduidade'],
+      },
+      {
+        number: '230',
+        title: 'Efeitos das faltas injustificadas',
+        titleEn: 'Unjustified absence effects',
+        content:
+          'Faltas injustificadas implicam cumulativamente: perda de remuneração; infracção disciplinar quando excedam 3 dias/mês ou 12 dias/ano, ou causem prejuízos/riscos graves.',
+        keywords: ['faltas', 'injustificadas', 'desconto', 'disciplinar', '3 dias', '12 dias'],
+      },
+    ],
   },
   {
     id: 'cap8',
     number: 'VIII',
-    title: 'Cessação do Contrato',
-    titleEn: 'Contract Termination',
+    title: 'Valorização, Remuneração e Direitos Económicos',
+    titleEn: 'Remuneration and Economic Rights',
     articles: [
       {
-        number: '195',
-        title: 'Formas de Cessação',
-        content: 'O contrato de trabalho pode cessar por: a) caducidade; b) acordo das partes; c) denúncia pelo trabalhador; d) despedimento por iniciativa do empregador; e) resolução pelo trabalhador.',
-        keywords: ['cessação', 'contrato', 'denúncia', 'despedimento', 'acordo']
+        number: '235',
+        title: 'Conceito de remuneração',
+        titleEn: 'Definition of remuneration',
+        content:
+          'Remuneração é a contrapartida do trabalho, incluindo salário-base, complementos regulares e eventuais, e outras prestações em dinheiro ou espécie previstas na lei ou contrato.',
+        keywords: ['remuneração', 'salário', 'componentes', 'complementos'],
       },
       {
-        number: '197',
-        title: 'Aviso Prévio do Trabalhador',
-        content: 'O trabalhador que pretenda cessar o contrato deve comunicar por escrito ao empregador com antecedência mínima de: a) 15 dias para contratos até 2 anos; b) 30 dias para contratos superiores a 2 anos.',
-        keywords: ['aviso prévio', 'denúncia', 'dias', 'antecedência', 'comunicação']
+        number: '237',
+        title: 'Não discriminação e salário-hora',
+        titleEn: 'Equal pay and hourly rate',
+        content:
+          'Igualdade de remuneração para trabalho igual ou de igual complexidade. Fórmula salário-hora: S/H = (Sm × 12) / (52s × Hs), em que Sm é salário-base mensal e Hs horário semanal normal.',
+        keywords: ['discriminação', 'salário-hora', 'fórmula', 'igualdade', 'cálculo'],
       },
       {
-        number: '202',
-        title: 'Indemnização por Despedimento',
-        content: 'Em caso de despedimento sem justa causa, o trabalhador tem direito a indemnização correspondente a 45 dias de retribuição base por cada ano completo de antiguidade ou fracção, com mínimo de 3 meses.',
-        keywords: ['indemnização', 'despedimento', '45 dias', 'antiguidade']
+        number: '238',
+        title: 'Complementos remuneratórios anuais',
+        titleEn: 'Annual supplements',
+        content:
+          'Por cada ano de serviço efectivo: mínimo de 50% do salário-base como gratificação de férias (pago até 15 dias antes do gozo); mínimo de 50% do salário-base como subsídio de Natal. Proporcional se não completou o ano.',
+        keywords: ['natal', 'subsídio', 'férias', '50%', '13º', 'gratificação'],
       },
       {
-        number: '208',
-        title: 'Certificado de Trabalho',
-        content: 'O empregador é obrigado a passar ao trabalhador, no prazo de 8 dias após a cessação do contrato, um certificado de trabalho indicando as datas de admissão e cessação, cargo exercido e retribuição auferida.',
-        keywords: ['certificado', 'trabalho', 'cessação', 'documento']
-      },
-    ]
-  },
-  {
-    id: 'cap9',
-    number: 'IX',
-    title: 'Protecção da Maternidade e Paternidade',
-    titleEn: 'Maternity and Paternity Protection',
-    articles: [
-      {
-        number: '136',
-        title: 'Licença de Maternidade',
-        content: 'A trabalhadora tem direito a licença de maternidade de 90 dias, podendo iniciar-se até 4 semanas antes do parto previsto. Durante a licença, mantém o direito à retribuição integral.',
-        keywords: ['maternidade', 'licença', '90 dias', 'parto', 'gravidez']
+        number: '239',
+        title: 'Informação das remunerações',
+        titleEn: 'Pay information',
+        content:
+          'Antes de ocupar o posto, o empregador informa o trabalhador das condições remuneratórias. Gratificações anuais são proporcionais aos meses completos trabalhados em caso de admissão, suspensão ou cessação durante o ano.',
+        keywords: ['informação', 'remuneração', 'proporcional', 'admissão'],
       },
       {
-        number: '137',
-        title: 'Licença de Paternidade',
-        content: 'O pai trabalhador tem direito a licença de paternidade de 3 dias úteis consecutivos, a gozar nos primeiros 15 dias após o nascimento.',
-        keywords: ['paternidade', 'licença', 'pai', 'nascimento', '3 dias']
+        number: '241',
+        title: 'Fixação do salário mínimo nacional',
+        titleEn: 'National minimum wage',
+        content:
+          'O salário mínimo nacional é fixado por diploma do Executivo, ouvidas organizações sindicais e patronais. A retribuição não pode ser inferior ao mínimo legal.',
+        keywords: ['salário', 'mínimo', 'nacional', 'SMN'],
       },
       {
-        number: '138',
-        title: 'Dispensa para Amamentação',
-        content: 'A trabalhadora que amamenta o filho tem direito a dispensa diária de trabalho de 1 hora, durante o primeiro ano de vida da criança, sem perda de retribuição.',
-        keywords: ['amamentação', 'dispensa', 'hora', 'bebé', 'lactação']
+        number: '243',
+        title: 'Periodicidade e prazo de pagamento',
+        titleEn: 'Pay frequency and deadline',
+        content:
+          'O salário vence por períodos certos (mês, quinzena ou semana) e deve ser pago pontualmente até ao último dia útil do período a que se refere, durante as horas normais de trabalho.',
+        keywords: ['pagamento', 'prazo', 'último dia útil', 'mensal', 'salário'],
       },
-      {
-        number: '139',
-        title: 'Protecção contra Despedimento',
-        content: 'A trabalhadora grávida, puérpera ou lactante não pode ser despedida, salvo por justa causa, devendo esta ser previamente apreciada pela Inspecção do Trabalho.',
-        keywords: ['protecção', 'despedimento', 'grávida', 'inspecção']
-      },
-    ]
+    ],
   },
   {
     id: 'cap10',
     number: 'X',
-    title: 'Segurança Social e Impostos',
-    titleEn: 'Social Security and Taxes',
+    title: 'Extinção da Relação Jurídico-Laboral',
+    titleEn: 'Termination of Employment',
     articles: [
       {
-        number: 'INSS-1',
-        title: 'Contribuição do Trabalhador (INSS)',
-        content: 'O trabalhador contribui para a segurança social com 3% da sua retribuição bruta mensal. Este valor é retido pelo empregador e transferido para o INSS.',
-        keywords: ['INSS', 'contribuição', '3%', 'trabalhador', 'segurança social']
+        number: '275',
+        title: 'Certificado de trabalho',
+        titleEn: 'Employment certificate',
+        content:
+          'No prazo de 8 dias após a cessação, o empregador passa certificado indicando datas de admissão e cessação, funções exercidas e retribuições auferidas.',
+        keywords: ['certificado', 'trabalho', 'cessação', 'documento'],
       },
       {
-        number: 'INSS-2',
-        title: 'Contribuição do Empregador (INSS)',
-        content: 'O empregador contribui para a segurança social com 8% da retribuição bruta do trabalhador. Esta contribuição é adicional ao salário do trabalhador.',
-        keywords: ['INSS', 'empregador', '8%', 'contribuição', 'patronal']
+        number: '280',
+        title: 'Cessação por mútuo acordo',
+        titleEn: 'Mutual agreement',
+        content:
+          'As partes podem acordar a cessação do contrato, fixando livremente as condições, sem prejuízo dos direitos irrenunciáveis do trabalhador.',
+        keywords: ['acordo', 'cessação', 'mútuo', 'rescisão'],
       },
       {
-        number: 'IRT-1',
-        title: 'Imposto sobre Rendimentos do Trabalho',
-        content: 'O IRT incide sobre os rendimentos do trabalho por conta de outrem. É retido na fonte pelo empregador segundo tabela progressiva. Rendimentos até ao mínimo de existência estão isentos.',
-        keywords: ['IRT', 'imposto', 'retenção', 'fonte', 'progressivo']
+        number: '281',
+        title: 'Justa causa',
+        titleEn: 'Just cause',
+        content:
+          'O despedimento com invocação de justa causa disciplinar exige procedimento disciplinar válido e fundamentos previstos na lei (Art. 282.º).',
+        keywords: ['justa causa', 'despedimento', 'disciplinar'],
       },
       {
-        number: 'IRT-2',
-        title: 'Tabela de IRT',
-        content: 'Taxas de IRT (2024): Até 100.000 Kz - isento; 100.001-150.000 Kz - 13%; 150.001-200.000 Kz - 16%; 200.001-300.000 Kz - 18%; 300.001-500.000 Kz - 19%; 500.001-1.000.000 Kz - 20%; 1.000.001-1.500.000 Kz - 21%; 1.500.001-2.000.000 Kz - 22%; 2.000.001-2.500.000 Kz - 23%; 2.500.001-5.000.000 Kz - 24%; Acima de 5.000.000 Kz - 25%.',
-        keywords: ['IRT', 'tabela', 'taxa', 'escalões', 'percentagem']
+        number: '282',
+        title: 'Fundamentos da justa causa disciplinar',
+        titleEn: 'Disciplinary just cause grounds',
+        content:
+          'Constituem justa causa, entre outros: desobediência grave; violação de direitos de colegas; provocação de conflitos; lesões; furto/roubo; abandono; faltas injustificadas reiteradas; embriaguez habitual no trabalho.',
+        keywords: ['justa causa', 'despedimento', 'furto', 'abandono', 'faltas'],
       },
-    ]
+      {
+        number: '286',
+        title: 'Aviso prévio do empregador',
+        titleEn: 'Employer notice period',
+        content:
+          'No despedimento por causas objectivas, o empregador envia aviso prévio com antecedência mínima de 30 dias, indicando motivo, data de cessação e montante/forma de pagamento da compensação e créditos.',
+        keywords: ['aviso prévio', 'despedimento', '30 dias', 'compensação'],
+      },
+      {
+        number: '287',
+        title: 'Direitos durante aviso prévio',
+        titleEn: 'Rights during notice',
+        content:
+          'Durante o aviso prévio de despedimento (motivos não económicos), o trabalhador tem direito a 15 dias de dispensa remunerada para procurar emprego.',
+        keywords: ['aviso prévio', 'dispensa', '15 dias', 'procurar emprego'],
+      },
+      {
+        number: '305',
+        title: 'Denúncia pelo trabalhador',
+        titleEn: 'Employee resignation',
+        content:
+          'Sem justa causa, o trabalhador pode cessar o contrato com aviso prévio escrito de 30 dias. Falta de aviso: compensação ao empregador equivalente ao salário do período em falta.',
+        keywords: ['denúncia', 'aviso prévio', '30 dias', 'rescisão', 'trabalhador'],
+      },
+      {
+        number: '308',
+        title: 'Compensação por despedimento objectivo',
+        titleEn: 'Objective dismissal compensation',
+        content:
+          'Compensação = salário-base × anos de antiguidade (máx. 5 anos) + 50% do salário-base × anos que excedam 5. Fracções ≥ 3 meses contam como um ano (Art. 311.º).',
+        keywords: ['compensação', 'despedimento', 'antiguidade', 'indemnização'],
+      },
+      {
+        number: '310',
+        title: 'Indemnização por despedimento ilícito',
+        titleEn: 'Unlawful dismissal compensation',
+        content:
+          'Em caso de ilicitude do despedimento disciplinar (sem reintegração) ou despedimento indirecto: indemnização = salário-base × anos de antiguidade, com mínimo de 3 meses de salário-base.',
+        keywords: ['indemnização', 'despedimento', 'ilicitude', '3 meses', 'antiguidade'],
+      },
+    ],
   },
 ];
 
-export function searchLaborLaw(query: string): { chapter: LaborLawChapter; article: LaborLawArticle }[] {
-  const results: { chapter: LaborLawChapter; article: LaborLawArticle }[] = [];
+export const complementaryLegislation: ComplementarySection[] = [
+  {
+    id: 'inss',
+    title: 'Segurança Social (INSS)',
+    titleEn: 'Social Security (INSS)',
+    reference: 'Lei de Protecção Social / Decreto Presidencial n.º 48/24',
+    articles: [
+      {
+        id: 'inss-worker',
+        title: 'Contribuição do trabalhador',
+        titleEn: 'Employee contribution',
+        reference: 'Regime geral INSS',
+        content:
+          'O trabalhador contribui com 3% da retribuição bruta mensal (8% se reformado que retoma trabalho). O valor é retido pelo empregador e entregue ao INSS.',
+        keywords: ['INSS', '3%', 'trabalhador', 'contribuição', 'reforma'],
+      },
+      {
+        id: 'inss-employer',
+        title: 'Contribuição do empregador',
+        titleEn: 'Employer contribution',
+        reference: 'Regime geral INSS',
+        content:
+          'O empregador contribui com 8% adicional sobre a retribuição bruta do trabalhador. Não é descontado do salário do trabalhador.',
+        keywords: ['INSS', '8%', 'empregador', 'patronal', 'contribuição'],
+      },
+      {
+        id: 'inss-base',
+        title: 'Base de incidência (folha)',
+        titleEn: 'Contribution base (payroll)',
+        reference: 'Prática PayrollAO',
+        content:
+          'Base INSS na folha: salário-base, subsídios de alimentação e transporte, subsídio de Natal, horas extraordinárias e outros complementos. Subsídio de férias e abono de família ficam normalmente excluídos da base INSS.',
+        keywords: ['INSS', 'base', 'subsídio', 'férias', 'abono'],
+      },
+    ],
+  },
+  {
+    id: 'irt',
+    title: 'Imposto sobre o Rendimento do Trabalho (IRT)',
+    titleEn: 'Personal Income Tax (IRT)',
+    reference: 'Código do IRT — Grupo A (rendimentos do trabalho)',
+    articles: [
+      {
+        id: 'irt-general',
+        title: 'Retenção na fonte',
+        titleEn: 'Withholding tax',
+        reference: 'Código do IRT',
+        content:
+          'O IRT incide sobre rendimentos do trabalho por conta de outrem, retido na fonte pelo empregador segundo tabela progressiva. Rendimento colectável = rendimento tributável − INSS (3%).',
+        keywords: ['IRT', 'imposto', 'retenção', 'fonte', 'progressivo'],
+      },
+      {
+        id: 'irt-exempt',
+        title: 'Isenções e exclusões (folha)',
+        titleEn: 'Exemptions (payroll)',
+        reference: 'Código do IRT / prática PayrollAO',
+        content:
+          'Isento até 150.000 Kz (1.º escalão, 2025). Abono de família isento. Subsídios de alimentação e transporte: só tributa o excesso acima de 30.000 Kz cada. Subsídio de Natal e de férias são tributáveis.',
+        keywords: ['IRT', 'isenção', '150000', 'alimentação', 'transporte', 'abono'],
+      },
+      {
+        id: 'irt-table',
+        title: 'Tabela progressiva (referência)',
+        titleEn: 'Tax brackets (reference)',
+        reference: 'Diário da República, 30/12/2025 — Anexo I',
+        content:
+          'Escalões principais: até 150.000 Kz isento; 150.001–200.000 (16%); 200.001–300.000 (18%); 300.001–500.000 (19%); 500.001–1.000.000 (20%); acima progressivo até 25%. Ver cálculo exacto em Folha de Salário / Simulador IRT.',
+        keywords: ['IRT', 'tabela', 'escalões', 'taxa', '2025'],
+      },
+    ],
+  },
+];
+
+export function getLawIndexStats() {
+  const indexedArticles = laborLawChapters.reduce((n, ch) => n + ch.articles.length, 0);
+  const complementaryArticles = complementaryLegislation.reduce((n, s) => n + s.articles.length, 0);
+  return {
+    indexedArticles,
+    indexedChapters: laborLawChapters.length,
+    complementaryArticles,
+    coveragePercent: Math.round((indexedArticles / LAW_METADATA.totalArticles) * 100),
+  };
+}
+
+export type LaborLawSearchHit =
+  | { kind: 'lgt'; chapter: LaborLawChapter; article: LaborLawArticle }
+  | { kind: 'complementary'; section: ComplementarySection; article: ComplementaryArticle };
+
+function matchesQuery(
+  query: string,
+  fields: { title: string; titleEn?: string; content: string; contentEn?: string; keywords: string[]; number?: string }
+): boolean {
+  const q = query.toLowerCase().trim();
+  if (!q) return false;
+  const haystack = [
+    fields.title,
+    fields.titleEn ?? '',
+    fields.content,
+    fields.contentEn ?? '',
+    ...fields.keywords,
+    fields.number ? `artigo ${fields.number}` : '',
+    fields.number ? `art. ${fields.number}` : '',
+    fields.number ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q) || fields.keywords.some((k) => k.toLowerCase().includes(q));
+}
+
+export function searchLaborLaw(query: string): LaborLawSearchHit[] {
+  const results: LaborLawSearchHit[] = [];
   const normalizedQuery = query.toLowerCase().trim();
-  
   if (!normalizedQuery) return results;
 
-  laborLawChapters.forEach(chapter => {
-    chapter.articles.forEach(article => {
-      const matchesKeyword = article.keywords.some(k => k.includes(normalizedQuery));
-      const matchesTitle = article.title.toLowerCase().includes(normalizedQuery);
-      const matchesContent = article.content.toLowerCase().includes(normalizedQuery);
-      const matchesNumber = article.number.toLowerCase() === normalizedQuery || 
-                           `artigo ${article.number}`.toLowerCase().includes(normalizedQuery) ||
-                           `art. ${article.number}`.toLowerCase().includes(normalizedQuery);
-      
-      if (matchesKeyword || matchesTitle || matchesContent || matchesNumber) {
-        results.push({ chapter, article });
+  laborLawChapters.forEach((chapter) => {
+    chapter.articles.forEach((article) => {
+      if (matchesQuery(normalizedQuery, article)) {
+        results.push({ kind: 'lgt', chapter, article });
+      }
+    });
+  });
+
+  complementaryLegislation.forEach((section) => {
+    section.articles.forEach((article) => {
+      if (matchesQuery(normalizedQuery, article)) {
+        results.push({ kind: 'complementary', section, article });
       }
     });
   });

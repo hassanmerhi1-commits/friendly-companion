@@ -22,6 +22,15 @@ import {
   isPayrollLeaveAbsence,
 } from '@/lib/absence-utils';
 import { toast } from 'sonner';
+import {
+  AttendanceTablePanel,
+  ATTENDANCE_TH,
+  ATTENDANCE_TH_CENTER,
+  ATTENDANCE_TH_RIGHT,
+  ATTENDANCE_THEAD,
+  ATTENDANCE_TD,
+  ATTENDANCE_TBODY,
+} from '@/components/attendance/AttendanceTablePanel';
 
 interface LocalEntry {
   employeeId: string;
@@ -35,9 +44,18 @@ interface BulkAttendanceEntryProps {
   year: number;
   periodId?: string;
   readOnly?: boolean;
+  embedded?: boolean;
+  branchFilter?: string;
 }
 
-export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }: BulkAttendanceEntryProps) {
+export function BulkAttendanceEntry({
+  month,
+  year,
+  periodId,
+  readOnly = false,
+  embedded = false,
+  branchFilter,
+}: BulkAttendanceEntryProps) {
   const { language } = useLanguage();
   const { getActiveEmployees } = useEmployeeStore();
   const { getActiveBranches, getBranch } = useBranchStore();
@@ -87,6 +105,10 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
       loadEntries();
     }
   }, [isLoaded, loadEntries]);
+
+  useEffect(() => {
+    if (branchFilter) setSelectedBranch(branchFilter);
+  }, [branchFilter]);
 
   // Initialize local entries from saved data
   useEffect(() => {
@@ -283,70 +305,261 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
     }).format(value);
   };
 
-  return (
-    <div className="space-y-4">
-      {/* Formula explanation card */}
-      <Card className="bg-muted/50 border-dashed">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <Calculator className="h-5 w-5 text-primary mt-0.5" />
-            <div>
-              <p className="font-medium text-sm">{t.formula}</p>
-              <p className="text-sm text-muted-foreground">{t.formulaDesc}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+  const showBranchPicker = !isBranchLocked && !branchFilter;
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                {t.title}
-              </CardTitle>
-              <CardDescription>{t.subtitle}</CardDescription>
-            </div>
-            <Badge variant="outline" className="text-sm">
-              {t.periodLabel}: {monthNames[month - 1]} {year}
+  const saveButton = (
+    <Button
+      onClick={handleSave}
+      disabled={isSaving || !hasChanges || readOnly}
+      size="sm"
+      className={embedded ? 'h-8 text-xs shrink-0 gap-1.5' : 'gap-2'}
+    >
+      {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+      {isSaving ? t.saving : t.save}
+    </Button>
+  );
+
+  const summaryInline = (totals.totalAbsenceDays > 0 || totals.totalDelayHours > 0) && (
+    <div className="flex items-center gap-3 text-xs shrink-0">
+      <span className="text-muted-foreground">
+        {t.totalAbsenceDays}: <strong className="text-foreground">{totals.totalAbsenceDays}</strong>
+      </span>
+      <span className="text-muted-foreground">
+        {t.totalDelayHours}: <strong className="text-foreground">{totals.totalDelayHours}</strong>
+      </span>
+      <span className="text-destructive font-semibold">-{formatCurrency(totals.totalDeduction)}</span>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <AttendanceTablePanel
+        toolbar={
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <Badge variant="outline" className="text-xs shrink-0">
+              {monthNames[month - 1]} {year}
             </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <Label>{t.branch}</Label>
-              <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={isBranchLocked}>
-                <SelectTrigger>
+            <div className="relative flex-1 min-w-[120px] max-w-[200px]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder={t.search}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            {showBranchPicker && (
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {!isBranchLocked && <SelectItem value="all">{t.allBranches}</SelectItem>}
-                  {branches.map(branch => (
+                  <SelectItem value="all">{t.allBranches}</SelectItem>
+                  {branches.map((branch) => (
                     <SelectItem key={branch.id} value={branch.id}>
                       {branch.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex-1">
-              <Label>{t.search}</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t.search}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
+            )}
+            {summaryInline}
+            {hasChanges && (
+              <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 bg-amber-50 shrink-0">
+                {t.unsavedChanges}
+              </Badge>
+            )}
+            {saveButton}
+          </div>
+        }
+      >
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className={ATTENDANCE_THEAD}>
+            <tr>
+              <th className={`${ATTENDANCE_TH} min-w-[160px]`}>{t.employee}</th>
+              <th className={ATTENDANCE_TH_RIGHT}>{t.fullSalary}</th>
+              <th className={ATTENDANCE_TH_RIGHT}>{t.dailyRate}</th>
+              <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.absenceDays}</th>
+              <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.justifiedAbsenceDays}</th>
+              <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.delayHours}</th>
+              <th className={ATTENDANCE_TH_RIGHT}>{t.deduction}</th>
+            </tr>
+          </thead>
+          <tbody className={ATTENDANCE_TBODY}>
+            {filteredEmployees.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground text-sm">
+                  {t.noEmployees}
+                </td>
+              </tr>
+            ) : (
+              filteredEmployees.map((emp) => {
+                const entry = getEntry(emp.id);
+                const fullSalary = getFullSalary(emp);
+                const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
+                const branchName = emp.branchId ? getBranch(emp.branchId)?.name : undefined;
+                const empLeaves = activeLeaves[emp.id];
+
+                return (
+                  <tr
+                    key={emp.id}
+                    className={`${empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''} hover:bg-muted/20`}
+                  >
+                    <td className={ATTENDANCE_TD}>
+                      <div className="flex flex-col leading-tight">
+                        <span className="font-medium text-sm">
+                          {emp.firstName} {emp.lastName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {emp.employeeNumber}
+                          {branchName && ` • ${branchName}`}
+                        </span>
+                        {empLeaves && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-pink-500 cursor-help">
+                                <Baby className="h-3 w-3" />
+                                {empLeaves[0].label}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {empLeaves.map((l, i) => (
+                                <p key={i}>
+                                  {l.label}: {l.days}{' '}
+                                  {language === 'pt' ? 'dias — sem desconto' : 'days — no deduction'}
+                                </p>
+                              ))}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>
+                      {formatCurrency(fullSalary)}
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-right font-mono text-xs text-muted-foreground`}>
+                      {formatCurrency(deduction.dailyRate)}
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-center`}>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={26}
+                        value={entry.absenceDays || ''}
+                        onChange={(e) => updateEntry(emp.id, 'absenceDays', parseFloat(e.target.value) || 0)}
+                        className="w-16 h-7 text-xs text-center mx-auto"
+                        placeholder="0"
+                        disabled={readOnly}
+                      />
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-center`}>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={26}
+                        value={entry.justifiedAbsenceDays || ''}
+                        onChange={(e) =>
+                          updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)
+                        }
+                        className="w-16 h-7 text-xs text-center mx-auto"
+                        placeholder="0"
+                        disabled={readOnly}
+                      />
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-center`}>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={208}
+                        step={0.5}
+                        value={entry.delayHours || ''}
+                        onChange={(e) => updateEntry(emp.id, 'delayHours', parseFloat(e.target.value) || 0)}
+                        className="w-16 h-7 text-xs text-center mx-auto"
+                        placeholder="0"
+                        disabled={readOnly}
+                      />
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-right`}>
+                      {deduction.totalDeduction > 0 ? (
+                        <Badge variant="destructive" className="font-mono text-[10px] px-1.5 py-0">
+                          -{formatCurrency(deduction.totalDeduction)}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </AttendanceTablePanel>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-muted/50 border-dashed">
+          <CardContent className="pt-4">
+            <div className="flex items-start gap-3">
+              <Calculator className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">{t.formula}</p>
+                <p className="text-sm text-muted-foreground">{t.formulaDesc}</p>
               </div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Employee table */}
+      <Card>
+        <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  {t.title}
+                </CardTitle>
+                <CardDescription>{t.subtitle}</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-sm">
+                {t.periodLabel}: {monthNames[month - 1]} {year}
+              </Badge>
+            </div>
+          </CardHeader>
+
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-4 shrink-0">
+              <div className="flex-1">
+                <Label>{t.branch}</Label>
+                <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={isBranchLocked}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!isBranchLocked && <SelectItem value="all">{t.allBranches}</SelectItem>}
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex-1">
+                <Label>{t.search}</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t.search}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+
           <div className="border rounded-md">
             <Table>
               <TableHeader>
@@ -376,10 +589,15 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                     const empLeaves = activeLeaves[emp.id];
                     
                     return (
-                      <TableRow key={emp.id} className={empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''}>
+                      <TableRow
+                        key={emp.id}
+                        className={empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''}
+                      >
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-medium">{emp.firstName} {emp.lastName}</span>
+                            <span className="font-medium">
+                              {emp.firstName} {emp.lastName}
+                            </span>
                             <span className="text-xs text-muted-foreground">
                               {emp.employeeNumber}
                               {branchName && ` • ${branchName}`}
@@ -419,7 +637,9 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                               min={0}
                               max={26}
                               value={entry.justifiedAbsenceDays || ''}
-                              onChange={(e) => updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)}
+                              onChange={(e) =>
+                                updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)
+                              }
                               className="w-20 text-center mx-auto"
                               placeholder="0"
                               disabled={readOnly}
@@ -434,7 +654,10 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   {empLeaves.map((l, i) => (
-                                    <p key={i}>{l.label}: {l.days} {language === 'pt' ? 'dias — sem desconto' : 'days — no deduction'}</p>
+                                    <p key={i}>
+                                      {l.label}: {l.days}{' '}
+                                      {language === 'pt' ? 'dias — sem desconto' : 'days — no deduction'}
+                                    </p>
                                   ))}
                                 </TooltipContent>
                               </Tooltip>
@@ -471,7 +694,6 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
             </Table>
           </div>
 
-          {/* Summary */}
           {(totals.totalAbsenceDays > 0 || totals.totalDelayHours > 0) && (
             <Card className="mt-4 bg-destructive/5 border-destructive/20">
               <CardContent className="pt-4">
@@ -499,27 +721,13 @@ export function BulkAttendanceEntry({ month, year, periodId, readOnly = false }:
             </Card>
           )}
 
-          {/* Save button */}
           <div className="flex items-center justify-between mt-4">
             {hasChanges && (
               <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
                 {t.unsavedChanges}
               </Badge>
             )}
-            <div className="ml-auto">
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving || !hasChanges || readOnly}
-                className="gap-2"
-              >
-                {isSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {isSaving ? t.saving : t.save}
-              </Button>
-            </div>
+            <div className="ml-auto">{saveButton}</div>
           </div>
         </CardContent>
       </Card>

@@ -89,6 +89,12 @@ export interface PayrollEntry {
   
   // Early payment flag - employee received salary before month end
   paidEarly?: boolean;
+  paidEarlyAt?: string;
+  /** Snapshot of total paid (líquido + bónus + extra + compra férias) at confirmation */
+  paidEarlyAmount?: number;
+  paidEarlyReason?: string;
+  paidEarlyAuthorizedBy?: string;
+  paidEarlyPaymentMethod?: string;
   
   // Notes
   notes?: string;

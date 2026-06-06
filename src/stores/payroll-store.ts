@@ -164,6 +164,11 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     overtimeHoursHoliday: row.overtime_hours_holiday || 0,
     daysAbsent: row.absence_days || 0,
     paidEarly: row.paid_early === 1,
+    paidEarlyAt: row.paid_early_at || undefined,
+    paidEarlyAmount: row.paid_early_amount != null ? row.paid_early_amount : undefined,
+    paidEarlyReason: row.paid_early_reason || undefined,
+    paidEarlyAuthorizedBy: row.paid_early_authorized_by || undefined,
+    paidEarlyPaymentMethod: row.paid_early_payment_method || undefined,
     leaveNotes: row.leave_notes || undefined,
     notes: row.notes || undefined,
     createdAt: row.created_at || '',
@@ -216,6 +221,11 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     deduction_details: e.deductionDetails || null,
     total_employer_cost: e.totalEmployerCost,
     paid_early: e.paidEarly ? 1 : 0,
+    paid_early_at: e.paidEarlyAt || null,
+    paid_early_amount: e.paidEarlyAmount ?? null,
+    paid_early_reason: e.paidEarlyReason || null,
+    paid_early_authorized_by: e.paidEarlyAuthorizedBy || null,
+    paid_early_payment_method: e.paidEarlyPaymentMethod || null,
     leave_notes: e.leaveNotes || null,
     notes: e.notes || null,
     status: e.status,
@@ -375,6 +385,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const preservedOneOffExtraNote = existingEntry?.one_off_extra_note || undefined;
           const preservedHolidayBuyout = existingEntry?.holiday_buyout_amount || 0;
           const preservedHolidayBuyoutNote = existingEntry?.holiday_buyout_note || undefined;
+          const preservedPaidEarly = existingEntry?.paid_early === 1;
+          const preservedPaidEarlyAt = existingEntry?.paid_early_at || undefined;
+          const preservedPaidEarlyAmount =
+            existingEntry?.paid_early_amount != null ? existingEntry.paid_early_amount : undefined;
+          const preservedPaidEarlyReason = existingEntry?.paid_early_reason || undefined;
+          const preservedPaidEarlyAuthorizedBy = existingEntry?.paid_early_authorized_by || undefined;
+          const preservedPaidEarlyPaymentMethod = existingEntry?.paid_early_payment_method || undefined;
 
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = preservedHolidaySubsidy > 0
@@ -615,6 +632,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               oneOffExtraNote: preservedOneOffExtraNote,
               holidayBuyoutAmount: preservedHolidayBuyout,
               holidayBuyoutNote: preservedHolidayBuyoutNote,
+              paidEarly: preservedPaidEarly,
+              paidEarlyAt: preservedPaidEarlyAt,
+              paidEarlyAmount: preservedPaidEarlyAmount,
+              paidEarlyReason: preservedPaidEarlyReason,
+              paidEarlyAuthorizedBy: preservedPaidEarlyAuthorizedBy,
+              paidEarlyPaymentMethod: preservedPaidEarlyPaymentMethod,
               absenceDeduction: totalAbsenceDeduction,
               loanDeduction,
               advanceDeduction,
@@ -807,6 +830,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       const updated = { ...entry, ...data, updatedAt: now };
       const { id: _, ...row } = mapEntryToDbRow(updated);
       await liveUpdate('payroll_entries', id, row);
+      set((state) => ({
+        entries: state.entries.map((e) => (e.id === id ? updated : e)),
+      }));
     },
 
     updateAbsences: async (entryId, daysAbsent) => {

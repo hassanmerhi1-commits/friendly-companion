@@ -6,7 +6,11 @@ import { useLanguage } from "@/lib/i18n";
 import { useAuthStore, type Permission } from "@/stores/auth-store";
 import { LoanDialog } from "@/components/loans/LoanDialog";
 
-export function QuickActions() {
+interface QuickActionsProps {
+  compact?: boolean;
+}
+
+export function QuickActions({ compact = false }: QuickActionsProps) {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { hasPermission } = useAuthStore();
@@ -64,19 +68,40 @@ export function QuickActions() {
 
   return (
     <>
-      <div className="animate-slide-up" style={{ animationDelay: "200ms" }}>
-        <h2 className="font-display text-lg font-semibold text-foreground mb-4">
+      <div
+        className={compact ? "shrink-0 animate-slide-up" : "animate-slide-up"}
+        style={{ animationDelay: "200ms" }}
+      >
+        <h2
+          className={
+            compact
+              ? "shrink-0 font-display text-sm font-semibold text-foreground mb-2"
+              : "font-display text-lg font-semibold text-foreground mb-4"
+          }
+        >
           {language === 'pt' ? 'Ações Rápidas' : 'Quick Actions'}
         </h2>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        <div
+          className={
+            compact
+              ? "grid grid-cols-3 gap-2 content-start"
+              : "grid grid-cols-2 sm:grid-cols-3 gap-3"
+          }
+        >
           {visibleActions.map((action) => (
             <Button
               key={action.label}
               onClick={action.onClick}
-              className={`h-auto py-4 flex-col gap-2 bg-gradient-to-br ${action.gradient} hover:opacity-90 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]`}
+              className={
+                compact
+                  ? `h-10 px-3 flex-row items-center justify-start gap-2 bg-gradient-to-br ${action.gradient} hover:opacity-90 text-white border-0 shadow-md transition-all duration-200`
+                  : `h-12 px-4 flex-row items-center justify-start gap-2.5 bg-gradient-to-br ${action.gradient} hover:opacity-90 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.01]`
+              }
             >
-              <action.icon className="h-5 w-5" />
-              <span className="text-xs font-medium text-center">{action.label}</span>
+              <action.icon className={compact ? "h-4 w-4 shrink-0" : "h-5 w-5 shrink-0"} />
+              <span className={compact ? "text-xs font-medium text-left leading-tight truncate" : "text-sm font-medium text-left leading-tight truncate"}>
+                {action.label}
+              </span>
             </Button>
           ))}
         </div>

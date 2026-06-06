@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/dashboard/StatCard";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Calculator, FileDown, Send, DollarSign, TrendingUp, Clock, CheckCircle, Receipt, Printer, Gift, UserX, Umbrella, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen, ChevronDown, Search, Coins } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Calculator, FileDown, Send, Clock, Receipt, Printer, Gift, UserX, RotateCcw, Archive, Building2, Unlock, Users, HandCoins, Lock, LockOpen, Search, Coins, Pencil } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
@@ -30,8 +29,21 @@ import { AdminPasswordDialog } from "@/components/payroll/AdminPasswordDialog";
 import { EarlyPaymentDialog } from "@/components/payroll/EarlyPaymentDialog";
 import { PayrollOneOffExtraDialog } from "@/components/payroll/PayrollOneOffExtraDialog";
 import { formatAOA } from "@/lib/angola-labor-law";
-import { getHolidayBuyoutPayout, getOneOffExtraPayout, getTotalPaidToEmployee } from "@/lib/payroll-payout";
-import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
+import {
+  getEarlyPaymentRecordAmount,
+  getHolidayBuyoutPayout,
+  getOneOffExtraPayout,
+  getTotalPaidToEmployee,
+} from "@/lib/payroll-payout";
+import { ATTENDANCE_PAGE } from "@/lib/page-layout";
+import {
+  AttendanceTablePanel,
+  ATTENDANCE_TH,
+  ATTENDANCE_TH_RIGHT,
+  ATTENDANCE_THEAD,
+  ATTENDANCE_TD,
+  ATTENDANCE_TBODY,
+} from "@/components/attendance/AttendanceTablePanel";
 import { exportPayrollToCSV } from "@/lib/export-utils";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
@@ -100,7 +112,6 @@ const Payroll = () => {
   const [earlyPaymentEntry, setEarlyPaymentEntry] = useState<PayrollEntry | null>(null);
   const [oneOffExtraDialogOpen, setOneOffExtraDialogOpen] = useState(false);
   const [oneOffExtraEntry, setOneOffExtraEntry] = useState<PayrollEntry | null>(null);
-  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState('');
   const pendingAbsences = getPendingAbsences();
   const headquarters = branches.find(b => b.isHeadquarters) || branches[0];
@@ -503,6 +514,26 @@ const Payroll = () => {
     ? `${monthNames[currentPeriod.month - 1]} ${currentPeriod.year}`
     : `${monthNames[new Date().getMonth()]} ${new Date().getFullYear()}`;
 
+  const pt = language === 'pt';
+
+  const displayTotals = useMemo(() => {
+    const displayEntries = employeeSearch.trim() ? tableEntries : tableSourceEntries;
+    return displayEntries.reduce(
+      (acc, e) => ({
+        gross: acc.gross + e.grossSalary,
+        deductions: acc.deductions + e.totalDeductions,
+        net: acc.net + (e.paidEarly ? 0 : e.netSalary),
+        bonus: acc.bonus + (e.monthlyBonus || 0),
+        oneOffExtra: acc.oneOffExtra + getOneOffExtraPayout(e),
+      }),
+      { gross: 0, deductions: 0, net: 0, bonus: 0, oneOffExtra: 0 }
+    );
+  }, [employeeSearch, tableEntries, tableSourceEntries]);
+
+  const displayEntryCount = useMemo(() => {
+    return employeeSearch.trim() ? tableEntries.length : tableSourceEntries.length;
+  }, [employeeSearch, tableEntries, tableSourceEntries]);
+
   const getStatusBadge = (status: string) => {
     const statusColors: Record<string, string> = {
       draft: 'bg-muted text-muted-foreground',
@@ -524,63 +555,15 @@ const Payroll = () => {
   };
 
   return (
-    <TopNavLayout>
-      <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen} className={FIXED_TOOLBAR_PAGE}>
-      <div className="shrink-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border pb-3 space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">{t.payroll.title}</h1>
-          <p className="text-muted-foreground mt-1">
-            {periodLabel} • {t.payroll.paymentPeriod}
-            {isHistoricalView && (
-              <span className="ml-2 text-amber-600 dark:text-amber-400">
-                ({language === 'pt' ? 'Visualização histórica' : 'Historical view'})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleExport} disabled={currentEntries.length === 0}>
-            <FileDown className="h-4 w-4 mr-2" />
-            {t.export.excel}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              if (!selectedBranchId) {
-                toast.error(language === 'pt' ? 'Selecione uma filial primeiro' : 'Select a branch first');
-                return;
-              }
-              setPrintSheetOpen(true);
-            }} 
-            disabled={currentEntries.length === 0}
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Imprimir Folha' : 'Print Sheet'}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setBatchReceiptOpen(true)} 
-            disabled={currentEntries.length === 0}
-          >
-            <Receipt className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Recibos em Lote' : 'Batch Receipts'}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => setBankExportOpen(true)} 
-            disabled={currentEntries.length === 0}
-          >
-            <Building2 className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Ficheiro Banco' : 'Bank File'}
-          </Button>
-        </div>
-      </div>
+    <TopNavLayout scrollable={false}>
+      <div className={`${ATTENDANCE_PAGE} gap-2`}>
+        {/* Toolbar — row 1: período & filtros; row 2: exportar & imprimir */}
+        <div className="shrink-0 rounded-xl border border-border/50 bg-card shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border/40">
+            <Receipt className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold shrink-0">{t.payroll.title}</span>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {sortedPeriods.length > 0 && (
-            <>
-              <Label className="text-xs shrink-0">{language === 'pt' ? 'Período:' : 'Period:'}</Label>
+            {sortedPeriods.length > 0 && (
               <Select
                 value={selectedPeriodId || currentPeriod?.id || ''}
                 onValueChange={(v) => {
@@ -591,8 +574,8 @@ const Payroll = () => {
                   setSelectedPeriodId(v);
                 }}
               >
-                <SelectTrigger className="w-[220px] h-8 text-sm">
-                  <SelectValue placeholder={language === 'pt' ? 'Período actual' : 'Current period'} />
+                <SelectTrigger className="h-8 w-[180px] text-xs shrink-0">
+                  <SelectValue placeholder={pt ? 'Período actual' : 'Current period'} />
                 </SelectTrigger>
                 <SelectContent>
                   {sortedPeriods.map((period) => (
@@ -605,236 +588,254 @@ const Payroll = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {isViewingSelectedPeriod && (
-                <Button variant="outline" size="sm" onClick={() => setSelectedPeriodId('')}>
-                  {language === 'pt' ? 'Actual' : 'Current'}
-                </Button>
-              )}
-              {currentPeriod && getStatusBadge(currentPeriod.status)}
-            </>
-          )}
-          {!isHistoricalView && (
-            <>
-              <Button variant="accent" size="sm" onClick={handleCalculate}>
-                <Calculator className="h-4 w-4 mr-1" />
-                {t.payroll.calculatePayroll}
+            )}
+
+            {isViewingSelectedPeriod && (
+              <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => setSelectedPeriodId('')}>
+                {pt ? 'Actual' : 'Current'}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setAbsenceDialogOpen(true)}>
-                <UserX className="h-4 w-4 mr-1" />
-                {language === 'pt' ? 'Ausências' : 'Absences'}
-                {pendingAbsences.length > 0 && (
-                  <span className="ml-1 bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">
-                    {pendingAbsences.length}
-                  </span>
-                )}
-              </Button>
-            </>
-          )}
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" type="button">
-              {language === 'pt' ? 'Mais opções' : 'More options'}
-              <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${moreOptionsOpen ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        {!isHistoricalView && currentPeriod && (
-          <p className={`text-xs flex items-center gap-1.5 ${isAttendanceClosedForPeriod ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-            {isAttendanceClosedForPeriod ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
-            {isAttendanceClosedForPeriod
-              ? (language === 'pt' ? `Presenças fechadas (${attendanceCutoffForPeriod})` : `Attendance closed (${attendanceCutoffForPeriod})`)
-              : (language === 'pt' ? 'Presenças ainda não fechadas para este mês' : 'Attendance not closed for this month yet')}
-          </p>
-        )}
-      </div>
+            )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-3 space-y-3">
-        <CollapsibleContent className="space-y-3">
-
-      {/* Branch and Warehouse Selection for Print */}
-      <div className="stat-card mb-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <h3 className="font-semibold text-foreground">
-            {language === 'pt' ? 'Dados da Folha Salarial' : 'Payroll Sheet Details'}
-          </h3>
-          <div className="flex items-center gap-2">
-            <Label>{language === 'pt' ? 'Filial:' : 'Branch:'}</Label>
-            <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder={language === 'pt' ? 'Selecionar filial' : 'Select branch'} />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map(branch => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label>{language === 'pt' ? 'Armazém:' : 'Warehouse:'}</Label>
-            <Input 
-              value={warehouseName} 
-              onChange={(e) => setWarehouseName(e.target.value)}
-              placeholder={language === 'pt' ? 'Nome do armazém' : 'Warehouse name'}
-              className="w-[200px]"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Bonus Sheet by Branch */}
-      <div className="stat-card mb-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <Gift className="h-4 w-4 text-accent" />
-            {language === 'pt' ? 'Folha de Bónus por Filial' : 'Bonus Sheet by Branch'}
-          </h3>
-          <div className="flex items-center gap-2">
-            <Label>{language === 'pt' ? 'Selecionar Filial:' : 'Select Branch:'}</Label>
-            <Select value={bonusBranchId} onValueChange={setBonusBranchId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder={language === 'pt' ? 'Escolher filial' : 'Choose branch'} />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map(branch => (
-                  <SelectItem key={branch.id} value={branch.id}>
-                    {branch.name} ({branch.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button 
-            variant="accent" 
-            onClick={() => setPrintBonusSheetOpen(true)} 
-            disabled={!bonusBranchId || bonusSheetEntries.length === 0}
-          >
-            <Printer className="h-4 w-4 mr-2" />
-            {language === 'pt' ? 'Imprimir Folha de Bónus' : 'Print Bonus Sheet'}
-          </Button>
-          {bonusBranchId && (
-            <span className="text-sm text-muted-foreground">
-              {bonusSheetEntries.length} {language === 'pt' ? 'funcionários' : 'employees'}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Colaboradores Sheet by Branch */}
-      {colaboradorEntries.length > 0 && (
-        <div className="stat-card mb-6 border-amber-500/30">
-          <div className="flex flex-wrap items-center gap-6">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-amber-500" />
-              {language === 'pt' ? 'Folha de Colaboradores por Filial' : 'Collaborators Sheet by Branch'}
-            </h3>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-              {language === 'pt' ? 'Sem INSS / Com IRT' : 'No INSS / With IRT'}
-            </span>
-            <div className="flex items-center gap-2">
-              <Label>{language === 'pt' ? 'Selecionar Filial:' : 'Select Branch:'}</Label>
-              <Select value={colaboradorBranchId} onValueChange={setColaboradorBranchId}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder={language === 'pt' ? 'Escolher filial' : 'Choose branch'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name} ({branch.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button 
-              variant="accent" 
-              onClick={() => setPrintColaboradorSheetOpen(true)} 
-              disabled={!colaboradorBranchId || colaboradorSheetEntries.length === 0}
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              {language === 'pt' ? 'Imprimir Folha Colaboradores' : 'Print Collaborators Sheet'}
-            </Button>
-            {colaboradorBranchId && (
-              <span className="text-sm text-muted-foreground">
-                {colaboradorSheetEntries.length} {language === 'pt' ? 'colaboradores' : 'collaborators'}
+            {isHistoricalView && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
+                {pt ? 'histórico' : 'history'}
               </span>
             )}
-            <span className="text-sm text-muted-foreground">
-              ({colaboradorEntries.length} {language === 'pt' ? 'total colaboradores' : 'total collaborators'})
-            </span>
-          </div>
-        </div>
-      )}
 
-        </CollapsibleContent>
+            {!isHistoricalView && currentPeriod && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border shrink-0',
+                  isAttendanceClosedForPeriod
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25'
+                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25'
+                )}
+                title={
+                  isAttendanceClosedForPeriod
+                    ? (pt ? `Presenças fechadas (${attendanceCutoffForPeriod})` : `Attendance closed (${attendanceCutoffForPeriod})`)
+                    : (pt ? 'Presenças ainda não fechadas' : 'Attendance not closed yet')
+                }
+              >
+                {isAttendanceClosedForPeriod ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+                {isAttendanceClosedForPeriod ? (pt ? 'Pres. fechadas' : 'Att. closed') : (pt ? 'Pres. abertas' : 'Att. open')}
+              </span>
+            )}
 
-      {/* Stats based on filtered entries when branch is selected */}
-      {(() => {
-        const displayEntries = employeeSearch.trim() ? tableEntries : tableSourceEntries;
-        const displayTotals = displayEntries.reduce((acc, e) => ({
-          gross: acc.gross + e.grossSalary,
-          deductions: acc.deductions + e.totalDeductions,
-          net: acc.net + (e.paidEarly ? 0 : e.netSalary),
-          bonus: acc.bonus + (e.monthlyBonus || 0),
-          oneOffExtra: acc.oneOffExtra + getOneOffExtraPayout(e),
-        }), { gross: 0, deductions: 0, net: 0, bonus: 0, oneOffExtra: 0 });
-        
-        return (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-            <StatCard title={t.payroll.grossSalaries} value={formatAOA(displayTotals.gross)} icon={DollarSign} variant="accent" delay={0} />
-            <StatCard title={language === 'pt' ? 'Total Bónus' : 'Total Bonus'} value={formatAOA(displayTotals.bonus)} icon={Gift} delay={50} />
-            <StatCard title={language === 'pt' ? 'Extras Pontuais' : 'One-off Extras'} value={formatAOA(displayTotals.oneOffExtra)} icon={Coins} delay={75} />
-            <StatCard title={t.payroll.totalDeductions} value={formatAOA(displayTotals.deductions)} subtitle="IRT + INSS" icon={TrendingUp} delay={100} />
-            <StatCard title={t.payroll.netSalaries} value={formatAOA(displayTotals.net)} icon={CheckCircle} delay={150} />
-            <StatCard title={t.employees.title} value={String(displayEntries.length)} icon={Clock} delay={200} />
-          </div>
-        );
-      })()}
+            <div className="w-px h-5 bg-border/60 hidden sm:block shrink-0" />
 
-      {regularEntries.length > 0 && (
-        <div className="stat-card p-0 overflow-hidden mb-3 flex flex-col min-h-[280px]">
-          <div className="p-4 border-b border-border flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold">{t.payroll.employeeDetails}</h2>
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Select value={selectedBranchId || 'all'} onValueChange={(v) => setSelectedBranchId(v === 'all' ? '' : v)}>
+              <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                <SelectValue placeholder={pt ? 'Filial' : 'Branch'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{pt ? 'Todas as filiais' : 'All branches'}</SelectItem>
+                {branches.map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="relative flex-1 min-w-[140px] max-w-[240px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder={language === 'pt' ? 'Pesquisar funcionário...' : 'Search employee...'}
-                className="pl-9 h-9"
+                placeholder={pt ? 'Pesquisar funcionário...' : 'Search employee...'}
+                className="pl-8 h-8 text-xs"
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
               />
             </div>
+
+            {!isHistoricalView && (
+              <div className="flex items-center gap-1.5 ml-auto shrink-0">
+                <Button variant="accent" size="sm" className="h-8 text-xs" onClick={handleCalculate}>
+                  <Calculator className="h-3.5 w-3.5 mr-1" />
+                  {t.payroll.calculatePayroll}
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setAbsenceDialogOpen(true)}>
+                  <UserX className="h-3.5 w-3.5 mr-1" />
+                  {pt ? 'Ausências' : 'Absences'}
+                  {pendingAbsences.length > 0 && (
+                    <span className="ml-1 bg-destructive text-destructive-foreground text-[10px] px-1.5 py-0.5 rounded-full">
+                      {pendingAbsences.length}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="overflow-auto flex-1 min-h-0">
-            <table className="w-full min-w-[1200px]">
-              <thead className="bg-muted/30 sticky top-0 z-10 shadow-[0_1px_0_0_hsl(var(--border))]">
-                <tr className="border-b border-border">
-                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase">{t.employees.employee}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.employees.baseSalary}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'H. Extra' : 'Overtime'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Faltas' : 'Absences'}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Férias' : 'Holiday'}</th>
-                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Sub. Natal' : '13th'}</th>
-                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
-                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{language === 'pt' ? 'Extra' : 'Extra'}</th>
-                   <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.gross}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.irt}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.inss}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.payroll.net}</th>
-                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase">{t.common.actions}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0 hidden md:inline">
+              {pt ? 'Exportar' : 'Export'}
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Input
+                value={warehouseName}
+                onChange={(e) => setWarehouseName(e.target.value)}
+                placeholder={pt ? 'Armazém' : 'Warehouse'}
+                className="h-8 w-[100px] text-xs shrink-0"
+                title={pt ? 'Nome do armazém para impressão' : 'Warehouse name for printing'}
+              />
+              <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleExport} disabled={currentEntries.length === 0}>
+                <FileDown className="h-3.5 w-3.5 mr-1" />
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs shrink-0"
+                onClick={() => {
+                  if (!selectedBranchId) {
+                    toast.error(pt ? 'Selecione uma filial primeiro' : 'Select a branch first');
+                    return;
+                  }
+                  setPrintSheetOpen(true);
+                }}
+                disabled={currentEntries.length === 0}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1" />
+                {pt ? 'Folha' : 'Sheet'}
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => setBatchReceiptOpen(true)} disabled={currentEntries.length === 0}>
+                <Receipt className="h-3.5 w-3.5 mr-1" />
+                {pt ? 'Recibos' : 'Receipts'}
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => setBankExportOpen(true)} disabled={currentEntries.length === 0}>
+                <Building2 className="h-3.5 w-3.5 mr-1" />
+                {pt ? 'Banco' : 'Bank'}
+              </Button>
+            </div>
+
+            <div className="hidden sm:block w-px h-6 bg-border/60 shrink-0" />
+
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0 hidden md:inline">
+              {pt ? 'Imprimir' : 'Print'}
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1 rounded-md border border-border/50 bg-muted/20 pl-2 pr-1 py-0.5 shrink-0">
+                <Gift className="h-3.5 w-3.5 text-accent shrink-0" />
+                <Select value={bonusBranchId} onValueChange={setBonusBranchId}>
+                  <SelectTrigger
+                    className="h-7 w-[120px] text-xs border-0 bg-transparent shadow-none focus:ring-0"
+                    title={pt ? 'Filial para folha de bónus' : 'Branch for bonus sheet'}
+                  >
+                    <SelectValue placeholder={pt ? 'Bónus' : 'Bonus'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setPrintBonusSheetOpen(true)}
+                  disabled={!bonusBranchId || bonusSheetEntries.length === 0}
+                  title={pt ? 'Imprimir folha de bónus' : 'Print bonus sheet'}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {colaboradorEntries.length > 0 && (
+                <div className="flex items-center gap-1 rounded-md border border-border/50 bg-muted/20 pl-2 pr-1 py-0.5 shrink-0">
+                  <Users className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <Select value={colaboradorBranchId} onValueChange={setColaboradorBranchId}>
+                    <SelectTrigger
+                      className="h-7 w-[120px] text-xs border-0 bg-transparent shadow-none focus:ring-0"
+                      title={pt ? 'Filial para folha colaboradores' : 'Branch for collaborators sheet'}
+                    >
+                      <SelectValue placeholder={pt ? 'Colab.' : 'Collab.'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => setPrintColaboradorSheetOpen(true)}
+                    disabled={!colaboradorBranchId || colaboradorSheetEntries.length === 0}
+                    title={pt ? 'Imprimir folha colaboradores' : 'Print collaborators sheet'}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* KPIs + table + footer — table keeps all remaining height */}
+        <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {[
+            { label: t.payroll.grossSalaries, value: formatAOA(displayTotals.gross) },
+            { label: pt ? 'Total Bónus' : 'Total Bonus', value: formatAOA(displayTotals.bonus) },
+            { label: pt ? 'Extras Pontuais' : 'One-off Extras', value: formatAOA(displayTotals.oneOffExtra) },
+            { label: t.payroll.totalDeductions, value: formatAOA(displayTotals.deductions) },
+            { label: t.payroll.netSalaries, value: formatAOA(displayTotals.net), success: true },
+            { label: t.employees.title, value: String(displayEntryCount) },
+          ].map((kpi) => (
+            <div key={kpi.label} className="rounded-lg border border-border/50 bg-card px-3 py-2">
+              <p className="text-[10px] text-muted-foreground truncate">{kpi.label}</p>
+              <p className={cn('text-sm font-semibold truncate', kpi.success && 'text-success')}>{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {regularEntries.length > 0 ? (
+            <AttendanceTablePanel
+              toolbar={
+                <div className="px-3 py-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold">{t.payroll.employeeDetails}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {tableEntries.length} / {tableSourceEntries.length}
+                  </span>
+                </div>
+              }
+            >
+              <table className="w-full min-w-[1200px]">
+                <thead className={ATTENDANCE_THEAD}>
+                  <tr>
+                    <th className={ATTENDANCE_TH}>{t.employees.employee}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.employees.baseSalary}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'H. Extra' : 'Overtime'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Faltas' : 'Absences'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Sub. Férias' : 'Holiday'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Sub. Natal' : '13th'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Bónus' : 'Bonus'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Extra' : 'Extra'}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.payroll.gross}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.payroll.irt}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.payroll.inss}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.payroll.net}</th>
+                    <th className={ATTENDANCE_TH_RIGHT}>{t.common.actions}</th>
+                  </tr>
+                </thead>
+                <tbody className={ATTENDANCE_TBODY}>
                 {/* Show only entries for selected branch, or all if no branch selected */}
                 {tableEntries.map(entry => {
                   const totalOvertimeHours = (entry.overtimeHoursNormal || 0) + (entry.overtimeHoursNight || 0) + (entry.overtimeHoursHoliday || 0);
                   const totalOvertimeValue = (entry.overtimeNormal || 0) + (entry.overtimeNight || 0) + (entry.overtimeHoliday || 0);
                   return (
                     <tr key={entry.id} className="hover:bg-muted/20">
-                      <td className="px-3 py-3 font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</td>
-                      <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.baseSalary)}</td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${ATTENDANCE_TD} font-medium text-sm`}>{entry.employee?.firstName} {entry.employee?.lastName}</td>
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>{formatAOA(entry.baseSalary)}</td>
+                      <td className={`${ATTENDANCE_TD} text-right`}>
                         {!isHistoricalView ? (
                           <Button 
                             variant="ghost" 
@@ -854,7 +855,7 @@ const Payroll = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${ATTENDANCE_TD} text-right`}>
                         {!isHistoricalView ? (
                           <Button 
                             variant="ghost" 
@@ -873,7 +874,7 @@ const Payroll = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${ATTENDANCE_TD} text-right`}>
                         {(() => {
                           const subsidyAlreadyPaid = isSubsidyPaid(entry.employeeId, selectedPeriod?.year || new Date().getFullYear());
                           const isBlocked = subsidyAlreadyPaid && entry.holidaySubsidy === 0;
@@ -929,7 +930,7 @@ const Payroll = () => {
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${ATTENDANCE_TD} text-right`}>
                         {!isHistoricalView ? (
                           <Input
                             type="number"
@@ -961,14 +962,14 @@ const Payroll = () => {
                           <span className="font-mono text-sm">{formatAOA(entry.thirteenthMonth)}</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right font-mono text-sm">
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>
                         {(entry.monthlyBonus || 0) > 0 ? (
                           <span className="text-accent">{formatAOA(entry.monthlyBonus)}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right font-mono text-sm">
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>
                         {(() => {
                           const oneOff = getOneOffExtraPayout(entry);
                           const buyout = getHolidayBuyoutPayout(entry);
@@ -979,48 +980,66 @@ const Payroll = () => {
                             entry.holidayBuyoutNote,
                             entry.oneOffExtraNote,
                           ].filter(Boolean).join(' | ');
-                          if (extraTotal > 0) {
+                          if (extraTotal > 0 || !isHistoricalView) {
                             return (
-                              <span className="text-violet-600" title={tip}>
-                                {formatAOA(extraTotal)}
-                              </span>
-                            );
-                          }
-                          if (!isHistoricalView) {
-                            return (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground"
-                                onClick={() => {
-                                  setOneOffExtraEntry(entry);
-                                  setOneOffExtraDialogOpen(true);
-                                }}
-                              >
-                                <Coins className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="flex items-center justify-end gap-1">
+                                {extraTotal > 0 ? (
+                                  <span className="text-violet-600" title={tip}>
+                                    {formatAOA(extraTotal)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                                {!isHistoricalView && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                    onClick={() => {
+                                      setOneOffExtraEntry(entry);
+                                      setOneOffExtraDialogOpen(true);
+                                    }}
+                                    title={
+                                      oneOff > 0
+                                        ? language === 'pt'
+                                          ? 'Editar extra pontual'
+                                          : 'Edit one-off extra'
+                                        : language === 'pt'
+                                          ? 'Adicionar extra pontual'
+                                          : 'Add one-off extra'
+                                    }
+                                  >
+                                    {oneOff > 0 ? (
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <Coins className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
                             );
                           }
                           return <span className="text-muted-foreground">-</span>;
                         })()}
                       </td>
-                      <td className="px-3 py-3 text-right font-mono text-sm">{formatAOA(entry.grossSalary)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.irt)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-sm text-destructive">{formatAOA(entry.inssEmployee)}</td>
-                      <td className="px-3 py-3 text-right font-mono text-sm font-bold text-primary">
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>{formatAOA(entry.grossSalary)}</td>
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs text-destructive`}>{formatAOA(entry.irt)}</td>
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs text-destructive`}>{formatAOA(entry.inssEmployee)}</td>
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs font-bold text-primary`}>
                         {entry.paidEarly ? (
                           <span className="flex items-center justify-end gap-1">
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
                               {language === 'pt' ? 'Pago Antecip.' : 'Paid Early'}
                             </span>
-                            <span className="line-through text-muted-foreground">{formatAOA(getTotalPaidToEmployee(entry))}</span>
+                            <span className="line-through text-muted-foreground">{formatAOA(getEarlyPaymentRecordAmount(entry))}</span>
                             <span>{formatAOA(0)}</span>
                           </span>
                         ) : (
                           formatAOA(getTotalPaidToEmployee(entry))
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right flex items-center justify-end gap-1">
+                      <td className={`${ATTENDANCE_TD} text-right`}>
+                        <div className="flex items-center justify-end gap-1">
                         {!isHistoricalView && (
                           <Button 
                             variant={entry.paidEarly ? "destructive" : "outline"} 
@@ -1028,8 +1047,14 @@ const Payroll = () => {
                             className="h-7 px-2 text-xs"
                             onClick={async () => {
                               if (entry.paidEarly) {
-                                // Remove early payment flag directly
-                                await updateEntry(entry.id, { paidEarly: false });
+                                await updateEntry(entry.id, {
+                                  paidEarly: false,
+                                  paidEarlyAt: undefined,
+                                  paidEarlyAmount: undefined,
+                                  paidEarlyReason: undefined,
+                                  paidEarlyAuthorizedBy: undefined,
+                                  paidEarlyPaymentMethod: undefined,
+                                });
                                 await usePayrollStore.getState().loadPayroll();
                                 toast.success(language === 'pt' ? 'Pagamento antecipado removido' : 'Early payment removed');
                               } else {
@@ -1054,20 +1079,22 @@ const Payroll = () => {
                         <Button variant="ghost" size="sm" onClick={() => handleViewReceipt(entry)}>
                           <Receipt className="h-4 w-4" />
                         </Button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
+            </AttendanceTablePanel>
+          ) : (
+            <div className="flex h-full items-center justify-center rounded-xl border border-border/50 bg-card text-sm text-muted-foreground">
+              {pt ? 'Calcule a folha para ver os funcionários' : 'Calculate payroll to see employees'}
+            </div>
+          )}
         </div>
-      )}
 
-
-      </div>
-
-      <div className="shrink-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm py-3 space-y-2">
+        <div className="shrink-0 rounded-xl border border-border/50 bg-card px-3 py-2 space-y-2">
       {/* Approve section - only show when not viewing historical data */}
       {!isHistoricalView && currentEntries.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">
@@ -1079,8 +1106,8 @@ const Payroll = () => {
                 : 'After approval, data is saved in history.'}
             </p>
           </div>
-          <Button variant="accent" size="lg" onClick={handleApprove}>
-            <Send className="h-4 w-4 mr-2" />
+          <Button variant="accent" size="sm" className="h-8" onClick={handleApprove}>
+            <Send className="h-3.5 w-3.5 mr-1" />
             {t.payroll.approveAndProcess}
           </Button>
         </div>
@@ -1151,8 +1178,9 @@ const Payroll = () => {
          </div>
        )}
 
+        </div>
+        </div>
       </div>
-      </Collapsible>
 
       {/* Individual Receipt Dialog */}
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
@@ -1345,9 +1373,16 @@ const Payroll = () => {
         periodLabel={periodLabel}
         companyName={settings.companyName}
         companyNif={settings.nif}
-        onConfirm={async () => {
+        onConfirm={async (data) => {
           if (!earlyPaymentEntry) return;
-          await updateEntry(earlyPaymentEntry.id, { paidEarly: true });
+          await updateEntry(earlyPaymentEntry.id, {
+            paidEarly: true,
+            paidEarlyAt: new Date().toISOString(),
+            paidEarlyAmount: data.amount,
+            paidEarlyReason: data.reason || undefined,
+            paidEarlyAuthorizedBy: data.authorizedBy || undefined,
+            paidEarlyPaymentMethod: data.paymentMethod || undefined,
+          });
           await usePayrollStore.getState().loadPayroll();
           toast.success(language === 'pt' ? 'Pagamento antecipado registado com sucesso' : 'Early payment registered successfully');
           setEarlyPaymentEntry(null);

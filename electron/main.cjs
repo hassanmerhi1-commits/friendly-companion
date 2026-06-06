@@ -63,6 +63,10 @@ let wsConnectingPromise = null;
 let httpServer = null;
 const WS_RECONNECT_DELAY = 3000;
 const HTTP_PORT = 8080;
+
+function shouldUseDevServer() {
+  return !app.isPackaged && process.env.PAYROLLAO_USE_DIST !== '1';
+}
 const companyDatabases = new Map(); // companyId -> { db, path, name }
 const wsClientCompanies = new WeakMap(); // ws client -> companyId
 
@@ -879,8 +883,12 @@ function initDatabase() {
     ensureCompaniesRegistry();
     
     startWebSocketServer();
-    startHTTPServer();
-    
+    if (!shouldUseDevServer()) {
+      startHTTPServer();
+    } else {
+      console.log('[Dev] HTTP server skipped (Vite uses port 8080)');
+    }
+
     console.log('SERVER MODE: Connected to database at:', dbPath);
     return { success: true, mode: 'server', path: dbPath, wsPort: actualWsPort };
   } catch (error) {
@@ -1506,6 +1514,11 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'other_deductions_amount', "ALTER TABLE payroll_entries ADD COLUMN other_deductions_amount REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'deduction_details', "ALTER TABLE payroll_entries ADD COLUMN deduction_details TEXT");
     addColumnIfMissing('payroll_entries', 'paid_early', "ALTER TABLE payroll_entries ADD COLUMN paid_early INTEGER DEFAULT 0");
+    addColumnIfMissing('payroll_entries', 'paid_early_at', "ALTER TABLE payroll_entries ADD COLUMN paid_early_at TEXT");
+    addColumnIfMissing('payroll_entries', 'paid_early_amount', "ALTER TABLE payroll_entries ADD COLUMN paid_early_amount REAL");
+    addColumnIfMissing('payroll_entries', 'paid_early_reason', "ALTER TABLE payroll_entries ADD COLUMN paid_early_reason TEXT");
+    addColumnIfMissing('payroll_entries', 'paid_early_authorized_by', "ALTER TABLE payroll_entries ADD COLUMN paid_early_authorized_by TEXT");
+    addColumnIfMissing('payroll_entries', 'paid_early_payment_method', "ALTER TABLE payroll_entries ADD COLUMN paid_early_payment_method TEXT");
 
     addColumnIfMissing('payroll_entries', 'total_employer_cost', "ALTER TABLE payroll_entries ADD COLUMN total_employer_cost REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'status', "ALTER TABLE payroll_entries ADD COLUMN status TEXT DEFAULT 'draft'");
@@ -1945,9 +1958,19 @@ function createWindow() {
     title: 'PayrollAO - Sistema de Folha Salarial',
   });
 
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:8080');
-    mainWindow.webContents.openDevTools();
+  const devUrl = process.env.PAYROLLAO_DEV_URL || 'http://localhost:8080';
+  const useDevServer = shouldUseDevServer();
+
+  if (useDevServer) {
+    mainWindow.loadURL(devUrl);
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.webContents.on('did-fail-load', () => {
+      const indexPath = getDistPath();
+      if (fs.existsSync(indexPath)) {
+        console.log('[Dev] Vite not ready — loading built dist:', indexPath);
+        mainWindow.loadFile(indexPath);
+      }
+    });
   } else {
     const indexPath = getDistPath();
     mainWindow.loadFile(indexPath);

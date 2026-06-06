@@ -10,7 +10,7 @@ import { getSavedSession } from "@/stores/auth-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { useBranchStore } from "@/stores/branch-store";
 import { usePayrollStore } from "@/stores/payroll-store";
-import { useDeductionStore, runDeductionBalanceMaintenance } from "@/stores/deduction-store";
+import { useDeductionStore } from "@/stores/deduction-store";
 import { detectDuplicateEmployeeNumbers } from "@/stores/employee-store";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useHolidayStore } from "@/stores/holiday-store";
@@ -287,8 +287,6 @@ function AppContent() {
 
           await backfillCategoryFromPosition();
           
-          await runDeductionBalanceMaintenance();
-          
           // Diagnostic: detect duplicate employee numbers
           detectDuplicateEmployeeNumbers();
           
@@ -412,8 +410,6 @@ function AppContent() {
             
             // Restore saved session after all stores are loaded
             useAuthStore.getState().restoreSession();
-            
-            await runDeductionBalanceMaintenance();
             
             // Diagnostic: detect duplicate employee numbers
             detectDuplicateEmployeeNumbers();

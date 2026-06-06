@@ -59,6 +59,10 @@
     "awaitingApproval": "Aguardando aprovação",
     "paidEmployees": "Pagos",
     "completed": "concluído",
+    "payrollNet": "Líquido folha",
+    "pending": "Pendências",
+    "alerts": "Alertas",
+    "noAlerts": "Sem alertas",
     "recentEmployees": "Funcionários Recentes",
     "viewAll": "Ver todos"
   },

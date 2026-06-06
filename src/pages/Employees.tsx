@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, Filter, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, Archive, CheckCircle, XCircle, Clock, LogOut, UserCheck } from "lucide-react";
+import { Search, UserPlus, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, CheckCircle, XCircle, Clock, LogOut, UserCheck, Users, MapPin, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -13,7 +13,15 @@ import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
 import { EmployeeOffboardDialog } from "@/components/employees/EmployeeOffboardDialog";
 import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
 import { formatAOA } from "@/lib/angola-labor-law";
-import { FIXED_TOOLBAR_PAGE } from "@/lib/page-layout";
+import { ATTENDANCE_PAGE } from "@/lib/page-layout";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  ATTENDANCE_TH,
+  ATTENDANCE_TH_RIGHT,
+  ATTENDANCE_THEAD,
+  ATTENDANCE_TD,
+  ATTENDANCE_TBODY,
+} from "@/components/attendance/AttendanceTablePanel";
 import { exportEmployeesToCSV } from "@/lib/export-utils";
 import { getExitReasonLabel } from "@/lib/employee-exit";
 import type { Employee } from "@/types/employee";
@@ -79,19 +87,19 @@ const Employees = () => {
     rehireEmployee,
   } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
-  const canApproveEmployees = currentUser?.role === 'admin' || hasPermission('users.edit');
+  const canApproveEmployees =
+    currentUser?.role === 'admin' || hasPermission('employees.edit');
+  const isBranchLocked =
+    !!currentUser?.branchId && currentUser?.role !== 'admin';
   const { branches: allBranches } = useBranchStore();
-  // Derive active branches from subscribed state - ensures re-render on changes
-  const branches = allBranches.filter(b => b.isActive);
-  const [search, setSearch] = useState("");
+  const branches = allBranches.filter((b) => b.isActive);
+  const [search, setSearch] = useState('');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-  const [nameColumnFilter, setNameColumnFilter] = useState<string>('all');
-  const [departmentColumnFilter, setDepartmentColumnFilter] = useState<string>('all');
-  const [categoryColumnFilter, setCategoryColumnFilter] = useState<string>('all');
-  const [branchColumnFilter, setBranchColumnFilter] = useState<string>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   useEffect(() => {
@@ -112,6 +120,12 @@ const Employees = () => {
       setSortOrder(initialSortOrder);
     }
   }, [location.search]);
+
+  useEffect(() => {
+    if (isBranchLocked && currentUser?.branchId) {
+      setSelectedBranchFilter(currentUser.branchId);
+    }
+  }, [isBranchLocked, currentUser?.branchId]);
 
   useEffect(() => {
     void backfillCategoryFromPosition();
@@ -156,16 +170,15 @@ const Employees = () => {
       const empText = normalizeText(`${emp.firstName} ${emp.lastName} ${emp.email} ${emp.department} ${emp.category || ''} ${emp.employeeNumber || ''} ${emp.position || ''}`);
       const matchesSearch = searchWords.length === 0 || searchWords.every(word => empText.includes(word));
       
-      const matchesBranch = selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
-      const matchesNameHeader = nameColumnFilter === 'all' ||
-        `${emp.firstName} ${emp.lastName}`.toLowerCase().trim() === nameColumnFilter;
-      const matchesDepartmentHeader = departmentColumnFilter === 'all' ||
-        (emp.department || '').toLowerCase().trim() === departmentColumnFilter;
-      const matchesCategoryHeader = categoryColumnFilter === 'all' ||
-        (emp.category || '').toLowerCase().trim() === categoryColumnFilter;
-      const matchesBranchHeader = branchColumnFilter === 'all' ||
-        (emp.branchId || '') === branchColumnFilter;
-      
+      const matchesBranch =
+        selectedBranchFilter === 'all' || emp.branchId === selectedBranchFilter;
+      const matchesDepartment =
+        departmentFilter === 'all' ||
+        (emp.department || '').toLowerCase().trim() === departmentFilter.toLowerCase().trim();
+      const matchesCategory =
+        categoryFilter === 'all' ||
+        (emp.category || '').toLowerCase().trim() === categoryFilter.toLowerCase().trim();
+
       const matchesStatus =
         statusFilter === 'all'
           ? true
@@ -177,7 +190,13 @@ const Employees = () => {
                 ? emp.status === 'pending_approval'
                 : emp.status === 'active';
       
-      return matchesSearch && matchesBranch && matchesStatus && matchesNameHeader && matchesDepartmentHeader && matchesCategoryHeader && matchesBranchHeader;
+      return (
+        matchesSearch &&
+        matchesBranch &&
+        matchesStatus &&
+        matchesDepartment &&
+        matchesCategory
+      );
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -209,26 +228,82 @@ const Employees = () => {
     return branch ? `${branch.name}` : '-';
   };
 
-  const nameHeaderOptions = useMemo(() => {
-    const names = Array.from(new Set(
-      employees.map((e) => `${e.firstName} ${e.lastName}`.trim()).filter(Boolean)
-    ));
-    return names.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
-  }, [employees, language]);
+  const departmentOptions = useMemo(() => {
+    const pool =
+      selectedBranchFilter === 'all'
+        ? employees
+        : employees.filter((e) => e.branchId === selectedBranchFilter);
+    return [...new Set(pool.map((e) => (e.department || '').trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, language === 'pt' ? 'pt' : 'en')
+    );
+  }, [employees, selectedBranchFilter, language]);
 
-  const departmentHeaderOptions = useMemo(() => {
-    const values = Array.from(new Set(
-      employees.map((e) => (e.department || '').trim()).filter(Boolean)
-    ));
-    return values.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
-  }, [employees, language]);
+  const categoryOptions = useMemo(() => {
+    const pool =
+      selectedBranchFilter === 'all'
+        ? employees
+        : employees.filter((e) => e.branchId === selectedBranchFilter);
+    return [...new Set(pool.map((e) => (e.category || '').trim()).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, language === 'pt' ? 'pt' : 'en')
+    );
+  }, [employees, selectedBranchFilter, language]);
 
-  const categoryHeaderOptions = useMemo(() => {
-    const values = Array.from(new Set(
-      employees.map((e) => (e.category || '').trim()).filter(Boolean)
-    ));
-    return values.sort((a, b) => a.localeCompare(b, language === 'pt' ? 'pt' : 'en'));
-  }, [employees, language]);
+  const listStats = useMemo(() => {
+    const active = filteredAndSortedEmployees.filter((e) => e.status === 'active').length;
+    const pending = filteredAndSortedEmployees.filter((e) => e.status === 'pending_approval').length;
+    const retired = filteredAndSortedEmployees.filter(
+      (e) => e.status === 'active' && e.isRetired
+    ).length;
+    const left = filteredAndSortedEmployees.filter((e) => e.status === 'terminated').length;
+    return { active, pending, retired, left, total: filteredAndSortedEmployees.length };
+  }, [filteredAndSortedEmployees]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const SortableHeader = ({
+    field,
+    label,
+    align = 'left',
+  }: {
+    field: SortField;
+    label: string;
+    align?: 'left' | 'right';
+  }) => (
+    <th
+      className={cn(
+        align === 'right' ? ATTENDANCE_TH_RIGHT : ATTENDANCE_TH,
+        'cursor-pointer select-none hover:text-foreground'
+      )}
+      onClick={() => toggleSort(field)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {sortField === field ? (
+          sortOrder === 'asc' ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </span>
+    </th>
+  );
+
+  const openDossier = (employee: Employee) => {
+    navigate(`/employee-profile/${employee.id}?${buildEmployeesStateParams}`);
+  };
+
+  const getInitials = (emp: Employee) =>
+    `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase();
 
   const getCategoryLabel = (category?: string) => {
     if (!category) return '-';
@@ -298,10 +373,7 @@ const Employees = () => {
       toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
       return;
     }
-    const employeesToExport = selectedBranchFilter === 'all'
-      ? employees
-      : employees.filter((emp) => emp.branchId === selectedBranchFilter);
-    exportEmployeesToCSV(employeesToExport, language, branches);
+    exportEmployeesToCSV(filteredAndSortedEmployees, language, branches);
     toast.success(t.export.success);
   };
 
@@ -333,198 +405,239 @@ const Employees = () => {
   const handlePrint = useReactToPrint({
     contentRef: cardRef,
     documentTitle: employeeForCard ? `Cartao-${employeeForCard.firstName}-${employeeForCard.lastName}` : 'Cartao-Funcionario',
+    onBeforePrint: async () => {
+      if (employeeForCard && !employeeForCard.photoUrl) {
+        toast.warning(
+          language === 'pt'
+            ? 'Este funcionário não tem foto no dossier.'
+            : 'This employee has no photo on file.'
+        );
+      }
+    },
   });
 
+  const pt = language === 'pt';
+
   return (
-    <TopNavLayout>
-      <div className={`${FIXED_TOOLBAR_PAGE} gap-4`}>
-      {/* Header */}
-      <div className="shrink-0 flex items-center justify-between animate-fade-in">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">
-            {t.employees.title}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {t.employees.subtitle}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}>
-            <FileDown className="h-4 w-4 mr-2" />
-            {t.export.excel}
-          </Button>
-          {hasPermission('employees.create') && (
-            <Button variant="accent" size="lg" onClick={handleAdd}>
-              <UserPlus className="h-5 w-5 mr-2" />
-              {t.employees.addEmployee}
-            </Button>
+    <TopNavLayout scrollable={false}>
+      <div className={`${ATTENDANCE_PAGE} gap-2`}>
+        {/* Toolbar */}
+        <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-card px-3 py-2 shadow-sm">
+          <Users className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold shrink-0">{t.employees.title}</span>
+
+          <div className="relative flex-1 min-w-[140px] max-w-[220px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder={t.employees.searchPlaceholder}
+              className="pl-8 h-8 text-xs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {!isBranchLocked && (
+            <>
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
+                <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                  <SelectValue placeholder={pt ? 'Filial' : 'Branch'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{pt ? 'Todas as filiais' : 'All branches'}</SelectItem>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           )}
-        </div>
-      </div>
 
-      {/* Search, Filters and Sorting */}
-      <div className="shrink-0 flex flex-wrap items-center gap-4 animate-slide-up">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t.employees.searchPlaceholder}
-            className="pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-[130px] text-xs shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">{pt ? 'Activos' : 'Active'}</SelectItem>
+              {canApproveEmployees && pendingCount > 0 && (
+                <SelectItem value="pending">
+                  {pt ? `Pendentes (${pendingCount})` : `Pending (${pendingCount})`}
+                </SelectItem>
+              )}
+              <SelectItem value="left">{pt ? 'Saída' : 'Left'}</SelectItem>
+              <SelectItem value="retired">{pt ? 'Reformados' : 'Retired'}</SelectItem>
+              <SelectItem value="all">{pt ? 'Todos' : 'All'}</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedBranchFilter} onValueChange={setSelectedBranchFilter}>
-          <SelectTrigger className="w-[200px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder={language === 'pt' ? 'Filtrar por filial' : 'Filter by branch'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{language === 'pt' ? 'Todas as filiais' : 'All branches'}</SelectItem>
-            {branches.map(branch => (
-              <SelectItem key={branch.id} value={branch.id}>
-                {branch.name} ({branch.city})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger className="h-8 w-[130px] text-xs shrink-0">
+              <SelectValue placeholder={pt ? 'Departamento' : 'Department'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{pt ? 'Todos dept.' : 'All dept.'}</SelectItem>
+              {departmentOptions.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px]">
-            <Archive className="h-4 w-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">{language === 'pt' ? 'Activos' : 'Active'}</SelectItem>
-            {canApproveEmployees && pendingCount > 0 && (
-              <SelectItem value="pending">
-                {language === 'pt' ? `Pendentes (${pendingCount})` : `Pending (${pendingCount})`}
-              </SelectItem>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-8 w-[130px] text-xs shrink-0">
+              <SelectValue placeholder={pt ? 'Categoria' : 'Category'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{pt ? 'Todas cat.' : 'All cat.'}</SelectItem>
+              {categoryOptions.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex gap-1.5 ml-auto shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs gap-1"
+              onClick={() => navigate('/employee-cards')}
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              {t.nav?.idCards || 'Cartões ID'}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={handleExport}>
+              <FileDown className="h-3.5 w-3.5" />
+              Excel
+            </Button>
+            {hasPermission('employees.create') && (
+              <Button size="sm" className="h-8 text-xs gap-1" onClick={handleAdd}>
+                <UserPlus className="h-3.5 w-3.5" />
+                {t.employees.addEmployee}
+              </Button>
             )}
-            <SelectItem value="left">{language === 'pt' ? 'Saída da empresa' : 'Left company'}</SelectItem>
-            <SelectItem value="retired">{language === 'pt' ? 'Reformados (activos)' : 'Retired (active)'}</SelectItem>
-            <SelectItem value="all">{language === 'pt' ? 'Todos' : 'All'}</SelectItem>
-          </SelectContent>
-        </Select>
+          </div>
+        </div>
 
-        <Button
-          variant="outline"
-          onClick={() => {
-            setSortField('name');
-            setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
-          }}
-        >
-          {sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 mr-2" /> : <ArrowDown className="h-4 w-4 mr-2" />}
-          {language === 'pt' ? 'Ordenar Nome' : 'Sort Name'}
-        </Button>
-      </div>
+        {/* KPIs */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {[
+            { label: pt ? 'Total' : 'Total', value: String(listStats.total) },
+            { label: pt ? 'Activos' : 'Active', value: String(listStats.active), success: true },
+            {
+              label: pt ? 'Pendentes' : 'Pending',
+              value: String(listStats.pending),
+              highlight: listStats.pending > 0,
+            },
+            { label: pt ? 'Reformados' : 'Retired', value: String(listStats.retired) },
+            { label: pt ? 'Saídas' : 'Left', value: String(listStats.left) },
+          ].map((kpi) => (
+            <div
+              key={kpi.label}
+              className="rounded-lg border border-border/50 bg-card px-3 py-2"
+            >
+              <p className="text-[10px] text-muted-foreground">{kpi.label}</p>
+              <p
+                className={cn(
+                  'text-sm font-semibold',
+                  kpi.success && 'text-success',
+                  kpi.highlight && 'text-primary'
+                )}
+              >
+                {kpi.value}
+              </p>
+            </div>
+          ))}
+        </div>
 
-      <div className="flex-1 min-h-0 flex flex-col rounded-lg border bg-card overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-muted shadow-[0_1px_0_0_hsl(var(--border))] [&_th]:bg-muted">
-              <tr>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Nome' : 'Name'}</th>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Departamento' : 'Department'}</th>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Categoria' : 'Category'}</th>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Filial' : 'Branch'}</th>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Contrato' : 'Contract'}</th>
-                <th className="px-3 py-3 text-left">{language === 'pt' ? 'Estado' : 'Status'}</th>
-                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Salário' : 'Salary'}</th>
-                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Bónus' : 'Bonus'}</th>
-                <th className="px-3 py-3 text-right">{language === 'pt' ? 'Ações' : 'Actions'}</th>
-              </tr>
-              <tr className="border-t border-border">
-                <th className="px-3 py-2 text-left">
-                  <Select value={nameColumnFilter} onValueChange={setNameColumnFilter}>
-                    <SelectTrigger className="h-8 min-w-[170px]">
-                      <SelectValue placeholder={language === 'pt' ? 'Filtrar nome' : 'Filter name'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
-                      {nameHeaderOptions.map((name) => (
-                        <SelectItem key={name} value={name.toLowerCase().trim()}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </th>
-                <th className="px-3 py-2 text-left">
-                  <Select value={departmentColumnFilter} onValueChange={setDepartmentColumnFilter}>
-                    <SelectTrigger className="h-8 min-w-[160px]">
-                      <SelectValue placeholder={language === 'pt' ? 'Filtrar depto' : 'Filter dept'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
-                      {departmentHeaderOptions.map((value) => (
-                        <SelectItem key={value} value={value.toLowerCase().trim()}>{value}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </th>
-                <th className="px-3 py-2 text-left">
-                  <Select value={categoryColumnFilter} onValueChange={setCategoryColumnFilter}>
-                    <SelectTrigger className="h-8 min-w-[180px]">
-                      <SelectValue placeholder={language === 'pt' ? 'Filtrar categoria' : 'Filter category'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'pt' ? '(Todos)' : '(All)'}</SelectItem>
-                      {categoryHeaderOptions.map((value) => (
-                        <SelectItem key={value} value={value.toLowerCase().trim()}>{value}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </th>
-                <th className="px-3 py-2 text-left">
-                  <Select value={branchColumnFilter} onValueChange={setBranchColumnFilter}>
-                    <SelectTrigger className="h-8 min-w-[170px]">
-                      <SelectValue placeholder={language === 'pt' ? 'Filtrar filial' : 'Filter branch'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{language === 'pt' ? '(Todas)' : '(All)'}</SelectItem>
-                      {branches.map((branch) => (
-                        <SelectItem key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </th>
-                <th className="px-3 py-2" />
-                <th className="px-3 py-2" />
-                <th className="px-3 py-2" />
-                <th className="px-3 py-2" />
-                <th className="px-3 py-2 text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setNameColumnFilter('all');
-                      setDepartmentColumnFilter('all');
-                      setCategoryColumnFilter('all');
-                      setBranchColumnFilter('all');
-                    }}
-                  >
-                    {language === 'pt' ? 'Limpar' : 'Clear'}
-                  </Button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAndSortedEmployees.map(employee => (
-                <tr key={employee.id} className="border-t border-border">
-                  <td className="px-3 py-3 font-medium">
-                    <div>{employee.firstName} {employee.lastName}</div>
-                    <div className="text-xs text-muted-foreground">{employee.employeeNumber}</div>
+        {/* Pending banner */}
+        {canApproveEmployees && pendingCount > 0 && statusFilter !== 'pending' && (
+          <div className="shrink-0 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            <AlertCircle className="h-4 w-4 text-primary shrink-0" />
+            <span className="flex-1">
+              {pt
+                ? `${pendingCount} funcionário(s) aguardam aprovação`
+                : `${pendingCount} employee(s) awaiting approval`}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStatusFilter('pending')}
+            >
+              {pt ? 'Ver pendentes' : 'View pending'}
+            </Button>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
+          <div className="flex-1 min-h-0 overflow-auto overscroll-contain">
+            <table className="w-full min-w-[960px] text-sm">
+              <thead className={ATTENDANCE_THEAD}>
+                <tr>
+                  <th className={cn(ATTENDANCE_TH, 'w-10')} />
+                  <SortableHeader field="name" label={pt ? 'Nome' : 'Name'} />
+                  <SortableHeader field="department" label={pt ? 'Departamento' : 'Department'} />
+                  <th className={ATTENDANCE_TH}>{pt ? 'Categoria' : 'Category'}</th>
+                  <SortableHeader field="branch" label={pt ? 'Filial' : 'Branch'} />
+                  <th className={ATTENDANCE_TH}>{pt ? 'Contrato' : 'Contract'}</th>
+                  <th className={ATTENDANCE_TH}>{pt ? 'Estado' : 'Status'}</th>
+                  <SortableHeader field="hireDate" label={pt ? 'Admissão' : 'Hired'} />
+                  <SortableHeader field="salary" label={pt ? 'Salário' : 'Salary'} align="right" />
+                  <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Bónus' : 'Bonus'}</th>
+                  <th className={cn(ATTENDANCE_TH_RIGHT, 'w-16')}>{pt ? 'Ações' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody className={ATTENDANCE_TBODY}>
+              {filteredAndSortedEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="px-3 py-12 text-center text-sm text-muted-foreground">
+                    {pt ? 'Nenhum funcionário encontrado' : 'No employees found'}
                   </td>
-                  <td className="px-3 py-3">{employee.department || '-'}</td>
-                  <td className="px-3 py-3">{getCategoryLabel(employee.category)}</td>
-                  <td className="px-3 py-3">{getBranchName(employee.branchId)}</td>
-                  <td className="px-3 py-3">{getContractLabel(employee.contractType)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex flex-col gap-1 items-start">
+                </tr>
+              ) : (
+              filteredAndSortedEmployees.map((employee) => (
+                <tr
+                  key={employee.id}
+                  className="hover:bg-muted/30 cursor-pointer"
+                  onClick={() => openDossier(employee)}
+                >
+                  <td className={ATTENDANCE_TD}>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={employee.photoUrl} alt={employee.firstName} />
+                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                        {getInitials(employee)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </td>
+                  <td className={ATTENDANCE_TD}>
+                    <div className="text-xs font-medium">
+                      {employee.firstName} {employee.lastName}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{employee.employeeNumber}</div>
+                  </td>
+                  <td className={`${ATTENDANCE_TD} text-xs`}>{employee.department || '—'}</td>
+                  <td className={`${ATTENDANCE_TD} text-xs`}>{getCategoryLabel(employee.category)}</td>
+                  <td className={`${ATTENDANCE_TD} text-xs`}>{getBranchName(employee.branchId)}</td>
+                  <td className={`${ATTENDANCE_TD} text-xs`}>
+                    <span
+                      className={cn(
+                        employee.contractType === 'colaborador' && 'text-accent font-medium'
+                      )}
+                    >
+                      {getContractLabel(employee.contractType)}
+                    </span>
+                  </td>
+                  <td className={ATTENDANCE_TD}>
+                    <div className="flex flex-col gap-0.5 items-start">
                       <span
                         className={cn(
-                          'inline-flex rounded-full px-2 py-1 text-xs',
+                          'inline-flex rounded-full px-1.5 py-0.5 text-[10px]',
                           employee.status === 'active' && 'bg-primary/10 text-primary',
                           employee.status === 'pending_approval' && 'bg-secondary text-secondary-foreground',
                           employee.status === 'terminated' && 'bg-destructive/10 text-destructive'
@@ -533,51 +646,58 @@ const Employees = () => {
                         {getStatusLabel(employee.status)}
                       </span>
                       {employee.status === 'active' && employee.isRetired && (
-                        <span className="text-xs text-muted-foreground">
-                          {language === 'pt' ? 'Reformado' : 'Retired'}
+                        <span className="text-[10px] text-muted-foreground">
+                          {pt ? 'Reformado' : 'Retired'}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-3 text-right">{formatAOA(employee.baseSalary || 0)}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className={`${ATTENDANCE_TD} text-xs text-muted-foreground`}>
+                    {employee.hireDate ? formatDate(employee.hireDate) : '—'}
+                  </td>
+                  <td className={`${ATTENDANCE_TD} text-right text-xs font-medium`}>
+                    {formatAOA(employee.baseSalary || 0)}
+                  </td>
+                  <td className={`${ATTENDANCE_TD} text-right text-xs`}>
                     {(employee.monthlyBonus || 0) > 0 ? (
-                      <span className="text-accent font-medium">{formatAOA(employee.monthlyBonus || 0)}</span>
+                      <span className="text-accent font-medium">
+                        {formatAOA(employee.monthlyBonus || 0)}
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground">-</span>
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className={ATTENDANCE_TD} onClick={(e) => e.stopPropagation()}>
                     {employee.status === 'pending_approval' && canApproveEmployees ? (
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7"
                           onClick={() => handleApprove(employee)}
-                          title={language === 'pt' ? 'Aprovar' : 'Approve'}
+                          title={pt ? 'Aprovar' : 'Approve'}
                         >
-                          <CheckCircle className="h-4 w-4" />
+                          <CheckCircle className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-7 w-7"
                           onClick={() => handleReject(employee)}
-                          title={language === 'pt' ? 'Rejeitar' : 'Reject'}
+                          title={pt ? 'Rejeitar' : 'Reject'}
                         >
-                          <XCircle className="h-4 w-4" />
+                          <XCircle className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     ) : (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/employee-profile/${employee.id}?${buildEmployeesStateParams}`)}>
+                          <DropdownMenuItem onClick={() => openDossier(employee)}>
                             <FolderOpen className="h-4 w-4 mr-2" />
                             {language === 'pt' ? 'Ver Dossier' : 'View Dossier'}
                           </DropdownMenuItem>
@@ -643,18 +763,21 @@ const Employees = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
-          <p className="text-sm text-muted-foreground">
-            {t.common.showing} <span className="font-medium">{filteredAndSortedEmployees.length}</span> {t.common.of} <span className="font-medium">{employees.length}</span> {t.employees.title.toLowerCase()}
+        <div className="shrink-0 flex items-center justify-between px-3 py-2 border-t border-border/50 bg-muted/20">
+          <p className="text-[10px] text-muted-foreground">
+            {t.common.showing}{' '}
+            <span className="font-medium text-foreground">{filteredAndSortedEmployees.length}</span>{' '}
+            {t.common.of}{' '}
+            <span className="font-medium text-foreground">{employees.length}</span>
           </p>
         </div>
       </div>
-
       </div>
 
       {/* Form Dialog */}
@@ -774,7 +897,7 @@ const Employees = () => {
           
           {employeeForCard && (
             <div className="max-h-[60vh] overflow-y-auto">
-              <PrintableEmployeeCard ref={cardRef} employee={employeeForCard} />
+              <PrintableEmployeeCard ref={cardRef} employee={employeeForCard} language={language} />
             </div>
           )}
 

@@ -12,6 +12,8 @@ interface StatCardProps {
   };
   variant?: "default" | "accent" | "success" | "warning";
   delay?: number;
+  compact?: boolean;
+  className?: string;
 }
 
 export function StatCard({ 
@@ -21,7 +23,9 @@ export function StatCard({
   icon: Icon, 
   trend,
   variant = "default",
-  delay = 0
+  delay = 0,
+  compact = false,
+  className,
 }: StatCardProps) {
   const gradients = {
     default: "from-slate-500/10 to-slate-600/10",
@@ -32,7 +36,7 @@ export function StatCard({
 
   const iconBg = {
     default: "bg-gradient-to-br from-slate-500 to-slate-600",
-    accent: "bg-gradient-to-br from-blue-500 to-indigo-600",
+    accent: "bg-gradient-to-br from-cyan-600 to-teal-700",
     success: "bg-gradient-to-br from-emerald-500 to-green-600",
     warning: "bg-gradient-to-br from-amber-500 to-orange-600"
   };
@@ -40,29 +44,41 @@ export function StatCard({
   return (
     <div 
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/50 bg-card p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:border-border animate-slide-up",
-        `bg-gradient-to-br ${gradients[variant]}`
+        "relative overflow-hidden border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-md hover:border-border animate-slide-up",
+        compact ? "h-full rounded-xl p-3" : "rounded-2xl p-6 hover:shadow-lg",
+        `bg-gradient-to-br ${gradients[variant]}`,
+        className
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
-      {/* Decorative gradient orb */}
-      <div className={cn(
-        "absolute -top-10 -right-10 h-32 w-32 rounded-full blur-3xl opacity-20",
-        iconBg[variant]
-      )} />
+      {!compact && (
+        <div className={cn(
+          "absolute -top-10 -right-10 h-32 w-32 rounded-full blur-3xl opacity-20",
+          iconBg[variant]
+        )} />
+      )}
       
-      <div className="relative flex items-start justify-between">
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground tracking-wide uppercase">
+      <div className={cn("relative flex h-full gap-2", compact ? "items-center justify-between" : "items-start justify-between")}>
+        <div className={cn(compact ? "flex min-w-0 flex-1 flex-col justify-center space-y-0.5" : "space-y-2")}>
+          <p className={cn(
+            "font-medium text-muted-foreground tracking-wide uppercase",
+            compact ? "text-[10px] leading-tight" : "text-sm"
+          )}>
             {title}
           </p>
-          <p className="text-3xl font-display font-bold text-foreground tracking-tight">
+          <p className={cn(
+            "font-display font-bold text-foreground tracking-tight",
+            compact ? "text-base leading-tight" : "text-3xl"
+          )}>
             {value}
           </p>
           {subtitle && (
-            <p className="text-sm text-muted-foreground/80">{subtitle}</p>
+            <p className={cn(
+              "text-muted-foreground/80",
+              compact ? "text-[10px] leading-tight line-clamp-2" : "text-sm"
+            )}>{subtitle}</p>
           )}
-          {trend && (
+          {trend && !compact && (
             <div className="flex items-center gap-2 pt-1">
               <span className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -77,10 +93,11 @@ export function StatCard({
           )}
         </div>
         <div className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg",
+          "flex shrink-0 items-center justify-center rounded-xl text-white shadow-md",
+          compact ? "h-9 w-9" : "h-14 w-14 rounded-2xl shadow-lg",
           iconBg[variant]
         )}>
-          <Icon className="h-7 w-7" />
+          <Icon className={compact ? "h-4 w-4" : "h-7 w-7"} />
         </div>
       </div>
     </div>

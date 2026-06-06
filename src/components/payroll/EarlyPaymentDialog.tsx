@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { printHtml } from '@/lib/print';
+import {
+  getHolidayBuyoutPayout,
+  getMonthlyBonusPayout,
+  getOneOffExtraPayout,
+  getPayrollPayoutAmount,
+} from '@/lib/payroll-payout';
 import { Printer, HandCoins } from 'lucide-react';
 import type { PayrollEntry } from '@/types/payroll';
 import type { Employee } from '@/types/employee';
@@ -21,7 +27,12 @@ interface EarlyPaymentDialogProps {
   periodLabel: string;
   companyName?: string;
   companyNif?: string;
-  onConfirm: (data: { reason: string; authorizedBy: string; paymentMethod: string }) => void;
+  onConfirm: (data: {
+    reason: string;
+    authorizedBy: string;
+    paymentMethod: string;
+    amount: number;
+  }) => void;
 }
 
 export function EarlyPaymentDialog({
@@ -43,10 +54,16 @@ export function EarlyPaymentDialog({
 
   if (!entry || !employee) return null;
 
+  const netSalary = entry.netSalary || 0;
+  const monthlyBonus = getMonthlyBonusPayout(entry);
+  const oneOffExtra = getOneOffExtraPayout(entry);
+  const holidayBuyout = getHolidayBuyoutPayout(entry);
+  const totalPayout = getPayrollPayoutAmount(entry);
+
   const t = {
     title: language === 'pt' ? 'Pagamento Antecipado' : 'Early Payment',
-    subtitle: language === 'pt' 
-      ? 'Preencha os dados antes de imprimir o recibo' 
+    subtitle: language === 'pt'
+      ? 'Preencha os dados antes de imprimir o recibo'
       : 'Fill in the details before printing the receipt',
     reason: language === 'pt' ? 'Motivo do Adiantamento' : 'Reason for Early Payment',
     reasonPlaceholder: language === 'pt' ? 'Ex: Solicitação do funcionário, urgência pessoal...' : 'e.g. Employee request, personal urgency...',
@@ -59,9 +76,13 @@ export function EarlyPaymentDialog({
     confirm: language === 'pt' ? 'Confirmar e Imprimir Recibo' : 'Confirm & Print Receipt',
     employee: language === 'pt' ? 'Funcionário' : 'Employee',
     period: language === 'pt' ? 'Período' : 'Period',
-    netSalary: language === 'pt' ? 'Salário Líquido a Receber' : 'Net Salary to Receive',
-    warning: language === 'pt' 
-      ? 'Após confirmação, o funcionário será marcado como "Pago Antecipadamente" e não receberá novamente na folha salarial deste mês.' 
+    netSalary: language === 'pt' ? 'Salário líquido' : 'Net salary',
+    monthlyBonus: language === 'pt' ? 'Bónus mensal' : 'Monthly bonus',
+    oneOffExtra: language === 'pt' ? 'Extra pontual' : 'One-off extra',
+    holidayBuyout: language === 'pt' ? 'Compra de férias' : 'Holiday buyout',
+    totalToPay: language === 'pt' ? 'Total a pagar (igual transferência bancária)' : 'Total to pay (same as bank transfer)',
+    warning: language === 'pt'
+      ? 'Após confirmação, o funcionário será marcado como "Pago Antecipadamente" e não receberá novamente na folha salarial deste mês.'
       : 'After confirmation, the employee will be marked as "Paid Early" and will not receive payment again on this month\'s payroll.',
   };
 
@@ -70,6 +91,22 @@ export function EarlyPaymentDialog({
     bank_transfer: t.bankTransfer,
     cheque: t.cheque,
   }[paymentMethod] || paymentMethod;
+
+  const buildPayoutRowsHtml = () => {
+    const rows: string[] = [
+      `<div class="salary-row"><span>${t.netSalary}</span><span class="amount">${formatAOA(netSalary)}</span></div>`,
+    ];
+    if (monthlyBonus > 0) {
+      rows.push(`<div class="salary-row"><span>${t.monthlyBonus}</span><span class="amount">${formatAOA(monthlyBonus)}</span></div>`);
+    }
+    if (oneOffExtra > 0) {
+      rows.push(`<div class="salary-row"><span>${t.oneOffExtra}</span><span class="amount">${formatAOA(oneOffExtra)}</span></div>`);
+    }
+    if (holidayBuyout > 0) {
+      rows.push(`<div class="salary-row"><span>${t.holidayBuyout}</span><span class="amount">${formatAOA(holidayBuyout)}</span></div>`);
+    }
+    return rows.join('');
+  };
 
   const handleConfirmAndPrint = async () => {
     const today = new Date().toLocaleDateString('pt-AO');
@@ -100,17 +137,10 @@ export function EarlyPaymentDialog({
           </div>
         </div>
         <div class="salary-section">
-          <div class="salary-row">
-            <span>${language === 'pt' ? 'Salário Bruto' : 'Gross Salary'}</span>
-            <span class="amount">${formatAOA(entry.grossSalary)}</span>
-          </div>
-          <div class="salary-row deduction">
-            <span>${language === 'pt' ? 'Total Descontos (IRT + INSS + Outros)' : 'Total Deductions (IRT + INSS + Other)'}</span>
-            <span class="amount">-${formatAOA(entry.totalDeductions)}</span>
-          </div>
+          ${buildPayoutRowsHtml()}
           <div class="net-row">
-            <span>${t.netSalary}</span>
-            <span class="net-amount">${formatAOA(entry.netSalary)}</span>
+            <span>${t.totalToPay}</span>
+            <span class="net-amount">${formatAOA(totalPayout)}</span>
           </div>
         </div>
         ${reason ? `
@@ -122,9 +152,9 @@ export function EarlyPaymentDialog({
           <div class="auth-label">${t.authorizedBy}: <strong>${authorizedBy || '____________________'}</strong></div>
         </div>
         <div class="warning-box">
-          ${language === 'pt' 
-            ? 'NOTA: Este pagamento refere-se ao salário do mês indicado acima. O funcionário NÃO receberá novamente na folha salarial do mesmo mês.' 
-            : 'NOTE: This payment refers to the salary for the month indicated above. The employee will NOT receive payment again on the same month\'s payroll.'}
+          ${language === 'pt'
+            ? 'NOTA: Este pagamento refere-se ao salário do mês indicado acima (líquido + bónus + extras). O funcionário NÃO receberá novamente na folha salarial do mesmo mês.'
+            : 'NOTE: This payment covers the month indicated above (net + bonus + extras). The employee will NOT receive payment again on the same month\'s payroll.'}
         </div>
         <div class="signatures">
           <div class="signature">
@@ -167,7 +197,6 @@ export function EarlyPaymentDialog({
   .info-detail { font-size: 8px; color: #555; margin-top: 2px; }
   .salary-section { margin: 12px 0; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
   .salary-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 9px; }
-  .salary-row.deduction { color: #c00; }
   .salary-row .amount { font-family: monospace; font-weight: 600; }
   .net-row { display: flex; justify-content: space-between; padding: 10px; background: #e8f4e8; font-weight: bold; font-size: 12px; }
   .net-amount { font-family: monospace; color: #27ae60; font-size: 14px; }
@@ -175,7 +204,6 @@ export function EarlyPaymentDialog({
   .reason-label { font-size: 7px; color: #666; text-transform: uppercase; margin-bottom: 3px; }
   .reason-text { font-size: 9px; }
   .auth-section { padding: 6px 0; font-size: 9px; margin: 8px 0; }
-  .auth-label { }
   .warning-box { background: #fff3cd; border: 1px solid #ffc107; padding: 8px; border-radius: 4px; font-size: 8px; font-weight: 600; margin: 10px 0; text-align: center; color: #856404; }
   .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
   .signature { text-align: center; }
@@ -205,9 +233,8 @@ export function EarlyPaymentDialog({
 </html>`;
 
     await printHtml(htmlContent, { width: 1100, height: 800 });
-    
-    // After printing, confirm and mark as paid early
-    onConfirm({ reason, authorizedBy, paymentMethod });
+
+    onConfirm({ reason, authorizedBy, paymentMethod, amount: totalPayout });
     onOpenChange(false);
     setReason('');
     setAuthorizedBy('');
@@ -226,15 +253,36 @@ export function EarlyPaymentDialog({
 
         <p className="text-sm text-muted-foreground">{t.subtitle}</p>
 
-        {/* Employee summary */}
-        <div className="bg-muted/30 p-3 rounded-lg border">
-          <div className="flex justify-between items-center mb-1">
+        <div className="bg-muted/30 p-3 rounded-lg border space-y-1.5">
+          <div className="flex justify-between items-center">
             <span className="font-medium">{employee.firstName} {employee.lastName}</span>
             <span className="text-xs text-muted-foreground">{periodLabel}</span>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">{t.netSalary}</span>
-            <span className="text-lg font-bold text-primary font-mono">{formatAOA(entry.netSalary)}</span>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">{t.netSalary}</span>
+            <span className="font-mono">{formatAOA(netSalary)}</span>
+          </div>
+          {monthlyBonus > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t.monthlyBonus}</span>
+              <span className="font-mono">{formatAOA(monthlyBonus)}</span>
+            </div>
+          )}
+          {oneOffExtra > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t.oneOffExtra}</span>
+              <span className="font-mono">{formatAOA(oneOffExtra)}</span>
+            </div>
+          )}
+          {holidayBuyout > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{t.holidayBuyout}</span>
+              <span className="font-mono">{formatAOA(holidayBuyout)}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-1 border-t">
+            <span className="text-sm font-medium">{t.totalToPay}</span>
+            <span className="text-lg font-bold text-primary font-mono">{formatAOA(totalPayout)}</span>
           </div>
         </div>
 
@@ -281,8 +329,8 @@ export function EarlyPaymentDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {language === 'pt' ? 'Cancelar' : 'Cancel'}
           </Button>
-          <Button 
-            variant="accent" 
+          <Button
+            variant="accent"
             onClick={handleConfirmAndPrint}
             disabled={!authorizedBy.trim()}
             className="gap-2"

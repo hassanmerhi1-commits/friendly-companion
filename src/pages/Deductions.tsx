@@ -6,16 +6,12 @@ import { TopNavLayout } from '@/components/layout/TopNavLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -23,10 +19,19 @@ import { useBranchStore } from '@/stores/branch-store';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { FIXED_TOOLBAR_PAGE } from '@/lib/page-layout';
+import { ATTENDANCE_PAGE } from '@/lib/page-layout';
+import {
+  AttendanceTablePanel,
+  ATTENDANCE_TH,
+  ATTENDANCE_TH_RIGHT,
+  ATTENDANCE_TH_CENTER,
+  ATTENDANCE_THEAD,
+  ATTENDANCE_TD,
+  ATTENDANCE_TBODY,
+} from '@/components/attendance/AttendanceTablePanel';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 import { formatPeriodLabel } from '@/lib/salary-advance-scheduling';
@@ -37,7 +42,7 @@ const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 export default function Deductions() {
   const { t, language } = useLanguage();
   const { hasPermission } = useAuthStore();
-  const { deductions, addDeduction, updateDeduction, deleteDeduction } = useDeductionStore();
+  const { deductions, updateDeduction, deleteDeduction } = useDeductionStore();
   const { periods } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const { branches: allBranches } = useBranchStore();
@@ -46,7 +51,7 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('in_progress');
+  const [filterStatus, setFilterStatus] = useState<string>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [filterBranch, setFilterBranch] = useState<string>('all');
@@ -63,7 +68,9 @@ export default function Deductions() {
   const filteredDeductions = useMemo(() => {
     let result = deductions;
     if (filterType !== 'all') result = result.filter(d => d.type === filterType);
-    if (filterStatus === 'pending') result = result.filter(d => !d.isFullyPaid);
+    if (filterStatus === 'pending' || filterStatus === 'in_progress') {
+      result = result.filter(d => !d.isFullyPaid);
+    }
     if (filterStatus === 'paid') result = result.filter(d => d.isFullyPaid);
     if (filterEmployee !== 'all') result = result.filter(d => d.employeeId === filterEmployee);
     if (filterBranch !== 'all') {
@@ -77,7 +84,7 @@ export default function Deductions() {
       result = result.filter(d => {
         const emp = employees.find(e => e.id === d.employeeId);
         const empName = emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase() : '';
-        return empName.includes(q) || d.description.toLowerCase().includes(q);
+        return empName.includes(q) || (d.description || '').toLowerCase().includes(q);
       });
     }
     return result;
@@ -284,11 +291,42 @@ export default function Deductions() {
     [periods, monthNames]
   );
 
-  const pageTitle = language === 'pt' ? 'Deduções' : 'Deductions';
-  const pageSubtitle = language === 'pt' 
-    ? 'Adiantamentos salariais, perdas no armazém e outras deduções' 
-    : 'Salary advances, warehouse losses and other deductions';
-  const addDeductionLabel = language === 'pt' ? 'Novo Desconto' : 'New Deduction';
+  /** Actions pinned left — visible without horizontal scroll on small screens */
+  const actionsHeadClass =
+    'sticky left-0 z-20 w-[76px] min-w-[76px] max-w-[76px] border-r bg-muted text-center shadow-[4px_0_12px_-10px_rgba(0,0,0,0.12)]';
+  const actionsCellClass =
+    'sticky left-0 z-10 w-[76px] min-w-[76px] max-w-[76px] border-r bg-background text-center shadow-[4px_0_8px_-8px_rgba(0,0,0,0.08)] group-hover:bg-muted/50';
+  const tableCompactClass =
+    'w-full table-fixed text-sm [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-2';
+
+  const ptLang = language === 'pt';
+  const addDeductionLabel = ptLang ? 'Novo Desconto' : 'New Deduction';
+
+  const listStats = useMemo(
+    () => ({
+      totalPending,
+      advances: deductions.filter((d) => d.type === 'salary_advance' && !d.isFullyPaid).length,
+      warehouse: deductions.filter((d) => d.type === 'warehouse_loss' && !d.isFullyPaid).length,
+      completed: deductions.filter((d) => d.isFullyPaid).length,
+      showing: filteredDeductions.length,
+    }),
+    [deductions, totalPending, filteredDeductions.length]
+  );
+
+  const hasActiveFilters =
+    searchQuery.trim() !== '' ||
+    filterType !== 'all' ||
+    filterStatus !== 'pending' ||
+    filterEmployee !== 'all' ||
+    filterBranch !== 'all';
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterType('all');
+    setFilterStatus('pending');
+    setFilterEmployee('all');
+    setFilterBranch('all');
+  };
 
   const deductionTypes: { value: DeductionType; icon: typeof Wallet }[] = [
     { value: 'salary_advance', icon: Wallet },
@@ -507,282 +545,299 @@ export default function Deductions() {
   );
 
   return (
-    <TopNavLayout>
-      <div className={`${FIXED_TOOLBAR_PAGE} gap-4`}>
-        <div className="shrink-0 space-y-4">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">{pageTitle}</h1>
-            <p className="text-muted-foreground">{pageSubtitle}</p>
-          </div>
-          {hasPermission('deductions.create') && (
-            <>
-              <Button className="gap-2" onClick={handleOpenAddDeduction}>
-                <Plus className="h-4 w-4" />
-                {addDeductionLabel}
-              </Button>
-              <DeductionFormDialog
-                open={isAddDialogOpen}
-                onOpenChange={setIsAddDialogOpen}
+    <TopNavLayout scrollable={false}>
+      <div className={`${ATTENDANCE_PAGE} gap-2`}>
+        {/* Toolbar */}
+        <div className="shrink-0 rounded-xl border border-border/50 bg-card shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <Wallet className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold shrink-0">{ptLang ? 'Deduções' : 'Deductions'}</span>
+            <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:inline">
+              {ptLang ? 'Adiantamentos, perdas e outros descontos' : 'Advances, losses and other deductions'}
+            </span>
+
+            <div className="relative flex-1 min-w-[140px] max-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder={ptLang ? 'Nome ou descrição...' : 'Name or description...'}
+                className="pl-8 h-8 text-xs"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
-            </>
-          )}
-        </div>
+            </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {language === 'pt' ? 'Total Pendente' : 'Total Pending'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{formatAOA(totalPending)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {language === 'pt' ? 'Adiantamentos' : 'Advances'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {deductions.filter(d => d.type === 'salary_advance' && !d.isFullyPaid).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {language === 'pt' ? 'Perdas Armazém' : 'Warehouse Losses'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {deductions.filter(d => d.type === 'warehouse_loss' && !d.isFullyPaid).length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {language === 'pt' ? 'Concluídos' : 'Completed'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {deductions.filter(d => d.isFullyPaid).length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <Select value={filterType} onValueChange={(v) => setFilterType(v as DeductionType | 'all')}>
+              <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                <SelectValue placeholder={ptLang ? 'Tipo' : 'Type'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{ptLang ? 'Todos os tipos' : 'All types'}</SelectItem>
+                <SelectItem value="salary_advance">{getDeductionTypeLabel('salary_advance', language)}</SelectItem>
+                <SelectItem value="warehouse_loss">{getDeductionTypeLabel('warehouse_loss', language)}</SelectItem>
+                <SelectItem value="unjustified_absence">{getDeductionTypeLabel('unjustified_absence', language)}</SelectItem>
+                <SelectItem value="disciplinary">{getDeductionTypeLabel('disciplinary', language)}</SelectItem>
+                <SelectItem value="other">{getDeductionTypeLabel('other', language)}</SelectItem>
+              </SelectContent>
+            </Select>
 
-        {/* Filters */}
-        <div className="space-y-3">
-          {/* Search bar */}
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={language === 'pt' ? 'Pesquisar por nome ou descrição...' : 'Search by name or description...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          
-          <div className="flex gap-2 flex-wrap items-center">
-            {/* Type filter buttons */}
-            <Button variant={filterType === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('all')}>
-              {language === 'pt' ? 'Todos' : 'All'}
-            </Button>
-            <Button variant={filterType === 'salary_advance' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('salary_advance')}>
-              <Wallet className="h-4 w-4 mr-1" />
-              {language === 'pt' ? 'Adiantamentos' : 'Advances'}
-            </Button>
-            <Button variant={filterType === 'warehouse_loss' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('warehouse_loss')}>
-              <Package className="h-4 w-4 mr-1" />
-              {language === 'pt' ? 'Perdas Armazém' : 'Warehouse'}
-            </Button>
-            <Button variant={filterType === 'unjustified_absence' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('unjustified_absence')}>
-              {language === 'pt' ? 'Faltas' : 'Absences'}
-            </Button>
-            <Button variant={filterType === 'disciplinary' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('disciplinary')}>
-              {language === 'pt' ? 'Disciplinar' : 'Disciplinary'}
-            </Button>
-            <Button variant={filterType === 'other' ? 'default' : 'outline'} size="sm" onClick={() => setFilterType('other')}>
-              {language === 'pt' ? 'Outros' : 'Other'}
-            </Button>
-
-            <div className="w-px h-6 bg-border mx-1" />
-
-            {/* Status filter */}
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[140px] h-8 text-sm">
+              <SelectTrigger className="h-8 w-[120px] text-xs shrink-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos estados' : 'All statuses'}</SelectItem>
-                <SelectItem value="pending">{language === 'pt' ? 'Em curso' : 'In progress'}</SelectItem>
-                <SelectItem value="paid">{language === 'pt' ? 'Pagos' : 'Paid'}</SelectItem>
+                <SelectItem value="all">{ptLang ? 'Todos estados' : 'All statuses'}</SelectItem>
+                <SelectItem value="pending">{ptLang ? 'Em curso' : 'In progress'}</SelectItem>
+                <SelectItem value="paid">{ptLang ? 'Pagos' : 'Paid'}</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Employee filter */}
             <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-              <SelectTrigger className="w-[180px] h-8 text-sm">
-                <SelectValue placeholder={language === 'pt' ? 'Funcionário' : 'Employee'} />
+              <SelectTrigger className="h-8 w-[160px] text-xs shrink-0">
+                <SelectValue placeholder={ptLang ? 'Funcionário' : 'Employee'} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos funcionários' : 'All employees'}</SelectItem>
-                {activeEmployees.map(emp => (
-                  <SelectItem key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</SelectItem>
+                <SelectItem value="all">{ptLang ? 'Todos funcionários' : 'All employees'}</SelectItem>
+                {activeEmployees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {/* Branch filter */}
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <Select value={filterBranch} onValueChange={setFilterBranch}>
-              <SelectTrigger className="w-[160px] h-8 text-sm">
-                <SelectValue placeholder={language === 'pt' ? 'Filial' : 'Branch'} />
+              <SelectTrigger className="h-8 w-[140px] text-xs shrink-0">
+                <SelectValue placeholder={ptLang ? 'Filial' : 'Branch'} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todas filiais' : 'All branches'}</SelectItem>
-                {activeBranches.map(branch => (
-                  <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>
+                <SelectItem value="all">{ptLang ? 'Todas filiais' : 'All branches'}</SelectItem>
+                {activeBranches.map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {(searchQuery || filterType !== 'all' || filterStatus !== 'all' || filterEmployee !== 'all' || filterBranch !== 'all') && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterStatus('all'); setFilterEmployee('all'); setFilterBranch('all'); }}>
-                {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearFilters}>
+                {ptLang ? 'Limpar' : 'Clear'}
+              </Button>
+            )}
+
+            {hasPermission('deductions.create') && (
+              <Button size="sm" className="h-8 text-xs ml-auto shrink-0" onClick={handleOpenAddDeduction}>
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {addDeductionLabel}
               </Button>
             )}
           </div>
         </div>
+
+        {hasPermission('deductions.create') && (
+          <DeductionFormDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
+        )}
+
+        {/* KPIs */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {[
+            {
+              label: ptLang ? 'Pendente' : 'Pending',
+              value: formatAOA(listStats.totalPending),
+              tone: 'text-destructive',
+            },
+            {
+              label: ptLang ? 'Adiantamentos' : 'Advances',
+              value: String(listStats.advances),
+              tone: 'text-foreground',
+            },
+            {
+              label: ptLang ? 'Perdas armazém' : 'Warehouse',
+              value: String(listStats.warehouse),
+              tone: 'text-foreground',
+            },
+            {
+              label: ptLang ? 'Concluídos' : 'Completed',
+              value: String(listStats.completed),
+              tone: 'text-emerald-600 dark:text-emerald-400',
+            },
+            {
+              label: ptLang ? 'Na lista' : 'Showing',
+              value: String(listStats.showing),
+              tone: 'text-muted-foreground',
+            },
+          ].map((kpi) => (
+            <div
+              key={kpi.label}
+              className="rounded-lg border border-border/50 bg-card px-3 py-2 shadow-sm"
+            >
+              <p className="text-[10px] text-muted-foreground truncate">{kpi.label}</p>
+              <p className={cn('text-sm font-semibold tabular-nums truncate', kpi.tone)}>{kpi.value}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Table — only this area scrolls; header and filters stay fixed */}
-        <Card className="flex-1 min-h-0 flex flex-col overflow-hidden border shadow-sm">
-          <CardContent className="flex-1 min-h-0 p-0 overflow-auto">
-            <Table stickyHeader embedded>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[140px]">{language === 'pt' ? 'Funcionário' : 'Employee'}</TableHead>
-                  <TableHead className="min-w-[100px]">{language === 'pt' ? 'Filial' : 'Branch'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>
-                  <TableHead className="min-w-[140px]">{language === 'pt' ? 'Descrição' : 'Description'}</TableHead>
-                  <TableHead className="whitespace-nowrap">{language === 'pt' ? 'Data' : 'Date'}</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Total' : 'Total'}</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Mensal' : 'Monthly'}</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">{language === 'pt' ? 'Restante' : 'Remaining'}</TableHead>
-                  <TableHead className="min-w-[90px]">{language === 'pt' ? 'Progresso' : 'Progress'}</TableHead>
-                  <TableHead className="min-w-[110px] whitespace-nowrap">{language === 'pt' ? 'Período' : 'Period'}</TableHead>
-                  <TableHead>{t.common.status}</TableHead>
-                  <TableHead className="text-right">{t.common.actions}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+        {/* Table */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <AttendanceTablePanel
+            toolbar={
+              <span className="text-xs text-muted-foreground">
+                {listStats.showing}{' '}
+                {ptLang
+                  ? listStats.showing === 1
+                    ? 'dedução'
+                    : 'deduções'
+                  : listStats.showing === 1
+                    ? 'deduction'
+                    : 'deductions'}
+              </span>
+            }
+          >
+            <table className={cn('w-full caption-bottom', tableCompactClass)}>
+              <thead className={ATTENDANCE_THEAD}>
+                <tr>
+                  <th className={cn(ATTENDANCE_TH, ATTENDANCE_TH_CENTER, actionsHeadClass)}>
+                    {t.common.actions}
+                  </th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[18%]')}>{ptLang ? 'Funcionário' : 'Employee'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'hidden xl:table-cell w-[8%]')}>{ptLang ? 'Filial' : 'Branch'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[10%]')}>{ptLang ? 'Tipo' : 'Type'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[16%]')}>{ptLang ? 'Descrição' : 'Description'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[8%] whitespace-nowrap')}>{ptLang ? 'Data' : 'Date'}</th>
+                  <th className={cn(ATTENDANCE_TH_RIGHT, 'w-[9%] whitespace-nowrap')}>{ptLang ? 'Total' : 'Total'}</th>
+                  <th className={cn(ATTENDANCE_TH_RIGHT, 'w-[9%] whitespace-nowrap')}>{ptLang ? 'Mensal' : 'Monthly'}</th>
+                  <th className={cn(ATTENDANCE_TH_RIGHT, 'w-[9%] whitespace-nowrap')}>{ptLang ? 'Rest.' : 'Rem.'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[8%]')}>{ptLang ? 'Prog.' : 'Prog.'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[10%]')}>{ptLang ? 'Período' : 'Period'}</th>
+                  <th className={cn(ATTENDANCE_TH, 'w-[9%]')}>{t.common.status}</th>
+                </tr>
+              </thead>
+              <tbody className={ATTENDANCE_TBODY}>
                 {filteredDeductions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
-                      {language === 'pt' ? 'Nenhuma dedução encontrada' : 'No deductions found'}
-                    </TableCell>
-                  </TableRow>
-                ) : filteredDeductions.map((deduction) => {
-                  const employee = getEmployee(deduction.employeeId);
-                  const progressPercent = deduction.installments > 0 
-                    ? (deduction.installmentsPaid / deduction.installments) * 100 
-                    : 0;
-                  
-                  return (
-                    <TableRow key={deduction.id}>
-                      <TableCell>
-                        <div className="font-medium">
-                          {employee ? `${employee.firstName} ${employee.lastName}` : 'N/A'}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {employee?.department}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{getBranchName(employee?.branchId)}</TableCell>
-                      <TableCell>
-                        <Badge variant={deduction.type === 'salary_advance' ? 'default' : 'secondary'}>
-                          {getDeductionTypeLabel(deduction.type, language)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={deduction.description}>
-                        {deduction.description}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {formatDeductionDate(deduction.date)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium font-mono">
-                        {formatAOA(deduction.totalAmount)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium font-mono">
-                        {formatAOA(deduction.amount)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-destructive font-medium">
-                        {formatAOA(deduction.remainingAmount)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1 min-w-[80px]">
-                          <div className="text-xs text-muted-foreground text-center">
-                            {deduction.installmentsPaid}/{deduction.installments}
+                  <tr>
+                    <td colSpan={12} className={cn(ATTENDANCE_TD, 'text-center py-10 text-muted-foreground')}>
+                      {ptLang ? 'Nenhuma dedução encontrada' : 'No deductions found'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDeductions.map((deduction) => {
+                    const employee = getEmployee(deduction.employeeId);
+                    const progressPercent =
+                      deduction.installments > 0
+                        ? Math.min(
+                            100,
+                            Math.max(0, ((deduction.installmentsPaid ?? 0) / deduction.installments) * 100)
+                          )
+                        : 0;
+
+                    return (
+                      <tr key={deduction.id} className="group">
+                        <td className={cn(ATTENDANCE_TD, actionsCellClass)}>
+                          <div className="flex items-center justify-center gap-0.5">
+                            {hasPermission('deductions.edit') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={() => handleEditClick(deduction)}
+                                title={ptLang ? 'Editar' : 'Edit'}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {hasPermission('deductions.delete') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={() => handleDelete(deduction)}
+                                title={ptLang ? 'Apagar' : 'Delete'}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {!hasPermission('deductions.edit') && !hasPermission('deductions.delete') && (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </div>
-                          <Progress value={progressPercent} className="h-2" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {getAppliedPeriodLabel(deduction)}
-                      </TableCell>
-                      <TableCell>
-                        {deduction.isFullyPaid ? (
-                          <Badge variant="outline" className="text-green-600">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {language === 'pt' ? 'Pago' : 'Paid'}
+                        </td>
+                        <td className={ATTENDANCE_TD}>
+                          <div
+                            className="font-medium truncate text-xs"
+                            title={employee ? `${employee.firstName} ${employee.lastName}` : undefined}
+                          >
+                            {employee ? `${employee.firstName} ${employee.lastName}` : 'N/A'}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {employee?.department}
+                            {employee?.branchId && (
+                              <span className="xl:hidden"> · {getBranchName(employee.branchId)}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'hidden xl:table-cell text-xs truncate')}>
+                          {getBranchName(employee?.branchId)}
+                        </td>
+                        <td className={ATTENDANCE_TD}>
+                          <Badge
+                            variant={deduction.type === 'salary_advance' ? 'default' : 'secondary'}
+                            className="text-[10px] whitespace-nowrap"
+                          >
+                            {getDeductionTypeLabel(deduction.type, language) || deduction.type}
                           </Badge>
-                        ) : (
-                          <Badge variant="secondary">
-                            {language === 'pt' ? 'Em curso' : 'In progress'}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {hasPermission('deductions.edit') && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleEditClick(deduction)}
-                              title={language === 'pt' ? 'Editar' : 'Edit'}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'truncate text-xs')} title={deduction.description}>
+                          {deduction.description}
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'whitespace-nowrap text-xs')}>
+                          {formatDeductionDate(deduction.date)}
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'text-right font-mono text-xs whitespace-nowrap')}>
+                          {formatAOA(deduction.totalAmount)}
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'text-right font-mono text-xs whitespace-nowrap')}>
+                          {formatAOA(deduction.amount)}
+                        </td>
+                        <td
+                          className={cn(
+                            ATTENDANCE_TD,
+                            'text-right font-mono text-xs text-destructive whitespace-nowrap'
                           )}
-                          {hasPermission('deductions.delete') && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleDelete(deduction)}
-                              title={language === 'pt' ? 'Apagar' : 'Delete'}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                        >
+                          {formatAOA(deduction.remainingAmount)}
+                        </td>
+                        <td className={ATTENDANCE_TD}>
+                          <div className="space-y-0.5">
+                            <div className="text-[10px] text-muted-foreground text-center">
+                              {deduction.installmentsPaid}/{deduction.installments}
+                            </div>
+                            <Progress value={progressPercent} className="h-1.5" />
+                          </div>
+                        </td>
+                        <td className={cn(ATTENDANCE_TD, 'text-xs truncate')} title={getAppliedPeriodLabel(deduction)}>
+                          {getAppliedPeriodLabel(deduction)}
+                        </td>
+                        <td className={ATTENDANCE_TD}>
+                          {deduction.isFullyPaid ? (
+                            <Badge variant="outline" className="text-green-600 text-[10px]">
+                              <CheckCircle className="h-3 w-3 mr-0.5" />
+                              {ptLang ? 'Pago' : 'Paid'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {ptLang ? 'Em curso' : 'In progress'}
+                            </Badge>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </AttendanceTablePanel>
+        </div>
 
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => {

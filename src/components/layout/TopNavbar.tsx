@@ -1,27 +1,28 @@
 import { useState } from "react";
 import { TourButton } from "@/components/AppTour";
-import { 
-  LayoutDashboard, 
-  Users, 
-  DollarSign, 
-  FileText, 
-  Settings,
-  LogOut,
-  Wallet,
-  MapPin,
-  UserCog,
+import type { LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  UsersRound,
+  IdCard,
+  Receipt,
+  History,
+  Briefcase,
+  CalendarCheck,
+  HandCoins,
+  Building2,
   Scale,
-  FileWarning,
-  CreditCard,
-  UserCheck,
-  Clock,
-  Calculator,
-  Archive,
+  Percent,
+  FileSignature,
+  BarChart3,
+  Settings,
+  Shield,
+  LogOut,
   Menu,
   X,
   ChevronDown,
   RefreshCw,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { DbStatusIndicator } from "@/components/layout/DbStatusIndicator";
+import { UpdateNotification } from "@/components/UpdateNotification";
 
 export function TopNavbar() {
   const location = useLocation();
@@ -50,25 +54,38 @@ export function TopNavbar() {
   const allNavigation: Array<{
     name: string;
     href: string;
-    icon: any;
+    icon: LucideIcon;
     permission?: Permission;
   }> = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-    { name: t.nav.employees, href: "/employees", icon: Users, permission: 'employees.view' },
-    { name: t.nav.idCards, href: "/employee-cards", icon: CreditCard, permission: 'employees.view' },
-    { name: t.nav.payroll, href: "/payroll", icon: DollarSign, permission: 'payroll.view' },
-    { name: t.nav.payrollHistory, href: "/payroll-history", icon: Archive, permission: 'payroll.view' },
-    { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: UserCheck, permission: 'hr.view' },
-    { name: t.nav.attendance, href: "/attendance", icon: Clock, permission: 'attendance.view' },
-    { name: t.nav.deductions, href: "/deductions", icon: Wallet, permission: 'deductions.view' },
-    { name: t.nav.branches, href: "/branches", icon: MapPin, permission: 'branches.view' },
+    { name: t.nav.employees, href: "/employees", icon: UsersRound, permission: 'employees.view' },
+    { name: t.nav.idCards, href: "/employee-cards", icon: IdCard, permission: 'employees.view' },
+    { name: t.nav.payroll, href: "/payroll", icon: Receipt, permission: 'payroll.view' },
+    { name: t.nav.payrollHistory, href: "/payroll-history", icon: History, permission: 'payroll.view' },
+    { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: Briefcase, permission: 'hr.view' },
+    { name: t.nav.attendance, href: "/attendance", icon: CalendarCheck, permission: 'attendance.view' },
+    { name: t.nav.deductions, href: "/deductions", icon: HandCoins, permission: 'deductions.view' },
+    { name: t.nav.branches, href: "/branches", icon: Building2, permission: 'branches.view' },
     { name: t.nav.laborLaw, href: "/labor-law", icon: Scale, permission: 'laborlaw.view' },
-    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Calculator, permission: 'payroll.view' },
-    { name: t.nav.documents, href: "/documents", icon: FileWarning, permission: 'documents.view' },
-    { name: t.nav.reports, href: "/reports", icon: FileText, permission: 'reports.view' },
+    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Percent, permission: 'payroll.view' },
+    { name: t.nav.documents, href: "/documents", icon: FileSignature, permission: 'documents.view' },
+    { name: t.nav.reports, href: "/reports", icon: BarChart3, permission: 'reports.view' },
     { name: t.nav.settings, href: "/settings", icon: Settings, permission: 'settings.view' },
-    { name: t.nav.users, href: "/users", icon: UserCog, permission: 'users.view' },
+    { name: t.nav.users, href: "/users", icon: Shield, permission: 'users.view' },
   ];
+
+  const renderNavIcon = (Icon: LucideIcon, active: boolean) => (
+    <span
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
+        active
+          ? "bg-primary-foreground/20 shadow-sm ring-1 ring-primary-foreground/25"
+          : "bg-primary/10 text-primary group-hover:bg-primary/15 group-hover:scale-105"
+      )}
+    >
+      <Icon className="h-4 w-4" strokeWidth={active ? 2.5 : 2} />
+    </span>
+  );
 
   // Filter navigation based on user permissions
   const navigation = allNavigation.filter(item => {
@@ -115,53 +132,43 @@ export function TopNavbar() {
   };
 
   const isActive = (href: string) => location.pathname === href;
+  const navColumnCount = Math.max(1, Math.ceil(navigation.length / 2));
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-14 items-center justify-between px-4">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-3 shrink-0">
-          {companyLogo ? (
-            <img 
-              src={companyLogo} 
-              alt="Company Logo" 
-              className="h-9 w-auto object-contain"
-            />
-          ) : (
-            <div className="flex items-center gap-2">
-              <img src={payrollaoLogo} alt="PayrollAO" className="h-9 w-auto object-contain" />
-            </div>
-          )}
-        </Link>
+      <div className="flex min-h-[4.25rem] items-center justify-between gap-3 px-4 py-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Link to="/" className="flex shrink-0 items-center">
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company Logo"
+                className="h-14 max-h-14 w-auto max-w-[200px] object-contain"
+              />
+            ) : (
+              <img
+                src={payrollaoLogo}
+                alt="PayrollAO"
+                className="h-12 w-auto object-contain"
+              />
+            )}
+          </Link>
 
-        {/* Desktop Navigation - All items inline */}
-        <nav className="hidden lg:flex items-center gap-0.5 flex-wrap justify-center flex-1 px-4">
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
-                isActive(item.href)
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              )}
-            >
-              <item.icon className="h-3.5 w-3.5" />
-              <span>{item.name}</span>
-            </Link>
-          ))}
-        </nav>
+          <div className="hidden sm:block w-px h-9 bg-border/60 shrink-0" aria-hidden />
 
-        {/* Right side - User menu */}
-        <div className="flex items-center gap-2">
+          <DbStatusIndicator variant="compact" className="hidden sm:flex min-w-0" />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <UpdateNotification />
+          <LanguageSwitcher />
           <TourButton />
           {currentUser && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Users className="h-4 w-4 text-primary" />
+                    <UsersRound className="h-4 w-4 text-primary" />
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-sm font-medium">{currentUser.name}</p>
@@ -229,26 +236,64 @@ export function TopNavbar() {
         </div>
       </div>
 
+      {/* Mobile: server/client status above nav tabs */}
+      <div className="sm:hidden px-4 pb-2 border-b border-border/30">
+        <DbStatusIndicator variant="compact" />
+      </div>
+
+      {/* Desktop navigation — two equal rows, uniform column widths */}
+      <nav
+        className="hidden lg:grid gap-1 px-4 pb-2.5"
+        style={{
+          gridTemplateRows: 'repeat(2, minmax(2.75rem, auto))',
+          gridAutoFlow: 'column',
+          gridTemplateColumns: `repeat(${navColumnCount}, minmax(0, 1fr))`,
+        }}
+      >
+        {navigation.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              className={cn(
+                'group flex h-full min-h-[2.75rem] flex-col items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-medium leading-tight transition-all duration-200',
+                active
+                  ? 'bg-primary text-primary-foreground shadow-md ring-1 ring-primary/20'
+                  : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+              )}
+              title={item.name}
+            >
+              {renderNavIcon(item.icon, active)}
+              <span className="w-full truncate text-center">{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-border/40 bg-background p-4">
           <nav className="grid gap-2">
-            {navigation.map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                  isActive(item.href)
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                <span>{item.name}</span>
-              </Link>
-            ))}
+            {navigation.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "group flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
+                >
+                  <span className="scale-110">{renderNavIcon(item.icon, active)}</span>
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
       )}

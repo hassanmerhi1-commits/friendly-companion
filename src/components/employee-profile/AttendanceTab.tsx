@@ -1,44 +1,52 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
+import { Clock, Calendar, AlertCircle, CheckCircle, List } from 'lucide-react';
+import {
+  ATTENDANCE_TH,
+  ATTENDANCE_TH_CENTER,
+  ATTENDANCE_TH_RIGHT,
+  ATTENDANCE_THEAD,
+  ATTENDANCE_TD,
+  ATTENDANCE_TBODY,
+} from '@/components/attendance/AttendanceTablePanel';
 import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
 import { useAbsenceStore } from '@/stores/absence-store';
 import { useLanguage } from '@/lib/i18n';
+import {
+  DossierTabShell,
+  DossierTablePanel,
+  DossierEmptyState,
+  type DossierKpi,
+} from '@/components/employee-profile/DossierTabShell';
 
 interface AttendanceTabProps {
   employeeId: string;
 }
 
+const monthNames = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
 export function AttendanceTab({ employeeId }: AttendanceTabProps) {
   const { language } = useLanguage();
+  const ptLang = language === 'pt';
+  const [subTab, setSubTab] = useState('monthly');
   const { entries: bulkEntries, loadEntries } = useBulkAttendanceStore();
   const { absences, loadAbsences } = useAbsenceStore();
 
-  // Force reload data on mount to get latest
   useEffect(() => {
     loadEntries();
     loadAbsences();
   }, [loadEntries, loadAbsences]);
 
-  // Filter bulk entries for this employee (sorted by year/month descending)
   const employeeBulkEntries = useMemo(() => {
     return bulkEntries
       .filter((e) => e.employeeId === employeeId)
-      .sort((a, b) => {
-        if (a.year !== b.year) return b.year - a.year;
-        return b.month - a.month;
-      });
+      .sort((a, b) => (a.year !== b.year ? b.year - a.year : b.month - a.month));
   }, [bulkEntries, employeeId]);
 
   const employeeAbsences = useMemo(() => {
@@ -47,20 +55,41 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
       .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
   }, [absences, employeeId]);
 
-  // Calculate stats from bulk entries (monthly records)
   const stats = useMemo(() => {
     const totalMonths = employeeBulkEntries.length;
     const totalAbsenceDays = employeeBulkEntries.reduce((sum, e) => sum + (e.absenceDays || 0), 0);
-    const totalJustifiedDays = employeeBulkEntries.reduce((sum, e) => sum + (e.justifiedAbsenceDays || 0), 0);
+    const totalJustifiedDays = employeeBulkEntries.reduce(
+      (sum, e) => sum + (e.justifiedAbsenceDays || 0),
+      0
+    );
     const totalDelayHours = employeeBulkEntries.reduce((sum, e) => sum + (e.delayHours || 0), 0);
-
-    return {
-      totalMonths,
-      totalAbsenceDays,
-      totalJustifiedDays,
-      totalDelayHours,
-    };
+    return { totalMonths, totalAbsenceDays, totalJustifiedDays, totalDelayHours };
   }, [employeeBulkEntries]);
+
+  const kpis: DossierKpi[] = [
+    {
+      label: ptLang ? 'Meses' : 'Months',
+      value: String(stats.totalMonths),
+      icon: Calendar,
+    },
+    {
+      label: ptLang ? 'Faltas injust.' : 'Unjust. abs.',
+      value: String(stats.totalAbsenceDays),
+      warn: stats.totalAbsenceDays > 0,
+      icon: AlertCircle,
+    },
+    {
+      label: ptLang ? 'Faltas just.' : 'Just. abs.',
+      value: String(stats.totalJustifiedDays),
+      icon: CheckCircle,
+    },
+    {
+      label: ptLang ? 'Atrasos' : 'Delays',
+      value: `${stats.totalDelayHours}h`,
+      warn: stats.totalDelayHours > 0,
+      icon: Clock,
+    },
+  ];
 
   const getAbsenceTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
@@ -73,203 +102,178 @@ export function AttendanceTab({ employeeId }: AttendanceTabProps) {
       unpaid: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
     };
     const labels: Record<string, string> = {
-      sick: language === 'pt' ? 'Doença' : 'Sick',
-      vacation: language === 'pt' ? 'Férias' : 'Vacation',
-      personal: language === 'pt' ? 'Pessoal' : 'Personal',
-      maternity: language === 'pt' ? 'Maternidade' : 'Maternity',
-      paternity: language === 'pt' ? 'Paternidade' : 'Paternity',
-      bereavement: language === 'pt' ? 'Luto' : 'Bereavement',
-      unpaid: language === 'pt' ? 'Não Remunerada' : 'Unpaid',
+      sick: ptLang ? 'Doença' : 'Sick',
+      vacation: ptLang ? 'Férias' : 'Vacation',
+      personal: ptLang ? 'Pessoal' : 'Personal',
+      maternity: ptLang ? 'Maternidade' : 'Maternity',
+      paternity: ptLang ? 'Paternidade' : 'Paternity',
+      bereavement: ptLang ? 'Luto' : 'Bereavement',
+      unpaid: ptLang ? 'Não remunerada' : 'Unpaid',
     };
     return (
-      <Badge variant="outline" className={colors[type] || colors.personal}>
+      <Badge variant="outline" className={`text-[10px] h-5 ${colors[type] || colors.personal}`}>
         {labels[type] || type}
       </Badge>
     );
   };
 
-  const monthNames = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
+  const monthlyTable = (
+    <table className="w-full text-xs min-w-[32rem]">
+      <thead className={ATTENDANCE_THEAD}>
+        <tr>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Período' : 'Period'}</th>
+          <th className={ATTENDANCE_TH_RIGHT}>{ptLang ? 'Injust.' : 'Unjust.'}</th>
+          <th className={ATTENDANCE_TH_RIGHT}>{ptLang ? 'Just.' : 'Just.'}</th>
+          <th className={ATTENDANCE_TH_RIGHT}>{ptLang ? 'Atrasos' : 'Delays'}</th>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Notas' : 'Notes'}</th>
+        </tr>
+      </thead>
+      <tbody className={ATTENDANCE_TBODY}>
+        {employeeBulkEntries.map((entry) => (
+          <tr key={entry.id} className="hover:bg-muted/30">
+            <td className={`${ATTENDANCE_TD} font-medium`}>
+              {monthNames[entry.month - 1]} {entry.year}
+            </td>
+            <td className={`${ATTENDANCE_TD} text-right`}>
+              {entry.absenceDays > 0 ? (
+                <span className="text-destructive font-mono">{entry.absenceDays}</span>
+              ) : (
+                <span className="text-muted-foreground">0</span>
+              )}
+            </td>
+            <td className={`${ATTENDANCE_TD} text-right font-mono`}>
+              {(entry.justifiedAbsenceDays || 0) > 0 ? entry.justifiedAbsenceDays : '—'}
+            </td>
+            <td className={`${ATTENDANCE_TD} text-right font-mono`}>
+              {entry.delayHours > 0 ? `${entry.delayHours}h` : '—'}
+            </td>
+            <td className={`${ATTENDANCE_TD} max-w-[12rem] truncate text-muted-foreground`}>
+              {entry.notes || '—'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const absencesTable = (
+    <table className="w-full text-xs min-w-[36rem]">
+      <thead className={ATTENDANCE_THEAD}>
+        <tr>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Tipo' : 'Type'}</th>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Início' : 'Start'}</th>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Fim' : 'End'}</th>
+          <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Dias' : 'Days'}</th>
+          <th className={ATTENDANCE_TH}>{ptLang ? 'Motivo' : 'Reason'}</th>
+        </tr>
+      </thead>
+      <tbody className={ATTENDANCE_TBODY}>
+        {employeeAbsences.map((absence) => {
+          const startDate = new Date(absence.startDate);
+          const endDate = new Date(absence.endDate);
+          const days =
+            Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+          return (
+            <tr key={absence.id} className="hover:bg-muted/30">
+              <td className={ATTENDANCE_TD}>{getAbsenceTypeBadge(absence.type)}</td>
+              <td className={ATTENDANCE_TD}>{format(startDate, 'dd/MM/yyyy', { locale: pt })}</td>
+              <td className={ATTENDANCE_TD}>{format(endDate, 'dd/MM/yyyy', { locale: pt })}</td>
+              <td className={`${ATTENDANCE_TD} text-center font-mono`}>{days}</td>
+              <td className={`${ATTENDANCE_TD} max-w-[14rem] truncate`} title={absence.reason}>
+                {absence.reason || '—'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  const hasData = employeeBulkEntries.length > 0 || employeeAbsences.length > 0;
+
+  if (!hasData) {
+    return (
+      <DossierTabShell kpis={kpis}>
+        <DossierTablePanel>
+          <DossierEmptyState
+            icon={Clock}
+            message={ptLang ? 'Nenhum registo de presenças' : 'No attendance records'}
+          />
+        </DossierTablePanel>
+      </DossierTabShell>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>
-              {language === 'pt' ? 'Meses Registados' : 'Months Recorded'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalMonths}</div>
-          </CardContent>
-        </Card>
+    <DossierTabShell kpis={kpis}>
+      <Tabs
+        value={subTab}
+        onValueChange={setSubTab}
+        className="flex flex-col flex-1 min-h-0 overflow-hidden"
+      >
+        <TabsList className="h-8 w-fit shrink-0 mb-2">
+          <TabsTrigger value="monthly" className="text-xs gap-1.5 h-7 px-3">
+            <List className="h-3.5 w-3.5" />
+            {ptLang ? 'Registo mensal' : 'Monthly'}
+            {employeeBulkEntries.length > 0 && (
+              <span className="ml-1 rounded bg-muted px-1 text-[10px] font-mono">
+                {employeeBulkEntries.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="absences" className="text-xs gap-1.5 h-7 px-3">
+            <Calendar className="h-3.5 w-3.5" />
+            {ptLang ? 'Ausências' : 'Absences'}
+            {employeeAbsences.length > 0 && (
+              <span className="ml-1 rounded bg-muted px-1 text-[10px] font-mono">
+                {employeeAbsences.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>
-              {language === 'pt' ? 'Faltas Injustificadas' : 'Unjustified Absences'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              <span className="text-2xl font-bold text-destructive">{stats.totalAbsenceDays}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>
-              {language === 'pt' ? 'Faltas Justificadas' : 'Justified Absences'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-primary" />
-              <span className="text-2xl font-bold text-primary">{stats.totalJustifiedDays}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>
-              {language === 'pt' ? 'Total Horas de Atraso' : 'Total Delay Hours'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-warning" />
-              <span className="text-2xl font-bold">{stats.totalDelayHours}h</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Absences List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            {language === 'pt' ? 'Histórico de Ausências' : 'Absence History'}
-          </CardTitle>
-          <CardDescription>
-            {language === 'pt'
-              ? `${employeeAbsences.length} ausências registadas`
-              : `${employeeAbsences.length} absences recorded`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {employeeAbsences.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {language === 'pt' ? 'Nenhuma ausência registada' : 'No absences recorded'}
-            </div>
-          ) : (
-            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{language === 'pt' ? 'Tipo' : 'Type'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Início' : 'Start'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Fim' : 'End'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Dias' : 'Days'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Motivo' : 'Reason'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employeeAbsences.map((absence) => {
-                  const startDate = new Date(absence.startDate);
-                  const endDate = new Date(absence.endDate);
-                  const days = Math.ceil(
-                    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-                  ) + 1;
-
-                  return (
-                    <TableRow key={absence.id}>
-                      <TableCell>{getAbsenceTypeBadge(absence.type)}</TableCell>
-                      <TableCell>
-                        {format(startDate, 'dd/MM/yyyy', { locale: pt })}
-                      </TableCell>
-                      <TableCell>
-                        {format(endDate, 'dd/MM/yyyy', { locale: pt })}
-                      </TableCell>
-                      <TableCell className="font-medium">{days}</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={absence.reason}>
-                        {absence.reason || '-'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {subTab === 'monthly' && (
+            <DossierTablePanel
+              title={ptLang ? 'Assiduidade mensal' : 'Monthly attendance'}
+              subtitle={
+                ptLang
+                  ? `${employeeBulkEntries.length} meses registados`
+                  : `${employeeBulkEntries.length} months recorded`
+              }
+            >
+              {employeeBulkEntries.length === 0 ? (
+                <DossierEmptyState
+                  icon={List}
+                  message={ptLang ? 'Sem registo mensal' : 'No monthly records'}
+                />
+              ) : (
+                monthlyTable
+              )}
+            </DossierTablePanel>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Monthly Attendance Summary */}
-      {employeeBulkEntries.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              {language === 'pt' ? 'Registo Mensal de Assiduidade' : 'Monthly Attendance Record'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table stickyHeader scrollMaxHeight="min(70vh, 28rem)">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{language === 'pt' ? 'Período' : 'Period'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Faltas Injust.' : 'Unjust. Abs.'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Faltas Just.' : 'Just. Abs.'}</TableHead>
-                  <TableHead className="text-right">{language === 'pt' ? 'Atrasos (horas)' : 'Delays (hours)'}</TableHead>
-                  <TableHead>{language === 'pt' ? 'Notas' : 'Notes'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employeeBulkEntries.slice(0, 12).map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-medium">
-                      {monthNames[entry.month - 1]} {entry.year}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {entry.absenceDays > 0 ? (
-                        <Badge variant="outline" className="bg-destructive/10 text-destructive">
-                          {entry.absenceDays}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-primary/10 text-primary">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          0
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {(entry.justifiedAbsenceDays || 0) > 0 ? (
-                        <Badge variant="outline" className="bg-primary/10 text-primary">
-                          {entry.justifiedAbsenceDays}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {entry.delayHours > 0 ? `${entry.delayHours}h` : '-'}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {entry.notes || '-'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          {subTab === 'absences' && (
+            <DossierTablePanel
+              title={ptLang ? 'Histórico de ausências' : 'Absence history'}
+              subtitle={
+                ptLang
+                  ? `${employeeAbsences.length} ausências registadas`
+                  : `${employeeAbsences.length} absences recorded`
+              }
+            >
+              {employeeAbsences.length === 0 ? (
+                <DossierEmptyState
+                  icon={Calendar}
+                  message={ptLang ? 'Nenhuma ausência registada' : 'No absences recorded'}
+                />
+              ) : (
+                absencesTable
+              )}
+            </DossierTablePanel>
+          )}
+        </div>
+      </Tabs>
+    </DossierTabShell>
   );
 }

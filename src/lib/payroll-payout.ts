@@ -20,10 +20,23 @@ export function getPayoutExtras(entry: PayrollEntry): number {
   return getMonthlyBonusPayout(entry) + getOneOffExtraPayout(entry) + getHolidayBuyoutPayout(entry);
 }
 
-/** Total transferido / recebido pelo trabalhador neste período */
+/** Total a pagar (líquido + extras) — mesmo critério do ficheiro banco, independentemente de PA */
+export function getPayrollPayoutAmount(entry: PayrollEntry): number {
+  return (entry.netSalary || 0) + getPayoutExtras(entry);
+}
+
+/** Total transferido / recebido pelo trabalhador neste período (0 se já pago antecipadamente) */
 export function getTotalPaidToEmployee(entry: PayrollEntry): number {
   if (entry.paidEarly) return 0;
-  return (entry.netSalary || 0) + getPayoutExtras(entry);
+  return getPayrollPayoutAmount(entry);
+}
+
+/** Valor registado no pagamento antecipado (dossier / recibo) */
+export function getEarlyPaymentRecordAmount(entry: PayrollEntry): number {
+  if (entry.paidEarlyAmount != null && entry.paidEarlyAmount > 0) {
+    return entry.paidEarlyAmount;
+  }
+  return getPayrollPayoutAmount(entry);
 }
 
 /** Ficheiro banco (4 colunas): vírgula decimal, sem separador de milhares — ex. 200000,00 */

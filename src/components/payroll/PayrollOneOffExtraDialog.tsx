@@ -17,6 +17,7 @@ import type { PayrollEntry } from '@/types/payroll';
 import { useLanguage } from '@/lib/i18n';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { formatAOA } from '@/lib/angola-labor-law';
+import { getPayrollPayoutAmount } from '@/lib/payroll-payout';
 import { toast } from 'sonner';
 
 const schema = z.object({
@@ -57,8 +58,14 @@ export function PayrollOneOffExtraDialog({
   const handleSubmit = async () => {
     if (!entry || readOnly) return;
 
+    const rawAmount = amount.trim() === '' ? 0 : Number(amount);
+    if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+      toast.error(language === 'pt' ? 'Valor inválido' : 'Invalid amount');
+      return;
+    }
+
     const parsed = schema.safeParse({
-      amount: amount.trim() === '' ? 0 : Number(amount),
+      amount: rawAmount,
       note: note.trim() || undefined,
     });
 
@@ -68,23 +75,39 @@ export function PayrollOneOffExtraDialog({
     }
 
     setLoading(true);
-    await updateEntry(entry.id, {
-      oneOffExtra: parsed.data.amount,
-      oneOffExtraNote: parsed.data.note,
-    });
-    setLoading(false);
-
-    toast.success(
-      language === 'pt'
-        ? parsed.data.amount > 0
-          ? 'Extra pontual registado'
-          : 'Extra pontual removido'
-        : parsed.data.amount > 0
-          ? 'One-off extra saved'
-          : 'One-off extra cleared'
-    );
-    onOpenChange(false);
-    onSuccess?.();
+    try {
+      const patch: Partial<PayrollEntry> = {
+        oneOffExtra: parsed.data.amount,
+        oneOffExtraNote: parsed.data.note,
+      };
+      if (entry.paidEarly) {
+        patch.paidEarlyAmount = getPayrollPayoutAmount({
+          ...entry,
+          oneOffExtra: parsed.data.amount,
+        });
+      }
+      await updateEntry(entry.id, patch);
+      const hadExtra = (entry.oneOffExtra || 0) > 0;
+      toast.success(
+        language === 'pt'
+          ? parsed.data.amount > 0
+            ? hadExtra
+              ? 'Extra pontual atualizado'
+              : 'Extra pontual registado'
+            : 'Extra pontual removido'
+          : parsed.data.amount > 0
+            ? hadExtra
+              ? 'One-off extra updated'
+              : 'One-off extra saved'
+            : 'One-off extra cleared'
+      );
+      onOpenChange(false);
+      onSuccess?.();
+    } catch {
+      toast.error(language === 'pt' ? 'Erro ao guardar extra' : 'Failed to save extra');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const pt = language === 'pt';
@@ -98,7 +121,13 @@ export function PayrollOneOffExtraDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Coins className="h-5 w-5" />
-            {pt ? 'Extra pontual (este mês)' : 'One-off extra (this month)'}
+            {(entry?.oneOffExtra || 0) > 0
+              ? pt
+                ? 'Editar extra pontual'
+                : 'Edit one-off extra'
+              : pt
+                ? 'Extra pontual (este mês)'
+                : 'One-off extra (this month)'}
           </DialogTitle>
           <DialogDescription>
             {employeeName}

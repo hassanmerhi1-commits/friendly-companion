@@ -28,6 +28,74 @@ function extractTimeFromISO(isoString: string): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+function getLocalToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function filterTodayRecords(records: AttendanceRecord[], employeeId: string): AttendanceRecord[] {
+  const today = getLocalToday();
+  return records.filter((r) => r.employeeId === employeeId && r.date === today);
+}
+
+function resolveTodayAttendance(records: AttendanceRecord[], employeeId: string): AttendanceRecord | undefined {
+  const dayRecords = filterTodayRecords(records, employeeId);
+  if (dayRecords.length === 0) return undefined;
+  const open = dayRecords.find((r) => r.clockIn && !r.clockOut);
+  if (open) return open;
+  const punched = dayRecords
+    .filter((r) => r.clockIn)
+    .sort((a, b) => (b.clockIn || '').localeCompare(a.clockIn || ''));
+  if (punched.length > 0) return punched[0];
+  return dayRecords[0];
+}
+
+function recalculateFromClock(record: AttendanceRecord): AttendanceRecord {
+  const scheduledStart = record.scheduledStart || '08:00';
+  const graceMinutes = 10;
+  let lateMinutes = 0;
+  let workedMinutes = 0;
+  let earlyLeaveMinutes = 0;
+  let overtimeMinutes = 0;
+  let status: AttendanceStatus = record.clockIn ? 'clocked_in' : 'absent';
+
+  if (record.clockIn) {
+    const clockInTimeStr = extractTimeFromISO(record.clockIn);
+    const scheduledMinutes = timeToMinutes(scheduledStart);
+    const actualMinutes = timeToMinutes(clockInTimeStr);
+    lateMinutes = Math.max(0, actualMinutes - scheduledMinutes - graceMinutes);
+    if (!record.clockOut) {
+      status = lateMinutes > 0 ? 'late' : 'clocked_in';
+    }
+  }
+
+  if (record.clockIn && record.clockOut) {
+    const clockInTimeStr = extractTimeFromISO(record.clockIn);
+    const clockOutTimeStr = extractTimeFromISO(record.clockOut);
+    const totalMinutes = calculateMinutesDiff(clockInTimeStr, clockOutTimeStr);
+    workedMinutes = Math.max(0, totalMinutes - record.breakDurationMinutes);
+    const scheduledEndMinutes = timeToMinutes(record.scheduledEnd);
+    const actualEndMinutes = timeToMinutes(clockOutTimeStr);
+    earlyLeaveMinutes = Math.max(0, scheduledEndMinutes - actualEndMinutes);
+    overtimeMinutes = Math.max(0, workedMinutes - 8 * 60);
+    status = 'clocked_out';
+    if (earlyLeaveMinutes > 10) status = 'early_leave';
+    else if (lateMinutes > 0) status = 'late';
+  }
+
+  return { ...record, lateMinutes, workedMinutes, earlyLeaveMinutes, overtimeMinutes, status };
+}
+
+function mergeRecordInState(records: AttendanceRecord[], updated: AttendanceRecord): AttendanceRecord[] {
+  const idx = records.findIndex((r) => r.id === updated.id);
+  if (idx >= 0) {
+    const next = [...records];
+    next[idx] = updated;
+    return next;
+  }
+  return [...records, updated];
+}
+
 function mapDbRowToAttendance(row: any): AttendanceRecord {
   return {
     id: row.id,
@@ -86,6 +154,12 @@ interface AttendanceStore {
   getOvertimeSummary: (employeeId: string, month: number, year: number) => OvertimeSummary;
   isEmployeeClockedIn: (employeeId: string) => boolean;
   getAttendanceByPeriod: (employeeId: string, startDate: string, endDate: string) => AttendanceRecord[];
+  setManualClockTime: (
+    employeeId: string,
+    field: 'clockIn' | 'clockOut',
+    timeHHmm: string
+  ) => Promise<boolean>;
+  clearTodayPunch: (employeeId: string) => Promise<boolean>;
 }
 
 export const useAttendanceStore = create<AttendanceStore>()((set, get) => ({
@@ -106,123 +180,176 @@ export const useAttendanceStore = create<AttendanceStore>()((set, get) => ({
 
   clockIn: async (employeeId, notes) => {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = getLocalToday();
     const clockInTime = now.toISOString();
-    const clockInTimeStr = extractTimeFromISO(clockInTime);
-    
-    // Check if already clocked in today
-    const existing = get().records.find(r => r.employeeId === employeeId && r.date === today);
-    if (existing && existing.clockIn && !existing.clockOut) {
-      console.log('[Attendance] Already clocked in');
+    const dayRecords = filterTodayRecords(get().records, employeeId);
+
+    if (dayRecords.some((r) => r.clockIn && !r.clockOut)) {
+      return null;
+    }
+    if (dayRecords.some((r) => r.clockIn && r.clockOut)) {
       return null;
     }
 
-    const scheduledStart = '08:00';
-    const scheduledEnd = '17:00';
-    const breakMinutes = 60;
-    const graceMinutes = 10;
-    
-    // Calculate late minutes
-    const scheduledMinutes = timeToMinutes(scheduledStart);
-    const actualMinutes = timeToMinutes(clockInTimeStr);
-    const lateMinutes = Math.max(0, actualMinutes - scheduledMinutes - graceMinutes);
-    
-    const status: AttendanceStatus = lateMinutes > 0 ? 'late' : 'clocked_in';
-    
-    const newRecord: AttendanceRecord = {
+    const placeholder = dayRecords.find((r) => !r.clockIn);
+    const base = {
+      scheduledStart: '08:00',
+      scheduledEnd: '17:00',
+      breakDurationMinutes: 60,
+    };
+
+    if (placeholder) {
+      const updated = recalculateFromClock({
+        ...placeholder,
+        ...base,
+        clockIn: clockInTime,
+        clockOut: undefined,
+        notes: notes || placeholder.notes,
+        updatedAt: now.toISOString(),
+      });
+      const { id, ...row } = mapAttendanceToDbRow(updated);
+      const ok = await liveUpdate('attendance', id, row);
+      if (!ok) return null;
+      set({ records: mergeRecordInState(get().records, updated) });
+      return updated;
+    }
+
+    const newRecord = recalculateFromClock({
       id: generateId(),
       employeeId,
       date: today,
       clockIn: clockInTime,
       clockOut: undefined,
-      status,
-      scheduledStart,
-      scheduledEnd,
-      breakDurationMinutes: breakMinutes,
-      lateMinutes,
+      status: 'clocked_in',
+      ...base,
+      lateMinutes: 0,
       earlyLeaveMinutes: 0,
       workedMinutes: 0,
       overtimeMinutes: 0,
       notes,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
-    };
+    });
 
-    await liveInsert('attendance', mapAttendanceToDbRow(newRecord));
+    const ok = await liveInsert('attendance', mapAttendanceToDbRow(newRecord));
+    if (!ok) return null;
+    set({ records: [...get().records, newRecord] });
     return newRecord;
   },
 
   clockOut: async (employeeId, notes) => {
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
     const clockOutTime = now.toISOString();
-    const clockOutTimeStr = extractTimeFromISO(clockOutTime);
-    
-    const existing = get().records.find(r => 
-      r.employeeId === employeeId && r.date === today && r.clockIn && !r.clockOut
+    const existing = filterTodayRecords(get().records, employeeId).find(
+      (r) => r.clockIn && !r.clockOut
     );
-    
+
     if (!existing) {
-      console.log('[Attendance] Not clocked in');
       return null;
     }
 
-    const clockInTimeStr = extractTimeFromISO(existing.clockIn!);
-    
-    // Calculate worked minutes (minus break)
-    const totalMinutes = calculateMinutesDiff(clockInTimeStr, clockOutTimeStr);
-    const workedMinutes = Math.max(0, totalMinutes - existing.breakDurationMinutes);
-    
-    // Calculate early leave
-    const scheduledEndMinutes = timeToMinutes(existing.scheduledEnd);
-    const actualEndMinutes = timeToMinutes(clockOutTimeStr);
-    const earlyLeaveMinutes = Math.max(0, scheduledEndMinutes - actualEndMinutes);
-    
-    // Calculate overtime (above 8 hours = 480 minutes)
-    const standardWorkMinutes = 8 * 60; // 8 hours
-    const overtimeMinutes = Math.max(0, workedMinutes - standardWorkMinutes);
-    
-    // Determine status
-    let status: AttendanceStatus = 'clocked_out';
-    if (earlyLeaveMinutes > 10) {
-      status = 'early_leave';
-    } else if (existing.lateMinutes > 0) {
-      status = 'late';
-    }
-    
-    const updatedNotes = notes 
-      ? existing.notes 
-        ? `${existing.notes}; ${notes}` 
-        : notes 
+    const updatedNotes = notes
+      ? existing.notes
+        ? `${existing.notes}; ${notes}`
+        : notes
       : existing.notes;
 
-    const { id, ...updateData } = mapAttendanceToDbRow({
+    const updated = recalculateFromClock({
       ...existing,
       clockOut: clockOutTime,
-      workedMinutes,
-      earlyLeaveMinutes,
-      overtimeMinutes,
-      status,
       notes: updatedNotes,
       updatedAt: now.toISOString(),
     });
 
-    await liveUpdate('attendance', existing.id, updateData);
-    return { ...existing, clockOut: clockOutTime, workedMinutes, earlyLeaveMinutes, overtimeMinutes, status };
+    const { id, ...updateData } = mapAttendanceToDbRow(updated);
+    const ok = await liveUpdate('attendance', existing.id, updateData);
+    if (!ok) return null;
+    set({ records: mergeRecordInState(get().records, updated) });
+    return updated;
   },
 
   updateAttendance: async (id, updates) => {
     const now = new Date().toISOString();
-    const current = get().records.find(r => r.id === id);
+    const current = get().records.find((r) => r.id === id);
     if (!current) return;
-    
-    const updated = { ...current, ...updates, updatedAt: now };
+
+    const updated = recalculateFromClock({ ...current, ...updates, updatedAt: now });
     const { id: _, ...row } = mapAttendanceToDbRow(updated);
-    await liveUpdate('attendance', id, row);
+    const ok = await liveUpdate('attendance', id, row);
+    if (ok) {
+      set({ records: mergeRecordInState(get().records, updated) });
+    }
+  },
+
+  setManualClockTime: async (employeeId, field, timeHHmm) => {
+    const [h, m] = timeHHmm.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return false;
+
+    const now = new Date();
+    const today = getLocalToday();
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    const iso = d.toISOString();
+
+    let record = resolveTodayAttendance(get().records, employeeId);
+    const base = {
+      scheduledStart: '08:00',
+      scheduledEnd: '17:00',
+      breakDurationMinutes: 60,
+    };
+
+    if (!record) {
+      const created = recalculateFromClock({
+        id: generateId(),
+        employeeId,
+        date: today,
+        clockIn: field === 'clockIn' ? iso : undefined,
+        clockOut: field === 'clockOut' ? iso : undefined,
+        status: 'clocked_in',
+        ...base,
+        lateMinutes: 0,
+        earlyLeaveMinutes: 0,
+        workedMinutes: 0,
+        overtimeMinutes: 0,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      });
+      const ok = await liveInsert('attendance', mapAttendanceToDbRow(created));
+      if (!ok) return false;
+      set({ records: [...get().records, created] });
+      return true;
+    }
+
+    const patched = recalculateFromClock({
+      ...record,
+      [field]: iso,
+      updatedAt: now.toISOString(),
+    });
+    const { id, ...row } = mapAttendanceToDbRow(patched);
+    const ok = await liveUpdate('attendance', id, row);
+    if (!ok) return false;
+    set({ records: mergeRecordInState(get().records, patched) });
+    return true;
   },
 
   deleteAttendance: async (id) => {
-    await liveDelete('attendance', id);
+    const ok = await liveDelete('attendance', id);
+    if (ok) {
+      set({ records: get().records.filter((r) => r.id !== id) });
+    }
+  },
+
+  clearTodayPunch: async (employeeId) => {
+    const dayRecords = filterTodayRecords(get().records, employeeId);
+    if (dayRecords.length === 0) return false;
+
+    const ids = new Set(dayRecords.map((r) => r.id));
+    for (const id of ids) {
+      const ok = await liveDelete('attendance', id);
+      if (!ok) return false;
+    }
+    set({ records: get().records.filter((r) => !ids.has(r.id)) });
+    return true;
   },
 
   getAttendanceByEmployee: (employeeId) => 
@@ -234,16 +361,10 @@ export const useAttendanceStore = create<AttendanceStore>()((set, get) => ({
   getAttendanceByEmployeeAndDate: (employeeId, date) =>
     get().records.find(r => r.employeeId === employeeId && r.date === date),
 
-  getTodayAttendance: (employeeId) => {
-    const today = new Date().toISOString().split('T')[0];
-    return get().records.find(r => r.employeeId === employeeId && r.date === today);
-  },
+  getTodayAttendance: (employeeId) => resolveTodayAttendance(get().records, employeeId),
 
-  isEmployeeClockedIn: (employeeId) => {
-    const today = new Date().toISOString().split('T')[0];
-    const record = get().records.find(r => r.employeeId === employeeId && r.date === today);
-    return !!(record && record.clockIn && !record.clockOut);
-  },
+  isEmployeeClockedIn: (employeeId) =>
+    filterTodayRecords(get().records, employeeId).some((r) => r.clockIn && !r.clockOut),
 
   getAttendanceByPeriod: (employeeId, startDate, endDate) => {
     return get().records.filter(r => {

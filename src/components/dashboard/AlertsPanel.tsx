@@ -3,9 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bell, AlertTriangle, Info, X, Calendar, Gift, Clock, Wallet } from 'lucide-react';
+import { Bell, AlertTriangle, X, Calendar, Gift, Clock, Wallet, Palmtree, Gavel, Scale } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useAlertsStore, type AlertType, type AlertSeverity } from '@/stores/alerts-store';
+import { useEmployeeStore } from '@/stores/employee-store';
+import { useHolidayStore } from '@/stores/holiday-store';
+import { useDisciplinaryStore } from '@/stores/disciplinary-store';
+import { usePayrollStore } from '@/stores/payroll-store';
+import { useAbsenceStore } from '@/stores/absence-store';
+import { useLoanStore } from '@/stores/loan-store';
+import { useDeductionStore } from '@/stores/deduction-store';
+import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
 import { cn } from '@/lib/utils';
 
 const alertIcons: Record<AlertType, typeof Bell> = {
@@ -17,6 +25,12 @@ const alertIcons: Record<AlertType, typeof Bell> = {
   excessive_absence: AlertTriangle,
   payroll_pending: Clock,
   budget_warning: AlertTriangle,
+  holiday_upcoming: Palmtree,
+  holiday_active: Palmtree,
+  holiday_unscheduled: Calendar,
+  disciplinary_process: Gavel,
+  disciplinary_warning: Scale,
+  deduction_outstanding: Wallet,
 };
 
 const severityStyles: Record<AlertSeverity, string> = {
@@ -31,17 +45,44 @@ const severityBadge: Record<AlertSeverity, 'default' | 'secondary' | 'destructiv
   critical: 'destructive',
 };
 
-export function AlertsPanel() {
+interface AlertsPanelProps {
+  compact?: boolean;
+  className?: string;
+}
+
+export function AlertsPanel({ compact = false, className }: AlertsPanelProps) {
   const { language } = useLanguage();
-  const { alerts, isLoaded, generateAlerts, dismissAlert, markAsRead } = useAlertsStore();
-  
+  const { alerts, generateAlerts, dismissAlert, markAsRead } = useAlertsStore();
+  const employees = useEmployeeStore((s) => s.employees);
+  const holidayRecords = useHolidayStore((s) => s.records);
+  const disciplinaryRecords = useDisciplinaryStore((s) => s.records);
+  const periods = usePayrollStore((s) => s.periods);
+  const absences = useAbsenceStore((s) => s.absences);
+  const loans = useLoanStore((s) => s.loans);
+  const deductions = useDeductionStore((s) => s.deductions);
+  const bulkEntries = useBulkAttendanceStore((s) => s.entries);
+
   useEffect(() => {
-    if (!isLoaded) {
-      generateAlerts();
-    }
-  }, [isLoaded, generateAlerts]);
-  
-  const visibleAlerts = alerts.filter(a => !a.isDismissed).slice(0, 10);
+    void useHolidayStore.getState().loadHolidays();
+    void useDisciplinaryStore.getState().loadRecords();
+  }, []);
+
+  useEffect(() => {
+    generateAlerts(language);
+  }, [
+    language,
+    generateAlerts,
+    employees,
+    holidayRecords,
+    disciplinaryRecords,
+    periods,
+    absences,
+    loans,
+    deductions,
+    bulkEntries,
+  ]);
+
+  const visibleAlerts = alerts.filter((a) => !a.isDismissed);
   
   const t = {
     title: language === 'pt' ? 'Alertas e Notificações' : 'Alerts & Notifications',
@@ -59,55 +100,57 @@ export function AlertsPanel() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Bell className="h-5 w-5" />
+    <Card className={cn(compact && 'h-full flex flex-col min-h-0 overflow-hidden', className)}>
+      <CardHeader className={cn('pb-3', compact && 'shrink-0 py-3 px-4')}>
+        <CardTitle className={cn('flex items-center gap-2', compact ? 'text-sm' : 'text-lg')}>
+          <Bell className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
           {t.title}
           {visibleAlerts.length > 0 && (
-            <Badge variant="secondary" className="ml-2">{visibleAlerts.length}</Badge>
+            <Badge variant="secondary" className="ml-1 text-[10px]">{visibleAlerts.length}</Badge>
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className={cn('p-0', compact && 'flex-1 min-h-0 flex flex-col overflow-hidden')}>
         {visibleAlerts.length === 0 ? (
-          <div className="p-6 text-center text-muted-foreground">
-            <Bell className="h-10 w-10 mx-auto mb-2 opacity-20" />
-            <p>{t.noAlerts}</p>
+          <div className={cn('text-center text-muted-foreground', compact ? 'p-4' : 'p-6')}>
+            <Bell className={cn('mx-auto mb-2 opacity-20', compact ? 'h-8 w-8' : 'h-10 w-10')} />
+            <p className={compact ? 'text-sm' : undefined}>{t.noAlerts}</p>
           </div>
         ) : (
-          <ScrollArea className="h-[350px]">
-            <div className="space-y-1 p-4 pt-0">
+          <ScrollArea className={compact ? 'flex-1 min-h-0 h-full' : 'h-[350px]'}>
+            <div className={cn('space-y-1', compact ? 'p-3 pt-0' : 'p-4 pt-0')}>
               {visibleAlerts.map(alert => {
                 const Icon = alertIcons[alert.type] || Bell;
                 return (
                   <div
                     key={alert.id}
                     className={cn(
-                      "relative flex items-start gap-3 p-3 rounded-lg border-l-4 transition-colors cursor-pointer",
+                      "relative flex items-start gap-3 rounded-lg border-l-4 transition-colors cursor-pointer",
+                      compact ? 'p-2' : 'p-3',
                       severityStyles[alert.severity],
                       !alert.isRead && "font-medium"
                     )}
                     onClick={() => markAsRead(alert.id)}
                   >
                     <Icon className={cn(
-                      "h-5 w-5 mt-0.5 shrink-0",
+                      "mt-0.5 shrink-0",
+                      compact ? 'h-4 w-4' : 'h-5 w-5',
                       alert.severity === 'critical' && "text-red-500",
                       alert.severity === 'warning' && "text-amber-500",
                       alert.severity === 'info' && "text-blue-500"
                     )} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium truncate">{alert.title}</span>
-                        <Badge variant={severityBadge[alert.severity]} className="text-xs shrink-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className={cn('font-medium truncate', compact ? 'text-xs' : 'text-sm')}>{alert.title}</span>
+                        <Badge variant={severityBadge[alert.severity]} className="text-[10px] shrink-0 px-1.5 py-0">
                           {getSeverityLabel(alert.severity)}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
+                      <p className={cn('text-muted-foreground line-clamp-2', compact ? 'text-xs' : 'text-sm')}>
                         {alert.message}
                       </p>
                       {alert.dueDate && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
                           {new Date(alert.dueDate).toLocaleDateString(language === 'pt' ? 'pt-AO' : 'en-US')}
                         </p>
                       )}
@@ -121,7 +164,7 @@ export function AlertsPanel() {
                         dismissAlert(alert.id);
                       }}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 );

@@ -59,7 +59,11 @@ function getDayOfYear(): number {
   return Math.floor(diff / oneDay);
 }
 
-export function DailyWallpaper() {
+interface DailyWallpaperProps {
+  variant?: 'full' | 'banner';
+}
+
+export function DailyWallpaper({ variant = 'full' }: DailyWallpaperProps) {
   const { language } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -96,6 +100,32 @@ export function DailyWallpaper() {
       hour12: false
     });
   };
+
+  if (variant === 'banner') {
+    return (
+      <div className="relative w-full h-[88px] rounded-xl overflow-hidden border border-border/50 shadow-sm">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${todayImage.url})`, opacity: imageLoaded ? 1 : 0.85 }}
+        />
+        <img src={todayImage.url} alt="" className="hidden" onLoad={() => setImageLoaded(true)} />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/25" />
+        <div className="relative z-10 h-full flex items-center justify-between px-4 text-white">
+          <div className="flex items-center gap-2 min-w-0">
+            <MapPin className="h-4 w-4 shrink-0 opacity-90" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate">{todayImage.location}</p>
+              <p className="text-xs opacity-80 truncate hidden sm:block">{todayImage.description}</p>
+            </div>
+          </div>
+          <div className="text-right shrink-0 pl-3">
+            <p className="text-xs opacity-80 capitalize hidden md:block">{formatDate()}</p>
+            <p className="text-lg font-mono font-semibold tabular-nums">{formatTime().slice(0, 5)}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-[450px] rounded-2xl overflow-hidden shadow-lg animate-fade-in">

@@ -1,200 +1,241 @@
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { DailyWallpaper } from "@/components/dashboard/DailyWallpaper";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { SalaryDistributionChart } from "@/components/dashboard/SalaryDistributionChart";
-import { SalaryTrendChart } from "@/components/dashboard/SalaryTrendChart";
-import { HeadcountChart } from "@/components/dashboard/HeadcountChart";
+import { DashboardDateTime } from "@/components/dashboard/DashboardDateTime";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
-import { AuditLogPanel } from "@/components/dashboard/AuditLogPanel";
-import { KPIMetricsGrid } from "@/components/dashboard/KPIMetricsGrid";
-import { ActiveLeavesWidget } from "@/components/dashboard/ActiveLeavesWidget";
-import { Users, DollarSign, Clock, CheckCircle, AlertTriangle, Calendar } from "lucide-react";
+import { Users, DollarSign, Clock, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatAOA } from "@/lib/angola-labor-law";
-import { useMemo } from "react";
+import { getTotalPaidToEmployee } from "@/lib/payroll-payout";
+import { useEffect, useMemo } from "react";
+import { useAlertsStore } from "@/stores/alerts-store";
+import { useHolidayStore } from "@/stores/holiday-store";
+import { useDisciplinaryStore } from "@/stores/disciplinary-store";
+import { useAbsenceStore } from "@/stores/absence-store";
+import { useLoanStore } from "@/stores/loan-store";
+import { useDeductionStore } from "@/stores/deduction-store";
+import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 
 const Index = () => {
   const { t, language } = useLanguage();
   const { employees } = useEmployeeStore();
   const { periods, entries } = usePayrollStore();
   const { hasPermission } = useAuthStore();
+  const { alerts, generateAlerts } = useAlertsStore();
+  const holidayRecords = useHolidayStore((s) => s.records);
+  const disciplinaryRecords = useDisciplinaryStore((s) => s.records);
+  const absences = useAbsenceStore((s) => s.absences);
+  const loans = useLoanStore((s) => s.loans);
+  const deductions = useDeductionStore((s) => s.deductions);
+  const bulkEntries = useBulkAttendanceStore((s) => s.entries);
 
   const canViewEmployees = hasPermission('employees.view');
   const canViewPayroll = hasPermission('payroll.view');
-  const canViewReports = hasPermission('reports.view');
   const canViewHR = hasPermission('hr.view');
-  const canViewAttendance = hasPermission('attendance.view');
 
-  // Only compute if user has permission
-  const activeEmployees = canViewEmployees ? employees.filter(emp => emp.status === 'active') : [];
-  // Exclude colaboradores from dashboard salary stats
-  const regularActiveEmployees = activeEmployees.filter(emp => emp.contractType !== 'colaborador');
-  const currentPeriod = canViewPayroll 
-    ? (periods.find(p => p.status === 'calculated' || p.status === 'draft') || periods[periods.length - 1])
-    : null;
-  const regularEmployeeIdSet = new Set(regularActiveEmployees.map(e => e.id));
-  const currentEntries = (canViewPayroll && currentPeriod) ? entries.filter(e => e.payrollPeriodId === currentPeriod.id && regularEmployeeIdSet.has(e.employeeId)) : [];
-  const totalPayroll = canViewPayroll ? currentEntries.reduce((sum, e) => sum + e.netSalary, 0) : 0;
-  const paidEmployees = canViewPayroll ? currentEntries.filter(e => e.status === 'paid').length : 0;
-  const pendingCount = canViewPayroll ? currentEntries.filter(e => e.status !== 'paid').length : 0;
+  const showAlertsPanel = canViewHR || canViewPayroll || canViewEmployees;
 
-  // Contract expiry warnings - only for employees.view
-  const contractWarnings = useMemo(() => {
-    if (!canViewEmployees) return 0;
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    return activeEmployees.filter(emp => {
-      if (!emp.contractEndDate) return false;
-      const endDate = new Date(emp.contractEndDate);
-      return endDate <= thirtyDaysFromNow && endDate >= new Date();
-    }).length;
-  }, [activeEmployees, canViewEmployees]);
+  const activeEmployees = canViewEmployees ? employees.filter((emp) => emp.status === 'active') : [];
+  const regularActiveEmployees = activeEmployees.filter((emp) => emp.contractType !== 'colaborador');
 
-  // Upcoming birthdays - only for employees.view
-  const upcomingBirthdays = useMemo(() => {
-    if (!canViewEmployees) return 0;
+  const currentPeriod = useMemo(() => {
+    if (!canViewPayroll) return null;
     const now = new Date();
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    return activeEmployees.filter(emp => {
-      if (!emp.dateOfBirth) return false;
-      const birth = new Date(emp.dateOfBirth);
-      const thisYearBirthday = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
-      return thisYearBirthday >= now && thisYearBirthday <= sevenDaysFromNow;
-    }).length;
-  }, [activeEmployees, canViewEmployees]);
+    const thisMonth = periods.find((p) => p.year === now.getFullYear() && p.month === now.getMonth() + 1);
+    if (thisMonth) return thisMonth;
+    return (
+      periods.find((p) => p.status === 'calculated' || p.status === 'draft' || p.status === 'approved') ||
+      periods[periods.length - 1] ||
+      null
+    );
+  }, [canViewPayroll, periods]);
 
-  const monthNames = language === 'pt'
-    ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-    : ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  
-  const currentMonth = monthNames[new Date().getMonth()];
+  const regularEmployeeIdSet = useMemo(
+    () => new Set(regularActiveEmployees.map((e) => e.id)),
+    [regularActiveEmployees]
+  );
+
+  const currentEntries = useMemo(() => {
+    if (!canViewPayroll || !currentPeriod) return [];
+    return entries.filter(
+      (e) => e.payrollPeriodId === currentPeriod.id && regularEmployeeIdSet.has(e.employeeId)
+    );
+  }, [canViewPayroll, currentPeriod, entries, regularEmployeeIdSet]);
+
+  const folhaPayoutTotal = useMemo(
+    () => currentEntries.reduce((sum, e) => sum + getTotalPaidToEmployee(e), 0),
+    [currentEntries]
+  );
+
+  useEffect(() => {
+    if (showAlertsPanel) {
+      generateAlerts(language);
+    }
+  }, [
+    showAlertsPanel,
+    language,
+    generateAlerts,
+    employees,
+    holidayRecords,
+    disciplinaryRecords,
+    periods,
+    absences,
+    loans,
+    deductions,
+    bulkEntries,
+  ]);
+
+  const alertCount = alerts.filter((a) => !a.isDismissed).length;
+  const criticalAlertCount = alerts.filter(
+    (a) => !a.isDismissed && a.severity === 'critical'
+  ).length;
+
+  const pendingCount = useMemo(() => {
+    if (canViewPayroll && currentPeriod && currentPeriod.status !== 'paid') {
+      return 1;
+    }
+    return 0;
+  }, [canViewPayroll, currentPeriod]);
+
+  const monthNames =
+    language === 'pt'
+      ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+      : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+  const periodMonthLabel = currentPeriod ? monthNames[currentPeriod.month - 1] : '-';
+
+  const pendingSubtitle = useMemo(() => {
+    if (!canViewPayroll || !currentPeriod) return '-';
+    if (currentPeriod.status === 'paid') {
+      return language === 'pt' ? 'Folha fechada' : 'Payroll closed';
+    }
+    if (currentPeriod.status === 'approved') {
+      return language === 'pt' ? `${periodMonthLabel} · aguarda pagamento` : `${periodMonthLabel} · awaiting payment`;
+    }
+    if (currentPeriod.status === 'calculated') {
+      return language === 'pt' ? `${periodMonthLabel} · aguarda aprovação` : `${periodMonthLabel} · awaiting approval`;
+    }
+    return language === 'pt' ? `${periodMonthLabel} · em preparação` : `${periodMonthLabel} · in progress`;
+  }, [canViewPayroll, currentPeriod, language, periodMonthLabel]);
+
+  const alertSubtitle =
+    alertCount === 0
+      ? language === 'pt'
+        ? 'Sem alertas'
+        : 'No alerts'
+      : criticalAlertCount > 0
+        ? language === 'pt'
+          ? `${criticalAlertCount} crítico(s) · ${alertCount} total`
+          : `${criticalAlertCount} critical · ${alertCount} total`
+        : language === 'pt'
+          ? `${alertCount} notificação(ões)`
+          : `${alertCount} notification(s)`;
+
+  const kpiCards = [
+    canViewEmployees && {
+      key: 'employees',
+      title: t.dashboard.totalEmployees,
+      value: String(activeEmployees.length),
+      subtitle: `${employees.length} ${language === 'pt' ? 'registados' : 'registered'}`,
+      icon: Users,
+      variant: 'default' as const,
+      delay: 0,
+    },
+    canViewPayroll && {
+      key: 'payroll',
+      title: language === 'pt' ? 'Líquido folha' : 'Payroll net',
+      value: formatAOA(folhaPayoutTotal),
+      subtitle: currentPeriod ? periodMonthLabel : '-',
+      icon: DollarSign,
+      variant: 'accent' as const,
+      delay: 50,
+    },
+    canViewPayroll && {
+      key: 'pending',
+      title: language === 'pt' ? 'Pendências' : 'Pending',
+      value: String(pendingCount),
+      subtitle: pendingSubtitle,
+      icon: Clock,
+      variant: pendingCount > 0 ? ('warning' as const) : ('default' as const),
+      delay: 100,
+    },
+    canViewEmployees && {
+      key: 'alerts',
+      title: language === 'pt' ? 'Alertas' : 'Alerts',
+      value: String(alertCount),
+      subtitle: alertSubtitle,
+      icon: AlertTriangle,
+      variant: alertCount > 0 ? ('warning' as const) : ('default' as const),
+      delay: 150,
+    },
+  ].filter(Boolean) as {
+    key: string;
+    title: string;
+    value: string;
+    subtitle: string;
+    icon: typeof Users;
+    variant: 'default' | 'accent' | 'success' | 'warning';
+    delay: number;
+  }[];
+
+  const kpiCols =
+    kpiCards.length <= 1
+      ? 'grid-cols-1'
+      : kpiCards.length === 2
+        ? 'grid-cols-2'
+        : kpiCards.length === 3
+          ? 'grid-cols-3'
+          : 'grid-cols-2 lg:grid-cols-4';
 
   return (
-    <TopNavLayout>
-      {/* Modern Header with gradient accent */}
-      <div className="mb-6 animate-fade-in">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="h-10 w-1.5 rounded-full bg-gradient-to-b from-primary to-primary/60" />
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
-              {t.dashboard.welcome}
-            </h1>
-            <p className="text-muted-foreground mt-0.5">
-              {t.dashboard.summary} • {currentMonth} {new Date().getFullYear()}
-            </p>
+    <TopNavLayout scrollable={false}>
+      <div className="flex flex-col flex-1 min-h-0 gap-3 overflow-hidden">
+        <DashboardHero
+          compact
+          period={currentPeriod}
+          activeEmployeeCount={regularActiveEmployees.length}
+          folhaPayoutTotal={folhaPayoutTotal}
+          showPayroll={canViewPayroll}
+          showEmployees={canViewEmployees}
+        />
+
+        {kpiCards.length > 0 && (
+          <div className={`shrink-0 grid ${kpiCols} items-stretch gap-3`}>
+            {kpiCards.map((card) => (
+              <StatCard
+                key={card.key}
+                compact
+                className="min-h-[5.5rem]"
+                title={card.title}
+                value={card.value}
+                subtitle={card.subtitle}
+                icon={card.icon}
+                variant={card.variant}
+                delay={card.delay}
+              />
+            ))}
           </div>
-        </div>
-      </div>
-
-      {/* KPI Metrics Row - only for payroll viewers */}
-      {canViewPayroll && (
-        <div className="mb-6">
-          <KPIMetricsGrid />
-        </div>
-      )}
-
-      {/* Stats Grid - permission-filtered */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-        {canViewEmployees && (
-          <StatCard
-            title={t.dashboard.totalEmployees}
-            value={String(employees.length)}
-            subtitle={`${activeEmployees.length} ${t.common.active}`}
-            icon={Users}
-            variant="default"
-            delay={0}
-          />
         )}
-        {canViewPayroll && (
-          <StatCard
-            title={t.dashboard.totalPayroll}
-            value={formatAOA(totalPayroll)}
-            subtitle={currentPeriod ? currentMonth : '-'}
-            icon={DollarSign}
-            variant="accent"
-            delay={50}
-          />
-        )}
-        {canViewPayroll && (
-          <StatCard
-            title={t.dashboard.pendingApproval}
-            value={String(pendingCount)}
-            subtitle={t.dashboard.awaitingApproval}
-            icon={Clock}
-            variant="warning"
-            delay={100}
-          />
-        )}
-        {canViewPayroll && (
-          <StatCard
-            title={t.dashboard.paidEmployees}
-            value={String(paidEmployees)}
-            subtitle={currentEntries.length > 0 ? `${((paidEmployees / currentEntries.length) * 100).toFixed(0)}% ${t.dashboard.completed}` : '-'}
-            icon={CheckCircle}
-            variant="success"
-            delay={150}
-          />
-        )}
-        {canViewEmployees && (
-          <StatCard
-            title={language === 'pt' ? 'Contratos a Expirar' : 'Expiring Contracts'}
-            value={String(contractWarnings)}
-            subtitle={language === 'pt' ? 'Próximos 30 dias' : 'Next 30 days'}
-            icon={AlertTriangle}
-            variant={contractWarnings > 0 ? "warning" : "default"}
-            delay={200}
-          />
-        )}
-        {canViewEmployees && (
-          <StatCard
-            title={language === 'pt' ? 'Aniversários' : 'Birthdays'}
-            value={String(upcomingBirthdays)}
-            subtitle={language === 'pt' ? 'Esta semana' : 'This week'}
-            icon={Calendar}
-            variant="default"
-            delay={250}
-          />
-        )}
-      </div>
 
-      {/* Quick Actions - only show if user has any actionable permissions */}
-      <div className="mb-6">
-        <div className="rounded-2xl border border-border/50 bg-card p-5 shadow-sm">
-          <QuickActions />
+        <div
+          className={`flex-1 min-h-0 gap-3 overflow-hidden ${
+            showAlertsPanel ? 'grid grid-cols-1 lg:grid-cols-2' : 'flex flex-col'
+          }`}
+        >
+          <div className="min-h-0 flex flex-col rounded-xl border border-border/50 bg-card p-4 shadow-sm overflow-y-auto">
+            <QuickActions compact />
+            <DashboardDateTime />
+          </div>
+          {showAlertsPanel && (
+            <div className="min-h-0 overflow-hidden">
+              <AlertsPanel compact className="h-full" />
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Charts Grid - only for payroll/reports viewers */}
-      {(canViewPayroll || canViewReports) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-          <SalaryTrendChart />
-          <SalaryDistributionChart />
-          <HeadcountChart />
-        </div>
-      )}
-
-      {/* Active Leaves Widget - for HR/attendance viewers */}
-      {(canViewHR || canViewAttendance || canViewEmployees) && (
-        <div className="mb-6">
-          <ActiveLeavesWidget />
-        </div>
-      )}
-
-      {/* Alerts and Audit Log - only for HR/admin */}
-      {(canViewHR || canViewPayroll) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <AlertsPanel />
-          <AuditLogPanel />
-        </div>
-      )}
-
-      {/* Daily Wallpaper - visible to all */}
-      <div>
-        <DailyWallpaper />
       </div>
     </TopNavLayout>
   );

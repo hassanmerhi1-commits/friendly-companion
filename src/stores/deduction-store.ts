@@ -735,5 +735,5 @@ export function getDeductionTypeLabel(type: DeductionType, lang: string = 'pt'):
     other: { pt: 'Outros', en: 'Other', es: 'Otros', fr: 'Autres', ar: 'أخرى' },
   };
   const validLang = (lang in labels.salary_advance) ? lang as keyof typeof labels.salary_advance : 'en';
-  return labels[type][validLang];
+  return labels[type]?.[validLang] ?? type;
 }

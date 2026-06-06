@@ -90,7 +90,10 @@ export const useOvertimePaymentStore = create<OvertimePaymentStore>()((set, get)
   },
 
   deletePayment: async (id) => {
-    await liveDelete('overtime_payments', id);
+    const ok = await liveDelete('overtime_payments', id);
+    if (ok) {
+      set({ payments: get().payments.filter((p) => p.id !== id) });
+    }
   },
 
   getPaymentsByDate: (date) =>

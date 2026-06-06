@@ -7,27 +7,21 @@ This guide explains how to run PayrollAO as a standalone desktop application tha
 - Node.js 18 or higher
 - npm (comes with Node.js)
 
-## Quick Start (Development Mode)
+## Quick Start (Development Mode — live UI)
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   npm install --save-dev electron electron-builder
-   ```
+**Windows:** double-click `start-payroll.bat` (starts Vite + Electron).
 
-2. **Run in development mode:**
-   
-   Open two terminals:
-   
-   Terminal 1 - Start the web server:
-   ```bash
-   npm run dev
-   ```
-   
-   Terminal 2 - Start Electron:
-   ```bash
-   npx electron electron/main.cjs
-   ```
+Or two terminals:
+```bash
+npm run dev
+```
+```bash
+npm run electron:dev
+```
+
+- Saves in `src/` reload in the app (HMR or F5).
+- Changes in `electron/main.cjs` need closing and re-running `start-payroll.bat`.
+- To test the built `dist` without Vite: `set PAYROLLAO_USE_DIST=1` then `npm run electron:dev`.
 
 ## Build Standalone Installer
 
@@ -68,6 +62,11 @@ After building, you can:
 3. Or create a shortcut to the portable `.exe`
 
 ## Troubleshooting
+
+**Local database / connection fails after build (app hangs or never connects):**
+- The Windows build needs `better_sqlite3.node` inside `release\win-unpacked\resources\app\node_modules\better-sqlite3\build\Release\`.
+- `build-installer.bat` copies it automatically from `native-modules\better-sqlite3\` (or `release-test\`).
+- Quick fix on an existing build: run `scripts\install-native-sqlite.bat` after closing PayrollAO.
 
 **App shows blank screen:**
 - Make sure you ran `npm run build` before `electron-builder`

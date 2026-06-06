@@ -59,6 +59,10 @@
     "awaitingApproval": "Awaiting approval",
     "paidEmployees": "Paid",
     "completed": "completed",
+    "payrollNet": "Payroll net",
+    "pending": "Pending",
+    "alerts": "Alerts",
+    "noAlerts": "No alerts",
     "recentEmployees": "Recent Employees",
     "viewAll": "View all"
   },
