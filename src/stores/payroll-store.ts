@@ -5,6 +5,8 @@ import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calcula
 import { buildPayrollLeaveNotes, leaveNotesAreEqual } from '@/lib/absence-utils';
 import {
   applySalaryAdvanceFifoForPeriod,
+  isDeductionParallel,
+  keepOldestSequentialOnly,
   isDeductionBlockedByStartPeriod,
 } from '@/lib/salary-advance-scheduling';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
@@ -572,8 +574,18 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime();
 
             // PASS 2a: Custom/full warehouse loss (no 25% cap) — up to remaining net salary
-            warehouseUncappedEligible.sort(warehouseSort);
-            for (const { d, amount } of warehouseUncappedEligible) {
+            const warehouseUncappedParallel = warehouseUncappedEligible.filter((x) =>
+              isDeductionParallel(x.d)
+            );
+            const warehouseUncappedSequential = keepOldestSequentialOnly(
+              warehouseUncappedEligible.filter((x) => !isDeductionParallel(x.d))
+            );
+            const warehouseUncappedToApply = [
+              ...warehouseUncappedParallel,
+              ...warehouseUncappedSequential,
+            ].sort(warehouseSort);
+
+            for (const { d, amount } of warehouseUncappedToApply) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
               const applied = Math.min(installmentCap, salaryPoolForWarehouse);
               if (applied <= 0) {
@@ -591,12 +603,22 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               console.log(`[Payroll] Warehouse loss ${d.id} (custom): applied ${applied} of ${installmentCap} requested`);
             }
 
-            // PASS 2b: Standard warehouse losses — share ONE 25% cap per month (FIFO)
+            // PASS 2b: Standard warehouse losses — parallel share 25% cap; sequential = oldest only
             const warehouseCap = Math.round(salaryPoolForWarehouse * 0.25);
             let warehouseCapRemaining = warehouseCap;
 
-            warehouseCappedEligible.sort(warehouseSort);
-            for (const { d, amount } of warehouseCappedEligible) {
+            const warehouseCappedParallel = warehouseCappedEligible
+              .filter((x) => isDeductionParallel(x.d))
+              .sort(warehouseSort);
+            const warehouseCappedSequential = keepOldestSequentialOnly(
+              warehouseCappedEligible.filter((x) => !isDeductionParallel(x.d))
+            );
+            const warehouseCappedToApply = [
+              ...warehouseCappedParallel,
+              ...warehouseCappedSequential,
+            ].sort(warehouseSort);
+
+            for (const { d, amount } of warehouseCappedToApply) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
               const cappedAmount = Math.min(installmentCap, warehouseCapRemaining);
               if (cappedAmount <= 0) {

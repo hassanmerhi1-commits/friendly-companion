@@ -55,7 +55,7 @@ const Payroll = () => {
   const { periods, entries, generateEntriesForPeriod, approvePeriod, reopenPeriod, archivePeriod, unarchivePeriod, updateEntry, createPeriod, toggle13thMonth, toggleHolidaySubsidy, updateAbsences, updateOvertime, isAttendanceClosed, getAttendanceCutoff } = usePayrollStore();
   const { employees } = useEmployeeStore();
   const deductionStore = useDeductionStore();
-  const { getPendingDeductions, applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
+  const { applyDeductionToPayroll, unapplyDeductionsFromPayroll, getTotalPendingByEmployee } = deductionStore;
   const { branches: allBranches } = useBranchStore();
   // Derive active branches and employees from subscribed state - ensures re-render on changes
   const branches = allBranches.filter(b => b.isActive);
@@ -481,12 +481,16 @@ const Payroll = () => {
     // Keep UI focused on the approved period; do not auto-switch to next month.
     setSelectedPeriodId(currentPeriod.id);
 
-    // Then mark deductions as applied to THIS payroll period
-    const periodEnd = currentPeriod.endDate;
+    // Link only deductions that actually appear on this folha (deduction_details).
+    const { parseDeductionDetails } = await import('@/stores/deduction-store');
     for (const entry of currentEntries) {
-      const pending = getPendingDeductions(entry.employeeId).filter((d) => !periodEnd || !d.date || d.date <= periodEnd);
-      for (const d of pending) {
-        await applyDeductionToPayroll(d.id, currentPeriod.id);
+      for (const detail of parseDeductionDetails(entry.deductionDetails)) {
+        const deductionId =
+          detail.deductionId || (detail as { deduction_id?: string; id?: string }).deduction_id || (detail as { id?: string }).id;
+        const amount = Number(detail.amount || 0);
+        if (deductionId && amount > 0) {
+          await applyDeductionToPayroll(deductionId, currentPeriod.id);
+        }
       }
     }
 

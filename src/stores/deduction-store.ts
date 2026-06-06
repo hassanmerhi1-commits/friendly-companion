@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Deduction, DeductionFormData, DeductionType } from '@/types/deduction';
+import type { Deduction, DeductionFormData, DeductionSchedulingMode, DeductionType } from '@/types/deduction';
+import { isDeductionParallel, resolveSchedulingMode } from '@/lib/salary-advance-scheduling';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { logAudit } from '@/lib/audit-helper';
 import { calculatePayroll } from '@/lib/angola-labor-law';
@@ -98,7 +99,7 @@ export function creditDeductionPayment(deduction: Deduction, paidAmount: number)
   };
 }
 
-function parseDeductionDetails(raw: unknown): Array<{ deductionId?: string; amount?: number }> {
+export function parseDeductionDetails(raw: unknown): Array<{ deductionId?: string; amount?: number }> {
   if (!raw || typeof raw !== 'string') return [];
   try {
     const parsed = JSON.parse(raw);
@@ -264,6 +265,7 @@ function mapDbRowToDeduction(row: any): Deduction {
     installmentsPaid: installmentsPaid,
     remainingAmount: balances.remainingAmount,
     ignoreWarehouseCap,
+    schedulingMode: (row.scheduling_mode as DeductionSchedulingMode) || undefined,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -288,6 +290,7 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
     current_installment: d.installmentsPaid,
     remaining_amount: d.remainingAmount,
     ignore_warehouse_cap: d.ignoreWarehouseCap ? 1 : 0,
+    scheduling_mode: resolveSchedulingMode(d),
     created_at: d.createdAt,
     updated_at: d.updatedAt,
   };
@@ -332,6 +335,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         amount: monthlyAmount,
         date: data.date,
         deductFromPeriodId: data.deductFromPeriodId,
+        schedulingMode: data.schedulingMode || 'sequential',
         isApplied: false,
         isFullyPaid: false,
         installments: installments,
@@ -498,24 +502,74 @@ export function getPendingDeductionsEffectiveMonthlyTotal(
   let total = 0;
 
   const nonWarehouse = pending.filter((d) => String(d.type || '').trim() !== 'warehouse_loss');
-  const warehouseCapped = pending
-    .filter((d) => String(d.type || '').trim() === 'warehouse_loss' && !d.ignoreWarehouseCap)
+  const warehouseCappedParallel = pending
+    .filter(
+      (d) =>
+        String(d.type || '').trim() === 'warehouse_loss' &&
+        !d.ignoreWarehouseCap &&
+        isDeductionParallel(d)
+    )
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  const warehouseUncapped = pending
-    .filter((d) => String(d.type || '').trim() === 'warehouse_loss' && d.ignoreWarehouseCap)
+  const warehouseCappedSequential = pending
+    .filter(
+      (d) =>
+        String(d.type || '').trim() === 'warehouse_loss' &&
+        !d.ignoreWarehouseCap &&
+        !isDeductionParallel(d)
+    )
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const warehouseUncappedParallel = pending
+    .filter(
+      (d) =>
+        String(d.type || '').trim() === 'warehouse_loss' &&
+        d.ignoreWarehouseCap &&
+        isDeductionParallel(d)
+    )
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const warehouseUncappedSequential = pending
+    .filter(
+      (d) =>
+        String(d.type || '').trim() === 'warehouse_loss' &&
+        d.ignoreWarehouseCap &&
+        !isDeductionParallel(d)
+    )
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-  for (const d of nonWarehouse) {
+  const nonWarehouseAdvances = nonWarehouse.filter((d) => d.type === 'salary_advance');
+  const nonWarehouseRest = nonWarehouse.filter((d) => d.type !== 'salary_advance');
+  const parallelAdvances = nonWarehouseAdvances.filter((d) => isDeductionParallel(d));
+  const sequentialAdvances = nonWarehouseAdvances.filter((d) => !isDeductionParallel(d));
+
+  for (const d of nonWarehouseRest) {
     total += Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
   }
-  for (const d of warehouseUncapped) {
+  for (const d of parallelAdvances) {
     total += Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
   }
-  for (const d of warehouseCapped) {
+  if (sequentialAdvances.length > 0) {
+    const oldest = sequentialAdvances.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )[0];
+    total += Math.min(oldest.amount, oldest.remainingAmount > 0 ? oldest.remainingAmount : oldest.amount);
+  }
+  for (const d of warehouseUncappedParallel) {
+    total += Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
+  }
+  if (warehouseUncappedSequential.length > 0) {
+    const oldest = warehouseUncappedSequential[0];
+    total += Math.min(oldest.amount, oldest.remainingAmount > 0 ? oldest.remainingAmount : oldest.amount);
+  }
+  for (const d of warehouseCappedParallel) {
     const inst = Math.min(d.amount, d.remainingAmount > 0 ? d.remainingAmount : d.amount);
     const applied = Math.min(inst, warehousePool);
     total += applied;
     warehousePool -= applied;
+  }
+  if (warehouseCappedSequential.length > 0) {
+    const oldest = warehouseCappedSequential[0];
+    const inst = Math.min(oldest.amount, oldest.remainingAmount > 0 ? oldest.remainingAmount : oldest.amount);
+    const applied = Math.min(inst, warehousePool);
+    total += applied;
   }
   return total;
 }

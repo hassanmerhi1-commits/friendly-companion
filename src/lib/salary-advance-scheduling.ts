@@ -1,4 +1,4 @@
-import type { Deduction } from '@/types/deduction';
+import type { Deduction, DeductionSchedulingMode } from '@/types/deduction';
 import type { PayrollPeriod } from '@/types/payroll';
 import {
   formatPeriodLabelFromId,
@@ -62,9 +62,38 @@ export function getOpenSalaryAdvancesForEmployee(employeeId: string, deductions:
   );
 }
 
+/** Resolve scheduling mode for legacy rows without stored value. */
+export function resolveSchedulingMode(
+  deduction: Pick<Deduction, 'schedulingMode' | 'type'>
+): DeductionSchedulingMode {
+  if (deduction.schedulingMode === 'parallel' || deduction.schedulingMode === 'sequential') {
+    return deduction.schedulingMode;
+  }
+  if (deduction.type === 'salary_advance' || deduction.type === 'warehouse_loss') {
+    return 'sequential';
+  }
+  return 'parallel';
+}
+
+export function isDeductionParallel(deduction: Pick<Deduction, 'schedulingMode' | 'type'>): boolean {
+  return resolveSchedulingMode(deduction) === 'parallel';
+}
+
+function sortByCreatedAt<T extends { d: Deduction }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime()
+  );
+}
+
+/** Keep only the oldest item in a sequential FIFO group. */
+export function keepOldestSequentialOnly<T extends { d: Deduction }>(items: T[]): T[] {
+  if (items.length <= 1) return items;
+  return [sortByCreatedAt(items)[0]];
+}
+
 /**
  * When registering a new advance while others are open, suggest the first folha month
- * after all existing open advances finish (FIFO queue length).
+ * after all existing open sequential advances finish (FIFO queue length).
  */
 export function suggestDeductFromPeriodIdForNewAdvance(
   employeeId: string,
@@ -72,14 +101,14 @@ export function suggestDeductFromPeriodIdForNewAdvance(
   periods: PayrollPeriod[],
   grantDate: string
 ): string | undefined {
-  const open = getOpenSalaryAdvancesForEmployee(employeeId, deductions);
+  const open = getOpenSalaryAdvancesForEmployee(employeeId, deductions).filter(
+    (d) => !isDeductionParallel(d)
+  );
   if (open.length === 0) return undefined;
 
   let queueMonths = 0;
-  const sorted = [...open].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-  for (const adv of sorted) {
+  const sorted = sortByCreatedAt(open.map((d) => ({ d })));
+  for (const { d: adv } of sorted) {
     queueMonths += remainingInstallmentMonths(adv);
   }
 
@@ -105,23 +134,60 @@ export function isDeductionBlockedByStartPeriod(
   return comparePeriods(current, startYm) < 0;
 }
 
-/**
- * At most one salary advance per employee per folha — oldest open advance in the queue.
- */
-/** True when another open advance must finish before this one deducts on folha. */
+/** True when another open sequential advance must finish before this one deducts on folha. */
 export function isSalaryAdvanceQueued(
   deduction: Deduction,
   allDeductions: Deduction[]
 ): boolean {
   if (deduction.type !== 'salary_advance' || deduction.isFullyPaid) return false;
-  const open = getOpenSalaryAdvancesForEmployee(deduction.employeeId, allDeductions);
-  if (open.length <= 1) return false;
-  const oldest = [...open].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )[0];
+  if (isDeductionParallel(deduction)) return false;
+
+  const openSequential = getOpenSalaryAdvancesForEmployee(deduction.employeeId, allDeductions).filter(
+    (d) => !isDeductionParallel(d)
+  );
+  if (openSequential.length <= 1) return false;
+
+  const oldest = sortByCreatedAt(openSequential.map((d) => ({ d })))[0].d;
   return oldest.id !== deduction.id;
 }
 
+/** True when another open sequential capped warehouse loss is ahead in the queue. */
+export function isWarehouseLossQueued(
+  deduction: Deduction,
+  allDeductions: Deduction[]
+): boolean {
+  if (deduction.type !== 'warehouse_loss' || deduction.isFullyPaid) return false;
+  if (deduction.ignoreWarehouseCap) return false;
+  if (isDeductionParallel(deduction)) return false;
+
+  const openSequential = allDeductions.filter(
+    (d) =>
+      d.employeeId === deduction.employeeId &&
+      d.type === 'warehouse_loss' &&
+      !d.isFullyPaid &&
+      !d.ignoreWarehouseCap &&
+      !isDeductionParallel(d)
+  );
+  if (openSequential.length <= 1) return false;
+
+  const oldest = sortByCreatedAt(openSequential.map((d) => ({ d })))[0].d;
+  return oldest.id !== deduction.id;
+}
+
+export function isDeductionQueued(deduction: Deduction, allDeductions: Deduction[]): boolean {
+  if (deduction.type === 'salary_advance') {
+    return isSalaryAdvanceQueued(deduction, allDeductions);
+  }
+  if (deduction.type === 'warehouse_loss') {
+    return isWarehouseLossQueued(deduction, allDeductions);
+  }
+  return false;
+}
+
+/**
+ * Apply salary-advance scheduling for one folha period.
+ * Parallel advances stack; sequential advances keep only the oldest eligible.
+ */
 export function applySalaryAdvanceFifoForPeriod<T extends { d: Deduction; amount: number }>(
   items: T[],
   periodId: string,
@@ -136,8 +202,9 @@ export function applySalaryAdvanceFifoForPeriod<T extends { d: Deduction; amount
   );
   if (eligible.length === 0) return rest;
 
-  eligible.sort(
-    (a, b) => new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime()
-  );
-  return [...rest, eligible[0]];
+  const parallel = eligible.filter((x) => isDeductionParallel(x.d));
+  const sequential = eligible.filter((x) => !isDeductionParallel(x.d));
+  const selectedSequential = keepOldestSequentialOnly(sequential);
+
+  return [...rest, ...parallel, ...selectedSequential];
 }

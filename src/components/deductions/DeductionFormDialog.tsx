@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/lib/i18n';
 import { useDeductionStore } from '@/stores/deduction-store';
@@ -19,7 +20,7 @@ import {
 } from '@/lib/salary-advance-scheduling';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
-import type { DeductionFormData, DeductionType } from '@/types/deduction';
+import type { DeductionFormData, DeductionSchedulingMode, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
 import { AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -54,6 +55,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
   /** 'auto' = queue after open advances; 'pick' = user-selected folha month */
   const [deductStartMode, setDeductStartMode] = useState<'auto' | 'pick'>('auto');
   const [deductFromPeriodId, setDeductFromPeriodId] = useState<string>('');
+  const [schedulingMode, setSchedulingMode] = useState<DeductionSchedulingMode>('parallel');
 
   const monthNames = language === 'pt'
     ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -78,6 +80,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       setManualOverride(false);
       setDeductStartMode('auto');
       setDeductFromPeriodId('');
+      setSchedulingMode('parallel');
     }
   }, [open]);
 
@@ -98,11 +101,11 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
 
   useEffect(() => {
     if (!open || formData.type !== 'salary_advance' || !formData.employeeId) return;
-    if (openAdvances.length > 0 && suggestedDeductFromPeriodId) {
+    if (schedulingMode === 'sequential' && openAdvances.length > 0 && suggestedDeductFromPeriodId) {
       setDeductStartMode('pick');
       setDeductFromPeriodId(suggestedDeductFromPeriodId);
     }
-  }, [open, formData.employeeId, formData.type, openAdvances.length, suggestedDeductFromPeriodId]);
+  }, [open, formData.employeeId, formData.type, openAdvances.length, suggestedDeductFromPeriodId, schedulingMode]);
 
   // Calculate net salary for selected employee
   const employeeNetSalary = useMemo(() => {
@@ -202,6 +205,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       }
       resolvedDeductFrom = deductFromPeriodId;
     } else if (
+      schedulingMode === 'sequential' &&
       formData.type === 'salary_advance' &&
       openAdvances.length > 0 &&
       suggestedDeductFromPeriodId
@@ -215,6 +219,7 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       monthlyAmount: effectiveMonthly,
       ignoreWarehouseCap: isWarehouseLoss && manualOverride,
       deductFromPeriodId: resolvedDeductFrom,
+      schedulingMode,
     };
     void (async () => {
       try {
@@ -316,7 +321,43 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
             />
           </div>
 
-          {formData.type === 'salary_advance' && formData.employeeId && openAdvances.length > 0 && (
+          <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+            <Label className="text-sm font-medium">
+              {language === 'pt' ? 'Como descontar na folha' : 'How to deduct on payroll'}
+            </Label>
+            <RadioGroup
+              value={schedulingMode}
+              onValueChange={(v) => setSchedulingMode(v as DeductionSchedulingMode)}
+              className="space-y-2"
+            >
+              <div className="flex items-start gap-2">
+                <RadioGroupItem value="parallel" id="sched-parallel" className="mt-0.5" />
+                <Label htmlFor="sched-parallel" className="text-xs font-normal cursor-pointer leading-snug">
+                  {language === 'pt'
+                    ? 'Neste mês — junto com outros descontos (todos os tipos na mesma folha)'
+                    : 'This month — together with other deductions (all types on same payroll)'}
+                </Label>
+              </div>
+              <div className="flex items-start gap-2">
+                <RadioGroupItem value="sequential" id="sched-sequential" className="mt-0.5" />
+                <Label htmlFor="sched-sequential" className="text-xs font-normal cursor-pointer leading-snug">
+                  {language === 'pt'
+                    ? 'Um de cada vez — fila (o anterior termina antes do próximo)'
+                    : 'One at a time — queue (previous finishes before next)'}
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {schedulingMode === 'parallel' && formData.employeeId && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-xs text-muted-foreground">
+              {language === 'pt'
+                ? 'Este desconto entra na folha do mês em curso juntamente com outros descontos em modo «Neste mês». Perdas de armazém (25%) partilham o tecto legal nesse mês.'
+                : 'This deduction applies on the current payroll month together with other «This month» deductions. Warehouse losses (25%) share the legal cap that month.'}
+            </div>
+          )}
+
+          {formData.type === 'salary_advance' && formData.employeeId && openAdvances.length > 0 && schedulingMode === 'sequential' && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 text-sm">
               <div className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-200">
                 <AlertTriangle className="h-4 w-4 shrink-0" />

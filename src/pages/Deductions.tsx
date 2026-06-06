@@ -34,7 +34,9 @@ import {
 } from '@/components/attendance/AttendanceTablePanel';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
-import { formatPeriodLabel } from '@/lib/salary-advance-scheduling';
+import { formatPeriodLabel, resolveSchedulingMode } from '@/lib/salary-advance-scheduling';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import type { DeductionSchedulingMode } from '@/types/deduction';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
@@ -63,6 +65,7 @@ export default function Deductions() {
     totalAmount: 0,
     date: new Date().toISOString().split('T')[0],
     installments: 1,
+    schedulingMode: 'parallel',
   });
 
   const filteredDeductions = useMemo(() => {
@@ -157,6 +160,7 @@ export default function Deductions() {
       totalAmount: 0,
       date: new Date().toISOString().split('T')[0],
       installments: 1,
+      schedulingMode: 'parallel',
     });
     setManualOverride(false);
   };
@@ -183,6 +187,7 @@ export default function Deductions() {
       date: deduction.date,
       installments: deduction.installments || 1,
       deductFromPeriodId: deduction.deductFromPeriodId,
+      schedulingMode: resolveSchedulingMode(deduction),
     });
 
     if (deduction.type === 'warehouse_loss') {
@@ -225,6 +230,7 @@ export default function Deductions() {
     };
     if (editingDeduction.installmentsPaid === 0 && !editingDeduction.isApplied) {
       patch.deductFromPeriodId = formData.deductFromPeriodId || undefined;
+      patch.schedulingMode = formData.schedulingMode || 'sequential';
     }
     await updateDeduction(editingDeduction.id, patch);
     setIsEditDialogOpen(false);
@@ -370,6 +376,37 @@ export default function Deductions() {
           </SelectContent>
         </Select>
       </div>
+
+      {isEditDialogOpen &&
+        editingDeduction &&
+        editingDeduction.installmentsPaid === 0 &&
+        !editingDeduction.isApplied && (
+        <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+          <Label className="text-sm font-medium">
+            {language === 'pt' ? 'Como descontar na folha' : 'How to deduct on payroll'}
+          </Label>
+          <RadioGroup
+            value={formData.schedulingMode || 'sequential'}
+            onValueChange={(v) =>
+              setFormData((prev) => ({ ...prev, schedulingMode: v as DeductionSchedulingMode }))
+            }
+            className="space-y-2"
+          >
+            <div className="flex items-start gap-2">
+              <RadioGroupItem value="parallel" id="edit-sched-parallel" className="mt-0.5" />
+              <Label htmlFor="edit-sched-parallel" className="text-xs font-normal cursor-pointer leading-snug">
+                {language === 'pt' ? 'Neste mês — junto com outros' : 'This month — together with others'}
+              </Label>
+            </div>
+            <div className="flex items-start gap-2">
+              <RadioGroupItem value="sequential" id="edit-sched-sequential" className="mt-0.5" />
+              <Label htmlFor="edit-sched-sequential" className="text-xs font-normal cursor-pointer leading-snug">
+                {language === 'pt' ? 'Um de cada vez — fila' : 'One at a time — queue'}
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+      )}
 
       <div className={cn("p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2", !(isWarehouseLoss && formData.employeeId) && "hidden")}>
         <div className="flex items-center gap-2 text-sm font-medium text-primary">

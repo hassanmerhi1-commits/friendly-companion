@@ -80,7 +80,7 @@ function loadBetterSqlite3() {
     if (msg.includes('NODE_MODULE_VERSION')) {
       throw new Error(
         'Módulo SQLite incompatível com esta versão do PayrollAO. ' +
-        'Instale a versão 1.0.74 ou superior (instalador completo, não patch parcial). ' +
+        'Instale a versão 1.0.75 ou superior (instalador completo, não patch parcial). ' +
         `Detalhe: ${msg}`
       );
     }
@@ -1425,6 +1425,7 @@ function runMigrations() {
     addColumnIfMissing('deductions', 'is_fully_paid', "ALTER TABLE deductions ADD COLUMN is_fully_paid INTEGER DEFAULT 0");
     addColumnIfMissing('deductions', 'ignore_warehouse_cap', "ALTER TABLE deductions ADD COLUMN ignore_warehouse_cap INTEGER DEFAULT 0");
     addColumnIfMissing('deductions', 'deduct_from_period_id', "ALTER TABLE deductions ADD COLUMN deduct_from_period_id TEXT");
+    addColumnIfMissing('deductions', 'scheduling_mode', "ALTER TABLE deductions ADD COLUMN scheduling_mode TEXT DEFAULT 'sequential'");
 
     // Backfill new installment-tracking columns for existing DBs (safe no-op if already populated)
     try {

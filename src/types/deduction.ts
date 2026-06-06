@@ -11,6 +11,9 @@ export type DeductionType =
   | 'disciplinary' // Desconto disciplinar
   | 'other'; // Outros
 
+/** parallel = deduct same folha month with other discounts; sequential = one-at-a-time queue */
+export type DeductionSchedulingMode = 'parallel' | 'sequential';
+
 export interface Deduction {
   id: string;
   employeeId: string;
@@ -29,6 +32,8 @@ export interface Deduction {
   remainingAmount: number; // Amount still to be deducted
   /** When true (warehouse loss only), folha deducts full installment — not capped at 25%. */
   ignoreWarehouseCap?: boolean;
+  /** How this deduction shares folha months with other open deductions. */
+  schedulingMode?: DeductionSchedulingMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +49,7 @@ export interface DeductionFormData {
   /** Optional: first folha month to start deducting (leave empty for default behaviour). */
   deductFromPeriodId?: string;
   ignoreWarehouseCap?: boolean;
+  schedulingMode?: DeductionSchedulingMode;
 }
 
 // Salary advance specific

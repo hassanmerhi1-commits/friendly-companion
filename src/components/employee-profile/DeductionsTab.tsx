@@ -18,7 +18,11 @@ import {
   getPendingDeductionsEffectiveMonthlyTotal,
 } from '@/stores/deduction-store';
 import { usePayrollStore } from '@/stores/payroll-store';
-import { formatPeriodLabel, isSalaryAdvanceQueued } from '@/lib/salary-advance-scheduling';
+import {
+  formatPeriodLabel,
+  isDeductionParallel,
+  isDeductionQueued,
+} from '@/lib/salary-advance-scheduling';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -134,7 +138,7 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
 
   const getDeductionFolhaNote = (ded: Deduction): string | null => {
     if (ded.isFullyPaid) return null;
-    if (ded.type === 'salary_advance' && isSalaryAdvanceQueued(ded, employeeAllDeductions)) {
+    if (isDeductionQueued(ded, employeeAllDeductions)) {
       if (ded.deductFromPeriodId) {
         const label = formatPeriodLabel(ded.deductFromPeriodId, periods, monthNames);
         return ptLang
@@ -202,10 +206,8 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
             <tbody className={ATTENDANCE_TBODY}>
               {employeeDeductions.map((ded) => {
                 const folhaNote = getDeductionFolhaNote(ded);
-                const advanceQueued =
-                  !ded.isFullyPaid &&
-                  ded.type === 'salary_advance' &&
-                  isSalaryAdvanceQueued(ded, employeeAllDeductions);
+                const advanceQueued = !ded.isFullyPaid && isDeductionQueued(ded, employeeAllDeductions);
+                const sameMonthMode = !ded.isFullyPaid && isDeductionParallel(ded);
 
                 return (
                   <tr key={ded.id} className="hover:bg-muted/30">
@@ -247,6 +249,13 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
                             className="text-[10px] h-5 bg-amber-500/10 text-amber-800 border-amber-500/30"
                           >
                             {ptLang ? 'Na fila' : 'Queued'}
+                          </Badge>
+                        ) : sameMonthMode ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-5 bg-blue-500/10 text-blue-700 border-blue-500/30"
+                          >
+                            {ptLang ? 'Mesmo mês' : 'Same month'}
                           </Badge>
                         ) : (
                           <Badge
