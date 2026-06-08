@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag do release para compilar/publicar (ex.: v1.0.2)'
+        description: 'Tag do release para compilar/publicar (ex.: v1.0.76)'
         required: true
         type: string
 
@@ -17,14 +17,13 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
-    
+    timeout-minutes: 60
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # electron-builder precisa ver as tags para publicar no GitHub Releases corretamente
           fetch-depth: 0
-          # Em execuções manuais, garantimos que estamos no tag do release (e não no main)
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref }}
 
       - name: Setup Node.js
@@ -33,17 +32,35 @@ jobs:
           node-version: '22.12.0'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Cache Electron download
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ${{ github.workspace }}\.cache\electron
+          key: electron-33.4.11-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-33.4.11-${{ runner.os }}-
+
+      - name: Install dependencies (Electron retry-safe)
+        run: node scripts/ci-install-deps.cjs
+        env:
+          ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+          # Fallback mirror if github.com/releases times out (504)
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
       - name: Build web app
         run: npm run build
 
-      - name: Build Electron app
-        run: npx electron-builder --win --publish always
+      - name: Build Electron installer
+        run: npx electron-builder --config electron-builder.json --win --publish always
         env:
-          # Usar o token padrão do GitHub Actions (com contents:write acima)
           GH_TOKEN: ${{ github.token }}
+
+      - name: Install better-sqlite3 into packed app
+        run: node scripts/install-native-sqlite.cjs --packed
+        env:
+          ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -52,4 +69,5 @@ jobs:
           path: |
             release/*.exe
             release/*.yml
+            release/*.blockmap
           retention-days: 30
