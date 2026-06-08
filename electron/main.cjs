@@ -107,7 +107,7 @@ function loadBetterSqlite3() {
     if (msg.includes('NODE_MODULE_VERSION')) {
       throw new Error(
         'Módulo SQLite incompatível com esta versão do PayrollAO. ' +
-        'Instale a versão 1.0.76 ou superior (instalador completo, não patch parcial). ' +
+        'Instale a versão 1.0.79 ou superior (instalador completo, não patch parcial). ' +
         `Detalhe: ${msg}`
       );
     }

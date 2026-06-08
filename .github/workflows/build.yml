@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag do release para compilar/publicar (ex.: v1.0.76)'
+        description: 'Tag do release para compilar/publicar (ex.: v1.0.79)'
         required: true
         type: string
 
@@ -17,7 +17,7 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -31,6 +31,9 @@ jobs:
         with:
           node-version: '22.12.0'
           cache: 'npm'
+
+      - name: Verify package-lock matches package.json
+        run: node scripts/validate-version-sync.cjs
 
       - name: Cache Electron download
         uses: actions/cache@v4
@@ -46,8 +49,6 @@ jobs:
         run: node scripts/ci-install-deps.cjs
         env:
           ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
-          # Fallback mirror if github.com/releases times out (504)
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
 
       - name: Build web app
         run: npm run build
