@@ -23,6 +23,33 @@ autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.logger = console;
 autoUpdater.logger.transports = { file: { level: 'info' } };
 
+// GitHub provider fetches releases.atom first — often 504 on slow networks while the
+// browser works fine. Generic provider reads latest.yml directly (one request).
+const UPDATE_FEED_URL =
+  'https://github.com/hassanmerhi1-commits/friendly-companion/releases/latest/download/';
+autoUpdater.setFeedURL({ provider: 'generic', url: UPDATE_FEED_URL });
+autoUpdater.requestHeaders = {
+  'User-Agent': 'PayrollAO-Updater',
+  'Cache-Control': 'no-cache',
+};
+
+function formatUpdaterError(error) {
+  const msg = error?.message || String(error);
+  if (msg.includes('504') || msg.includes('Gateway Time-out') || msg.includes('Gateway timeout')) {
+    return (
+      'GitHub demorou a responder (504). Tente novamente ou instale manualmente em: ' +
+      'https://github.com/hassanmerhi1-commits/friendly-companion/releases/latest'
+    );
+  }
+  if (msg.includes('releases.atom')) {
+    return (
+      'Falha ao contactar GitHub para atualizações. Instale manualmente em: ' +
+      'https://github.com/hassanmerhi1-commits/friendly-companion/releases/latest'
+    );
+  }
+  return msg;
+}
+
 // ============= CONFIGURATION =============
 const INSTALL_DIR = 'C:\\PayrollAO';
 const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
@@ -80,7 +107,7 @@ function loadBetterSqlite3() {
     if (msg.includes('NODE_MODULE_VERSION')) {
       throw new Error(
         'Módulo SQLite incompatível com esta versão do PayrollAO. ' +
-        'Instale a versão 1.0.75 ou superior (instalador completo, não patch parcial). ' +
+        'Instale a versão 1.0.76 ou superior (instalador completo, não patch parcial). ' +
         `Detalhe: ${msg}`
       );
     }
@@ -2403,7 +2430,7 @@ ipcMain.handle('updater:check', async () => {
     return { success: true, updateInfo: result?.updateInfo };
   } catch (error) {
     console.error('[Updater] Check failed:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: formatUpdaterError(error) };
   }
 });
 
@@ -2471,7 +2498,7 @@ autoUpdater.on('error', (error) => {
   console.error('[Updater] Error:', error);
   mainWindow?.webContents.send('updater:status', { 
     status: 'error',
-    error: error.message
+    error: formatUpdaterError(error)
   });
 });
 
