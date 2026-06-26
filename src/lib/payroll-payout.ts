@@ -1,5 +1,15 @@
 import type { PayrollEntry } from '@/types/payroll';
 
+/** Salário líquido na folha/recibo — nunca negativo; saldo fica no desconto. */
+export function clampNetSalary(net: number): number {
+  return Math.max(0, Number(net) || 0);
+}
+
+/** Líquido após descontos extra (adiantamentos, empréstimos, etc.), com mínimo zero. */
+export function netAfterExtraDeductions(statutoryNet: number, extraDeductions: number): number {
+  return clampNetSalary(statutoryNet - extraDeductions);
+}
+
 /** Bónus mensal (perfil) — fora do bruto/IRT/INSS */
 export function getMonthlyBonusPayout(entry: PayrollEntry): number {
   return entry.monthlyBonus || 0;

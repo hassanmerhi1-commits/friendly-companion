@@ -9,6 +9,7 @@ import {
   keepOldestSequentialOnly,
   isDeductionBlockedByStartPeriod,
 } from '@/lib/salary-advance-scheduling';
+import { netAfterExtraDeductions, clampNetSalary } from '@/lib/payroll-payout';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useAbsenceStore } from '@/stores/absence-store';
@@ -549,26 +550,36 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               allPeriods
             );
 
-            // PASS 1: Apply all non-warehouse deductions first
+            // PASS 1: Non-warehouse deductions — capped to remaining net (same idea as warehouse pool)
+            let salaryPool = Math.max(0, payrollResult.netSalary - totalAbsenceDeduction);
+
             for (const { d, amount } of nonWarehouseEligible) {
+              const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
+              const applied = Math.min(installmentCap, salaryPool);
+              if (applied <= 0) {
+                console.log(
+                  `[Payroll] Deduction ${d.id} (${d.type}) skipped: no net salary left after other deductions`
+                );
+                continue;
+              }
+              salaryPool -= applied;
+
               if (d.type === 'loan') {
-                loanDeduction += amount;
+                loanDeduction += applied;
               } else if (d.type === 'salary_advance') {
-                advanceDeduction += amount;
+                advanceDeduction += applied;
               } else {
-                otherDeductions += amount;
+                otherDeductions += applied;
               }
               deductionBreakdown.push({
                 type: d.type,
                 description: d.description,
-                amount,
+                amount: applied,
                 deductionId: d.id,
               });
             }
 
-            const nonWarehouseTotal = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
-            const remainingSalaryAfterOthers = Math.max(0, payrollResult.netSalary - nonWarehouseTotal);
-            let salaryPoolForWarehouse = remainingSalaryAfterOthers;
+            let salaryPoolForWarehouse = salaryPool;
 
             const warehouseSort = (a: { d: any }, b: { d: any }) =>
               new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime();
@@ -647,7 +658,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               employeeId: emp.id,
               employee: emp,
               ...payrollResult,
-              netSalary: payrollResult.netSalary - totalExtraDeductions,
+              netSalary: netAfterExtraDeductions(payrollResult.netSalary, totalExtraDeductions),
               totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
               monthlyBonus: emp.monthlyBonus || 0,
               oneOffExtra: preservedOneOffExtra,
@@ -789,7 +800,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         ...entry,
         ...payrollResult,
         totalDeductions: payrollResult.totalDeductions + extraDeductions,
-        netSalary: payrollResult.netSalary - extraDeductions,
+        netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
         updatedAt: new Date().toISOString(),
       };
 
@@ -832,7 +843,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         ...entry,
         ...payrollResult,
         totalDeductions: payrollResult.totalDeductions + extraDeductions,
-        netSalary: payrollResult.netSalary - extraDeductions,
+        netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
         updatedAt: new Date().toISOString(),
       };
 
@@ -882,7 +893,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         daysAbsent,
         absenceDeduction,
         totalDeductions: entry.totalDeductions + difference,
-        netSalary: entry.netSalary - difference,
+        netSalary: clampNetSalary(entry.netSalary - difference),
         updatedAt: new Date().toISOString(),
       };
 
@@ -921,7 +932,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         overtimeHoursNight: hoursNight,
         overtimeHoursHoliday: hoursHoliday,
         totalDeductions: payrollResult.totalDeductions + extraDeductions,
-        netSalary: payrollResult.netSalary - extraDeductions,
+        netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
         updatedAt: new Date().toISOString(),
       };
 
@@ -968,7 +979,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         ...entry,
         ...payrollResult,
         totalDeductions: payrollResult.totalDeductions + extraDeductions,
-        netSalary: payrollResult.netSalary - extraDeductions,
+        netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
         updatedAt: new Date().toISOString(),
       };
 
@@ -1006,7 +1017,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             ...entry,
             ...payrollResult,
             totalDeductions: payrollResult.totalDeductions + extraDeductions,
-            netSalary: payrollResult.netSalary - extraDeductions,
+            netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
             updatedAt: new Date().toISOString(),
           };
 

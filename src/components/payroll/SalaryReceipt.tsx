@@ -9,6 +9,7 @@ import {
   getMonthlyBonusPayout,
   getOneOffExtraPayout,
   getTotalPaidToEmployee,
+  clampNetSalary,
 } from '@/lib/payroll-payout';
 import { printHtml } from '@/lib/print';
 import type { PayrollEntry } from '@/types/payroll';
@@ -441,7 +442,7 @@ export function SalaryReceipt({
             {/* Net Salary */}
             <div className="net-salary bg-primary/10 p-3 rounded-lg flex justify-between items-center">
               <span className="net-label text-sm font-bold">{labels.net}</span>
-              <span className="net-amount text-xl font-bold text-primary">{formatAOA(entry.netSalary)}</span>
+              <span className="net-amount text-xl font-bold text-primary">{formatAOA(clampNetSalary(entry.netSalary))}</span>
             </div>
 
             {(getMonthlyBonusPayout(entry) > 0 ||

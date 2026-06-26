@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Printer, Users, Building2, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, getIRTTaxableAllowance } from '@/lib/angola-labor-law';
+import { clampNetSalary } from '@/lib/payroll-payout';
 import { printHtml } from '@/lib/print';
 import { useBranchStore } from '@/stores/branch-store';
 import type { PayrollEntry } from '@/types/payroll';
@@ -102,7 +103,7 @@ export function BatchReceiptPrinter({
 
     // Bonus is ONLY shown on employee copy, does NOT affect taxes
     const bonus = isEmployeeCopy ? (entry.monthlyBonus || 0) : 0;
-    const totalReceived = entry.netSalary + bonus;
+    const totalReceived = clampNetSalary(entry.netSalary) + bonus;
 
     return `
       <div class="receipt">
@@ -187,7 +188,7 @@ export function BatchReceiptPrinter({
         <!-- Net Salary -->
         <div class="net-salary">
           <span class="net-label">${labels.net}</span>
-          <span class="net-amount">${formatAOA(entry.netSalary)}</span>
+          <span class="net-amount">${formatAOA(clampNetSalary(entry.netSalary))}</span>
         </div>
 
         ${isEmployeeCopy && bonus > 0 ? `

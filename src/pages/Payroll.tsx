@@ -34,6 +34,7 @@ import {
   getHolidayBuyoutPayout,
   getOneOffExtraPayout,
   getTotalPaidToEmployee,
+  netAfterExtraDeductions,
 } from "@/lib/payroll-payout";
 import { ATTENDANCE_PAGE } from "@/lib/page-layout";
 import {
@@ -433,7 +434,7 @@ const Payroll = () => {
     await updateEntry(entry.id, {
       ...payrollResult,
       totalDeductions: payrollResult.totalDeductions + extraDeductions,
-      netSalary: payrollResult.netSalary - extraDeductions,
+      netSalary: netAfterExtraDeductions(payrollResult.netSalary, extraDeductions),
     });
     
     // Reload to refresh UI

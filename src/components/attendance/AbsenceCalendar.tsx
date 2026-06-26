@@ -31,7 +31,7 @@ import {
   getDay,
   isToday,
 } from 'date-fns';
-import { pt, enUS } from 'date-fns/locale';
+import { pt as dateFnsPt, enUS } from 'date-fns/locale';
 import { NATIONAL_HOLIDAYS } from '@/lib/angola-labor-law';
 import {
   AlertDialog,
@@ -70,8 +70,8 @@ export function AbsenceCalendar({
   year,
 }: AbsenceCalendarProps) {
   const { language } = useLanguage();
-  const pt = language === 'pt';
-  const locale = pt ? pt : enUS;
+  const isPt = language === 'pt';
+  const locale = isPt ? dateFnsPt : enUS;
 
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -154,7 +154,7 @@ export function AbsenceCalendar({
 
     if (target < minViewPeriod) {
       toast.warning(
-        pt
+        isPt
           ? `Histórico limitado a ${CALENDAR_HISTORY_YEARS} anos`
           : `History limited to ${CALENDAR_HISTORY_YEARS} years`
       );
@@ -168,7 +168,7 @@ export function AbsenceCalendar({
   const navigateMonth = (direction: -1 | 1) => {
     if (direction === -1 && !canGoBack) {
       toast.warning(
-        pt
+        isPt
           ? `Histórico limitado a ${CALENDAR_HISTORY_YEARS} anos`
           : `History limited to ${CALENDAR_HISTORY_YEARS} years`
       );
@@ -233,47 +233,47 @@ export function AbsenceCalendar({
   }, [getActiveEmployees, branchEmployeeIds]);
 
   const t = {
-    viewCalendar: pt ? 'Calendário' : 'Calendar',
-    viewList: pt ? 'Lista' : 'List',
-    allEmployees: pt ? 'Todos os funcionários' : 'All employees',
-    allBranches: pt ? 'Todas as filiais' : 'All branches',
-    search: pt ? 'Pesquisar...' : 'Search...',
-    addAbsence: pt ? 'Registar Ausência' : 'Record Absence',
-    legend: pt ? 'Legenda' : 'Legend',
-    holiday: pt ? 'Feriado' : 'Holiday',
-    sickLeave: pt ? 'Doença' : 'Sick',
-    vacation: pt ? 'Licença' : 'Leave',
-    employeeVacation: pt ? 'Férias' : 'Vacation',
-    unjustified: pt ? 'Injustificada' : 'Unjustified',
-    other: pt ? 'Outro' : 'Other',
-    noAbsences: pt ? 'Sem ausências neste período' : 'No absences this period',
-    weekDays: pt
+    viewCalendar: isPt ? 'Calendário' : 'Calendar',
+    viewList: isPt ? 'Lista' : 'List',
+    allEmployees: isPt ? 'Todos os funcionários' : 'All employees',
+    allBranches: isPt ? 'Todas as filiais' : 'All branches',
+    search: isPt ? 'Pesquisar...' : 'Search...',
+    addAbsence: isPt ? 'Registar Ausência' : 'Record Absence',
+    legend: isPt ? 'Legenda' : 'Legend',
+    holiday: isPt ? 'Feriado' : 'Holiday',
+    sickLeave: isPt ? 'Doença' : 'Sick',
+    vacation: isPt ? 'Licença' : 'Leave',
+    employeeVacation: isPt ? 'Férias' : 'Vacation',
+    unjustified: isPt ? 'Injustificada' : 'Unjustified',
+    other: isPt ? 'Outro' : 'Other',
+    noAbsences: isPt ? 'Sem ausências neste período' : 'No absences this period',
+    weekDays: isPt
       ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
       : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-    delete: pt ? 'Eliminar' : 'Delete',
-    deleteConfirm: pt ? 'Eliminar esta ausência?' : 'Delete this absence?',
-    cancel: pt ? 'Cancelar' : 'Cancel',
-    deleted: pt ? 'Ausência eliminada' : 'Absence deleted',
-    noPermission: pt ? 'Sem permissão' : 'No permission',
-    employee: pt ? 'Funcionário' : 'Employee',
-    branch: pt ? 'Filial' : 'Branch',
-    type: pt ? 'Tipo' : 'Type',
-    period: pt ? 'Período' : 'Period',
-    days: pt ? 'Dias' : 'Days',
-    status: pt ? 'Estado' : 'Status',
-    actions: pt ? 'Acções' : 'Actions',
-    absences: pt ? 'ausências' : 'absences',
-    vacations: pt ? 'férias' : 'vacations',
-    pending: pt ? 'pendentes' : 'pending',
-    nationalHoliday: pt ? 'Feriado nacional' : 'National holiday',
-    managedInHolidays: pt ? 'Gerido em Férias' : 'Managed in Holidays',
-    today: pt ? 'Hoje' : 'Today',
-    prevMonth: pt ? 'Mês anterior' : 'Previous month',
-    nextMonth: pt ? 'Mês seguinte' : 'Next month',
-    viewOnlyPeriod: pt
+    delete: isPt ? 'Eliminar' : 'Delete',
+    deleteConfirm: isPt ? 'Eliminar esta ausência?' : 'Delete this absence?',
+    cancel: isPt ? 'Cancelar' : 'Cancel',
+    deleted: isPt ? 'Ausência eliminada' : 'Absence deleted',
+    noPermission: isPt ? 'Sem permissão' : 'No permission',
+    employee: isPt ? 'Funcionário' : 'Employee',
+    branch: isPt ? 'Filial' : 'Branch',
+    type: isPt ? 'Tipo' : 'Type',
+    period: isPt ? 'Período' : 'Period',
+    days: isPt ? 'Dias' : 'Days',
+    status: isPt ? 'Estado' : 'Status',
+    actions: isPt ? 'Acções' : 'Actions',
+    absences: isPt ? 'ausências' : 'absences',
+    vacations: isPt ? 'férias' : 'vacations',
+    pending: isPt ? 'pendentes' : 'pending',
+    nationalHoliday: isPt ? 'Feriado nacional' : 'National holiday',
+    managedInHolidays: isPt ? 'Gerido em Férias' : 'Managed in Holidays',
+    today: isPt ? 'Hoje' : 'Today',
+    prevMonth: isPt ? 'Mês anterior' : 'Previous month',
+    nextMonth: isPt ? 'Mês seguinte' : 'Next month',
+    viewOnlyPeriod: isPt
       ? 'Consulta — registo de ausências só nos últimos 3 meses (ou mês actual)'
       : 'View only — absence entry limited to last 3 months (or current month)',
-    registerBlocked: pt
+    registerBlocked: isPt
       ? 'Só pode registar ausências no mês actual ou últimos 3 meses'
       : 'Can only register absences in current month or last 3 months',
   };
@@ -302,7 +302,7 @@ export function AbsenceCalendar({
         const employee = employees.find((e) => e.id === a.employeeId);
         const name = `${employee?.firstName || ''} ${employee?.lastName || ''}`.toLowerCase();
         const typeInfo = ABSENCE_TYPE_INFO[a.type];
-        const label = pt ? typeInfo.labelPt : typeInfo.labelEn;
+        const label = isPt ? typeInfo.labelPt : typeInfo.labelEn;
         return name.includes(q) || label.toLowerCase().includes(q);
       })
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
@@ -315,7 +315,7 @@ export function AbsenceCalendar({
     search,
     employees,
     getAbsencesByPeriod,
-    pt,
+    isPt,
   ]);
 
   const monthVacations = useMemo(() => {
@@ -566,9 +566,9 @@ export function AbsenceCalendar({
                 {nationalHoliday && (
                   <span
                     className="text-[8px] px-1 py-0 rounded bg-emerald-500/20 text-emerald-700 truncate max-w-[72px]"
-                    title={pt ? (nationalHoliday as { name: string }).name : (nationalHoliday as { nameEn: string }).nameEn}
+                    title={isPt ? (nationalHoliday as { name: string }).name : (nationalHoliday as { nameEn: string }).nameEn}
                   >
-                    {pt ? (nationalHoliday as { name: string }).name.split(' ')[0] : 'Holiday'}
+                    {isPt ? (nationalHoliday as { name: string }).name.split(' ')[0] : 'Holiday'}
                   </span>
                 )}
               </div>
@@ -591,7 +591,7 @@ export function AbsenceCalendar({
                 {visibleAbsences.map((absence) => {
                   const employee = employees.find((e) => e.id === absence.employeeId);
                   const typeInfo = ABSENCE_TYPE_INFO[absence.type as AbsenceType];
-                  const label = pt ? typeInfo.labelPt : typeInfo.labelEn;
+                  const label = isPt ? typeInfo.labelPt : typeInfo.labelEn;
 
                   return (
                     <div
@@ -686,7 +686,7 @@ export function AbsenceCalendar({
           {monthAbsences.map((absence) => {
             const employee = employees.find((e) => e.id === absence.employeeId);
             const typeInfo = ABSENCE_TYPE_INFO[absence.type as AbsenceType];
-            const label = pt ? typeInfo.labelPt : typeInfo.labelEn;
+            const label = isPt ? typeInfo.labelPt : typeInfo.labelEn;
             const branchName = employee?.branchId ? getBranch(employee.branchId)?.name : '—';
 
             return (
