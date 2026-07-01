@@ -5,9 +5,9 @@ export function clampNetSalary(net: number): number {
   return Math.max(0, Number(net) || 0);
 }
 
-/** Líquido após descontos extra (adiantamentos, empréstimos, etc.), com mínimo zero. */
+/** Líquido após descontos extra (adiantamentos, empréstimos, etc.). Pode ser negativo quando descontos excedem o líquido legal — o bónus mensal compensa na transferência. */
 export function netAfterExtraDeductions(statutoryNet: number, extraDeductions: number): number {
-  return clampNetSalary(statutoryNet - extraDeductions);
+  return (Number(statutoryNet) || 0) - (Number(extraDeductions) || 0);
 }
 
 /** Bónus mensal (perfil) — fora do bruto/IRT/INSS */
@@ -32,7 +32,8 @@ export function getPayoutExtras(entry: PayrollEntry): number {
 
 /** Total a pagar (líquido + extras) — mesmo critério do ficheiro banco, independentemente de PA */
 export function getPayrollPayoutAmount(entry: PayrollEntry): number {
-  return (entry.netSalary || 0) + getPayoutExtras(entry);
+  const raw = (entry.netSalary || 0) + getPayoutExtras(entry);
+  return Math.max(0, raw);
 }
 
 /** Total transferido / recebido pelo trabalhador neste período (0 se já pago antecipadamente) */

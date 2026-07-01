@@ -9,6 +9,10 @@ import {
   keepOldestSequentialOnly,
   isDeductionBlockedByStartPeriod,
 } from '@/lib/salary-advance-scheduling';
+import {
+  calculateBulkAttendanceDeduction,
+  calculateFullMonthlySalary,
+} from '@/stores/bulk-attendance-store';
 import { netAfterExtraDeductions, clampNetSalary } from '@/lib/payroll-payout';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -349,6 +353,17 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         return;
       }
 
+      // Recalculate must not leave stale is_applied links from a prior draft/calculated run.
+      if (
+        deductionStore &&
+        period.status !== 'approved' &&
+        period.status !== 'paid'
+      ) {
+        const { prepareDeductionsForPayrollRecalc } = await import('./deduction-store');
+        await prepareDeductionsForPayrollRecalc();
+        await deductionStore.unapplyDeductionsFromPayroll(periodId);
+      }
+
       const nextMonth = period.month === 12 ? 1 : period.month + 1;
       const nextMonthYear = period.month === 12 ? period.year + 1 : period.year;
 
@@ -395,6 +410,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const preservedPaidEarlyReason = existingEntry?.paid_early_reason || undefined;
           const preservedPaidEarlyAuthorizedBy = existingEntry?.paid_early_authorized_by || undefined;
           const preservedPaidEarlyPaymentMethod = existingEntry?.paid_early_payment_method || undefined;
+          // Bónus mensal vem sempre do perfil do funcionário (registo novo aparece na folha ao Calcular).
+          const monthlyBonusForEntry = emp.monthlyBonus || 0;
 
           const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
           const holidaySubsidyAmount = preservedHolidaySubsidy > 0
@@ -409,10 +426,22 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           if (bulkAttendanceStore) {
             const bulkEntry = bulkAttendanceStore.getEntryForEmployee(emp.id, period.month, period.year);
             if (bulkEntry) {
-              absenceDays = bulkEntry.absenceDays || 0;
-              absenceDeduction = bulkEntry.absenceDeduction || 0;
-              delayDeduction = bulkEntry.delayDeduction || 0;
-              console.log(`[Payroll] Bulk attendance for ${emp.firstName}: ${absenceDays} days, ${bulkEntry.delayHours || 0}h delay = ${absenceDeduction + delayDeduction} Kz deduction`);
+              const unjustifiedDays = Math.max(
+                0,
+                (bulkEntry.absenceDays || 0) - (bulkEntry.justifiedAbsenceDays || 0)
+              );
+              absenceDays = unjustifiedDays;
+              const fullSalary = calculateFullMonthlySalary(emp);
+              const bulkDeduction = calculateBulkAttendanceDeduction(
+                fullSalary,
+                unjustifiedDays,
+                bulkEntry.delayHours || 0
+              );
+              absenceDeduction = bulkDeduction.absenceDeduction;
+              delayDeduction = bulkDeduction.delayDeduction;
+              console.log(
+                `[Payroll] Bulk attendance for ${emp.firstName}: ${unjustifiedDays} unjustified days (${bulkEntry.justifiedAbsenceDays || 0} justified), ${bulkEntry.delayHours || 0}h delay = ${absenceDeduction + delayDeduction} Kz deduction`
+              );
             }
           }
           // Fallback to legacy absence store if bulk attendance not provided
@@ -479,43 +508,22 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               const isForThisPeriod = d.payrollPeriodId === periodId;
               const isPending = !d.isApplied;
               
-              // AUTO-CARRY: If deduction is applied to a DIFFERENT period,
-              // handle it based on that period's status:
-              // - Approved/Paid: increment installment count (previous month was processed)
-              // - Draft/Calculated: just release it (previous month was regenerated/abandoned)
+              // AUTO-CARRY: If deduction is applied to a DIFFERENT period, release the stale link.
               let isAutoCarry = false;
               if (d.isApplied && d.payrollPeriodId && d.payrollPeriodId !== periodId) {
                 const oldPeriod = allPeriods.find(p => p.id === d.payrollPeriodId);
-                
-                if (oldPeriod && (oldPeriod.status === 'approved' || oldPeriod.status === 'paid')) {
-                  // Previous period finalized — release for this period (installment credited on approve).
-                  isAutoCarry = true;
-                  const { creditDeductionPayment, getDeductionAppliedAmount } = await import('./deduction-store');
-                  const appliedAmount = await getDeductionAppliedAmount(d.payrollPeriodId, d.id);
-                  const credit = creditDeductionPayment(
-                    d,
-                    appliedAmount ?? (d.amount > 0 ? d.amount : d.remainingAmount)
-                  );
-                  await deductionStore.updateDeduction(d.id, {
-                    ...(credit || {}),
-                    isApplied: false,
-                    payrollPeriodId: undefined,
-                  });
 
-                  if (credit?.isFullyPaid) {
-                    console.log(`[Payroll] Auto-carry: Deduction ${d.id} fully paid, released for ${periodId}`);
-                    continue;
-                  }
-                  console.log(`[Payroll] Auto-carry: Deduction ${d.id} released from ${d.payrollPeriodId} to ${periodId}`);
-                } else {
-                  // Previous period is still draft/calculated — just release the deduction
-                  // so it can be picked up by the current period (no installment increment)
+                if (oldPeriod) {
+                  // Release stale link only. Installments are credited on APPROVE (finalizeApprovedPeriodDeductions),
+                  // never during calculate — crediting here caused wrong balances on recalc.
                   isAutoCarry = true;
                   await deductionStore.updateDeduction(d.id, {
                     isApplied: false,
                     payrollPeriodId: undefined,
                   });
-                  console.log(`[Payroll] Released deduction ${d.id} from draft period ${d.payrollPeriodId} for current period ${periodId}`);
+                  console.log(
+                    `[Payroll] Released deduction ${d.id} from period ${d.payrollPeriodId} (${oldPeriod.status}) for ${periodId}`
+                  );
                 }
               }
               
@@ -550,8 +558,11 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               allPeriods
             );
 
-            // PASS 1: Non-warehouse deductions — capped to remaining net (same idea as warehouse pool)
-            let salaryPool = Math.max(0, payrollResult.netSalary - totalAbsenceDeduction);
+            // PASS 1: Non-warehouse deductions — pool includes monthly bonus (adiantamentos podem descontar do bónus).
+            let salaryPool = Math.max(
+              0,
+              payrollResult.netSalary + monthlyBonusForEntry - totalAbsenceDeduction
+            );
 
             for (const { d, amount } of nonWarehouseEligible) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
@@ -660,7 +671,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               ...payrollResult,
               netSalary: netAfterExtraDeductions(payrollResult.netSalary, totalExtraDeductions),
               totalDeductions: payrollResult.totalDeductions + totalExtraDeductions,
-              monthlyBonus: emp.monthlyBonus || 0,
+              monthlyBonus: monthlyBonusForEntry,
               oneOffExtra: preservedOneOffExtra,
               oneOffExtraNote: preservedOneOffExtraNote,
               holidayBuyoutAmount: preservedHolidayBuyout,
@@ -690,14 +701,6 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
       console.log('[Payroll] New entries to create:', newEntries.length);
 
-      // Collect all deduction IDs that need to be marked as applied
-      const deductionIdsToApply: string[] = [];
-      for (const e of newEntries) {
-        if (e._deductionIds && e._deductionIds.length > 0) {
-          deductionIdsToApply.push(...e._deductionIds);
-        }
-      }
-
       // SAFETY: Upsert first; only delete old entries if all writes succeed.
       // This prevents data loss if the server DB schema is outdated.
       const newIds = new Set(newEntries.map((e) => e.id));
@@ -726,13 +729,8 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           }
         }
 
-        // CRITICAL: Mark all deductions as applied to this payroll period
-        if (deductionStore && deductionIdsToApply.length > 0) {
-          console.log('[Payroll] Marking', deductionIdsToApply.length, 'deductions as applied to period', periodId);
-          for (const deductionId of deductionIdsToApply) {
-            await deductionStore.applyDeductionToPayroll(deductionId, periodId);
-          }
-        }
+        // Deductions are linked to the period only on APPROVE (see Payroll handleApprove).
+        // Do not set is_applied here — that caused recalc to lock/wipe prior assignment.
       } else {
         console.error('[Payroll] Some entries failed to save; no deletions performed to avoid data loss.');
       }

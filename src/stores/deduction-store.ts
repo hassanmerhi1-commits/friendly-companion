@@ -688,6 +688,124 @@ export type DeductionRebuildResult = {
   updated: number;
 };
 
+type MissingDeductionHistory = {
+  deductionId: string;
+  employeeId: string;
+  type: DeductionType;
+  description: string;
+  installmentAmount: number;
+  installmentCount: number;
+  totalPaid: number;
+};
+
+async function collectMissingDeductionHistory(): Promise<Map<string, MissingDeductionHistory>> {
+  const [entryRows, periodRows, deductionRows] = await Promise.all([
+    liveGetAll<any>('payroll_entries'),
+    liveGetAll<any>('payroll_periods'),
+    liveGetAll<any>('deductions'),
+  ]);
+  const existingIds = new Set(deductionRows.map((r: any) => r.id));
+  const periodStatus = new Map<string, string>(periodRows.map((p: any) => [p.id, p.status]));
+  const missing = new Map<string, MissingDeductionHistory>();
+
+  for (const entry of entryRows) {
+    const periodId = entry.period_id || entry.payroll_period_id;
+    const status = periodStatus.get(periodId);
+    if (status !== 'approved' && status !== 'paid') continue;
+
+    for (const detail of parseDeductionDetails(entry.deduction_details)) {
+      const deductionId =
+        detail.deductionId || (detail as { deduction_id?: string; id?: string }).deduction_id || (detail as { id?: string }).id;
+      if (!deductionId || existingIds.has(deductionId)) continue;
+
+      const amount = Number(detail.amount || 0);
+      const current = missing.get(deductionId) || {
+        deductionId,
+        employeeId: entry.employee_id,
+        type: ((detail as { type?: string }).type || 'other') as DeductionType,
+        description: (detail as { description?: string }).description || '',
+        installmentAmount: amount,
+        installmentCount: 0,
+        totalPaid: 0,
+      };
+
+      current.installmentCount += 1;
+      current.totalPaid += amount;
+      if (amount > current.installmentAmount) current.installmentAmount = amount;
+      if ((detail as { description?: string }).description) {
+        current.description = (detail as { description?: string }).description || current.description;
+      }
+      if ((detail as { type?: string }).type) {
+        current.type = (detail as { type?: string }).type as DeductionType;
+      }
+      missing.set(deductionId, current);
+    }
+  }
+
+  return missing;
+}
+
+/** Recreate deduction rows deleted from the DB but still referenced in approved/paid folhas. */
+export async function restoreMissingDeductionsFromPayrollHistory(): Promise<number> {
+  const missing = await collectMissingDeductionHistory();
+  if (missing.size === 0) return 0;
+
+  const now = new Date().toISOString();
+  let restored = 0;
+
+  for (const [id, info] of missing) {
+    const monthly = info.installmentAmount;
+    const totalPaid = info.totalPaid;
+    const totalAmount =
+      monthly > BALANCE_EPSILON && info.installmentCount > 0
+        ? Math.max(totalPaid + monthly, totalPaid)
+        : totalPaid;
+    const remaining = Math.max(0, totalAmount - totalPaid);
+    const balances = computeDeductionBalances(
+      totalAmount,
+      monthly > BALANCE_EPSILON ? monthly : remaining,
+      info.installmentCount,
+      remaining
+    );
+
+    await liveInsert('deductions', {
+      id,
+      employee_id: info.employeeId,
+      type: info.type,
+      description: info.description,
+      total_amount: totalAmount,
+      amount: monthly > BALANCE_EPSILON ? monthly : remaining,
+      date: now.split('T')[0],
+      payroll_period_id: null,
+      deduct_from_period_id: null,
+      is_applied: 0,
+      is_fully_paid: balances.isFullyPaid ? 1 : 0,
+      installments: balances.installments,
+      installments_paid: info.installmentCount,
+      current_installment: info.installmentCount,
+      remaining_amount: balances.remainingAmount,
+      ignore_warehouse_cap: 0,
+      scheduling_mode: resolveSchedulingMode({ type: info.type }),
+      created_at: now,
+      updated_at: now,
+    });
+    restored++;
+  }
+
+  if (restored > 0) {
+    await useDeductionStore.getState().loadDeductions();
+    console.log(`[Deductions] Restored ${restored} missing row(s) from payroll history`);
+  }
+
+  return restored;
+}
+
+/** Before recalculating a draft/calculated folha: repair deleted rows and reset balances from approved history. */
+export async function prepareDeductionsForPayrollRecalc(): Promise<void> {
+  await restoreMissingDeductionsFromPayrollHistory();
+  await rebuildDeductionBalancesFromPayrollHistory();
+}
+
 /**
  * Rebuild every deduction balance from approved/paid payroll sheets only.
  * Sum of deduction_details amounts is the source of truth (force write when different).
