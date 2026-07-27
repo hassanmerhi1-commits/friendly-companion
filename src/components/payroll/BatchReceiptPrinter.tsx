@@ -7,7 +7,13 @@ import { Separator } from '@/components/ui/separator';
 import { Printer, Users, Building2, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA, INSS_RATES, IRT_BRACKETS, calculateINSS, getIRTTaxableAllowance } from '@/lib/angola-labor-law';
-import { clampNetSalary } from '@/lib/payroll-payout';
+import {
+  clampNetSalary,
+  getHolidayBuyoutPayout,
+  getMonthlyBonusPayout,
+  getOneOffExtraPayout,
+  getPayrollPayoutAmount,
+} from '@/lib/payroll-payout';
 import { printHtml } from '@/lib/print';
 import { useBranchStore } from '@/stores/branch-store';
 import type { PayrollEntry } from '@/types/payroll';
@@ -77,6 +83,8 @@ export function BatchReceiptPrinter({
       holidaySubsidy: language === 'pt' ? 'Subsídio de Férias' : 'Holiday Subsidy',
       thirteenthMonth: language === 'pt' ? 'Subsídio de Natal' : '13th Month',
       bonus: language === 'pt' ? 'Bónus' : 'Bonus',
+      oneOffExtra: language === 'pt' ? 'Extra pontual' : 'One-off extra',
+      holidayBuyout: language === 'pt' ? 'Compra de férias' : 'Holiday buyout',
       irt: language === 'pt' ? 'IRT' : 'IRT',
       inss: language === 'pt' ? 'INSS' : 'INSS',
       advanceDeduction: language === 'pt' ? 'Adiantamento' : 'Advance',
@@ -101,9 +109,14 @@ export function BatchReceiptPrinter({
     const isIsento = rendimentoColetavel <= 100_000;
     const formatNumber = (n: number) => n.toLocaleString('pt-AO');
 
-    // Bonus is ONLY shown on employee copy, does NOT affect taxes
-    const bonus = isEmployeeCopy ? (entry.monthlyBonus || 0) : 0;
-    const totalReceived = clampNetSalary(entry.netSalary) + bonus;
+    // Extras (bónus / compra férias / extra pontual) only on employee copy — same as SalaryReceipt
+    const bonus = isEmployeeCopy ? getMonthlyBonusPayout(entry) : 0;
+    const oneOff = isEmployeeCopy ? getOneOffExtraPayout(entry) : 0;
+    const holidayBuyout = isEmployeeCopy ? getHolidayBuyoutPayout(entry) : 0;
+    const totalReceived = isEmployeeCopy
+      ? getPayrollPayoutAmount(entry)
+      : clampNetSalary(entry.netSalary);
+    const hasExtras = bonus > 0 || oneOff > 0 || holidayBuyout > 0;
 
     return `
       <div class="receipt">
@@ -191,10 +204,12 @@ export function BatchReceiptPrinter({
           <span class="net-amount">${formatAOA(clampNetSalary(entry.netSalary))}</span>
         </div>
 
-        ${isEmployeeCopy && bonus > 0 ? `
-        <!-- Bonus Section (Employee Copy Only) -->
+        ${isEmployeeCopy && hasExtras ? `
+        <!-- Extras Section (Employee Copy Only) — bónus, compra férias, extra pontual -->
         <div class="bonus-section">
-          <div class="bonus-line"><span class="label">${labels.bonus}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>
+          ${bonus > 0 ? `<div class="bonus-line"><span class="label">${labels.bonus}</span><span class="amount bonus-amount">+${formatAOA(bonus)}</span></div>` : ''}
+          ${holidayBuyout > 0 ? `<div class="bonus-line"><span class="label">${labels.holidayBuyout}</span><span class="amount bonus-amount">+${formatAOA(holidayBuyout)}</span></div>` : ''}
+          ${oneOff > 0 ? `<div class="bonus-line"><span class="label">${labels.oneOffExtra}</span><span class="amount bonus-amount">+${formatAOA(oneOff)}</span></div>` : ''}
           <div class="total-received"><span>${labels.totalReceived}</span><span class="total-amount">${formatAOA(totalReceived)}</span></div>
         </div>
         ` : ''}

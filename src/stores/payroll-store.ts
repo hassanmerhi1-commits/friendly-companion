@@ -508,23 +508,30 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               const isForThisPeriod = d.payrollPeriodId === periodId;
               const isPending = !d.isApplied;
               
-              // AUTO-CARRY: If deduction is applied to a DIFFERENT period, release the stale link.
+              // AUTO-CARRY: only from closed months (approved/paid) or orphaned links.
+              // NEVER steal deductions still linked to another draft/calculated folha (e.g. June
+              // still open while calculating July) — that re-applied June on the next month.
               let isAutoCarry = false;
               if (d.isApplied && d.payrollPeriodId && d.payrollPeriodId !== periodId) {
                 const oldPeriod = allPeriods.find(p => p.id === d.payrollPeriodId);
 
-                if (oldPeriod) {
-                  // Release stale link only. Installments are credited on APPROVE (finalizeApprovedPeriodDeductions),
-                  // never during calculate — crediting here caused wrong balances on recalc.
-                  isAutoCarry = true;
-                  await deductionStore.updateDeduction(d.id, {
-                    isApplied: false,
-                    payrollPeriodId: undefined,
-                  });
+                if (oldPeriod && (oldPeriod.status === 'draft' || oldPeriod.status === 'calculated')) {
                   console.log(
-                    `[Payroll] Released deduction ${d.id} from period ${d.payrollPeriodId} (${oldPeriod.status}) for ${periodId}`
+                    `[Payroll] Skipping deduction ${d.id}: still linked to open period ${d.payrollPeriodId} (${oldPeriod.status})`
                   );
+                  continue;
                 }
+
+                // Stale link on approved/paid (or missing period): release only.
+                // Installments are credited on APPROVE — never during calculate.
+                isAutoCarry = true;
+                await deductionStore.updateDeduction(d.id, {
+                  isApplied: false,
+                  payrollPeriodId: undefined,
+                });
+                console.log(
+                  `[Payroll] Released deduction ${d.id} from closed/orphan period ${d.payrollPeriodId} (${oldPeriod?.status || 'missing'}) for ${periodId}`
+                );
               }
               
               if (!isForThisPeriod && !isPending && !isAutoCarry) continue;

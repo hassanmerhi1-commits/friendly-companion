@@ -800,10 +800,38 @@ export async function restoreMissingDeductionsFromPayrollHistory(): Promise<numb
   return restored;
 }
 
+/** Clear is_applied links that still point at approved/paid months (should have been cleared on approve/archive). */
+export async function clearStaleDeductionLinksFromClosedPeriods(): Promise<number> {
+  const store = useDeductionStore.getState();
+  const { usePayrollStore } = await import('./payroll-store');
+  const periods = usePayrollStore.getState().periods;
+  const now = new Date().toISOString();
+  let cleared = 0;
+
+  for (const d of store.deductions) {
+    if (!d.isApplied || !d.payrollPeriodId) continue;
+    const period = periods.find((p) => p.id === d.payrollPeriodId);
+    if (!period || (period.status !== 'approved' && period.status !== 'paid')) continue;
+    await liveUpdate('deductions', d.id, {
+      is_applied: 0,
+      payroll_period_id: null,
+      updated_at: now,
+    });
+    cleared++;
+  }
+
+  if (cleared > 0) {
+    await store.loadDeductions();
+    console.log(`[Deductions] Cleared ${cleared} stale link(s) from approved/paid periods`);
+  }
+  return cleared;
+}
+
 /** Before recalculating a draft/calculated folha: repair deleted rows and reset balances from approved history. */
 export async function prepareDeductionsForPayrollRecalc(): Promise<void> {
   await restoreMissingDeductionsFromPayrollHistory();
   await rebuildDeductionBalancesFromPayrollHistory();
+  await clearStaleDeductionLinksFromClosedPeriods();
 }
 
 /**

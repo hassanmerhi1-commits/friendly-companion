@@ -181,9 +181,10 @@ const Payroll = () => {
   // Logic: Only allow current month OR next month if current month is archived
   // NEVER allow 2+ months ahead
   const getOrCreateCurrentPeriod = async () => {
-    // If user is currently viewing a period, keep working on that same period.
-    // This avoids silent month jumps after approval/recalculation.
-    if (currentPeriod && currentPeriod.status !== 'paid') {
+    // Only reuse the period on screen when it is still editable (draft/calculated).
+    // Never recalculate an approved month when the user intends to move forward —
+    // that made Calcular keep hitting June after it was already approved.
+    if (currentPeriod && (currentPeriod.status === 'draft' || currentPeriod.status === 'calculated')) {
       return currentPeriod;
     }
 
@@ -347,8 +348,7 @@ const Payroll = () => {
       return;
     }
 
-    // PROTECTION: Block recalculation only for paid periods.
-    // Approved periods are allowed and preserve approved holiday subsidy values.
+    // PROTECTION: Block recalculation for archived/paid periods.
     if (currentPeriod && currentPeriod.status === 'paid') {
       toast.error(
         language === 'pt' 
@@ -360,6 +360,28 @@ const Payroll = () => {
     
     // Get or create period for current month
     const period = await getOrCreateCurrentPeriod();
+
+    // Block July (etc.) while the previous month is still draft/calculated — otherwise
+    // open June deductions were stolen into the next folha on Calcular.
+    const prevMonth = period.month === 1 ? 12 : period.month - 1;
+    const prevYear = period.month === 1 ? period.year - 1 : period.year;
+    const previousPeriod = periods.find((p) => p.year === prevYear && p.month === prevMonth);
+    if (
+      previousPeriod &&
+      (previousPeriod.status === 'draft' || previousPeriod.status === 'calculated')
+    ) {
+      const names =
+        language === 'pt'
+          ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+          : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const prevLabel = `${names[prevMonth - 1]} ${prevYear}`;
+      toast.error(
+        language === 'pt'
+          ? `Aprove e arquive ${prevLabel} antes de calcular ${names[period.month - 1]} ${period.year}.`
+          : `Approve and archive ${prevLabel} before calculating ${names[period.month - 1]} ${period.year}.`
+      );
+      return;
+    }
     
     // Warn if attendance is not closed yet (but don't block)
     if (!isAttendanceClosed(period.month, period.year)) {
