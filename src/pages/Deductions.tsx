@@ -214,7 +214,9 @@ export default function Deductions() {
       ? warehouseLossMaxMonthly
       : formData.totalAmount / normalizedInstallments;
 
-    const newRemainingAmount = formData.totalAmount - (editingDeduction.installmentsPaid * newMonthlyAmount);
+    // Keep remaining from current row (history-reconciled); do not recompute as paid*newMonthly
+    // (past installments may have been below the new monthly amount).
+    const newRemainingAmount = Math.max(0, editingDeduction.remainingAmount);
     
     const patch: Partial<Deduction> = {
       employeeId: formData.employeeId,
@@ -224,9 +226,9 @@ export default function Deductions() {
       amount: newMonthlyAmount,
       date: formData.date,
       installments: normalizedInstallments,
-      remainingAmount: Math.max(0, newRemainingAmount),
-      isFullyPaid: newRemainingAmount <= 0,
-      ignoreWarehouseCap: isWarehouseLoss && manualOverride,
+      remainingAmount: newRemainingAmount,
+      isFullyPaid: newRemainingAmount <= 0.01,
+      ignoreWarehouseCap: isWarehouseLoss ? manualOverride : false,
     };
     if (editingDeduction.installmentsPaid === 0 && !editingDeduction.isApplied) {
       patch.deductFromPeriodId = formData.deductFromPeriodId || undefined;

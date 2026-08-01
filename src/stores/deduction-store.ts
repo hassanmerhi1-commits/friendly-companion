@@ -575,8 +575,9 @@ export function getPendingDeductionsEffectiveMonthlyTotal(
 }
 
 /**
- * Retroactive fix: Align stored warehouse monthly amounts with shared 25% cap per employee (FIFO).
- * Multiple perdas no mesmo funcionário: só a primeira linha recebe prestação até ao tecto; as outras ficam 0 até a anterior reduzir.
+ * Sync capped warehouse monthly amounts to legal 25% of net (per row).
+ * Do NOT permanently shrink later rows via a shared pool — sequential FIFO is applied at Calcular.
+ * Each open capped loss keeps monthly = min(25% net, remaining).
  */
 export async function normalizeWarehouseLossDeductions() {
   try {
@@ -589,15 +590,8 @@ export async function normalizeWarehouseLossDeductions() {
         String(d.type || '').trim() === 'warehouse_loss' &&
         !d.ignoreWarehouseCap &&
         !d.isFullyPaid &&
-        d.remainingAmount > 0
+        d.remainingAmount > BALANCE_EPSILON
     );
-
-    const byEmployee = new Map<string, Deduction[]>();
-    for (const d of warehouseLosses) {
-      const list = byEmployee.get(d.employeeId) || [];
-      list.push(d);
-      byEmployee.set(d.employeeId, list);
-    }
 
     const now = new Date().toISOString();
     const updates: Array<{
@@ -608,62 +602,57 @@ export async function normalizeWarehouseLossDeductions() {
       employeeName: string;
     }> = [];
 
-    for (const [employeeId, list] of byEmployee) {
-      const emp = employees.find((e) => e.id === employeeId);
+    for (const ded of warehouseLosses) {
+      const emp = employees.find((e) => e.id === ded.employeeId);
       if (!emp) continue;
 
       const netSalary = getEmployeeNetSalary(emp);
       const maxMonthly = Math.round(netSalary * WAREHOUSE_LOSS_MAX_RATE);
       if (maxMonthly <= 0) continue;
 
-      const sorted = [...list].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      const rem = ded.remainingAmount > 0 ? ded.remainingAmount : ded.totalAmount;
+      const newAmount = Math.min(maxMonthly, rem);
+      if (newAmount <= BALANCE_EPSILON) continue;
+
+      const balances = computeDeductionBalances(
+        ded.totalAmount,
+        newAmount,
+        ded.installmentsPaid,
+        rem,
+        balanceOptionsForDeduction({ ...ded, ignoreWarehouseCap: false })
       );
 
-      let pool = maxMonthly;
+      const needsAmountFix = Math.abs(ded.amount - newAmount) > BALANCE_EPSILON;
+      const needsInstFix = balances.installments !== ded.installments;
+      const needsRemainingFix = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
+      const needsPaidFix = ded.isFullyPaid !== balances.isFullyPaid;
 
-      for (const ded of sorted) {
-        const rem = ded.remainingAmount;
-        const installmentCap = Math.min(ded.amount, rem > 0 ? rem : ded.amount);
-        const newAmount = Math.min(installmentCap, pool);
-        pool -= newAmount;
-
-        const balances = computeDeductionBalances(
-          ded.totalAmount,
-          newAmount,
-          ded.installmentsPaid,
-          rem,
-          balanceOptionsForDeduction(ded)
-        );
-
-        const needsAmountFix = Math.abs(ded.amount - newAmount) > BALANCE_EPSILON;
-        const needsInstFix = balances.installments !== ded.installments;
-        const needsRemainingFix = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
-        const needsPaidFix = ded.isFullyPaid !== balances.isFullyPaid;
-
-        if (needsAmountFix || needsInstFix || needsRemainingFix || needsPaidFix) {
-          updates.push({
-            id: ded.id,
-            payload: {
-              amount: newAmount,
-              installments: balances.installments,
-              remaining_amount: balances.remainingAmount,
-              is_fully_paid: balances.isFullyPaid ? 1 : 0,
-              installments_paid: ded.installmentsPaid,
-              current_installment: ded.installmentsPaid,
-              updated_at: now,
-            },
-            beforeAmount: ded.amount,
-            afterAmount: newAmount,
-            employeeName: `${emp.firstName} ${emp.lastName}`,
-          });
-        }
+      if (needsAmountFix || needsInstFix || needsRemainingFix || needsPaidFix) {
+        const empName = emp.firstName
+          ? `${emp.firstName} ${emp.lastName}`
+          : (emp as { name?: string }).name || ded.employeeId;
+        updates.push({
+          id: ded.id,
+          payload: {
+            amount: newAmount,
+            installments: balances.installments,
+            remaining_amount: balances.remainingAmount,
+            is_fully_paid: balances.isFullyPaid ? 1 : 0,
+            installments_paid: ded.installmentsPaid,
+            current_installment: ded.installmentsPaid,
+            ignore_warehouse_cap: 0,
+            updated_at: now,
+          },
+          beforeAmount: ded.amount,
+          afterAmount: newAmount,
+          employeeName: empName,
+        });
       }
     }
 
     if (updates.length === 0) {
       console.log(
-        `[Deductions] Warehouse FIFO normalization: no changes (${warehouseLosses.length} active warehouse records)`
+        `[Deductions] Warehouse 25% sync: no changes (${warehouseLosses.length} active capped warehouse records)`
       );
       return;
     }
@@ -673,14 +662,86 @@ export async function normalizeWarehouseLossDeductions() {
 
     updates.forEach((u) => {
       console.log(
-        `[Deductions] Warehouse FIFO: ${u.employeeName} id=${u.id} monthly ${u.beforeAmount} → ${u.afterAmount}`
+        `[Deductions] Warehouse 25% sync: ${u.employeeName} id=${u.id} monthly ${u.beforeAmount} → ${u.afterAmount}`
       );
     });
 
-    console.log(`[Deductions] Warehouse FIFO normalization applied to ${updates.length} deduction row(s)`);
+    console.log(`[Deductions] Warehouse 25% sync applied to ${updates.length} deduction row(s)`);
   } catch (error) {
     console.error('[Deductions] Error normalizing warehouse losses:', error);
   }
+}
+
+/**
+ * Repair mistaken custom (ignore 25%) flags: if a warehouse row is marked custom with monthly
+ * above the legal cap, but the last approved/paid folha only applied ≤ 25%, reset to capped.
+ */
+export async function repairWarehouseCustomCapFromHistory(): Promise<number> {
+  const { useEmployeeStore } = await import('./employee-store');
+  const employees = useEmployeeStore.getState().employees;
+  const { deductions } = useDeductionStore.getState();
+  const [entryRows, periodRows] = await Promise.all([
+    liveGetAll<any>('payroll_entries'),
+    liveGetAll<any>('payroll_periods'),
+  ]);
+  const periodStatus = new Map<string, string>(periodRows.map((p: any) => [p.id, p.status]));
+
+  const lastApplied = new Map<string, number>();
+  for (const entry of entryRows) {
+    const status = periodStatus.get(entry.period_id || entry.payroll_period_id);
+    if (status !== 'approved' && status !== 'paid') continue;
+    for (const detail of parseDeductionDetails(entry.deduction_details)) {
+      const deductionId =
+        detail.deductionId || (detail as { deduction_id?: string; id?: string }).deduction_id || (detail as { id?: string }).id;
+      if (!deductionId) continue;
+      const amount = Number(detail.amount || 0);
+      if (amount > BALANCE_EPSILON) lastApplied.set(deductionId, amount);
+    }
+  }
+
+  const now = new Date().toISOString();
+  let repaired = 0;
+
+  for (const ded of deductions) {
+    if (String(ded.type || '').trim() !== 'warehouse_loss') continue;
+    if (!ded.ignoreWarehouseCap || ded.isFullyPaid) continue;
+    if (ded.remainingAmount <= BALANCE_EPSILON) continue;
+
+    const emp = employees.find((e) => e.id === ded.employeeId);
+    if (!emp) continue;
+    const maxMonthly = Math.round(getEmployeeNetSalary(emp) * WAREHOUSE_LOSS_MAX_RATE);
+    if (maxMonthly <= 0 || ded.amount <= maxMonthly + BALANCE_EPSILON) continue;
+
+    const last = lastApplied.get(ded.id);
+    if (last == null || last > maxMonthly + BALANCE_EPSILON) continue;
+
+    const rem = ded.remainingAmount;
+    const newAmount = Math.min(maxMonthly, rem);
+    const balances = computeDeductionBalances(
+      ded.totalAmount,
+      newAmount,
+      ded.installmentsPaid,
+      rem
+    );
+
+    await liveUpdate('deductions', ded.id, {
+      ignore_warehouse_cap: 0,
+      amount: newAmount,
+      installments: balances.installments,
+      remaining_amount: balances.remainingAmount,
+      is_fully_paid: balances.isFullyPaid ? 1 : 0,
+      updated_at: now,
+    });
+    repaired++;
+    console.log(
+      `[Deductions] Repaired custom warehouse flag ${ded.id}: monthly ${ded.amount} → ${newAmount} (last approved applied ${last})`
+    );
+  }
+
+  if (repaired > 0) {
+    await useDeductionStore.getState().loadDeductions();
+  }
+  return repaired;
 }
 
 export type DeductionRebuildResult = {
@@ -827,11 +888,13 @@ export async function clearStaleDeductionLinksFromClosedPeriods(): Promise<numbe
   return cleared;
 }
 
-/** Before recalculating a draft/calculated folha: repair deleted rows and reset balances from approved history. */
+/** Before recalculating a draft/calculated folha: repair rows, balances, and warehouse 25% monthly amounts. */
 export async function prepareDeductionsForPayrollRecalc(): Promise<void> {
   await restoreMissingDeductionsFromPayrollHistory();
   await rebuildDeductionBalancesFromPayrollHistory();
   await clearStaleDeductionLinksFromClosedPeriods();
+  await repairWarehouseCustomCapFromHistory();
+  await normalizeWarehouseLossDeductions();
 }
 
 /**

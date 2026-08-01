@@ -94,9 +94,13 @@ export function BatchReceiptPrinter({
     };
 
     const overtimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
+    const isColaborador = employee.contractType === 'colaborador';
     const inssBase = entry.baseSalary + entry.transportAllowance + entry.mealAllowance + 
                      (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
-    const { employeeContribution: calculatedInss } = calculateINSS(inssBase, employee.isRetired);
+    // Colaboradores: no INSS — match folha (do not show a fake INSS in the tax box)
+    const calculatedInss = isColaborador
+      ? 0
+      : calculateINSS(inssBase, employee.isRetired).employeeContribution;
     const taxableTransport = getIRTTaxableAllowance(entry.transportAllowance);
     const taxableMeal = getIRTTaxableAllowance(entry.mealAllowance);
     const irtTaxableGross = entry.baseSalary + taxableTransport + taxableMeal +

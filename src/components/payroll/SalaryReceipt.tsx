@@ -185,12 +185,16 @@ export function SalaryReceipt({
   };
 
   const overtimeTotal = entry.overtimeNormal + entry.overtimeNight + entry.overtimeHoliday;
+  const isColaborador = employee.contractType === 'colaborador';
 
   // ============= TAX BREAKDOWN CALCULATION =============
   // INSS Base = Base + Transport + Meal + Natal + Overtime + Other (NOT Férias, NOT Abono Familiar)
+  // Colaboradores: no INSS (match folha entry.inssEmployee)
   const inssBase = entry.baseSalary + entry.transportAllowance + entry.mealAllowance + 
                    (entry.thirteenthMonth || 0) + overtimeTotal + entry.otherAllowances;
-  const { employeeContribution: calculatedInss } = calculateINSS(inssBase, employee.isRetired);
+  const calculatedInss = isColaborador
+    ? 0
+    : calculateINSS(inssBase, employee.isRetired).employeeContribution;
 
   // IRT Taxable = Base + excess of Transport/Meal above 30k + Natal + Overtime + Other
   // NOT included: Férias, Abono Familiar
