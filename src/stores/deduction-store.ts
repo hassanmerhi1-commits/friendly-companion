@@ -673,8 +673,10 @@ export async function normalizeWarehouseLossDeductions() {
 }
 
 /**
- * Repair mistaken custom (ignore 25%) flags: if a warehouse row is marked custom with monthly
- * above the legal cap, but the last approved/paid folha only applied ≤ 25%, reset to capped.
+ * Optional one-off repair only (Settings / maintenance). NOT used on Calcular —
+ * overriding ignoreWarehouseCap there broke intentional custom amounts.
+ * If a warehouse row is marked custom with monthly above the legal cap, but the last
+ * approved/paid folha only applied ≤ 25%, reset to capped.
  */
 export async function repairWarehouseCustomCapFromHistory(): Promise<number> {
   const { useEmployeeStore } = await import('./employee-store');
@@ -888,12 +890,16 @@ export async function clearStaleDeductionLinksFromClosedPeriods(): Promise<numbe
   return cleared;
 }
 
-/** Before recalculating a draft/calculated folha: repair rows, balances, and warehouse 25% monthly amounts. */
+/**
+ * Before recalculating a draft/calculated folha: repair missing rows, rebuild balances,
+ * and sync capped warehouse monthlies to 25%.
+ * Never touch rows with ignoreWarehouseCap (user custom override) — Calcular must obey that.
+ */
 export async function prepareDeductionsForPayrollRecalc(): Promise<void> {
   await restoreMissingDeductionsFromPayrollHistory();
   await rebuildDeductionBalancesFromPayrollHistory();
   await clearStaleDeductionLinksFromClosedPeriods();
-  await repairWarehouseCustomCapFromHistory();
+  // Do NOT call repairWarehouseCustomCapFromHistory here — it cleared intentional custom overrides.
   await normalizeWarehouseLossDeductions();
 }
 
