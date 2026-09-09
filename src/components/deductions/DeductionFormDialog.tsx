@@ -80,7 +80,8 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       setManualOverride(false);
       setDeductStartMode('auto');
       setDeductFromPeriodId('');
-      setSchedulingMode('parallel');
+      // Safer default: queue behind open advances (Cleusio parallel stack)
+      setSchedulingMode('sequential');
     }
   }, [open]);
 
@@ -104,6 +105,13 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
     if (schedulingMode === 'sequential' && openAdvances.length > 0 && suggestedDeductFromPeriodId) {
       setDeductStartMode('pick');
       setDeductFromPeriodId(suggestedDeductFromPeriodId);
+    }
+    // Parallel + other open advances: force an explicit start month (no silent same-month stack)
+    if (schedulingMode === 'parallel' && openAdvances.length > 0) {
+      setDeductStartMode('pick');
+      if (!deductFromPeriodId && suggestedDeductFromPeriodId) {
+        setDeductFromPeriodId(suggestedDeductFromPeriodId);
+      }
     }
   }, [open, formData.employeeId, formData.type, openAdvances.length, suggestedDeductFromPeriodId, schedulingMode]);
 
@@ -211,6 +219,21 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       suggestedDeductFromPeriodId
     ) {
       resolvedDeductFrom = suggestedDeductFromPeriodId;
+    }
+
+    // Harden: never leave a new parallel advance with other open ones without a start month
+    if (
+      formData.type === 'salary_advance' &&
+      schedulingMode === 'parallel' &&
+      openAdvances.length > 0 &&
+      !resolvedDeductFrom
+    ) {
+      toast.error(
+        language === 'pt'
+          ? 'Já existem adiantamentos em aberto. Escolha o mês de início na folha (ex.: Setembro) ou use a fila.'
+          : 'Open advances already exist. Pick the payroll start month (e.g. September) or use queue mode.'
+      );
+      return;
     }
 
     const submitData: DeductionFormData = {

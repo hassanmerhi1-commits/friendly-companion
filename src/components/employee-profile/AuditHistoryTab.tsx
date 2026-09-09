@@ -38,6 +38,7 @@ const actionLabels: Record<AuditAction, { pt: string; en: string }> = {
   absence_rejected: { pt: 'Ausência Rejeitada', en: 'Absence Rejected' },
   absence_approved: { pt: 'Ausência Aprovada', en: 'Absence Approved' },
   absence_deleted: { pt: 'Ausência Eliminada', en: 'Absence Deleted' },
+  absence_ended_early: { pt: 'Licença Terminada Antecipadamente', en: 'Leave Ended Early' },
   deduction_applied: { pt: 'Dedução Aplicada', en: 'Deduction Applied' },
   deduction_created: { pt: 'Dedução Criada', en: 'Deduction Created' },
   deduction_updated: { pt: 'Dedução Editada', en: 'Deduction Updated' },

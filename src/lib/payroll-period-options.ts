@@ -112,3 +112,31 @@ export function buildSelectablePayrollMonths(
 
   return options.sort((a, b) => comparePeriods(a, b));
 }
+
+/**
+ * Block skipping a folha month (e.g. Jul missing while opening Sep after Jun).
+ * Returns a short message key payload, or null if OK.
+ */
+export function getPayrollMonthGapError(
+  targetYear: number,
+  targetMonth: number,
+  periods: Pick<PayrollPeriod, 'year' | 'month'>[],
+  monthNames: string[]
+): { missingLabel: string; targetLabel: string } | null {
+  const targetKey = periodSortKey({ year: targetYear, month: targetMonth });
+  const earlier = periods
+    .filter((p) => periodSortKey(p) < targetKey)
+    .sort((a, b) => comparePeriods(b, a));
+
+  if (earlier.length === 0) return null;
+
+  const latest = earlier[0];
+  const expectedNext = addMonths(latest.year, latest.month, 1);
+  if (expectedNext.year === targetYear && expectedNext.month === targetMonth) {
+    return null;
+  }
+
+  const missingLabel = `${monthNames[expectedNext.month - 1] ?? expectedNext.month} ${expectedNext.year}`;
+  const targetLabel = `${monthNames[targetMonth - 1] ?? targetMonth} ${targetYear}`;
+  return { missingLabel, targetLabel };
+}

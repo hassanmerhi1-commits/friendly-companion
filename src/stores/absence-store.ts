@@ -90,6 +90,11 @@ interface AbsenceStore {
   loadAbsences: () => Promise<void>;
   addAbsence: (absence: Omit<Absence, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateAbsence: (id: string, updates: Partial<Absence>) => Promise<void>;
+  /** Cut an active leave short at employee request (return to work). */
+  endLeaveEarly: (
+    id: string,
+    opts?: { returnDate?: string; note?: string; processedBy?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
   deleteAbsence: (id: string) => Promise<void>;
   justifyAbsence: (id: string, document: string, notes?: string) => Promise<void>;
   rejectJustification: (id: string, reason: string) => Promise<void>;
@@ -146,6 +151,61 @@ export const useAbsenceStore = create<AbsenceStore>()((set, get) => ({
       const updated: Absence = { ...current, ...updates, days, updatedAt: now };
       const { id: _, ...row } = mapAbsenceToDbRow(updated);
       await liveUpdate('absences', id, row);
+    },
+
+    endLeaveEarly: async (id, opts) => {
+      const current = get().absences.find((a) => a.id === id);
+      if (!current) return { success: false, error: 'Licença não encontrada' };
+
+      const today = new Date().toISOString().split('T')[0];
+      let returnDate = (opts?.returnDate || today).split('T')[0];
+      if (returnDate < current.startDate) returnDate = current.startDate;
+      if (returnDate > current.endDate) {
+        return { success: false, error: 'A data de regresso deve ser antes do fim da licença' };
+      }
+      if (returnDate === current.endDate) {
+        return { success: false, error: 'A licença já termina nesta data' };
+      }
+
+      const by = opts?.processedBy?.trim() || 'sistema';
+      const extra = opts?.note?.trim();
+      const stamp = `Regresso antecipado a pedido do trabalhador em ${returnDate} (por ${by})`;
+      const notes = [current.notes, stamp, extra].filter(Boolean).join(' — ');
+
+      await get().updateAbsence(id, {
+        endDate: returnDate,
+        notes,
+      });
+
+      try {
+        const { liveUpdate: liveUpdateEmp } = await import('@/lib/db-live');
+        const { useEmployeeStore } = await import('@/stores/employee-store');
+        const empStore = useEmployeeStore.getState();
+        const emp = empStore.employees.find((e) => e.id === current.employeeId);
+        if (emp && emp.status === 'on_leave') {
+          const nowIso = new Date().toISOString();
+          await liveUpdateEmp('employees', current.employeeId, {
+            status: 'active',
+            updated_at: nowIso,
+          });
+          await empStore.loadEmployees();
+        }
+      } catch (e) {
+        console.warn('[Absences] Could not reactivate employee after early leave end:', e);
+      }
+
+      logAudit({
+        action: 'absence_ended_early',
+        entityType: 'absence',
+        entityId: id,
+        employeeId: current.employeeId,
+        description: `Licença terminada antecipadamente: ${current.type} (fim ${current.endDate} → ${returnDate})`,
+        previousValue: { endDate: current.endDate, days: current.days, notes: current.notes },
+        newValue: { endDate: returnDate, notes },
+      });
+
+      await get().loadAbsences();
+      return { success: true };
     },
 
     deleteAbsence: async (id) => {

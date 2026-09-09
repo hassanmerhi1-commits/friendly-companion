@@ -72,9 +72,21 @@ export default function Deductions() {
     let result = deductions;
     if (filterType !== 'all') result = result.filter(d => d.type === filterType);
     if (filterStatus === 'pending' || filterStatus === 'in_progress') {
-      result = result.filter(d => !d.isFullyPaid);
+      // Em curso = unpaid for staff still in company (exited debts stay out of this list)
+      result = result.filter((d) => {
+        if (d.isFullyPaid) return false;
+        const emp = employees.find((e) => e.id === d.employeeId);
+        return emp?.status !== 'terminated';
+      });
     }
     if (filterStatus === 'paid') result = result.filter(d => d.isFullyPaid);
+    if (filterStatus === 'exited') {
+      result = result.filter((d) => {
+        if (d.isFullyPaid) return false;
+        const emp = employees.find((e) => e.id === d.employeeId);
+        return emp?.status === 'terminated';
+      });
+    }
     if (filterEmployee !== 'all') result = result.filter(d => d.employeeId === filterEmployee);
     if (filterBranch !== 'all') {
       result = result.filter(d => {
@@ -93,7 +105,11 @@ export default function Deductions() {
     return result;
   }, [deductions, filterType, filterStatus, filterEmployee, filterBranch, searchQuery, employees]);
 
-  const pendingDeductions = deductions.filter(d => !d.isFullyPaid);
+  const pendingDeductions = deductions.filter((d) => {
+    if (d.isFullyPaid) return false;
+    const emp = employees.find((e) => e.id === d.employeeId);
+    return emp?.status !== 'terminated';
+  });
   const totalPending = pendingDeductions.reduce((sum, d) => sum + d.remainingAmount, 0);
 
   const getEmployeeNetSalary = (employeeId: string) => {
@@ -231,8 +247,24 @@ export default function Deductions() {
       ignoreWarehouseCap: isWarehouseLoss ? manualOverride : false,
     };
     if (editingDeduction.installmentsPaid === 0 && !editingDeduction.isApplied) {
+      const mode = formData.schedulingMode || 'sequential';
+      const openOthers = deductions.filter(
+        (d) =>
+          d.id !== editingDeduction.id &&
+          d.employeeId === formData.employeeId &&
+          d.type === 'salary_advance' &&
+          !d.isFullyPaid
+      );
+      if (formData.type === 'salary_advance' && mode === 'parallel' && openOthers.length > 0 && !formData.deductFromPeriodId) {
+        toast.error(
+          language === 'pt'
+            ? 'Já existem adiantamentos em aberto. Escolha o mês de início na folha ou use a fila.'
+            : 'Open advances already exist. Pick the payroll start month or use queue mode.'
+        );
+        return;
+      }
       patch.deductFromPeriodId = formData.deductFromPeriodId || undefined;
-      patch.schedulingMode = formData.schedulingMode || 'sequential';
+      patch.schedulingMode = mode;
     }
     await updateDeduction(editingDeduction.id, patch);
     setIsEditDialogOpen(false);
@@ -313,12 +345,20 @@ export default function Deductions() {
   const listStats = useMemo(
     () => ({
       totalPending,
-      advances: deductions.filter((d) => d.type === 'salary_advance' && !d.isFullyPaid).length,
-      warehouse: deductions.filter((d) => d.type === 'warehouse_loss' && !d.isFullyPaid).length,
+      advances: deductions.filter((d) => {
+        if (d.type !== 'salary_advance' || d.isFullyPaid) return false;
+        const emp = employees.find((e) => e.id === d.employeeId);
+        return emp?.status !== 'terminated';
+      }).length,
+      warehouse: deductions.filter((d) => {
+        if (d.type !== 'warehouse_loss' || d.isFullyPaid) return false;
+        const emp = employees.find((e) => e.id === d.employeeId);
+        return emp?.status !== 'terminated';
+      }).length,
       completed: deductions.filter((d) => d.isFullyPaid).length,
       showing: filteredDeductions.length,
     }),
-    [deductions, totalPending, filteredDeductions.length]
+    [deductions, totalPending, filteredDeductions.length, employees]
   );
 
   const hasActiveFilters =
@@ -626,6 +666,7 @@ export default function Deductions() {
               <SelectContent>
                 <SelectItem value="all">{ptLang ? 'Todos estados' : 'All statuses'}</SelectItem>
                 <SelectItem value="pending">{ptLang ? 'Em curso' : 'In progress'}</SelectItem>
+                <SelectItem value="exited">{ptLang ? 'Ex-funcionários' : 'Left company'}</SelectItem>
                 <SelectItem value="paid">{ptLang ? 'Pagos' : 'Paid'}</SelectItem>
               </SelectContent>
             </Select>

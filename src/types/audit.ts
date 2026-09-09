@@ -16,6 +16,7 @@ export type AuditAction =
   | 'absence_rejected'
   | 'absence_approved'
   | 'absence_deleted'
+  | 'absence_ended_early'
   | 'deduction_applied'
   | 'deduction_created'
   | 'deduction_updated'

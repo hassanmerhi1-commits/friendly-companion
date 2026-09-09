@@ -46,9 +46,17 @@ import {
   ATTENDANCE_TBODY,
 } from "@/components/attendance/AttendanceTablePanel";
 import { exportPayrollToCSV } from "@/lib/export-utils";
+import { getPayrollMonthGapError } from "@/lib/payroll-period-options";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import type { PayrollEntry } from "@/types/payroll";
+
+const PAYROLL_MONTH_NAMES_PT = [
+  'Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
+];
+const PAYROLL_MONTH_NAMES_EN = [
+  'January','February','March','April','May','June','July','August','September','October','November','December',
+];
 
 const Payroll = () => {
   const { t, language } = useLanguage();
@@ -225,6 +233,16 @@ const Payroll = () => {
       return existing;
     }
 
+    const monthNames = language === 'pt' ? PAYROLL_MONTH_NAMES_PT : PAYROLL_MONTH_NAMES_EN;
+    const gap = getPayrollMonthGapError(targetYear, targetMonth, periods, monthNames);
+    if (gap) {
+      throw new Error(
+        language === 'pt'
+          ? `Falta a folha de ${gap.missingLabel}. Crie/calcule ${gap.missingLabel} antes de ${gap.targetLabel}.`
+          : `Missing payroll for ${gap.missingLabel}. Create/calculate ${gap.missingLabel} before ${gap.targetLabel}.`
+      );
+    }
+
     // Create new period
     return await createPeriod(targetYear, targetMonth);
   };
@@ -359,7 +377,27 @@ const Payroll = () => {
     }
     
     // Get or create period for current month
-    const period = await getOrCreateCurrentPeriod();
+    let period;
+    try {
+      period = await getOrCreateCurrentPeriod();
+    } catch (err: any) {
+      toast.error(err?.message || (language === 'pt' ? 'Não foi possível abrir o período' : 'Could not open period'));
+      return;
+    }
+
+    // Block skipping a missing folha month (Benguela July→August hole)
+    {
+      const monthNames = language === 'pt' ? PAYROLL_MONTH_NAMES_PT : PAYROLL_MONTH_NAMES_EN;
+      const gap = getPayrollMonthGapError(period.year, period.month, periods, monthNames);
+      if (gap) {
+        toast.error(
+          language === 'pt'
+            ? `Falta a folha de ${gap.missingLabel}. Crie/calcule ${gap.missingLabel} antes de ${gap.targetLabel}.`
+            : `Missing payroll for ${gap.missingLabel}. Create/calculate ${gap.missingLabel} before ${gap.targetLabel}.`
+        );
+        return;
+      }
+    }
 
     // Block July (etc.) while the previous month is still draft/calculated — otherwise
     // open June deductions were stolen into the next folha on Calcular.
@@ -370,10 +408,7 @@ const Payroll = () => {
       previousPeriod &&
       (previousPeriod.status === 'draft' || previousPeriod.status === 'calculated')
     ) {
-      const names =
-        language === 'pt'
-          ? ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-          : ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const names = language === 'pt' ? PAYROLL_MONTH_NAMES_PT : PAYROLL_MONTH_NAMES_EN;
       const prevLabel = `${names[prevMonth - 1]} ${prevYear}`;
       toast.error(
         language === 'pt'

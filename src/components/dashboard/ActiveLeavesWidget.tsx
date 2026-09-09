@@ -1,6 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Baby, Heart, Stethoscope, Palmtree, Calendar } from "lucide-react";
 import { useAbsenceStore } from "@/stores/absence-store";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -8,13 +18,18 @@ import { useHolidayStore } from "@/stores/holiday-store";
 import { useLanguage } from "@/lib/i18n";
 import { ABSENCE_TYPE_INFO } from "@/types/absence";
 import { isAbsenceActiveToday, isDashboardLeaveAbsence, parseDateOnly } from "@/lib/absence-utils";
+import { toast } from "sonner";
 
 export function ActiveLeavesWidget() {
   const { language } = useLanguage();
-  const { absences } = useAbsenceStore();
+  const { absences, endLeaveEarly } = useAbsenceStore();
   const { employees } = useEmployeeStore();
   const { records: holidayRecords } = useHolidayStore();
   const pt = language === 'pt';
+
+  const [endingId, setEndingId] = useState<string | null>(null);
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endingBusy, setEndingBusy] = useState(false);
 
   const activeLeaves = useMemo(() => {
     const today = new Date();
@@ -33,6 +48,7 @@ export function ActiveLeavesWidget() {
           label: pt ? info.labelPt : info.labelEn,
           startDate: a.startDate,
           endDate: a.endDate,
+          canEndEarly: true,
           category: a.type === 'maternity' ? 'maternity' :
                     a.type === 'paternity' ? 'paternity' :
                     a.type === 'sick_leave' || a.type === 'work_accident' ? 'sick' : 'other',
@@ -40,7 +56,6 @@ export function ActiveLeavesWidget() {
       });
 
     // Active holidays (férias)
-    const currentYear = today.getFullYear();
     const activeHolidays = holidayRecords
       .filter(h => {
         if (!h.startDate || !h.endDate) return false;
@@ -55,6 +70,7 @@ export function ActiveLeavesWidget() {
           label: pt ? 'Férias' : 'Holiday',
           startDate: h.startDate!,
           endDate: h.endDate!,
+          canEndEarly: false,
           category: 'holiday' as const,
         };
       });
@@ -63,6 +79,8 @@ export function ActiveLeavesWidget() {
       new Date(a.endDate).getTime() - new Date(b.endDate).getTime()
     );
   }, [absences, employees, holidayRecords, pt]);
+
+  const endingLeave = endingId ? activeLeaves.find((l) => l.id === endingId) : undefined;
 
   const getIcon = (category: string) => {
     switch (category) {
@@ -97,53 +115,134 @@ export function ActiveLeavesWidget() {
     return Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
+  const openEndDialog = (leaveId: string, startDate: string, endDate: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    let initial = today;
+    if (initial < startDate) initial = startDate;
+    if (initial > endDate) initial = endDate;
+    setReturnDate(initial);
+    setEndingId(leaveId);
+  };
+
+  const confirmEndLeave = async () => {
+    if (!endingId) return;
+    setEndingBusy(true);
+    try {
+      const result = await endLeaveEarly(endingId, {
+        returnDate,
+        note: pt ? 'A pedido do trabalhador' : 'At employee request',
+      });
+      if (!result.success) {
+        toast.error(result.error || (pt ? 'Não foi possível terminar a licença' : 'Could not end leave'));
+        return;
+      }
+      toast.success(pt ? 'Licença terminada — funcionário pode regressar ao trabalho' : 'Leave ended — employee can return to work');
+      setEndingId(null);
+    } finally {
+      setEndingBusy(false);
+    }
+  };
+
   return (
-    <Card className="border-border/50 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Palmtree className="h-5 w-5 text-primary" />
-          {pt ? 'Funcionários em Licença / Férias' : 'Employees on Leave / Holiday'}
-          {activeLeaves.length > 0 && (
-            <Badge variant="secondary" className="ml-auto text-xs">
-              {activeLeaves.length}
-            </Badge>
+    <>
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Palmtree className="h-5 w-5 text-primary" />
+            {pt ? 'Funcionários em Licença / Férias' : 'Employees on Leave / Holiday'}
+            {activeLeaves.length > 0 && (
+              <Badge variant="secondary" className="ml-auto text-xs">
+                {activeLeaves.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activeLeaves.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {pt ? 'Nenhum funcionário em licença ou férias actualmente' : 'No employees currently on leave or holiday'}
+            </p>
+          ) : (
+            <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+              {activeLeaves.map((leave) => {
+                const days = daysUntilReturn(leave.endDate);
+                return (
+                  <div key={leave.id} className="flex items-center gap-3 rounded-xl border border-border/40 bg-muted/30 px-3 py-2.5">
+                    {getIcon(leave.category)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{leave.employeeName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(leave.startDate)} → {formatDate(leave.endDate)}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getBadgeVariant(leave.category)}`}>
+                        {leave.label}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {days <= 0
+                          ? (pt ? 'Regressa hoje' : 'Returns today')
+                          : `${days}d ${pt ? 'restantes' : 'remaining'}`}
+                      </span>
+                      {leave.canEndEarly && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px] mt-0.5"
+                          onClick={() => openEndDialog(leave.id, leave.startDate, leave.endDate)}
+                        >
+                          {pt ? 'Terminar licença' : 'End leave'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {activeLeaves.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            {pt ? 'Nenhum funcionário em licença ou férias actualmente' : 'No employees currently on leave or holiday'}
-          </p>
-        ) : (
-          <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-            {activeLeaves.map((leave) => {
-              const days = daysUntilReturn(leave.endDate);
-              return (
-                <div key={leave.id} className="flex items-center gap-3 rounded-xl border border-border/40 bg-muted/30 px-3 py-2.5">
-                  {getIcon(leave.category)}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{leave.employeeName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(leave.startDate)} → {formatDate(leave.endDate)}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getBadgeVariant(leave.category)}`}>
-                      {leave.label}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground">
-                      {days <= 0
-                        ? (pt ? 'Regressa hoje' : 'Returns today')
-                        : `${days}d ${pt ? 'restantes' : 'remaining'}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+        </CardContent>
+      </Card>
+
+      <Dialog open={Boolean(endingId)} onOpenChange={(open) => !open && setEndingId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {pt ? 'Terminar licença antecipadamente' : 'End leave early'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              {endingLeave
+                ? `${endingLeave.employeeName} — ${endingLeave.label}`
+                : ''}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {pt
+                ? 'A pedido do trabalhador. A data de fim da licença passa a ser a data de regresso.'
+                : 'At employee request. Leave end date becomes the return-to-work date.'}
+            </p>
+            <div className="space-y-2">
+              <Label>{pt ? 'Data de regresso' : 'Return date'}</Label>
+              <Input
+                type="date"
+                value={returnDate}
+                min={endingLeave?.startDate}
+                max={endingLeave?.endDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+              />
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEndingId(null)} disabled={endingBusy}>
+              {pt ? 'Cancelar' : 'Cancel'}
+            </Button>
+            <Button type="button" onClick={() => void confirmEndLeave()} disabled={endingBusy}>
+              {pt ? 'Confirmar regresso' : 'Confirm return'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -648,9 +648,11 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
           (d) => d.employeeId === id && (d.isApplied || !d.isFullyPaid)
         );
         for (const d of pending) {
+          // Freeze for payroll: unlink from folha. Balance kept for audit / "Ex-funcionários" filter.
           await deductionStore.updateDeduction(d.id, {
             isApplied: false,
             payrollPeriodId: undefined,
+            deductFromPeriodId: undefined,
           });
         }
       } catch (dedErr) {
