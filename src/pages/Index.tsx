@@ -4,6 +4,7 @@ import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { DashboardDateTime } from "@/components/dashboard/DashboardDateTime";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
+import { ActiveLeavesWidget } from "@/components/dashboard/ActiveLeavesWidget";
 import { Users, DollarSign, Clock, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -226,9 +227,12 @@ const Index = () => {
             showAlertsPanel ? 'grid grid-cols-1 lg:grid-cols-2' : 'flex flex-col'
           }`}
         >
-          <div className="min-h-0 flex flex-col rounded-xl border border-border/50 bg-card p-4 shadow-sm overflow-y-auto">
-            <QuickActions compact />
-            <DashboardDateTime />
+          <div className="min-h-0 flex flex-col gap-3 overflow-y-auto">
+            <div className="rounded-xl border border-border/50 bg-card p-4 shadow-sm">
+              <QuickActions compact />
+              <DashboardDateTime />
+            </div>
+            {(canViewHR || canViewEmployees) && <ActiveLeavesWidget />}
           </div>
           {showAlertsPanel && (
             <div className="min-h-0 overflow-hidden">

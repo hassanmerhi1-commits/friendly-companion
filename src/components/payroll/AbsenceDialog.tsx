@@ -15,6 +15,7 @@ import { useAbsenceStore } from '@/stores/absence-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { ABSENCE_TYPE_INFO, type AbsenceType, type AbsenceStatus } from '@/types/absence';
 import { formatAOA, calculateDailyRate } from '@/lib/angola-labor-law';
+import { isAbsenceActiveToday, isDashboardLeaveAbsence } from '@/lib/absence-utils';
 import { toast } from 'sonner';
 
 interface AbsenceDialogProps {
@@ -35,6 +36,7 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
     justifyAbsence, 
     markAsUnjustified,
     approveAbsence,
+    endLeaveEarly,
     getAbsencesByEmployee,
     getPendingAbsences
   } = useAbsenceStore();
@@ -83,6 +85,10 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
     approveSuccess: language === 'pt' ? 'Ausência aprovada' : 'Absence approved',
     rejectSuccess: language === 'pt' ? 'Ausência marcada como injustificada' : 'Absence marked as unjustified',
     deleteSuccess: language === 'pt' ? 'Ausência eliminada' : 'Absence deleted',
+    endLeave: language === 'pt' ? 'Terminar' : 'End leave',
+    endLeaveSuccess: language === 'pt'
+      ? 'Licença terminada — funcionário pode regressar'
+      : 'Leave ended — employee can return',
     maternityNote: language === 'pt' 
       ? 'Licença de maternidade: 13 semanas (91 dias) pagos pelo empregador, reembolsado pelo INSS (Lei 12/23)' 
       : 'Maternity leave: 13 weeks (91 days) paid by employer, reimbursed by INSS (Law 12/23)',
@@ -182,6 +188,26 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
       deleteAbsence(absenceId);
       toast.success(t.deleteSuccess);
     }
+  };
+
+  const handleEndLeave = async (absenceId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (!confirm(
+      language === 'pt'
+        ? `Terminar licença antecipadamente com data de regresso ${today}?`
+        : `End leave early with return date ${today}?`
+    )) {
+      return;
+    }
+    const result = await endLeaveEarly(absenceId, {
+      returnDate: today,
+      note: language === 'pt' ? 'A pedido do trabalhador' : 'At employee request',
+    });
+    if (!result.success) {
+      toast.error(result.error || (language === 'pt' ? 'Erro ao terminar licença' : 'Failed to end leave'));
+      return;
+    }
+    toast.success(t.endLeaveSuccess);
   };
 
   const pendingAbsences = getPendingAbsences();
@@ -478,13 +504,24 @@ export function AbsenceDialog({ open, onOpenChange, employeeId, month, year }: A
                           )}
                         </TableCell>
                         <TableCell>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => handleDelete(absence.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex gap-1">
+                            {isDashboardLeaveAbsence(absence) && isAbsenceActiveToday(absence) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void handleEndLeave(absence.id)}
+                              >
+                                {t.endLeave}
+                              </Button>
+                            )}
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => handleDelete(absence.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
