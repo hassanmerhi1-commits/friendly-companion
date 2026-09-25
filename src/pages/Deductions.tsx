@@ -19,7 +19,7 @@ import { useBranchStore } from '@/stores/branch-store';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle, MapPin } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle, MapPin, ListPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ATTENDANCE_PAGE } from '@/lib/page-layout';
@@ -34,6 +34,7 @@ import {
 } from '@/components/attendance/AttendanceTablePanel';
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
+import { DeductionBatchRegister } from '@/components/deductions/DeductionBatchRegister';
 import { formatPeriodLabel, resolveSchedulingMode } from '@/lib/salary-advance-scheduling';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import type { DeductionSchedulingMode } from '@/types/deduction';
@@ -50,6 +51,7 @@ export default function Deductions() {
   const { branches: allBranches } = useBranchStore();
   const activeBranches = allBranches.filter(b => b.isActive);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isBatchRegisterOpen, setIsBatchRegisterOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
@@ -186,7 +188,17 @@ export default function Deductions() {
       toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
       return;
     }
+    setIsBatchRegisterOpen(false);
     setIsAddDialogOpen(true);
+  };
+
+  const handleOpenBatchRegister = () => {
+    if (!hasPermission('deductions.create')) {
+      toast.error(language === 'pt' ? 'Sem permissão para criar deduções' : 'No permission to create deductions');
+      return;
+    }
+    setIsAddDialogOpen(false);
+    setIsBatchRegisterOpen(true);
   };
 
   const handleEditClick = (deduction: Deduction) => {
@@ -707,16 +719,30 @@ export default function Deductions() {
             )}
 
             {hasPermission('deductions.create') && (
-              <Button size="sm" className="h-8 text-xs ml-auto shrink-0" onClick={handleOpenAddDeduction}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                {addDeductionLabel}
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs ml-auto shrink-0"
+                  onClick={handleOpenBatchRegister}
+                >
+                  <ListPlus className="h-3.5 w-3.5 mr-1" />
+                  {ptLang ? 'Registar em lote' : 'Batch register'}
+                </Button>
+                <Button size="sm" className="h-8 text-xs shrink-0" onClick={handleOpenAddDeduction}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  {addDeductionLabel}
+                </Button>
+              </>
             )}
           </div>
         </div>
 
         {hasPermission('deductions.create') && (
-          <DeductionFormDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
+          <>
+            <DeductionFormDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
+            <DeductionBatchRegister open={isBatchRegisterOpen} onClose={() => setIsBatchRegisterOpen(false)} />
+          </>
         )}
 
         {/* KPIs */}
