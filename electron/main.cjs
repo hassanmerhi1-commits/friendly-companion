@@ -1524,6 +1524,7 @@ function runMigrations() {
     addColumnIfMissing('holidays', 'days_bought', "ALTER TABLE holidays ADD COLUMN days_bought INTEGER DEFAULT 0");
     addColumnIfMissing('holidays', 'buyout_total_amount', "ALTER TABLE holidays ADD COLUMN buyout_total_amount REAL DEFAULT 0");
     addColumnIfMissing('holidays', 'buyout_entries', "ALTER TABLE holidays ADD COLUMN buyout_entries TEXT");
+    addColumnIfMissing('holidays', 'days_taken_outside', "ALTER TABLE holidays ADD COLUMN days_taken_outside INTEGER DEFAULT 0");
     
     // Payroll period columns
     addColumnIfMissing('payroll_periods', 'type', "ALTER TABLE payroll_periods ADD COLUMN type TEXT DEFAULT 'monthly'");

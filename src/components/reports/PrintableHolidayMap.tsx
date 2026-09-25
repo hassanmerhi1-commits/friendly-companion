@@ -18,6 +18,7 @@ import {
   getDaysSettled,
   getTotalBuyoutAmount,
   getTotalDaysBought,
+  getTotalDaysTakenOutside,
   getHolidayBadges,
   canBuyHolidayForYear,
 } from '@/lib/holiday-utils';
@@ -104,6 +105,7 @@ export function PrintableHolidayMap({
     const editable = editableRecords.find((r) => r.employeeId === emp.id && r.year === selectedYear);
     const daysUsed = editable?.daysUsed ?? storeRecord?.daysUsed ?? 0;
     const daysBought = getTotalDaysBought(storeRecord);
+    const daysOutside = getTotalDaysTakenOutside(storeRecord);
     const buyoutTotal = getTotalBuyoutAmount(storeRecord);
     const recordForRemaining = storeRecord
       ? { ...storeRecord, daysUsed }
@@ -121,6 +123,7 @@ export function PrintableHolidayMap({
       daysEntitled,
       daysUsed,
       daysBought,
+      daysOutside,
       buyoutTotal,
       daysRemaining,
       startDate: editable?.startDate ?? storeRecord?.startDate ?? '',
@@ -143,13 +146,12 @@ export function PrintableHolidayMap({
   const handleDaysUsedChange = (employeeId: string, daysUsed: number) => {
     const empData = holidayData.find((e) => e.id === employeeId);
     if (!empData) return;
-    const settled =
-      daysUsed + empData.daysBought;
+    const settled = daysUsed + empData.daysBought + (empData.daysOutside || 0);
     if (settled > empData.daysEntitled) {
       toast.error(
         language === 'pt'
-          ? `Máximo ${empData.daysEntitled} dias (gozado + comprado = ${settled})`
-          : `Maximum ${empData.daysEntitled} days (taken + bought = ${settled})`
+          ? `Máximo ${empData.daysEntitled} dias (gozado + comprado + fora = ${settled})`
+          : `Maximum ${empData.daysEntitled} days (taken + bought + outside = ${settled})`
       );
       return;
     }
@@ -367,6 +369,12 @@ export function PrintableHolidayMap({
                     {emp.badges.includes('gozado') && (
                       <Badge variant="default" className="text-[10px] px-1 bg-green-600">
                         Gozado
+                      </Badge>
+                    )}
+                    {emp.badges.includes('fora_sistema') && (
+                      <Badge variant="outline" className="text-[10px] px-1 text-amber-700 border-amber-600">
+                        {language === 'pt' ? 'Fora app' : 'Outside'}
+                        {emp.daysOutside > 0 ? ` ${emp.daysOutside}d` : ''}
                       </Badge>
                     )}
                     {emp.badges.includes('comprado') && (

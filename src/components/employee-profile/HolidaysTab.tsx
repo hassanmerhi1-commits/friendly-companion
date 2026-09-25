@@ -9,11 +9,12 @@ import {
   ATTENDANCE_TD,
   ATTENDANCE_TBODY,
 } from '@/components/attendance/AttendanceTablePanel';
-import { Umbrella, CheckCircle, Clock, Banknote } from 'lucide-react';
+import { Umbrella, CheckCircle, Clock, Banknote, ClipboardList } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useHolidayStore } from '@/stores/holiday-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { HolidayBuyoutDialog } from '@/components/holidays/HolidayBuyoutDialog';
+import { HolidayPriorTakenDialog } from '@/components/holidays/HolidayPriorTakenDialog';
 import {
   calculateHolidayEntitlement,
   canBuyHolidayForYear,
@@ -23,6 +24,7 @@ import {
   getHolidayBadges,
   getTotalBuyoutAmount,
   getTotalDaysBought,
+  getTotalDaysTakenOutside,
   type HolidayBadge,
 } from '@/lib/holiday-utils';
 import {
@@ -40,6 +42,7 @@ function StatusBadges({ badges, language }: { badges: HolidayBadge[]; language: 
   const pt = language === 'pt';
   const label: Record<HolidayBadge, string> = {
     gozado: 'Gozado',
+    fora_sistema: pt ? 'Fora app' : 'Outside',
     comprado: pt ? 'Comprado' : 'Bought',
     subsídio_pago: pt ? 'Subsídio' : 'Subsidy',
     registado: pt ? 'Registado' : 'Scheduled',
@@ -49,7 +52,7 @@ function StatusBadges({ badges, language }: { badges: HolidayBadge[]; language: 
   return (
     <div className="flex flex-wrap gap-0.5 justify-center">
       {badges.map((key) => {
-        const outline = key === 'pendente' || key === 'registado';
+        const outline = key === 'pendente' || key === 'registado' || key === 'fora_sistema';
         const className =
           key === 'gozado'
             ? 'bg-green-600'
@@ -57,7 +60,9 @@ function StatusBadges({ badges, language }: { badges: HolidayBadge[]; language: 
               ? 'bg-violet-600'
               : key === 'subsídio_pago'
                 ? 'bg-blue-600'
-                : 'text-amber-600 border-amber-600';
+                : key === 'fora_sistema'
+                  ? 'text-amber-700 border-amber-600'
+                  : 'text-amber-600 border-amber-600';
         return (
           <Badge
             key={key}
@@ -80,6 +85,8 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
   const currentHolidayYear = getCurrentHolidayYear();
   const [buyoutOpen, setBuyoutOpen] = useState(false);
   const [buyoutYear, setBuyoutYear] = useState(currentHolidayYear);
+  const [priorOpen, setPriorOpen] = useState(false);
+  const [priorYear, setPriorYear] = useState(currentHolidayYear);
 
   useEffect(() => {
     if (!isLoaded) loadHolidays();
@@ -114,6 +121,7 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
         daysSettled: getDaysSettled(record),
         daysRemaining: getDaysRemaining(record, entitled),
         daysBought: getTotalDaysBought(record),
+        daysOutside: getTotalDaysTakenOutside(record),
         buyoutTotal: getTotalBuyoutAmount(record),
       };
     });
@@ -153,18 +161,32 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
     date ? new Date(date).toLocaleDateString('pt-AO', { day: '2-digit', month: 'short' }) : '—';
 
   const toolbar = employee ? (
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-6 text-[10px] gap-1 px-2"
-      onClick={() => {
-        setBuyoutYear(currentHolidayYear);
-        setBuyoutOpen(true);
-      }}
-    >
-      <Banknote className="h-3 w-3" />
-      {ptLang ? `Comprar (${currentHolidayYear})` : `Buy (${currentHolidayYear})`}
-    </Button>
+    <div className="flex items-center gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-6 text-[10px] gap-1 px-2"
+        onClick={() => {
+          setPriorYear(currentHolidayYear);
+          setPriorOpen(true);
+        }}
+      >
+        <ClipboardList className="h-3 w-3" />
+        {ptLang ? 'Já fora do sistema' : 'Taken outside'}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-6 text-[10px] gap-1 px-2"
+        onClick={() => {
+          setBuyoutYear(currentHolidayYear);
+          setBuyoutOpen(true);
+        }}
+      >
+        <Banknote className="h-3 w-3" />
+        {ptLang ? `Comprar (${currentHolidayYear})` : `Buy (${currentHolidayYear})`}
+      </Button>
+    </div>
   ) : null;
 
   return (
@@ -189,6 +211,7 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
               <tr>
                 <th className={ATTENDANCE_TH}>{ptLang ? 'Ano' : 'Year'}</th>
                 <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Goz.' : 'Taken'}</th>
+                <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Fora' : 'Out'}</th>
                 <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Compr.' : 'Bought'}</th>
                 <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Rest.' : 'Left'}</th>
                 <th className={ATTENDANCE_TH}>{ptLang ? 'Período' : 'Period'}</th>
@@ -199,11 +222,14 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
             </thead>
             <tbody className={ATTENDANCE_TBODY}>
               {yearEntries.map(
-                ({ year, record, badges, entitled, daysRemaining, daysBought, buyoutTotal }) => (
+                ({ year, record, badges, entitled, daysRemaining, daysBought, daysOutside, buyoutTotal }) => (
                   <tr key={year} className="hover:bg-muted/30">
                     <td className={`${ATTENDANCE_TD} font-medium`}>{year}</td>
                     <td className={`${ATTENDANCE_TD} text-center font-mono`}>
                       {record?.daysUsed || 0}
+                    </td>
+                    <td className={`${ATTENDANCE_TD} text-center font-mono text-amber-700 dark:text-amber-400`}>
+                      {daysOutside || 0}
                     </td>
                     <td className={`${ATTENDANCE_TD} text-center font-mono`}>{daysBought}</td>
                     <td className={`${ATTENDANCE_TD} text-center font-mono`}>
@@ -226,24 +252,38 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
                       <StatusBadges badges={badges} language={language} />
                     </td>
                     <td className={`${ATTENDANCE_TD} text-right`}>
-                      {daysRemaining > 0 && canBuyHolidayForYear(year) ? (
+                      <div className="flex justify-end gap-0.5">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 px-2 text-[10px] gap-1"
                           onClick={() => {
-                            setBuyoutYear(year);
-                            setBuyoutOpen(true);
+                            setPriorYear(year);
+                            setPriorOpen(true);
                           }}
                         >
-                          <Banknote className="h-3 w-3" />
-                          {ptLang ? 'Comprar' : 'Buy'}
+                          <ClipboardList className="h-3 w-3" />
+                          {ptLang ? 'Fora' : 'Out'}
                         </Button>
-                      ) : year < currentHolidayYear ? (
-                        <span className="text-[10px] text-muted-foreground">
-                          {ptLang ? 'Fechado' : 'Closed'}
-                        </span>
-                      ) : null}
+                        {daysRemaining > 0 && canBuyHolidayForYear(year) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1"
+                            onClick={() => {
+                              setBuyoutYear(year);
+                              setBuyoutOpen(true);
+                            }}
+                          >
+                            <Banknote className="h-3 w-3" />
+                            {ptLang ? 'Comprar' : 'Buy'}
+                          </Button>
+                        ) : year < currentHolidayYear ? (
+                          <span className="text-[10px] text-muted-foreground self-center">
+                            {ptLang ? 'Fechado' : 'Closed'}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -254,12 +294,20 @@ export function HolidaysTab({ employeeId }: HolidaysTabProps) {
       </DossierTablePanel>
 
       {employee && (
-        <HolidayBuyoutDialog
-          open={buyoutOpen}
-          onOpenChange={setBuyoutOpen}
-          employee={employee}
-          year={buyoutYear}
-        />
+        <>
+          <HolidayBuyoutDialog
+            open={buyoutOpen}
+            onOpenChange={setBuyoutOpen}
+            employee={employee}
+            year={buyoutYear}
+          />
+          <HolidayPriorTakenDialog
+            open={priorOpen}
+            onOpenChange={setPriorOpen}
+            employee={employee}
+            year={priorYear}
+          />
+        </>
       )}
     </DossierTabShell>
   );

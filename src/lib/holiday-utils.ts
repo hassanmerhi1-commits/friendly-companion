@@ -32,6 +32,13 @@ export function getTotalDaysBought(record?: HolidayRecord | null): number {
   return (record.buyoutEntries || []).reduce((sum, e) => sum + (e.days || 0), 0);
 }
 
+/** Days already taken before the branch used this app (per year). */
+export function getTotalDaysTakenOutside(record?: HolidayRecord | null): number {
+  if (!record) return 0;
+  const n = Number(record.daysTakenOutside || 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 export function getTotalBuyoutAmount(record?: HolidayRecord | null): number {
   if (!record) return 0;
   if (record.buyoutTotalAmount != null && record.buyoutTotalAmount > 0) {
@@ -41,7 +48,7 @@ export function getTotalBuyoutAmount(record?: HolidayRecord | null): number {
 }
 
 export function getDaysSettled(record?: HolidayRecord | null): number {
-  return (record?.daysUsed || 0) + getTotalDaysBought(record);
+  return (record?.daysUsed || 0) + getTotalDaysBought(record) + getTotalDaysTakenOutside(record);
 }
 
 export function getDaysRemaining(record: HolidayRecord | undefined | null, daysEntitled: number): number {
@@ -64,7 +71,7 @@ export function hasCompradoHoliday(record?: HolidayRecord | null): boolean {
   return getTotalBuyoutAmount(record) > 0 || (record?.buyoutEntries?.length || 0) > 0;
 }
 
-export type HolidayBadge = 'pendente' | 'registado' | 'gozado' | 'comprado' | 'subsídio_pago';
+export type HolidayBadge = 'pendente' | 'registado' | 'gozado' | 'comprado' | 'subsídio_pago' | 'fora_sistema';
 
 export function getHolidayBadges(
   record: HolidayRecord | undefined | null,
@@ -72,6 +79,7 @@ export function getHolidayBadges(
 ): HolidayBadge[] {
   const badges: HolidayBadge[] = [];
   if (hasGozadoHoliday(record)) badges.push('gozado');
+  if (getTotalDaysTakenOutside(record) > 0) badges.push('fora_sistema');
   if (hasCompradoHoliday(record)) badges.push('comprado');
   if (subsidyPaid) badges.push('subsídio_pago');
   if (hasHolidayScheduled(record)) badges.push('registado');
@@ -127,13 +135,18 @@ export function validateDaysAllocation(
   record: HolidayRecord | undefined | null,
   daysEntitled: number,
   nextDaysUsed: number,
-  nextDaysBought: number
+  nextDaysBought: number,
+  nextDaysTakenOutside?: number
 ): { ok: boolean; message?: string } {
-  const settled = nextDaysUsed + nextDaysBought;
+  const outside =
+    nextDaysTakenOutside !== undefined
+      ? Math.max(0, Math.floor(nextDaysTakenOutside))
+      : getTotalDaysTakenOutside(record);
+  const settled = nextDaysUsed + nextDaysBought + outside;
   if (settled > daysEntitled) {
     return {
       ok: false,
-      message: `Total gozado + comprado (${settled}) excede o direito (${daysEntitled} dias).`,
+      message: `Total gozado + comprado + fora do sistema (${settled}) excede o direito (${daysEntitled} dias).`,
     };
   }
   return { ok: true };

@@ -5,6 +5,7 @@ import {
   getDaysSettled,
   getTotalDaysBought,
   getTotalBuyoutAmount,
+  getTotalDaysTakenOutside,
   hasCompradoHoliday,
   hasGozadoHoliday,
   hasHolidayScheduled,
@@ -37,6 +38,8 @@ export interface HolidayRecord {
   daysBought?: number;
   buyoutTotalAmount?: number;
   buyoutEntries?: HolidayBuyoutEntry[];
+  /** Days already taken outside this app (late branch onboarding), per year. */
+  daysTakenOutside?: number;
 }
 
 export type HolidayStatus =
@@ -68,6 +71,14 @@ interface HolidayState {
     },
     daysEntitled: number
   ) => Promise<{ success: boolean; error?: string }>;
+  /** Register days already taken before the app (reduces remaining for that year only). */
+  setDaysTakenOutside: (
+    employeeId: string,
+    year: number,
+    days: number,
+    daysEntitled: number,
+    note?: string
+  ) => Promise<{ success: boolean; error?: string }>;
   getRecordsForYear: (year: number) => HolidayRecord[];
   getRecordForEmployee: (employeeId: string, year: number) => HolidayRecord | undefined;
   saveRecords: (records: HolidayRecord[]) => Promise<{ success: boolean; errors: string[] }>;
@@ -85,6 +96,7 @@ interface HolidayState {
 
 function mapDbRowToHoliday(row: any): HolidayRecord {
   const buyoutEntries = parseBuyoutEntries(row.buyout_entries);
+  const outsideRaw = Number(row.days_taken_outside ?? 0);
   return {
     employeeId: row.employee_id,
     year: row.year,
@@ -98,6 +110,8 @@ function mapDbRowToHoliday(row: any): HolidayRecord {
     daysBought: row.days_bought ?? undefined,
     buyoutTotalAmount: row.buyout_total_amount ?? undefined,
     buyoutEntries: buyoutEntries.length > 0 ? buyoutEntries : undefined,
+    daysTakenOutside:
+      Number.isFinite(outsideRaw) && outsideRaw > 0 ? Math.floor(outsideRaw) : undefined,
   };
 }
 
@@ -109,6 +123,7 @@ function mapHolidayToDbRow(h: HolidayRecord): Record<string, any> {
   const buyoutTotal =
     h.buyoutTotalAmount ??
     entries.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const daysTakenOutside = Math.max(0, Math.floor(Number(h.daysTakenOutside || 0)));
 
   return {
     id: `${h.employeeId}-${h.year}`,
@@ -124,6 +139,7 @@ function mapHolidayToDbRow(h: HolidayRecord): Record<string, any> {
     days_bought: daysBought || 0,
     buyout_total_amount: buyoutTotal || 0,
     buyout_entries: entries.length > 0 ? JSON.stringify(entries) : null,
+    days_taken_outside: daysTakenOutside || 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -185,14 +201,70 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
       buyoutEntries: record.buyoutEntries ?? existingRecord?.buyoutEntries,
       daysBought: record.daysBought ?? existingRecord?.daysBought,
       buyoutTotalAmount: record.buyoutTotalAmount ?? existingRecord?.buyoutTotalAmount,
+      daysTakenOutside:
+        record.daysTakenOutside !== undefined
+          ? record.daysTakenOutside
+          : existingRecord?.daysTakenOutside,
     };
 
     const daysBought = getTotalDaysBought(merged);
     const entitled = 22;
-    const check = validateDaysAllocation(existingRecord, entitled, merged.daysUsed, daysBought);
+    const check = validateDaysAllocation(
+      existingRecord,
+      entitled,
+      merged.daysUsed,
+      daysBought,
+      getTotalDaysTakenOutside(merged)
+    );
     if (!check.ok) {
       return { success: false, error: check.message };
     }
+
+    await liveInsert('holidays', mapHolidayToDbRow(merged));
+    await get().loadHolidays();
+    return { success: true };
+  },
+
+  setDaysTakenOutside: async (employeeId, year, days, daysEntitled, note) => {
+    const raw = Number(days);
+    if (!Number.isFinite(raw) || raw < 0) {
+      return { success: false, error: 'Número de dias inválido.' };
+    }
+    const nextOutside = Math.floor(raw);
+    if (nextOutside > daysEntitled) {
+      return {
+        success: false,
+        error: `Não pode registar mais de ${daysEntitled} dias (direito do ano).`,
+      };
+    }
+
+    const existing = get().records.find((r) => r.employeeId === employeeId && r.year === year);
+    const daysUsed = existing?.daysUsed || 0;
+    const daysBought = getTotalDaysBought(existing);
+    const check = validateDaysAllocation(existing, daysEntitled, daysUsed, daysBought, nextOutside);
+    if (!check.ok) {
+      return { success: false, error: check.message };
+    }
+
+    const stamp = `Já gozado fora do sistema: ${nextOutside} dia(s)`;
+    const extra = note?.trim();
+    const notes = [existing?.notes, stamp, extra].filter(Boolean).join(' — ');
+
+    const merged: HolidayRecord = {
+      employeeId,
+      year,
+      daysUsed,
+      startDate: existing?.startDate,
+      endDate: existing?.endDate,
+      holidayMonth: existing?.holidayMonth,
+      subsidyPaidInMonth: existing?.subsidyPaidInMonth,
+      subsidyPaidInYear: existing?.subsidyPaidInYear,
+      notes,
+      buyoutEntries: existing?.buyoutEntries,
+      daysBought: existing?.daysBought,
+      buyoutTotalAmount: existing?.buyoutTotalAmount,
+      daysTakenOutside: nextOutside > 0 ? nextOutside : undefined,
+    };
 
     await liveInsert('holidays', mapHolidayToDbRow(merged));
     await get().loadHolidays();
@@ -276,6 +348,7 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
       buyoutEntries,
       daysBought: nextDaysBought,
       buyoutTotalAmount: buyoutEntries.reduce((s, e) => s + e.amount, 0),
+      daysTakenOutside: existing?.daysTakenOutside,
     };
 
     await liveInsert('holidays', mapHolidayToDbRow(merged));
@@ -319,6 +392,10 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
         buyoutEntries: newRecord.buyoutEntries ?? existingRecord?.buyoutEntries,
         daysBought: newRecord.daysBought ?? existingRecord?.daysBought,
         buyoutTotalAmount: newRecord.buyoutTotalAmount ?? existingRecord?.buyoutTotalAmount,
+        daysTakenOutside:
+          newRecord.daysTakenOutside !== undefined
+            ? newRecord.daysTakenOutside
+            : existingRecord?.daysTakenOutside,
       };
       await liveInsert('holidays', mapHolidayToDbRow(recordWithMonth));
     }
@@ -364,7 +441,7 @@ export const useHolidayStore = create<HolidayState>()((set, get) => ({
     if (remaining <= 0 && !record?.startDate) {
       return {
         allowed: false,
-        reason: 'Todos os dias deste ano já foram gozados ou comprados.',
+        reason: 'Todos os dias deste ano já foram gozados, comprados ou registados fora do sistema.',
       };
     }
 
