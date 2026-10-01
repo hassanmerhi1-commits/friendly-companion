@@ -426,10 +426,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           if (bulkAttendanceStore) {
             const bulkEntry = bulkAttendanceStore.getEntryForEmployee(emp.id, period.month, period.year);
             if (bulkEntry) {
-              const unjustifiedDays = Math.max(
-                0,
-                (bulkEntry.absenceDays || 0) - (bulkEntry.justifiedAbsenceDays || 0)
-              );
+              // absenceDays = Faltas Injust. only; justifiedAbsenceDays are recorded but never deducted.
+              // Do NOT subtract justified from absenceDays (that zeroed the Faltas column on Calcular).
+              const unjustifiedDays = Math.max(0, bulkEntry.absenceDays || 0);
               absenceDays = unjustifiedDays;
               const fullSalary = calculateFullMonthlySalary(emp);
               const bulkDeduction = calculateBulkAttendanceDeduction(
@@ -440,7 +439,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               absenceDeduction = bulkDeduction.absenceDeduction;
               delayDeduction = bulkDeduction.delayDeduction;
               console.log(
-                `[Payroll] Bulk attendance for ${emp.firstName}: ${unjustifiedDays} unjustified days (${bulkEntry.justifiedAbsenceDays || 0} justified), ${bulkEntry.delayHours || 0}h delay = ${absenceDeduction + delayDeduction} Kz deduction`
+                `[Payroll] Bulk attendance for ${emp.firstName}: ${unjustifiedDays} unjustified days (${bulkEntry.justifiedAbsenceDays || 0} justified, no pay cut), ${bulkEntry.delayHours || 0}h delay = ${absenceDeduction + delayDeduction} Kz deduction`
               );
             }
           }

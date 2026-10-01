@@ -13,6 +13,7 @@ import { EmployeeFormDialog } from "@/components/employees/EmployeeFormDialog";
 import { EmployeeOffboardDialog } from "@/components/employees/EmployeeOffboardDialog";
 import { PrintableEmployeeCard } from "@/components/employees/PrintableEmployeeCard";
 import { formatAOA } from "@/lib/angola-labor-law";
+import { calculateFullMonthlySalary } from "@/stores/bulk-attendance-store";
 import { ATTENDANCE_PAGE } from "@/lib/page-layout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -212,7 +213,7 @@ const Employees = () => {
           comparison = getBranchNameForSort(a.branchId).localeCompare(getBranchNameForSort(b.branchId));
           break;
         case 'salary':
-          comparison = a.baseSalary - b.baseSalary;
+          comparison = calculateFullMonthlySalary(a) - calculateFullMonthlySalary(b);
           break;
         case 'hireDate':
           comparison = new Date(a.hireDate || 0).getTime() - new Date(b.hireDate || 0).getTime();
@@ -588,7 +589,7 @@ const Employees = () => {
                   <th className={ATTENDANCE_TH}>{pt ? 'Contrato' : 'Contract'}</th>
                   <th className={ATTENDANCE_TH}>{pt ? 'Estado' : 'Status'}</th>
                   <SortableHeader field="hireDate" label={pt ? 'Admissão' : 'Hired'} />
-                  <SortableHeader field="salary" label={pt ? 'Salário' : 'Salary'} align="right" />
+                  <SortableHeader field="salary" label={pt ? 'Salário bruto' : 'Gross salary'} align="right" />
                   <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Bónus' : 'Bonus'}</th>
                   <th className={cn(ATTENDANCE_TH_RIGHT, 'w-16')}>{pt ? 'Ações' : 'Actions'}</th>
                 </tr>
@@ -656,7 +657,7 @@ const Employees = () => {
                     {employee.hireDate ? formatDate(employee.hireDate) : '—'}
                   </td>
                   <td className={`${ATTENDANCE_TD} text-right text-xs font-medium`}>
-                    {formatAOA(employee.baseSalary || 0)}
+                    {formatAOA(calculateFullMonthlySalary(employee))}
                   </td>
                   <td className={`${ATTENDANCE_TD} text-right text-xs`}>
                     {(employee.monthlyBonus || 0) > 0 ? (
