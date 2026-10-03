@@ -42,21 +42,51 @@ export function UpdateNotification() {
     });
 
     // Listen for update status changes
-    api.updater.onStatus((status: UpdateStatus) => {
+    const unsubscribe = api.updater.onStatus((status: UpdateStatus) => {
       console.log('[Update] Status:', status);
       setUpdateStatus(status);
 
-      // Show dialog when update is available or downloaded
-      if (status.status === 'available' || status.status === 'downloaded') {
+      // Keep progress and errors visible; do not make a running download disappear.
+      if (
+        status.status === 'available' ||
+        status.status === 'downloading' ||
+        status.status === 'downloaded' ||
+        status.status === 'error'
+      ) {
         setShowDialog(true);
       }
     });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const handleDownload = async () => {
     if (!isElectron()) return;
     const api = (window as any).electronAPI;
-    await api.updater.download();
+    setUpdateStatus((current) => ({
+      status: 'downloading',
+      version: current?.version,
+      percent: 0,
+    }));
+    setShowDialog(true);
+    try {
+      const result = await api.updater.download();
+      if (!result?.success) {
+        setUpdateStatus({
+          status: 'error',
+          error: result?.error || 'Não foi possível transferir a actualização.',
+        });
+        setShowDialog(true);
+      }
+    } catch (error) {
+      setUpdateStatus({
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setShowDialog(true);
+    }
   };
 
   const handleInstall = async () => {
@@ -189,20 +219,42 @@ export function UpdateNotification() {
                   Uma nova versão do PayrollAO está disponível. Deseja transferir agora?
                 </p>
               )}
+
+              {updateStatus?.status === 'error' && (
+                <div className="space-y-2 pt-2">
+                  <p className="font-medium text-destructive">
+                    Não foi possível transferir a actualização.
+                  </p>
+                  <p className="break-words text-xs">
+                    {updateStatus.error || 'Tente novamente ou instale manualmente.'}
+                  </p>
+                  <a
+                    href="https://github.com/hassanmerhi1-commits/friendly-companion/releases/latest"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-primary underline"
+                  >
+                    Abrir página de download
+                  </a>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             {updateStatus?.status === 'available' && (
               <>
                 <AlertDialogCancel>Mais tarde</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDownload}>
+                <Button onClick={handleDownload}>
                   <Download className="h-4 w-4 mr-2" />
                   Transferir
-                </AlertDialogAction>
+                </Button>
               </>
             )}
             {updateStatus?.status === 'downloading' && (
-              <AlertDialogCancel>A transferir...</AlertDialogCancel>
+              <Button disabled>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                A transferir...
+              </Button>
             )}
             {updateStatus?.status === 'downloaded' && (
               <>
@@ -211,6 +263,15 @@ export function UpdateNotification() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Reiniciar e Instalar
                 </AlertDialogAction>
+              </>
+            )}
+            {updateStatus?.status === 'error' && (
+              <>
+                <AlertDialogCancel>Fechar</AlertDialogCancel>
+                <Button onClick={handleDownload}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Tentar novamente
+                </Button>
               </>
             )}
           </AlertDialogFooter>
@@ -224,6 +285,25 @@ export function UpdateNotification() {
 export function CheckForUpdatesButton() {
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+
+  useEffect(() => {
+    if (!isElectron()) return;
+    const api = (window as any).electronAPI;
+    const unsubscribe = api.updater.onStatus((next: UpdateStatus) => {
+      setStatus(next);
+      if (next.status === 'downloading') {
+        setResult(`A transferir: ${Math.round(next.percent || 0)}%`);
+      } else if (next.status === 'downloaded') {
+        setResult(`Versão ${next.version || ''} pronta para instalar`);
+      } else if (next.status === 'error') {
+        setResult(next.error || 'Erro ao transferir actualização');
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   const handleCheck = async () => {
     if (!isElectron()) {
@@ -239,10 +319,20 @@ export function CheckForUpdatesButton() {
       const response = await api.updater.check();
       
       if (response.success && response.updateInfo) {
-        setResult(`Nova versão disponível: ${response.updateInfo.version}`);
+        const nextVersion = response.updateInfo.version;
+        const currentVersion = await api.updater.getVersion();
+        if (nextVersion && nextVersion !== currentVersion) {
+          setStatus({ status: 'available', version: nextVersion });
+          setResult(`Nova versão disponível: ${nextVersion}`);
+        } else {
+          setStatus({ status: 'not-available', version: currentVersion });
+          setResult('Já tem a versão mais recente');
+        }
       } else if (response.success) {
+        setStatus({ status: 'not-available' });
         setResult('Já tem a versão mais recente');
       } else {
+        setStatus({ status: 'error', error: response.error });
         setResult(response.error || 'Erro ao verificar actualizações');
       }
     } catch (error) {
@@ -250,6 +340,33 @@ export function CheckForUpdatesButton() {
     } finally {
       setChecking(false);
     }
+  };
+
+  const handleDownload = async () => {
+    if (!isElectron()) return;
+    const api = (window as any).electronAPI;
+    setStatus((current) => ({
+      status: 'downloading',
+      version: current?.version,
+      percent: 0,
+    }));
+    setResult('A iniciar transferência...');
+    try {
+      const response = await api.updater.download();
+      if (!response?.success) {
+        setStatus({ status: 'error', error: response?.error });
+        setResult(response?.error || 'Erro ao transferir actualização');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus({ status: 'error', error: message });
+      setResult(message);
+    }
+  };
+
+  const handleInstall = () => {
+    if (!isElectron()) return;
+    (window as any).electronAPI.updater.install();
   };
 
   return (
@@ -272,6 +389,36 @@ export function CheckForUpdatesButton() {
           </>
         )}
       </Button>
+      {status?.status === 'available' && (
+        <Button className="w-full" onClick={handleDownload}>
+          <Download className="h-4 w-4 mr-2" />
+          Transferir versão {status.version}
+        </Button>
+      )}
+      {status?.status === 'downloading' && (
+        <div className="space-y-2">
+          <Progress value={status.percent || 0} className="h-2" />
+          <p className="text-center text-sm text-muted-foreground">
+            {Math.round(status.percent || 0)}% transferido
+          </p>
+        </div>
+      )}
+      {status?.status === 'downloaded' && (
+        <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleInstall}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Reiniciar e instalar
+        </Button>
+      )}
+      {status?.status === 'error' && (
+        <a
+          href="https://github.com/hassanmerhi1-commits/friendly-companion/releases/latest"
+          target="_blank"
+          rel="noreferrer"
+          className="block text-center text-sm text-primary underline"
+        >
+          Transferir manualmente
+        </a>
+      )}
       {result && (
         <p className="text-sm text-muted-foreground text-center">{result}</p>
       )}
