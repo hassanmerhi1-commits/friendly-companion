@@ -210,6 +210,65 @@
   }
 }
 
+/* PayrollAO corner robot mascot — calm, fixed */
+.pao-robot {
+  display: block;
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.22));
+  overflow: visible;
+}
+
+.pao-robot-root {
+  animation: paoRobotIdle 3.2s ease-in-out infinite;
+  transform-origin: 48px 114px;
+}
+
+.pao-robot-eye {
+  animation: paoRobotBlink 5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.pao-robot-antenna {
+  animation: paoRobotPulse 2.4s ease-in-out infinite;
+}
+
+.pao-robot-chest {
+  animation: paoRobotPulse 2.6s ease-in-out infinite;
+}
+
+.pao-robot-shadow {
+  animation: paoRobotShadow 3.2s ease-in-out infinite;
+  transform-origin: 48px 114px;
+}
+
+.pao-robot--busy .pao-robot-root {
+  animation-duration: 1.6s;
+}
+
+.pao-robot--busy .pao-robot-chest {
+  animation-duration: 1.1s;
+}
+
+@keyframes paoRobotIdle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes paoRobotBlink {
+  0%, 46%, 54%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.15); }
+}
+
+@keyframes paoRobotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+@keyframes paoRobotShadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.18; }
+  50% { transform: scaleX(0.92); opacity: 0.14; }
+}
+
 /* RTL Support for Arabic */
 html[dir="rtl"] {
   /* Use Arabic font */

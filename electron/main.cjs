@@ -56,6 +56,7 @@ const IP_FILE_PATH = path.join(INSTALL_DIR, 'IP');
 const ACTIVATED_FILE_PATH = path.join(INSTALL_DIR, 'activated.txt');
 const WS_PORT = 4545;
 const COMPANIES_FILE_PATH = path.join(INSTALL_DIR, 'companies.json');
+const { getStatus: getBuiltinAssistantStatus, chatBuiltin, saveBuiltinConfig } = require('./assistant-builtin.cjs');
 
 // Ensure install directory exists
 if (!fs.existsSync(INSTALL_DIR)) {
@@ -2012,18 +2013,30 @@ function getLocalIPs() {
 
 // ============= WINDOW =============
 function getAppIconPath() {
-  return process.platform === 'win32'
-    ? path.join(__dirname, '../public/payrollao-icon.ico')
-    : path.join(__dirname, '../public/pwa-512x512.png');
+  const candidates = process.platform === 'win32'
+    ? [
+        path.join(__dirname, '../public/app-icon-robot.ico'),
+        path.join(__dirname, '../public/payrollao-icon.ico'),
+      ]
+    : [
+        path.join(__dirname, '../public/pwa-512x512.png'),
+        path.join(__dirname, '../public/icon-192.png'),
+      ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[0];
 }
 
 function createWindow() {
+  const iconPath = getAppIconPath();
+  console.log('[Window] App icon:', iconPath);
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    icon: getAppIconPath(),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -2032,6 +2045,15 @@ function createWindow() {
     autoHideMenuBar: true,
     title: 'PayrollAO - Sistema de Folha Salarial',
   });
+
+  // Force taskbar/title icon after create (Windows often ignores constructor icon in dev)
+  try {
+    if (iconPath && fs.existsSync(iconPath)) {
+      mainWindow.setIcon(iconPath);
+    }
+  } catch (err) {
+    console.warn('[Window] setIcon failed:', err?.message || err);
+  }
 
   const devUrl = process.env.PAYROLLAO_DEV_URL || 'http://localhost:8080';
   const useDevServer = shouldUseDevServer();
@@ -2424,6 +2446,107 @@ ipcMain.handle('network:getInstallPath', () => INSTALL_DIR);
 ipcMain.handle('network:getIPFilePath', () => IP_FILE_PATH);
 ipcMain.handle('network:getComputerName', () => os.hostname());
 
+// ============= ASSISTANT AI (online, no CORS) =============
+ipcMain.handle('assistant:saveBuiltinConfig', (_event, payload = {}) => {
+  try {
+    return saveBuiltinConfig(payload || {});
+  } catch (error) {
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('assistant:builtinStatus', () => {
+  try {
+    return { success: true, ...getBuiltinAssistantStatus(app.getPath('userData')) };
+  } catch (error) {
+    return { success: false, configured: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('assistant:chatBuiltin', async (_event, payload = {}) => {
+  try {
+    const system = String(payload.system || '');
+    const question = String(payload.question || '');
+    if (!question) return { success: false, error: 'Missing question' };
+    return await chatBuiltin(app.getPath('userData'), { system, question });
+  } catch (error) {
+    console.error('[Assistant] builtin chat failed:', error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle('assistant:chat', async (_event, payload = {}) => {
+  try {
+    const provider = String(payload.provider || '');
+    const apiKey = String(payload.apiKey || '').trim();
+    const system = String(payload.system || '');
+    const question = String(payload.question || '');
+    if (!question) return { success: false, error: 'Missing question' };
+
+    if (provider === 'builtin') {
+      return await chatBuiltin(app.getPath('userData'), { system, question });
+    }
+
+    if (!apiKey) return { success: false, error: 'Missing API key' };
+
+    if (provider === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `${system}\n\nPergunta do utilizador:\n${question}` }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 900 },
+        }),
+      });
+      const raw = await res.text();
+      if (!res.ok) return { success: false, error: `Gemini ${res.status}: ${raw.slice(0, 200)}` };
+      const data = JSON.parse(raw);
+      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
+      if (!text) return { success: false, error: 'Gemini empty response' };
+      return { success: true, text, provider: 'gemini' };
+    }
+
+    let baseUrl = '';
+    let model = '';
+    if (provider === 'openai') {
+      baseUrl = 'https://api.openai.com/v1';
+      model = 'gpt-4o-mini';
+    } else if (provider === 'groq') {
+      baseUrl = 'https://api.groq.com/openai/v1';
+      model = 'llama-3.3-70b-versatile';
+    } else {
+      return { success: false, error: `Unknown provider: ${provider}` };
+    }
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        max_tokens: 900,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: question },
+        ],
+      }),
+    });
+    const raw = await res.text();
+    if (!res.ok) return { success: false, error: `${provider} ${res.status}: ${raw.slice(0, 200)}` };
+    const data = JSON.parse(raw);
+    const text = String(data?.choices?.[0]?.message?.content || '').trim();
+    if (!text) return { success: false, error: `${provider} empty response` };
+    return { success: true, text, provider };
+  } catch (error) {
+    console.error('[Assistant] chat failed:', error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
 // ============= AUTO-UPDATER HANDLERS =============
 ipcMain.handle('updater:check', async () => {
   try {
@@ -2506,7 +2629,11 @@ autoUpdater.on('error', (error) => {
 // ============= APP LIFECYCLE =============
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.payrollao.app');
+    // Packaged keeps stable id. Dev uses a distinct id so Windows does NOT
+    // reuse the Start Menu / installed PayrollAO.exe shortcut icon (old PAO).
+    app.setAppUserModelId(
+      app.isPackaged ? 'com.payrollao.app' : 'com.payrollao.app.live'
+    );
   }
 
   initDatabase();

@@ -69,10 +69,17 @@ export function resolveSchedulingMode(
   if (deduction.schedulingMode === 'parallel' || deduction.schedulingMode === 'sequential') {
     return deduction.schedulingMode;
   }
-  if (deduction.type === 'salary_advance' || deduction.type === 'warehouse_loss') {
+  // Advances stay FIFO by default. Warehouse losses share the 25% monthly cap in parallel —
+  // sequential warehouse queues piled up 6–7 open perdas per person with years of backlog.
+  if (deduction.type === 'salary_advance') {
     return 'sequential';
   }
   return 'parallel';
+}
+
+/** Default mode when creating a new deduction of this type. */
+export function defaultSchedulingModeForType(type: Deduction['type']): DeductionSchedulingMode {
+  return resolveSchedulingMode({ type });
 }
 
 export function isDeductionParallel(deduction: Pick<Deduction, 'schedulingMode' | 'type'>): boolean {

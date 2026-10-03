@@ -1,0 +1,5 @@
+{
+  "provider": "groq",
+  "apiKey": "gsk_PASTE_FREE_GROQ_KEY_HERE",
+  "dailyLimit": 20
+}

@@ -32,18 +32,35 @@ export function ProfileHeader({ employee, actions, className }: ProfileHeaderPro
 
   const branch = branches.find((b) => b.id === employee.branchId);
 
-  const getStatusBadge = (status: Employee['status']) => {
+  const getStatusBadge = (status: Employee['status'], isRetired = false) => {
+    if (status === 'active' && isRetired) {
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] h-5 bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30"
+          title={
+            language === 'pt'
+              ? 'Continua a trabalhar — taxa INSS de aposentado'
+              : 'Still working — pensioner INSS rate'
+          }
+        >
+          {language === 'pt' ? 'Activo (aposentado)' : 'Active (pensioner)'}
+        </Badge>
+      );
+    }
     const colors = {
       active: 'bg-accent/10 text-accent border-accent/20',
       inactive: 'bg-destructive/10 text-destructive border-destructive/20',
       on_leave: 'bg-warning/10 text-warning border-warning/20',
       terminated: 'bg-destructive/10 text-destructive border-destructive/20',
+      pending_approval: 'bg-secondary text-secondary-foreground border-secondary/30',
     };
     const labels = {
       active: t.common.active,
       inactive: t.common.inactive,
       on_leave: t.common.onLeave,
       terminated: language === 'pt' ? 'Fora da empresa' : 'Left company',
+      pending_approval: language === 'pt' ? 'Pendente' : 'Pending',
     };
     return (
       <Badge variant="outline" className={cn('text-[10px] h-5', colors[status])}>
@@ -98,12 +115,7 @@ export function ProfileHeader({ employee, actions, className }: ProfileHeaderPro
             {employee.employeeNumber && (
               <span className="text-[10px] font-mono text-muted-foreground">#{employee.employeeNumber}</span>
             )}
-            {getStatusBadge(employee.status)}
-            {employee.isRetired && (
-              <Badge variant="outline" className="text-[10px] h-5 bg-muted text-muted-foreground">
-                {language === 'pt' ? 'Reformado' : 'Retired'}
-              </Badge>
-            )}
+            {getStatusBadge(employee.status, employee.isRetired)}
             <Badge variant="outline" className="text-[10px] h-5">
               {getContractLabel(employee.contractType)}
             </Badge>

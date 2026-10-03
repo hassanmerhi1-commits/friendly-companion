@@ -138,7 +138,7 @@ export function TopNavbar() {
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex min-h-[4.25rem] items-center justify-between gap-3 px-4 py-2">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Link to="/" className="flex shrink-0 items-center">
+          <Link to="/" className="flex shrink-0 items-center gap-2">
             {companyLogo ? (
               <img
                 src={companyLogo}
@@ -149,7 +149,7 @@ export function TopNavbar() {
               <img
                 src={payrollaoLogo}
                 alt="PayrollAO"
-                className="h-12 w-auto object-contain"
+                className="h-12 w-12 rounded-lg object-cover ring-1 ring-border/60 shadow-sm"
               />
             )}
           </Link>

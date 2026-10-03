@@ -228,11 +228,25 @@ export function BulkAttendanceEntry({
       setHasChanges(false);
       
       const totalChanges = entriesToSave.length + entriesToDelete.length;
+      const justifiedOnlyCount = entriesToSave.filter(
+        (e) =>
+          (e.justifiedAbsenceDays || 0) > 0 &&
+          (e.absenceDays || 0) === 0 &&
+          (e.delayHours || 0) === 0
+      ).length;
+
       toast.success(
         language === 'pt' 
           ? `${totalChanges} registos atualizados com sucesso`
           : `${totalChanges} records updated successfully`
       );
+      if (justifiedOnlyCount > 0) {
+        toast.warning(
+          language === 'pt'
+            ? `${justifiedOnlyCount} linha(s) só com faltas justificadas — não descontam do salário. Use «Faltas Injust.» para cortar pagamento.`
+            : `${justifiedOnlyCount} row(s) with only justified absences — these do not cut pay. Use «Unjust. Abs.» to deduct salary.`
+        );
+      }
     } catch (error) {
       console.error('[BulkAttendance] Save error:', error);
       toast.error(
@@ -248,18 +262,28 @@ export function BulkAttendanceEntry({
   // Calculate totals for summary
   const totals = useMemo(() => {
     let totalAbsenceDays = 0;
+    let totalJustifiedDays = 0;
     let totalDelayHours = 0;
     let totalDeduction = 0;
+    let justifiedOnlyRows = 0;
     
     filteredEmployees.forEach(emp => {
       const entry = getEntry(emp.id);
       const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
       totalAbsenceDays += entry.absenceDays;
+      totalJustifiedDays += entry.justifiedAbsenceDays || 0;
       totalDelayHours += entry.delayHours;
       totalDeduction += deduction.totalDeduction;
+      if (
+        (entry.justifiedAbsenceDays || 0) > 0 &&
+        (entry.absenceDays || 0) === 0 &&
+        (entry.delayHours || 0) === 0
+      ) {
+        justifiedOnlyRows += 1;
+      }
     });
     
-    return { totalAbsenceDays, totalDelayHours, totalDeduction };
+    return { totalAbsenceDays, totalJustifiedDays, totalDelayHours, totalDeduction, justifiedOnlyRows };
   }, [filteredEmployees, localEntries]);
 
   const t = {
@@ -276,6 +300,9 @@ export function BulkAttendanceEntry({
     dailyRate: language === 'pt' ? 'Taxa Diária' : 'Daily Rate',
     absenceDays: language === 'pt' ? 'Faltas Injust.' : 'Unjust. Abs.',
     justifiedAbsenceDays: language === 'pt' ? 'Faltas Just.' : 'Just. Abs.',
+    justifiedHint: language === 'pt'
+      ? 'Justificadas NÃO descontam — só registo'
+      : 'Justified do NOT cut pay — record only',
     delayHours: language === 'pt' ? 'Horas Atraso' : 'Delay Hours',
     deduction: language === 'pt' ? 'Desconto' : 'Deduction',
     save: language === 'pt' ? 'Guardar Todos' : 'Save All',
@@ -285,12 +312,20 @@ export function BulkAttendanceEntry({
     totalAbsenceDays: language === 'pt' ? 'Total Dias Ausência' : 'Total Absence Days',
     totalDelayHours: language === 'pt' ? 'Total Horas Atraso' : 'Total Delay Hours',
     totalDeduction: language === 'pt' ? 'Total Descontos' : 'Total Deductions',
+    justifiedOnlyWarn: language === 'pt'
+      ? 'só com faltas just. (sem desconto)'
+      : 'justified-only (no pay cut)',
     formula: language === 'pt' ? 'Fórmula de Cálculo' : 'Calculation Formula',
     formulaDesc: language === 'pt' 
-      ? 'Salário Total (base + bónus) ÷ 26 dias úteis = Taxa Diária | Taxa Diária ÷ 8 horas = Taxa Horária'
-      : 'Total Salary (base + bonuses) ÷ 26 working days = Daily Rate | Daily Rate ÷ 8 hours = Hourly Rate',
+      ? 'Salário Total (base + bónus) ÷ 26 dias úteis = Taxa Diária | Taxa Diária ÷ 8 horas = Taxa Horária. Faltas justificadas não descontam.'
+      : 'Total Salary (base + bonuses) ÷ 26 working days = Daily Rate | Daily Rate ÷ 8 hours = Hourly Rate. Justified absences do not cut pay.',
     unsavedChanges: language === 'pt' ? 'Alterações não guardadas' : 'Unsaved changes',
   };
+
+  const isJustifiedOnly = (entry: LocalEntry) =>
+    (entry.justifiedAbsenceDays || 0) > 0 &&
+    (entry.absenceDays || 0) === 0 &&
+    (entry.delayHours || 0) === 0;
 
   const monthNames = language === 'pt' 
     ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -319,7 +354,7 @@ export function BulkAttendanceEntry({
     </Button>
   );
 
-  const summaryInline = (totals.totalAbsenceDays > 0 || totals.totalDelayHours > 0) && (
+  const summaryInline = (totals.totalAbsenceDays > 0 || totals.totalDelayHours > 0 || totals.justifiedOnlyRows > 0) && (
     <div className="flex items-center gap-3 text-xs shrink-0">
       <span className="text-muted-foreground">
         {t.totalAbsenceDays}: <strong className="text-foreground">{totals.totalAbsenceDays}</strong>
@@ -327,6 +362,12 @@ export function BulkAttendanceEntry({
       <span className="text-muted-foreground">
         {t.totalDelayHours}: <strong className="text-foreground">{totals.totalDelayHours}</strong>
       </span>
+      {totals.justifiedOnlyRows > 0 && (
+        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-3 w-3" />
+          <strong>{totals.justifiedOnlyRows}</strong> {t.justifiedOnlyWarn}
+        </span>
+      )}
       <span className="text-destructive font-semibold">-{formatCurrency(totals.totalDeduction)}</span>
     </div>
   );
@@ -380,7 +421,17 @@ export function BulkAttendanceEntry({
               <th className={ATTENDANCE_TH_RIGHT}>{t.fullSalary}</th>
               <th className={ATTENDANCE_TH_RIGHT}>{t.dailyRate}</th>
               <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.absenceDays}</th>
-              <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.justifiedAbsenceDays}</th>
+              <th className={`${ATTENDANCE_TH_CENTER} w-24`}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center gap-0.5 cursor-help">
+                      {t.justifiedAbsenceDays}
+                      <Info className="h-3 w-3 text-amber-600" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t.justifiedHint}</TooltipContent>
+                </Tooltip>
+              </th>
               <th className={`${ATTENDANCE_TH_CENTER} w-20`}>{t.delayHours}</th>
               <th className={ATTENDANCE_TH_RIGHT}>{t.deduction}</th>
             </tr>
@@ -399,11 +450,18 @@ export function BulkAttendanceEntry({
                 const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
                 const branchName = emp.branchId ? getBranch(emp.branchId)?.name : undefined;
                 const empLeaves = activeLeaves[emp.id];
+                const justifiedOnly = isJustifiedOnly(entry);
 
                 return (
                   <tr
                     key={emp.id}
-                    className={`${empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''} hover:bg-muted/20`}
+                    className={`${
+                      empLeaves
+                        ? 'bg-pink-50/50 dark:bg-pink-950/20'
+                        : justifiedOnly
+                          ? 'bg-amber-50/70 dark:bg-amber-950/20'
+                          : ''
+                    } hover:bg-muted/20`}
                   >
                     <td className={ATTENDANCE_TD}>
                       <div className="flex flex-col leading-tight">
@@ -453,18 +511,27 @@ export function BulkAttendanceEntry({
                       />
                     </td>
                     <td className={`${ATTENDANCE_TD} text-center`}>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={26}
-                        value={entry.justifiedAbsenceDays || ''}
-                        onChange={(e) =>
-                          updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)
-                        }
-                        className="w-16 h-7 text-xs text-center mx-auto"
-                        placeholder="0"
-                        disabled={readOnly}
-                      />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={26}
+                          value={entry.justifiedAbsenceDays || ''}
+                          onChange={(e) =>
+                            updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)
+                          }
+                          className={`w-16 h-7 text-xs text-center mx-auto ${
+                            justifiedOnly ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40' : ''
+                          }`}
+                          placeholder="0"
+                          disabled={readOnly}
+                        />
+                        {justifiedOnly && (
+                          <span className="text-[9px] text-amber-700 dark:text-amber-400 leading-none">
+                            {language === 'pt' ? 'sem desconto' : 'no pay cut'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className={`${ATTENDANCE_TD} text-center`}>
                       <Input
@@ -568,7 +635,17 @@ export function BulkAttendanceEntry({
                   <TableHead className="text-right">{t.fullSalary}</TableHead>
                   <TableHead className="text-right">{t.dailyRate}</TableHead>
                   <TableHead className="text-center w-[90px]">{t.absenceDays}</TableHead>
-                  <TableHead className="text-center w-[90px]">{t.justifiedAbsenceDays}</TableHead>
+                  <TableHead className="text-center w-[100px]">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-0.5 cursor-help">
+                          {t.justifiedAbsenceDays}
+                          <Info className="h-3.5 w-3.5 text-amber-600" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{t.justifiedHint}</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
                   <TableHead className="text-center w-[90px]">{t.delayHours}</TableHead>
                   <TableHead className="text-right">{t.deduction}</TableHead>
                 </TableRow>
@@ -587,11 +664,18 @@ export function BulkAttendanceEntry({
                     const deduction = calculateDeduction(emp, entry.absenceDays, entry.delayHours);
                     const branchName = emp.branchId ? getBranch(emp.branchId)?.name : undefined;
                     const empLeaves = activeLeaves[emp.id];
+                    const justifiedOnly = isJustifiedOnly(entry);
                     
                     return (
                       <TableRow
                         key={emp.id}
-                        className={empLeaves ? 'bg-pink-50/50 dark:bg-pink-950/20' : ''}
+                        className={
+                          empLeaves
+                            ? 'bg-pink-50/50 dark:bg-pink-950/20'
+                            : justifiedOnly
+                              ? 'bg-amber-50/70 dark:bg-amber-950/20'
+                              : ''
+                        }
                       >
                         <TableCell>
                           <div className="flex flex-col">
@@ -640,10 +724,17 @@ export function BulkAttendanceEntry({
                               onChange={(e) =>
                                 updateEntry(emp.id, 'justifiedAbsenceDays', parseFloat(e.target.value) || 0)
                               }
-                              className="w-20 text-center mx-auto"
+                              className={`w-20 text-center mx-auto ${
+                                justifiedOnly ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40' : ''
+                              }`}
                               placeholder="0"
                               disabled={readOnly}
                             />
+                            {justifiedOnly && (
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400">
+                                {language === 'pt' ? 'sem desconto' : 'no pay cut'}
+                              </span>
+                            )}
                             {empLeaves && (
                               <Tooltip>
                                 <TooltipTrigger asChild>

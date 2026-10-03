@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Built-in assistant company key (never commit)
+electron/assistant-builtin.json

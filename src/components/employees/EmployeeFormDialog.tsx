@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, User, X } from 'lucide-react';
+import { Camera, User, X, Plus } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useBranchStore } from '@/stores/branch-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { DEPARTMENTS, ANGOLA_BANKS, type Employee, type EmployeeFormData, type ContractType, type PaymentMethod } from '@/types/employee';
 import { toast } from 'sonner';
 
@@ -55,9 +56,17 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
   const { t, language } = useLanguage();
   const { addEmployee, updateEmployee } = useEmployeeStore();
   const { branches } = useBranchStore();
+  const { settings, addEmployeeCategory, seedEmployeeCategoriesFromEmployees } = useSettingsStore();
   const [formData, setFormData] = useState<EmployeeFormData>(defaultFormData);
   const [activeTab, setActiveTab] = useState('personal');
+  const [newCategory, setNewCategory] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const categoryOptions = settings.employeeCategories || [];
+
+  useEffect(() => {
+    if (open) void seedEmployeeCategoriesFromEmployees();
+  }, [open, seedEmployeeCategoriesFromEmployees]);
 
   useEffect(() => {
     if (employee) {
@@ -76,7 +85,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         employeeNumber: employee.employeeNumber,
         department: employee.department,
         category: employee.category || employee.position || '',
-        position: employee.position,
+        position: employee.category || employee.position || '',
         contractType: employee.contractType,
         hireDate: employee.hireDate,
         contractEndDate: employee.contractEndDate,
@@ -102,7 +111,23 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const pt = language === 'pt';
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setActiveTab('personal');
+      toast.error(pt ? 'Informe o nome e o apelido do funcionário' : 'Enter the employee first and last name');
+      return;
+    }
+    if (!formData.baseSalary || formData.baseSalary <= 0) {
+      setActiveTab('compensation');
+      toast.error(
+        pt
+          ? 'Informe o salário base (maior que zero) antes de guardar'
+          : 'Enter a base salary greater than zero before saving'
+      );
+      return;
+    }
+
     if (employee) {
       const result = await updateEmployee(employee.id, formData);
       if (!result.success) {
@@ -116,7 +141,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
         return;
       }
     }
-    
+
     toast.success(t.employeeForm.success);
     onOpenChange(false);
   };
@@ -221,15 +246,17 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>{t.employees.firstName}</Label>
+                  <Label htmlFor="employee-first-name">{t.employees.firstName}</Label>
                   <Input
+                    id="employee-first-name"
                     value={formData.firstName}
                     onChange={(e) => updateField('firstName', e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t.employees.lastName}</Label>
+                  <Label htmlFor="employee-last-name">{t.employees.lastName}</Label>
                   <Input
+                    id="employee-last-name"
                     value={formData.lastName}
                     onChange={(e) => updateField('lastName', e.target.value)}
                   />
@@ -354,18 +381,95 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   value={formData.position}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setFormData(prev => ({ ...prev, position: value, category: value }));
+                    // Cargo and categoria stay the same
+                    setFormData((prev) => ({ ...prev, position: value, category: value }));
                   }}
+                  placeholder={language === 'pt' ? 'Igual à categoria' : 'Same as category'}
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  {language === 'pt'
+                    ? 'Cargo e categoria são o mesmo valor.'
+                    : 'Position and category use the same value.'}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label>{language === 'pt' ? 'Categoria' : 'Category'}</Label>
-                <Input
-                  value={formData.category || ''}
-                  onChange={(e) => updateField('category', e.target.value)}
-                  placeholder={language === 'pt' ? 'Igual ao cargo (editável se necessário)' : 'Same as position (editable if needed)'}
-                />
+                <div className="flex items-center justify-between gap-2">
+                  <Label>{language === 'pt' ? 'Categoria' : 'Category'}</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-[10px] px-2"
+                    onClick={() => setShowAddCategory((v) => !v)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    {language === 'pt' ? 'Nova' : 'New'}
+                  </Button>
+                </div>
+                <Select
+                  value={
+                    formData.category && categoryOptions.includes(formData.category)
+                      ? formData.category
+                      : undefined
+                  }
+                  onValueChange={(v) => {
+                    setFormData((prev) => ({ ...prev, category: v, position: v }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        language === 'pt' ? 'Escolher da lista…' : 'Choose from list…'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoryOptions.length === 0 ? (
+                      <SelectItem value="__empty" disabled>
+                        {language === 'pt' ? 'Sem categorias — adicione abaixo' : 'No categories — add below'}
+                      </SelectItem>
+                    ) : (
+                      categoryOptions.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {showAddCategory && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      placeholder={language === 'pt' ? 'Nome da categoria' : 'Category name'}
+                      className="h-8 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-8 text-xs shrink-0"
+                      onClick={async () => {
+                        const added = await addEmployeeCategory(newCategory);
+                        if (!added) {
+                          toast.error(language === 'pt' ? 'Escreva um nome' : 'Enter a name');
+                          return;
+                        }
+                        setFormData((prev) => ({ ...prev, category: added, position: added }));
+                        setNewCategory('');
+                        setShowAddCategory(false);
+                        toast.success(
+                          language === 'pt'
+                            ? `Categoria «${added}» adicionada`
+                            : `Category «${added}» added`
+                        );
+                      }}
+                    >
+                      {language === 'pt' ? 'Guardar' : 'Save'}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -422,16 +526,20 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
             <TabsContent value="compensation" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>{t.employees.baseSalary} (Kz)</Label>
+                  <Label htmlFor="employee-base-salary">{t.employees.baseSalary} (Kz) *</Label>
                   <Input
+                    id="employee-base-salary"
                     type="number"
-                    value={formData.baseSalary}
-                    onChange={(e) => updateField('baseSalary', Number(e.target.value))}
+                    min={1}
+                    required
+                    value={formData.baseSalary || ''}
+                    onChange={(e) => updateField('baseSalary', Number(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Abono Familiar (Kz)' : 'Family Allowance (Kz)'}</Label>
+                  <Label htmlFor="employee-family-allowance">{language === 'pt' ? 'Abono Familiar (Kz)' : 'Family Allowance (Kz)'}</Label>
                   <Input
+                    id="employee-family-allowance"
                     type="number"
                     min={0}
                     value={formData.familyAllowance || 0}
@@ -442,8 +550,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Bónus Mensal (Kz)' : 'Monthly Bonus (Kz)'}</Label>
+                  <Label htmlFor="employee-monthly-bonus">{language === 'pt' ? 'Bónus Mensal (Kz)' : 'Monthly Bonus (Kz)'}</Label>
                   <Input
+                    id="employee-monthly-bonus"
                     type="number"
                     min={0}
                     value={formData.monthlyBonus || 0}
@@ -454,8 +563,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>{language === 'pt' ? 'Subsídio de Férias (Kz)' : 'Holiday Subsidy (Kz)'}</Label>
+                  <Label htmlFor="employee-holiday-subsidy">{language === 'pt' ? 'Subsídio de Férias (Kz)' : 'Holiday Subsidy (Kz)'}</Label>
                   <Input
+                    id="employee-holiday-subsidy"
                     type="number"
                     min={0}
                     value={formData.holidaySubsidy || 0}
@@ -469,27 +579,33 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>{t.employees.mealAllowance} (Kz)</Label>
+                  <Label htmlFor="employee-meal-allowance">{t.employees.mealAllowance} (Kz)</Label>
                   <Input
+                    id="employee-meal-allowance"
                     type="number"
-                    value={formData.mealAllowance}
-                    onChange={(e) => updateField('mealAllowance', Number(e.target.value))}
+                    min={0}
+                    value={formData.mealAllowance || ''}
+                    onChange={(e) => updateField('mealAllowance', Number(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t.employees.transportAllowance} (Kz)</Label>
+                  <Label htmlFor="employee-transport-allowance">{t.employees.transportAllowance} (Kz)</Label>
                   <Input
+                    id="employee-transport-allowance"
                     type="number"
-                    value={formData.transportAllowance}
-                    onChange={(e) => updateField('transportAllowance', Number(e.target.value))}
+                    min={0}
+                    value={formData.transportAllowance || ''}
+                    onChange={(e) => updateField('transportAllowance', Number(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t.receipt.otherAllowances} (Kz)</Label>
+                  <Label htmlFor="employee-other-allowances">{t.receipt.otherAllowances} (Kz)</Label>
                   <Input
+                    id="employee-other-allowances"
                     type="number"
-                    value={formData.otherAllowances}
-                    onChange={(e) => updateField('otherAllowances', Number(e.target.value))}
+                    min={0}
+                    value={formData.otherAllowances || ''}
+                    onChange={(e) => updateField('otherAllowances', Number(e.target.value) || 0)}
                   />
                 </div>
               </div>
@@ -534,8 +650,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{t.employeeForm.bankAccount}</Label>
+                    <Label htmlFor="employee-bank-account">{t.employeeForm.bankAccount}</Label>
                     <Input
+                      id="employee-bank-account"
                       value={formData.bankAccountNumber || ''}
                       onChange={(e) => updateField('bankAccountNumber', e.target.value)}
                       placeholder="0000.0000.0000.0000.0000.0"
@@ -543,8 +660,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee }: EmployeeFor
                   </div>
 
                   <div className="space-y-2">
-                    <Label>{t.employeeForm.iban}</Label>
+                    <Label htmlFor="employee-iban">{t.employeeForm.iban}</Label>
                     <Input
+                      id="employee-iban"
                       value={formData.iban || ''}
                       onChange={(e) => updateField('iban', e.target.value)}
                       placeholder="AO00 0000 0000 0000 0000 0000 0"

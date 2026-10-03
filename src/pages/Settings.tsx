@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw, ImagePlus, Trash2, Settings as SettingsIcon, Network, HardDrive, AlertTriangle } from "lucide-react";
+import { Building2, Bell, Shield, CreditCard, Download, Upload, Database, MapPin, Calculator, Loader2, RefreshCw, ImagePlus, Trash2, Settings as SettingsIcon, Network, HardDrive, AlertTriangle, Users, Plus, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ATTENDANCE_PAGE } from "@/lib/page-layout";
 import { useLanguage } from "@/lib/i18n";
@@ -26,6 +26,7 @@ import { NetworkSettings } from "@/components/settings/NetworkSettings";
 import { DatabaseSettings } from "@/components/settings/DatabaseSettings";
 import { getSelectedProvince, clearProvinceSelection } from "@/lib/province-storage";
 import { CheckForUpdatesButton } from "@/components/UpdateNotification";
+import { AssistantSettingsPanel } from "@/components/assistant/AssistantSettingsPanel";
 
 const fieldLabel = "text-xs text-muted-foreground";
 const fieldInput = "h-8 text-xs";
@@ -36,6 +37,7 @@ type SettingsTab =
   | "fiscal"
   | "irt"
   | "notificacoes"
+  | "assistente"
   | "actualizacoes"
   | "provincia"
   | "rede"
@@ -73,6 +75,78 @@ function SettingsSection({
   );
 }
 
+function CategoryManager() {
+  const { language } = useLanguage();
+  const pt = language === "pt";
+  const { settings, addEmployeeCategory, removeEmployeeCategory, seedEmployeeCategoriesFromEmployees } =
+    useSettingsStore();
+  const [newCat, setNewCat] = useState("");
+  const categories = settings.employeeCategories || [];
+
+  useEffect(() => {
+    void seedEmployeeCategoriesFromEmployees();
+  }, [seedEmployeeCategoriesFromEmployees]);
+
+  const handleAdd = async () => {
+    const added = await addEmployeeCategory(newCat);
+    if (!added) {
+      toast.error(pt ? "Escreva um nome de categoria" : "Enter a category name");
+      return;
+    }
+    setNewCat("");
+    toast.success(pt ? `Categoria «${added}» adicionada` : `Category «${added}» added`);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Input
+          className={fieldInput}
+          value={newCat}
+          onChange={(e) => setNewCat(e.target.value)}
+          placeholder={pt ? "Nova categoria (ex. Motorista)" : "New category (e.g. Driver)"}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void handleAdd();
+            }
+          }}
+        />
+        <Button type="button" size="sm" className="h-8 text-xs shrink-0" onClick={() => void handleAdd()}>
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          {pt ? "Adicionar" : "Add"}
+        </Button>
+      </div>
+      {categories.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {pt ? "Ainda sem categorias — adicione acima ou reabra a app para importar das existentes." : "No categories yet — add above or reopen the app to import from existing staff."}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+          {categories.map((c) => (
+            <Badge key={c} variant="secondary" className="text-xs gap-1 pr-1">
+              {c}
+              <button
+                type="button"
+                className="ml-0.5 rounded hover:bg-destructive/20 p-0.5"
+                title={pt ? "Remover da lista" : "Remove from list"}
+                onClick={() => void removeEmployeeCategory(c)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-muted-foreground">
+        {pt
+          ? `${categories.length} categoria(s). Variantes só de maiúsculas/minúsculas são unidas automaticamente.`
+          : `${categories.length} categor${categories.length === 1 ? "y" : "ies"}. Case-only duplicates are merged automatically.`}
+      </p>
+    </div>
+  );
+}
+
 const Settings = () => {
   const { t, language } = useLanguage();
   const pt = language === "pt";
@@ -92,6 +166,7 @@ const Settings = () => {
     { id: "fiscal", label: pt ? "Impostos" : "Tax rates", icon: <Shield className="h-3.5 w-3.5" /> },
     { id: "irt", label: "IRT 2026", icon: <Calculator className="h-3.5 w-3.5" /> },
     { id: "notificacoes", label: pt ? "Notificações" : "Notifications", icon: <Bell className="h-3.5 w-3.5" /> },
+    { id: "assistente", label: pt ? "Assistente" : "Assistant", icon: <Bot className="h-3.5 w-3.5" /> },
     { id: "actualizacoes", label: pt ? "Actualizações" : "Updates", icon: <RefreshCw className="h-3.5 w-3.5" /> },
     { id: "provincia", label: pt ? "Província" : "Province", icon: <MapPin className="h-3.5 w-3.5" /> },
     { id: "rede", label: pt ? "Rede LAN" : "LAN", icon: <Network className="h-3.5 w-3.5" /> },
@@ -407,9 +482,24 @@ const Settings = () => {
           <div className={cn("flex-1 min-h-0 overflow-y-auto p-3", embeddedPanelClass)}>
 
             {settingsTab === "empresa" && (
-              <SettingsSection title={t.settings.companyInfo} description={t.settings.basicData} icon={<Building2 className="h-4 w-4" />}>
-                {companyForm}
-              </SettingsSection>
+              <>
+                <SettingsSection title={t.settings.companyInfo} description={t.settings.basicData} icon={<Building2 className="h-4 w-4" />}>
+                  {companyForm}
+                </SettingsSection>
+                <div className="mt-3">
+                  <SettingsSection
+                    title={pt ? "Categorias de funcionário" : "Employee categories"}
+                    description={
+                      pt
+                        ? "Lista definida pela empresa — escolha no formulário do funcionário (sem texto livre)."
+                        : "Company-defined list — pick on the employee form (no free typing)."
+                    }
+                    icon={<Users className="h-4 w-4" />}
+                  >
+                    <CategoryManager />
+                  </SettingsSection>
+                </div>
+              </>
             )}
 
             {settingsTab === "pagamentos" && (
@@ -489,6 +579,8 @@ const Settings = () => {
                 </div>
               </SettingsSection>
             )}
+
+            {settingsTab === "assistente" && <AssistantSettingsPanel />}
 
             {settingsTab === "actualizacoes" && (
               <SettingsSection title={pt ? "Actualizações da aplicação" : "App updates"} description={pt ? "Verificar novas versões do PayrollAO" : "Check for PayrollAO updates"} icon={<RefreshCw className="h-4 w-4" />} className="max-w-md">

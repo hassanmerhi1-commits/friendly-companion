@@ -37,6 +37,7 @@ import { DeviceActivation } from "@/components/DeviceActivation";
 import { ProvinceSelector } from "@/components/ProvinceSelector";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { TourProvider } from "@/components/AppTour";
+import { PayrollAssistant } from "@/components/assistant/PayrollAssistant";
 import { FirstRunSetup } from "@/components/FirstRunSetup";
 import { ConnectionStatusBar } from "@/components/layout/ConnectionStatusBar";
 import { LoginPage } from "./pages/Login";
@@ -286,6 +287,11 @@ function AppContent() {
           ]);
 
           await backfillCategoryFromPosition();
+
+          const { normalizeWarehouseLossDeductions } = await import('@/stores/deduction-store');
+          await normalizeWarehouseLossDeductions();
+
+          await useSettingsStore.getState().seedEmployeeCategoriesFromEmployees();
           
           // Diagnostic: detect duplicate employee numbers
           detectDuplicateEmployeeNumbers();
@@ -406,6 +412,12 @@ function AppContent() {
 
             await backfillCategoryFromPosition();
 
+            // Unstick sequential warehouse piles (share 25% cap) after employees+deductions loaded
+            const { normalizeWarehouseLossDeductions } = await import('@/stores/deduction-store');
+            await normalizeWarehouseLossDeductions();
+
+            await useSettingsStore.getState().seedEmployeeCategoriesFromEmployees();
+
             console.log('[App] All stores loaded from database');
             
             // Restore saved session after all stores are loaded
@@ -500,6 +512,7 @@ function AppContent() {
       <AppErrorBoundary>
         <TourProvider>
           <AppRoutes />
+          <PayrollAssistant />
         </TourProvider>
       </AppErrorBoundary>
     </HashRouter>

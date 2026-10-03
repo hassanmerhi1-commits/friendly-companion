@@ -5,8 +5,6 @@ import { calculatePayroll, calculateAbsenceDeduction, calculateOvertime, calcula
 import { buildPayrollLeaveNotes, leaveNotesAreEqual } from '@/lib/absence-utils';
 import {
   applySalaryAdvanceFifoForPeriod,
-  isDeductionParallel,
-  keepOldestSequentialOnly,
   isDeductionBlockedByStartPeriod,
 } from '@/lib/salary-advance-scheduling';
 import {
@@ -14,6 +12,7 @@ import {
   calculateFullMonthlySalary,
 } from '@/stores/bulk-attendance-store';
 import { netAfterExtraDeductions, clampNetSalary } from '@/lib/payroll-payout';
+import { getCalendarMonthBounds } from '@/lib/local-date';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useAbsenceStore } from '@/stores/absence-store';
@@ -66,12 +65,7 @@ interface PayrollState {
 }
 
 function getPeriodDates(year: number, month: number) {
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0);
-  return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
-  };
+  return getCalendarMonthBounds(year, month);
 }
 
 // Map DB row -> PayrollPeriod
@@ -252,8 +246,29 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         const entryRows = await liveGetAll<any>('payroll_entries');
         const periods = periodRows.map(mapDbRowToPeriod);
         const entries = entryRows.map(mapDbRowToEntry);
-        set({ periods, entries, isLoaded: true });
-        console.log('[Payroll] Loaded', periods.length, 'periods and', entries.length, 'entries from DB');
+
+        // Repair UTC off-by-one on stored period bounds (once and forever).
+        const repaired: typeof periods = [];
+        for (const period of periods) {
+          const bounds = getCalendarMonthBounds(period.year, period.month);
+          if (period.startDate === bounds.startDate && period.endDate === bounds.endDate) {
+            repaired.push(period);
+            continue;
+          }
+          const fixed = { ...period, startDate: bounds.startDate, endDate: bounds.endDate };
+          await liveUpdate('payroll_periods', period.id, {
+            start_date: fixed.startDate,
+            end_date: fixed.endDate,
+            updated_at: new Date().toISOString(),
+          });
+          console.log(
+            `[Payroll] Repaired period ${period.id} dates ${period.startDate}..${period.endDate} → ${fixed.startDate}..${fixed.endDate}`
+          );
+          repaired.push(fixed);
+        }
+
+        set({ periods: repaired, entries, isLoaded: true });
+        console.log('[Payroll] Loaded', repaired.length, 'periods and', entries.length, 'entries from DB');
         void get().reconcilePayrollLeaveNotes();
       } catch (error) {
         console.error('[Payroll] Error loading:', error);
@@ -395,7 +410,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       // Build entries sequentially to properly await async deduction updates
       const newEntries: EntryWithDeductionIds[] = [];
       
-      for (const emp of employees.filter((e) => e.status === 'active' && !e.isRetired)) {
+      // Active staff stay on the folha even when isRetired (INSS rate only — not "left company").
+      // Skip hires after the period end so next-month admissions do not appear on this folha.
+      for (const emp of employees.filter((e) => {
+        if (e.status !== 'active') return false;
+        if (e.hireDate && period.endDate && e.hireDate > period.endDate) return false;
+        return true;
+      })) {
           const existingEntry = existingForPeriod.find((e: any) => e.employee_id === emp.id);
           const preservedHolidaySubsidy = existingEntry?.subsidy_ferias || 0;
           const preserved13thMonth = existingEntry?.subsidy_natal || 0;
@@ -601,17 +622,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             const warehouseSort = (a: { d: any }, b: { d: any }) =>
               new Date(a.d.createdAt).getTime() - new Date(b.d.createdAt).getTime();
 
-            // PASS 2a: Custom/full warehouse loss (no 25% cap) — up to remaining net salary
-            const warehouseUncappedParallel = warehouseUncappedEligible.filter((x) =>
-              isDeductionParallel(x.d)
-            );
-            const warehouseUncappedSequential = keepOldestSequentialOnly(
-              warehouseUncappedEligible.filter((x) => !isDeductionParallel(x.d))
-            );
-            const warehouseUncappedToApply = [
-              ...warehouseUncappedParallel,
-              ...warehouseUncappedSequential,
-            ].sort(warehouseSort);
+            // PASS 2a: Custom/full warehouse loss (no 25% cap) — all open perdas, FIFO by createdAt
+            // (do not sequential-queue warehouse: that piled 6–7 open losses per person)
+            const warehouseUncappedToApply = [...warehouseUncappedEligible].sort(warehouseSort);
 
             for (const { d, amount } of warehouseUncappedToApply) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);
@@ -631,20 +644,11 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               console.log(`[Payroll] Warehouse loss ${d.id} (custom): applied ${applied} of ${installmentCap} requested`);
             }
 
-            // PASS 2b: Standard warehouse losses — parallel share 25% cap; sequential = oldest only
+            // PASS 2b: Standard warehouse losses — all open lines share one 25% monthly cap (FIFO)
             const warehouseCap = Math.round(salaryPoolForWarehouse * 0.25);
             let warehouseCapRemaining = warehouseCap;
 
-            const warehouseCappedParallel = warehouseCappedEligible
-              .filter((x) => isDeductionParallel(x.d))
-              .sort(warehouseSort);
-            const warehouseCappedSequential = keepOldestSequentialOnly(
-              warehouseCappedEligible.filter((x) => !isDeductionParallel(x.d))
-            );
-            const warehouseCappedToApply = [
-              ...warehouseCappedParallel,
-              ...warehouseCappedSequential,
-            ].sort(warehouseSort);
+            const warehouseCappedToApply = [...warehouseCappedEligible].sort(warehouseSort);
 
             for (const { d, amount } of warehouseCappedToApply) {
               const installmentCap = Math.min(amount, d.remainingAmount > 0 ? d.remainingAmount : amount);

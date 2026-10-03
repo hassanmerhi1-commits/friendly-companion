@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { Employee, EmployeeExitReason, EmployeeFormData } from '@/types/employee';
 import { formatFormerEmployeeBlockMessage } from '@/lib/employee-exit';
+import { normalizePersonName } from '@/lib/person-name';
+import { resolveCategoryLabel } from '@/lib/employee-categories';
+import { useSettingsStore } from '@/stores/settings-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { liveGetAll, liveGetById, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
@@ -239,6 +242,20 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   },
 
   addEmployee: async (data: EmployeeFormData) => {
+    if (!data.firstName?.trim() || !data.lastName?.trim()) {
+      return { success: false, error: 'Nome e apelido são obrigatórios / First and last name are required' };
+    }
+    if (!data.baseSalary || data.baseSalary <= 0) {
+      return { success: false, error: 'Salário base deve ser maior que zero / Base salary must be greater than zero' };
+    }
+
+    const firstName = normalizePersonName(data.firstName);
+    const lastName = normalizePersonName(data.lastName);
+    const catalog = useSettingsStore.getState().settings.employeeCategories || [];
+    const category = resolveCategoryLabel(data.category || data.position || '', catalog);
+    // Cargo and categoria stay identical
+    data = { ...data, firstName, lastName, category, position: category || data.position };
+
     const former = get().findFormerEmployeeByIdentity({
       bilheteIdentidade: data.bilheteIdentidade,
       nif: data.nif,
@@ -334,8 +351,8 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     const newEmployee: Employee = {
       id: crypto.randomUUID(),
       employeeNumber: data.employeeNumber || generateEmployeeNumber(),
-      firstName: data.firstName,
-      lastName: data.lastName,
+      firstName,
+      lastName,
       email: data.email,
       phone: data.phone,
       address: data.address,
@@ -346,7 +363,7 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       inssNumber: data.inssNumber,
       department: data.department,
       category: data.category || data.position || '',
-      position: data.position,
+      position: data.category || data.position || '',
       contractType: data.contractType,
       hireDate: data.hireDate,
       contractEndDate: data.contractEndDate,
@@ -400,6 +417,11 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
   
   updateEmployee: async (id: string, data: Partial<EmployeeFormData>) => {
     const currentEmployee = get().employees.find(e => e.id === id);
+
+    // Never allow clearing salary to zero when salary is part of the update
+    if (data.baseSalary !== undefined && data.baseSalary <= 0) {
+      return { success: false, error: 'Salário base deve ser maior que zero / Base salary must be greater than zero' };
+    }
     
     // Check for duplicate employee number ONLY if it actually changed
     if (data.employeeNumber) {
@@ -505,10 +527,28 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
     if (!currentEmployee) {
       return { success: false, error: 'Funcionário não encontrado' };
     }
+
+    const normalizedPatch: Partial<EmployeeFormData> = { ...data };
+    if (data.firstName !== undefined) {
+      normalizedPatch.firstName = normalizePersonName(data.firstName);
+    }
+    if (data.lastName !== undefined) {
+      normalizedPatch.lastName = normalizePersonName(data.lastName);
+    }
+    if (data.category !== undefined || data.position !== undefined) {
+      const catalog = useSettingsStore.getState().settings.employeeCategories || [];
+      const raw =
+        data.category !== undefined
+          ? data.category
+          : data.position || currentEmployee.category || '';
+      const category = resolveCategoryLabel(raw || '', catalog);
+      normalizedPatch.category = category;
+      normalizedPatch.position = category || data.position || currentEmployee.position;
+    }
     
     const updatedEmployee: Employee = {
       ...currentEmployee,
-      ...data,
+      ...normalizedPatch,
       updatedAt: new Date().toISOString(),
     };
     

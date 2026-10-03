@@ -41,7 +41,7 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/payrollao-icon.ico"
+    "icon": "public/app-icon-robot.ico"
   },
   "nsis": {
     "artifactName": "${productName} Setup ${version}.${ext}",

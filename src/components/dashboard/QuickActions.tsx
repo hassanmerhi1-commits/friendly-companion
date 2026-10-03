@@ -21,7 +21,7 @@ export function QuickActions({ compact = false }: QuickActionsProps) {
       label: language === 'pt' ? "Adicionar Funcionário" : "Add Employee",
       icon: UserPlus,
       onClick: () => navigate('/employees'),
-      gradient: "from-blue-500 to-blue-600",
+      gradient: "from-cyan-600 to-teal-700",
       permission: 'employees.create' as Permission,
     },
     {
@@ -35,7 +35,7 @@ export function QuickActions({ compact = false }: QuickActionsProps) {
       label: language === 'pt' ? "Ver Relatórios" : "View Reports",
       icon: BarChart3,
       onClick: () => navigate('/reports'),
-      gradient: "from-violet-500 to-violet-600",
+      gradient: "from-slate-500 to-slate-600",
       permission: 'reports.view' as Permission,
     },
     {
@@ -49,14 +49,14 @@ export function QuickActions({ compact = false }: QuickActionsProps) {
       label: language === 'pt' ? "Empréstimos" : "Loans",
       icon: Wallet,
       onClick: () => setLoanDialogOpen(true),
-      gradient: "from-rose-500 to-rose-600",
+      gradient: "from-sky-600 to-cyan-700",
       permission: 'loans.view' as Permission,
     },
     {
       label: language === 'pt' ? "Presenças" : "Attendance",
       icon: Clock,
       onClick: () => navigate('/attendance'),
-      gradient: "from-cyan-500 to-cyan-600",
+      gradient: "from-teal-500 to-teal-600",
       permission: 'attendance.view' as Permission,
     }
   ];

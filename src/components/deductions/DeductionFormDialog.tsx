@@ -17,6 +17,7 @@ import {
   formatPeriodLabel,
   getOpenSalaryAdvancesForEmployee,
   suggestDeductFromPeriodIdForNewAdvance,
+  defaultSchedulingModeForType,
 } from '@/lib/salary-advance-scheduling';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
@@ -80,14 +81,29 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
       setManualOverride(false);
       setDeductStartMode('auto');
       setDeductFromPeriodId('');
-      // Safer default: queue behind open advances (Cleusio parallel stack)
-      setSchedulingMode('sequential');
+      setSchedulingMode(defaultSchedulingModeForType('salary_advance'));
     }
   }, [open]);
+
+  // Warehouse → parallel (share 25% cap); advances → sequential FIFO
+  useEffect(() => {
+    if (!open) return;
+    setSchedulingMode(defaultSchedulingModeForType(formData.type));
+  }, [open, formData.type]);
 
   const openAdvances = useMemo(() => {
     if (!formData.employeeId || formData.type !== 'salary_advance') return [];
     return getOpenSalaryAdvancesForEmployee(formData.employeeId, deductions);
+  }, [formData.employeeId, formData.type, deductions]);
+
+  const openWarehouseLosses = useMemo(() => {
+    if (!formData.employeeId || formData.type !== 'warehouse_loss') return [];
+    return deductions.filter(
+      (d) =>
+        d.employeeId === formData.employeeId &&
+        d.type === 'warehouse_loss' &&
+        !d.isFullyPaid
+    );
   }, [formData.employeeId, formData.type, deductions]);
 
   const suggestedDeductFromPeriodId = useMemo(() => {
@@ -377,6 +393,25 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
               {language === 'pt'
                 ? 'Este desconto entra na folha do mês em curso juntamente com outros descontos em modo «Neste mês». Perdas de armazém (25%) partilham o tecto legal nesse mês.'
                 : 'This deduction applies on the current payroll month together with other «This month» deductions. Warehouse losses (25%) share the legal cap that month.'}
+            </div>
+          )}
+
+          {formData.type === 'warehouse_loss' &&
+            formData.employeeId &&
+            openWarehouseLosses.length > 0 &&
+            schedulingMode === 'sequential' && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2 text-sm">
+              <div className="flex items-center gap-2 font-medium text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {language === 'pt'
+                  ? `${openWarehouseLosses.length} perda(s) de armazém em aberto`
+                  : `${openWarehouseLosses.length} open warehouse loss(es)`}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {language === 'pt'
+                  ? 'Modo fila deixa só 1 perda a descontar por mês — acumula atrasos (6–7 perdas). Prefira «Neste mês» para partilharem o tecto de 25%.'
+                  : 'Queue mode deducts only 1 loss per month and piles up backlog. Prefer «This month» so losses share the 25% cap.'}
+              </p>
             </div>
           )}
 

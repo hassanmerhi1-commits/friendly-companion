@@ -87,6 +87,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('updater:status', (_, data) => callback(data));
     },
   },
+
+  // AI assistant (online providers via main process — no CORS)
+  assistant: {
+    chat: (payload) => ipcRenderer.invoke('assistant:chat', payload),
+    chatBuiltin: (payload) => ipcRenderer.invoke('assistant:chatBuiltin', payload),
+    builtinStatus: () => ipcRenderer.invoke('assistant:builtinStatus'),
+    saveBuiltinConfig: (payload) => ipcRenderer.invoke('assistant:saveBuiltinConfig', payload),
+  },
   
   // Platform info
   platform: process.platform,

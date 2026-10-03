@@ -335,7 +335,7 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         amount: monthlyAmount,
         date: data.date,
         deductFromPeriodId: data.deductFromPeriodId,
-        schedulingMode: data.schedulingMode || 'sequential',
+        schedulingMode: data.schedulingMode || resolveSchedulingMode({ type: data.type }),
         isApplied: false,
         isFullyPaid: false,
         installments: installments,
@@ -588,7 +588,6 @@ export async function normalizeWarehouseLossDeductions() {
     const warehouseLosses = deductions.filter(
       (d) =>
         String(d.type || '').trim() === 'warehouse_loss' &&
-        !d.ignoreWarehouseCap &&
         !d.isFullyPaid &&
         d.remainingAmount > BALANCE_EPSILON
     );
@@ -606,45 +605,69 @@ export async function normalizeWarehouseLossDeductions() {
       const emp = employees.find((e) => e.id === ded.employeeId);
       if (!emp) continue;
 
+      const needsSchedulingFix = ded.schedulingMode === 'sequential';
+      const empName = emp.firstName
+        ? `${emp.firstName} ${emp.lastName}`
+        : (emp as { name?: string }).name || ded.employeeId;
+
+      // Custom/full override: only unstick sequential queue (do not rewrite monthly amount)
+      if (ded.ignoreWarehouseCap) {
+        if (needsSchedulingFix) {
+          updates.push({
+            id: ded.id,
+            payload: {
+              scheduling_mode: 'parallel',
+              updated_at: now,
+            },
+            beforeAmount: ded.amount,
+            afterAmount: ded.amount,
+            employeeName: empName,
+          });
+        }
+        continue;
+      }
+
       const netSalary = getEmployeeNetSalary(emp);
       const maxMonthly = Math.round(netSalary * WAREHOUSE_LOSS_MAX_RATE);
-      if (maxMonthly <= 0) continue;
-
       const rem = ded.remainingAmount > 0 ? ded.remainingAmount : ded.totalAmount;
-      const newAmount = Math.min(maxMonthly, rem);
-      if (newAmount <= BALANCE_EPSILON) continue;
+
+      // Always unstick sequential queues even when monthly amount is already correct.
+      if (maxMonthly <= 0 && !needsSchedulingFix) continue;
+
+      const newAmount =
+        maxMonthly > 0 ? Math.min(maxMonthly, rem) : ded.amount;
+      if (newAmount <= BALANCE_EPSILON && !needsSchedulingFix) continue;
 
       const balances = computeDeductionBalances(
         ded.totalAmount,
-        newAmount,
+        newAmount > BALANCE_EPSILON ? newAmount : ded.amount,
         ded.installmentsPaid,
         rem,
         balanceOptionsForDeduction({ ...ded, ignoreWarehouseCap: false })
       );
 
-      const needsAmountFix = Math.abs(ded.amount - newAmount) > BALANCE_EPSILON;
+      const effectiveAmount = newAmount > BALANCE_EPSILON ? newAmount : ded.amount;
+      const needsAmountFix = Math.abs(ded.amount - effectiveAmount) > BALANCE_EPSILON;
       const needsInstFix = balances.installments !== ded.installments;
       const needsRemainingFix = Math.abs(ded.remainingAmount - balances.remainingAmount) > BALANCE_EPSILON;
       const needsPaidFix = ded.isFullyPaid !== balances.isFullyPaid;
 
-      if (needsAmountFix || needsInstFix || needsRemainingFix || needsPaidFix) {
-        const empName = emp.firstName
-          ? `${emp.firstName} ${emp.lastName}`
-          : (emp as { name?: string }).name || ded.employeeId;
+      if (needsAmountFix || needsInstFix || needsRemainingFix || needsPaidFix || needsSchedulingFix) {
         updates.push({
           id: ded.id,
           payload: {
-            amount: newAmount,
+            amount: effectiveAmount,
             installments: balances.installments,
             remaining_amount: balances.remainingAmount,
             is_fully_paid: balances.isFullyPaid ? 1 : 0,
             installments_paid: ded.installmentsPaid,
             current_installment: ded.installmentsPaid,
             ignore_warehouse_cap: 0,
+            ...(needsSchedulingFix ? { scheduling_mode: 'parallel' } : {}),
             updated_at: now,
           },
           beforeAmount: ded.amount,
-          afterAmount: newAmount,
+          afterAmount: effectiveAmount,
           employeeName: empName,
         });
       }
@@ -666,7 +689,11 @@ export async function normalizeWarehouseLossDeductions() {
       );
     });
 
-    console.log(`[Deductions] Warehouse 25% sync applied to ${updates.length} deduction row(s)`);
+    const parallelized = updates.filter((u) => u.payload.scheduling_mode === 'parallel').length;
+    console.log(
+      `[Deductions] Warehouse 25% sync applied to ${updates.length} deduction row(s)` +
+        (parallelized ? ` (${parallelized} sequential→parallel)` : '')
+    );
   } catch (error) {
     console.error('[Deductions] Error normalizing warehouse losses:', error);
   }

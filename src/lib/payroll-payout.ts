@@ -30,6 +30,15 @@ export function getPayoutExtras(entry: PayrollEntry): number {
   return getMonthlyBonusPayout(entry) + getOneOffExtraPayout(entry) + getHolidayBuyoutPayout(entry);
 }
 
+/**
+ * Total the employee earns this month before any deductions (IRT/INSS/advances/losses).
+ * Tax grossSalary + monthly bonus + one-off extra + holiday buyout.
+ * Same idea as Employees «Salário bruto», plus folha-only extras.
+ */
+export function getGrossEarningsBeforeDeductions(entry: PayrollEntry): number {
+  return (entry.grossSalary || 0) + getPayoutExtras(entry);
+}
+
 /** Total a pagar (líquido + extras) — mesmo critério do ficheiro banco, independentemente de PA */
 export function getPayrollPayoutAmount(entry: PayrollEntry): number {
   const raw = (entry.netSalary || 0) + getPayoutExtras(entry);

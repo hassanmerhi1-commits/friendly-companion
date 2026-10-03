@@ -1,4 +1,5 @@
 import type { Absence } from '@/types/absence';
+import { getCalendarMonthBounds } from '@/lib/local-date';
 
 /** Leave types shown on dashboard / attendance */
 export const DASHBOARD_LEAVE_TYPES = [
@@ -90,10 +91,8 @@ export function getPayrollPeriodEndDate(year: number, month: number): Date {
 }
 
 export function getMonthDateRange(year: number, month: number): { monthStart: string; monthEnd: string } {
-  return {
-    monthStart: new Date(year, month - 1, 1).toISOString().split('T')[0],
-    monthEnd: new Date(year, month, 0).toISOString().split('T')[0],
-  };
+  const { startDate, endDate } = getCalendarMonthBounds(year, month);
+  return { monthStart: startDate, monthEnd: endDate };
 }
 
 /** Build payroll leave_notes JSON for one employee and period. */

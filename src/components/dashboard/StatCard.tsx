@@ -28,9 +28,9 @@ export function StatCard({
   className,
 }: StatCardProps) {
   const gradients = {
-    default: "from-slate-500/10 to-slate-600/10",
-    accent: "from-blue-500/10 to-indigo-600/10",
-    success: "from-emerald-500/10 to-green-600/10", 
+    default: "from-slate-400/10 to-slate-500/10",
+    accent: "from-cyan-500/10 to-teal-600/10",
+    success: "from-emerald-500/10 to-green-600/10",
     warning: "from-amber-500/10 to-orange-600/10"
   };
 

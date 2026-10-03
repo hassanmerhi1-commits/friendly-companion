@@ -31,6 +31,7 @@ import { PayrollOneOffExtraDialog } from "@/components/payroll/PayrollOneOffExtr
 import { formatAOA } from "@/lib/angola-labor-law";
 import {
   getEarlyPaymentRecordAmount,
+  getGrossEarningsBeforeDeductions,
   getHolidayBuyoutPayout,
   getOneOffExtraPayout,
   getTotalPaidToEmployee,
@@ -333,7 +334,7 @@ const Payroll = () => {
     : [];
   
   const totals = regularEntries.reduce((acc, e) => ({
-    gross: acc.gross + e.grossSalary,
+    gross: acc.gross + getGrossEarningsBeforeDeductions(e),
     deductions: acc.deductions + e.totalDeductions,
     net: acc.net + (e.paidEarly ? 0 : e.netSalary),
     bonus: acc.bonus + (e.monthlyBonus || 0),
@@ -582,7 +583,7 @@ const Payroll = () => {
     const displayEntries = employeeSearch.trim() ? tableEntries : tableSourceEntries;
     return displayEntries.reduce(
       (acc, e) => ({
-        gross: acc.gross + e.grossSalary,
+        gross: acc.gross + getGrossEarningsBeforeDeductions(e),
         deductions: acc.deductions + e.totalDeductions,
         net: acc.net + (e.paidEarly ? 0 : e.netSalary),
         bonus: acc.bonus + (e.monthlyBonus || 0),
@@ -1084,7 +1085,7 @@ const Payroll = () => {
                           return <span className="text-muted-foreground">-</span>;
                         })()}
                       </td>
-                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>{formatAOA(entry.grossSalary)}</td>
+                      <td className={`${ATTENDANCE_TD} text-right font-mono text-xs`}>{formatAOA(getGrossEarningsBeforeDeductions(entry))}</td>
                       <td className={`${ATTENDANCE_TD} text-right font-mono text-xs text-destructive`}>{formatAOA(entry.irt)}</td>
                       <td className={`${ATTENDANCE_TD} text-right font-mono text-xs text-destructive`}>{formatAOA(entry.inssEmployee)}</td>
                       <td className={`${ATTENDANCE_TD} text-right font-mono text-xs font-bold text-primary`}>

@@ -35,7 +35,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 import { DeductionBatchRegister } from '@/components/deductions/DeductionBatchRegister';
-import { formatPeriodLabel, resolveSchedulingMode } from '@/lib/salary-advance-scheduling';
+import { formatPeriodLabel, resolveSchedulingMode, defaultSchedulingModeForType } from '@/lib/salary-advance-scheduling';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import type { DeductionSchedulingMode } from '@/types/deduction';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
@@ -259,7 +259,7 @@ export default function Deductions() {
       ignoreWarehouseCap: isWarehouseLoss ? manualOverride : false,
     };
     if (editingDeduction.installmentsPaid === 0 && !editingDeduction.isApplied) {
-      const mode = formData.schedulingMode || 'sequential';
+      const mode = formData.schedulingMode || defaultSchedulingModeForType(formData.type);
       const openOthers = deductions.filter(
         (d) =>
           d.id !== editingDeduction.id &&
@@ -440,7 +440,7 @@ export default function Deductions() {
             {language === 'pt' ? 'Como descontar na folha' : 'How to deduct on payroll'}
           </Label>
           <RadioGroup
-            value={formData.schedulingMode || 'sequential'}
+            value={formData.schedulingMode || defaultSchedulingModeForType(formData.type || 'salary_advance')}
             onValueChange={(v) =>
               setFormData((prev) => ({ ...prev, schedulingMode: v as DeductionSchedulingMode }))
             }

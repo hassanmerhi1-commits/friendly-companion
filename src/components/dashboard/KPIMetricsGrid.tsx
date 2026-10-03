@@ -17,7 +17,7 @@ interface MetricCardProps {
 
 function MetricCard({ label, value, change, prefix = '', color = 'blue' }: MetricCardProps) {
   const colorClasses = {
-    blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
+    blue: 'from-cyan-500/20 to-teal-600/10 border-cyan-500/30',
     green: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30',
     amber: 'from-amber-500/20 to-amber-600/10 border-amber-500/30',
     red: 'from-red-500/20 to-red-600/10 border-red-500/30',

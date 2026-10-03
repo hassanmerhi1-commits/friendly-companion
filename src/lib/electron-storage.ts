@@ -49,6 +49,20 @@ declare global {
       app: {
         relaunch: () => Promise<void>;
       };
+      assistant?: {
+        chat: (payload: {
+          provider: string;
+          apiKey: string;
+          system: string;
+          question: string;
+        }) => Promise<{ success: boolean; text?: string; error?: string; provider?: string; quota?: { remaining?: number }; limitReached?: boolean }>;
+        chatBuiltin?: (payload: {
+          system: string;
+          question: string;
+        }) => Promise<{ success: boolean; text?: string; error?: string; provider?: string; quota?: { remaining?: number }; limitReached?: boolean }>;
+        builtinStatus?: () => Promise<{ success?: boolean; configured: boolean; remaining: number; dailyLimit: number; provider?: string }>;
+        saveBuiltinConfig?: (payload: { provider: string; apiKey: string; dailyLimit?: number }) => Promise<{ success: boolean; error?: string; configured?: boolean; remaining?: number; dailyLimit?: number }>;
+      };
       platform: string;
       isElectron: boolean;
     };

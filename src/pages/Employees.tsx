@@ -311,7 +311,10 @@ const Employees = () => {
     return category;
   };
 
-  function getStatusLabel(status: Employee["status"]): string {
+  function getStatusLabel(status: Employee["status"], isRetired = false): string {
+    if (status === 'active' && isRetired) {
+      return language === 'pt' ? 'Activo (aposentado)' : 'Active (pensioner)';
+    }
     const labels: Record<string, string> = {
       active: t.common.active,
       inactive: t.common.inactive,
@@ -468,7 +471,7 @@ const Employees = () => {
                 </SelectItem>
               )}
               <SelectItem value="left">{pt ? 'Saída' : 'Left'}</SelectItem>
-              <SelectItem value="retired">{pt ? 'Reformados' : 'Retired'}</SelectItem>
+              <SelectItem value="retired">{pt ? 'Aposentados (INSS)' : 'Pensioners (INSS)'}</SelectItem>
               <SelectItem value="all">{pt ? 'Todos' : 'All'}</SelectItem>
             </SelectContent>
           </Select>
@@ -534,7 +537,7 @@ const Employees = () => {
               value: String(listStats.pending),
               highlight: listStats.pending > 0,
             },
-            { label: pt ? 'Reformados' : 'Retired', value: String(listStats.retired) },
+            { label: pt ? 'Aposentados' : 'Pensioners', value: String(listStats.retired) },
             { label: pt ? 'Saídas' : 'Left', value: String(listStats.left) },
           ].map((kpi) => (
             <div
@@ -639,18 +642,21 @@ const Employees = () => {
                       <span
                         className={cn(
                           'inline-flex rounded-full px-1.5 py-0.5 text-[10px]',
-                          employee.status === 'active' && 'bg-primary/10 text-primary',
+                          employee.status === 'active' && !employee.isRetired && 'bg-primary/10 text-primary',
+                          employee.status === 'active' && employee.isRetired && 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
                           employee.status === 'pending_approval' && 'bg-secondary text-secondary-foreground',
                           employee.status === 'terminated' && 'bg-destructive/10 text-destructive'
                         )}
+                        title={
+                          employee.status === 'active' && employee.isRetired
+                            ? (pt
+                                ? 'Continua a trabalhar — taxa INSS de aposentado'
+                                : 'Still working — pensioner INSS rate')
+                            : undefined
+                        }
                       >
-                        {getStatusLabel(employee.status)}
+                        {getStatusLabel(employee.status, employee.isRetired)}
                       </span>
-                      {employee.status === 'active' && employee.isRetired && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {pt ? 'Reformado' : 'Retired'}
-                        </span>
-                      )}
                     </div>
                   </td>
                   <td className={`${ATTENDANCE_TD} text-xs text-muted-foreground`}>
@@ -744,13 +750,13 @@ const Employees = () => {
                               const newValue = !employee.isRetired;
                               updateEmployee(employee.id, { isRetired: newValue });
                               toast.success(newValue
-                                ? (language === 'pt' ? 'Marcado como Reformado' : 'Marked as Retired')
-                                : (language === 'pt' ? 'Desmarcado como Reformado' : 'Unmarked as Retired'));
+                                ? (language === 'pt' ? 'Marcado como aposentado (INSS)' : 'Marked as pensioner (INSS)')
+                                : (language === 'pt' ? 'Desmarcado aposentado (INSS)' : 'Unmarked pensioner (INSS)'));
                             }}>
                               <Clock className="h-4 w-4 mr-2" />
                               {employee.isRetired
-                                ? (language === 'pt' ? 'Desmarcar Reformado' : 'Unmark Retired')
-                                : (language === 'pt' ? 'Marcar Reformado' : 'Mark Retired')}
+                                ? (language === 'pt' ? 'Desmarcar aposentado (INSS)' : 'Unmark pensioner (INSS)')
+                                : (language === 'pt' ? 'Marcar aposentado (INSS)' : 'Mark pensioner (INSS)')}
                             </DropdownMenuItem>
                           )}
                           {hasPermission('employees.delete') && (
