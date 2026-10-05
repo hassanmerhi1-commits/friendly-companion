@@ -10,7 +10,10 @@ import {
 import {
   calculateBulkAttendanceDeduction,
   calculateFullMonthlySalary,
+  useBulkAttendanceStore,
 } from '@/stores/bulk-attendance-store';
+import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
+import { buildBulkEntriesForPayrollMonth } from '@/lib/daily-attendance-aggregate';
 import { netAfterExtraDeductions, clampNetSalary } from '@/lib/payroll-payout';
 import { getCalendarMonthBounds } from '@/lib/local-date';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
@@ -66,6 +69,84 @@ interface PayrollState {
 
 function getPeriodDates(year: number, month: number) {
   return getCalendarMonthBounds(year, month);
+}
+
+function getFollowingMonth(month: number, year: number) {
+  return month === 12
+    ? { month: 1, year: year + 1 }
+    : { month: month + 1, year };
+}
+
+/**
+ * Rebuilds the two payroll months affected by adding, changing, or removing an
+ * attendance cutoff. This also backfills daily marks that already existed
+ * after the selected cutoff before the month was closed.
+ */
+async function rebuildDailyAttendanceAfterCutoffChange(
+  month: number,
+  year: number,
+  periods: PayrollPeriod[]
+): Promise<void> {
+  const dailyStore = useDailyAttendanceStore.getState();
+  const bulkStore = useBulkAttendanceStore.getState();
+  const employeeStore = useEmployeeStore.getState();
+
+  await dailyStore.loadRecords();
+  if (!bulkStore.isLoaded) await bulkStore.loadEntries();
+  if (!employeeStore.isLoaded) await employeeStore.loadEmployees();
+
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
+  const employeeIds = [
+    ...new Set(
+      useDailyAttendanceStore
+        .getState()
+        .records
+        .filter((record) => record.date.startsWith(monthPrefix))
+        .map((record) => record.employeeId)
+    ),
+  ];
+
+  if (employeeIds.length === 0) return;
+
+  const employees = useEmployeeStore.getState().employees;
+  const following = getFollowingMonth(month, year);
+  const sourceEntries = buildBulkEntriesForPayrollMonth(
+    employeeIds,
+    month,
+    year,
+    employees,
+    periods,
+    'Auto-aggregated after attendance cutoff change'
+  );
+  const followingEntries = buildBulkEntriesForPayrollMonth(
+    employeeIds,
+    following.month,
+    following.year,
+    employees,
+    periods,
+    'Auto-aggregated after attendance cutoff change'
+  );
+
+  const entriesToSave = [...sourceEntries, ...followingEntries].filter((entry) => {
+    const hasAggregatedValue =
+      entry.absenceDays > 0 ||
+      entry.justifiedAbsenceDays > 0 ||
+      entry.delayHours > 0;
+    if (hasAggregatedValue) return true;
+
+    // A zero rebuild may clear a previous automatic carry-forward, but must
+    // never erase a manually entered bulk record in the destination month.
+    const existing = useBulkAttendanceStore
+      .getState()
+      .getEntryForEmployee(entry.employeeId, entry.month, entry.year);
+    return existing?.notes?.startsWith('Auto-aggregated') ?? false;
+  });
+
+  if (entriesToSave.length === 0) return;
+
+  await useBulkAttendanceStore
+    .getState()
+    .saveBulkEntries(entriesToSave);
 }
 
 // Map DB row -> PayrollPeriod
@@ -1115,8 +1196,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
 
       const now = new Date().toISOString();
       const period = get().getPeriod(periodId);
+      if (!period) throw new Error('Payroll period not found');
       // Preserve existing cutoff if attendance was manually closed; otherwise set one now
-      const cutoffDate = period?.cutoffDate || new Date().toISOString().split('T')[0];
+      const cutoffDate = period.cutoffDate || new Date().toISOString().split('T')[0];
       await liveUpdate('payroll_periods', periodId, {
         total_gross: totals.totalGross,
         total_net: totals.totalNet,
@@ -1127,6 +1209,12 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         cutoff_date: cutoffDate,
         updated_at: now,
       });
+      await get().loadPayroll();
+      await rebuildDailyAttendanceAfterCutoffChange(
+        period.month,
+        period.year,
+        get().periods
+      );
     },
 
     approvePeriod: async (periodId) => {
@@ -1177,6 +1265,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       });
       console.log('[Attendance Close] Update result:', updateResult);
       await get().loadPayroll();
+      await rebuildDailyAttendanceAfterCutoffChange(month, year, get().periods);
       
       // Verify
       const verifyPeriod = get().periods.find(p => p.month === month && p.year === year);
@@ -1199,6 +1288,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
         updated_at: now,
       });
       await get().loadPayroll();
+      await rebuildDailyAttendanceAfterCutoffChange(month, year, get().periods);
     },
 
     isAttendanceClosed: (month: number, year: number) => {
