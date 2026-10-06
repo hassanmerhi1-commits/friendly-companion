@@ -71,6 +71,31 @@ function formatDate(dateString: string): string {
   });
 }
 
+/** Compact table amounts — no currency suffix, to avoid horizontal scroll. */
+function formatCompactAmount(value: number | undefined): string {
+  const amount = value || 0;
+  if (amount <= 0) return '—';
+  return new Intl.NumberFormat('pt-AO', {
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+const COMPACT_TH = cn(ATTENDANCE_TH, 'px-1 whitespace-nowrap');
+const COMPACT_TD = cn(ATTENDANCE_TD, 'px-1 text-[11px] whitespace-nowrap');
+const MONEY_TH = cn(ATTENDANCE_TH_RIGHT, 'px-1 whitespace-nowrap');
+const MONEY_TD = cn(ATTENDANCE_TD, 'text-right text-[10px] px-1 tabular-nums whitespace-nowrap');
+const TEXT_TD = COMPACT_TD;
+
+function formatMoneyCell(value: number | undefined, accent = false) {
+  const amount = value || 0;
+  if (amount <= 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className={cn('tabular-nums whitespace-nowrap', accent && 'text-accent font-medium')}>
+      {formatCompactAmount(amount)}
+    </span>
+  );
+}
+
 type SortField = 'name' | 'department' | 'branch' | 'salary' | 'hireDate';
 type SortOrder = 'asc' | 'desc';
 
@@ -323,6 +348,28 @@ const Employees = () => {
       pending_approval: language === 'pt' ? 'Pendente' : 'Pending',
     };
     return labels[status] || status;
+  }
+
+  /** Short status for the tight Employees table column. */
+  function getStatusShortLabel(status: Employee["status"], isRetired = false): string {
+    if (status === 'active' && isRetired) return language === 'pt' ? 'Apos.' : 'Pens.';
+    if (status === 'active') return language === 'pt' ? 'Act.' : 'Act.';
+    if (status === 'pending_approval') return language === 'pt' ? 'Pend.' : 'Pend.';
+    if (status === 'terminated') return language === 'pt' ? 'Saída' : 'Left';
+    if (status === 'on_leave') return language === 'pt' ? 'Lic.' : 'Leave';
+    if (status === 'inactive') return language === 'pt' ? 'Inact.' : 'Off';
+    return getStatusLabel(status, isRetired);
+  }
+
+  function getContractShortLabel(contract: Employee["contractType"]): string {
+    const labels: Record<string, string> = {
+      permanent: language === 'pt' ? 'Efect.' : 'Perm.',
+      fixed_term: language === 'pt' ? 'Prazo' : 'Fixed',
+      part_time: language === 'pt' ? 'Parc.' : 'PT',
+      probation: language === 'pt' ? 'Exp.' : 'Prob.',
+      colaborador: language === 'pt' ? 'Colab.' : 'Collab.',
+    };
+    return labels[contract] || getContractLabel(contract);
   }
 
   function getContractLabel(contract: Employee["contractType"]): string {
@@ -580,101 +627,137 @@ const Employees = () => {
 
         {/* Table */}
         <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
-          <div className="flex-1 min-h-0 overflow-auto overscroll-contain">
-            <table className="w-full min-w-[960px] text-sm">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[7%]" />
+                <col className="w-[7%]" />
+                <col className="w-[7%]" />
+                <col className="w-[5%]" />
+                <col className="w-[4.5%]" />
+                <col className="w-[8%]" />
+                <col className="w-[5%]" />
+                <col className="w-[5%]" />
+                <col className="w-[4%]" />
+                <col className="w-[4%]" />
+                <col className="w-[9%]" />
+                <col className="w-[3.5%]" />
+              </colgroup>
               <thead className={ATTENDANCE_THEAD}>
                 <tr>
-                  <th className={cn(ATTENDANCE_TH, 'w-10')} />
                   <SortableHeader field="name" label={pt ? 'Nome' : 'Name'} />
-                  <SortableHeader field="department" label={pt ? 'Departamento' : 'Department'} />
-                  <th className={ATTENDANCE_TH}>{pt ? 'Categoria' : 'Category'}</th>
+                  <SortableHeader field="department" label={pt ? 'Dept.' : 'Dept.'} />
+                  <th className={COMPACT_TH}>{pt ? 'Cat.' : 'Cat.'}</th>
                   <SortableHeader field="branch" label={pt ? 'Filial' : 'Branch'} />
-                  <th className={ATTENDANCE_TH}>{pt ? 'Contrato' : 'Contract'}</th>
-                  <th className={ATTENDANCE_TH}>{pt ? 'Estado' : 'Status'}</th>
-                  <SortableHeader field="hireDate" label={pt ? 'Admissão' : 'Hired'} />
-                  <SortableHeader field="salary" label={pt ? 'Salário bruto' : 'Gross salary'} align="right" />
-                  <th className={ATTENDANCE_TH_RIGHT}>{pt ? 'Bónus' : 'Bonus'}</th>
-                  <th className={cn(ATTENDANCE_TH_RIGHT, 'w-16')}>{pt ? 'Ações' : 'Actions'}</th>
+                  <th className={COMPACT_TH} title={pt ? 'Contrato' : 'Contract'}>{pt ? 'Contr.' : 'Contr.'}</th>
+                  <th className={COMPACT_TH} title={pt ? 'Estado' : 'Status'}>{pt ? 'Est.' : 'St.'}</th>
+                  <th className={MONEY_TH} title={pt ? 'Salário base' : 'Base salary'}>{pt ? 'Base' : 'Base'}</th>
+                  <th className={MONEY_TH} title={pt ? 'Transporte' : 'Transport'}>{pt ? 'Tr.' : 'Tr.'}</th>
+                  <th className={MONEY_TH} title={pt ? 'Subsídio de alimentação' : 'Meal allowance'}>{pt ? 'Alim.' : 'Meal'}</th>
+                  <th className={MONEY_TH} title={pt ? 'Abono familiar' : 'Family allowance'}>{pt ? 'Ab.' : 'Fam.'}</th>
+                  <th className={MONEY_TH} title={pt ? 'Bónus' : 'Bonus'}>{pt ? 'Bón.' : 'Bon.'}</th>
+                  <th
+                    className={cn(MONEY_TH, 'cursor-pointer select-none hover:text-foreground')}
+                    onClick={() => toggleSort('salary')}
+                    title={pt ? 'Salário bruto (Kz)' : 'Gross salary (Kz)'}
+                  >
+                    <span className="inline-flex items-center justify-end gap-0.5 w-full">
+                      {pt ? 'Bruto' : 'Gross'}
+                      {sortField === 'salary' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 opacity-40" />
+                      )}
+                    </span>
+                  </th>
+                  <th className={cn(ATTENDANCE_TH_RIGHT, 'px-0.5')} />
                 </tr>
               </thead>
               <tbody className={ATTENDANCE_TBODY}>
               {filteredAndSortedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-3 py-12 text-center text-sm text-muted-foreground">
+                  <td colSpan={13} className="px-3 py-12 text-center text-sm text-muted-foreground">
                     {pt ? 'Nenhum funcionário encontrado' : 'No employees found'}
                   </td>
                 </tr>
               ) : (
-              filteredAndSortedEmployees.map((employee) => (
+              filteredAndSortedEmployees.map((employee) => {
+                const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+                return (
                 <tr
                   key={employee.id}
                   className="hover:bg-muted/30 cursor-pointer"
                   onClick={() => openDossier(employee)}
                 >
-                  <td className={ATTENDANCE_TD}>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={employee.photoUrl} alt={employee.firstName} />
-                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                        {getInitials(employee)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </td>
-                  <td className={ATTENDANCE_TD}>
-                    <div className="text-xs font-medium">
-                      {employee.firstName} {employee.lastName}
+                  <td className={cn(ATTENDANCE_TD, 'px-1.5')}>
+                    <div
+                      className="flex items-center gap-1.5 min-w-0"
+                      title={`${fullName} · ${employee.employeeNumber}`}
+                    >
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarImage src={employee.photoUrl} alt={employee.firstName} />
+                        <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                          {getInitials(employee)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                        {fullName}
+                      </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground">{employee.employeeNumber}</div>
                   </td>
-                  <td className={`${ATTENDANCE_TD} text-xs`}>{employee.department || '—'}</td>
-                  <td className={`${ATTENDANCE_TD} text-xs`}>{getCategoryLabel(employee.category)}</td>
-                  <td className={`${ATTENDANCE_TD} text-xs`}>{getBranchName(employee.branchId)}</td>
-                  <td className={`${ATTENDANCE_TD} text-xs`}>
+                  <td className={TEXT_TD} title={employee.department || undefined}>
+                    <span className="block truncate">{employee.department || '—'}</span>
+                  </td>
+                  <td className={TEXT_TD}>
+                    <span className="block truncate">{getCategoryLabel(employee.category)}</span>
+                  </td>
+                  <td className={TEXT_TD} title={getBranchName(employee.branchId)}>
+                    <span className="block truncate">{getBranchName(employee.branchId)}</span>
+                  </td>
+                  <td className={TEXT_TD} title={getContractLabel(employee.contractType)}>
                     <span
                       className={cn(
+                        'block truncate',
                         employee.contractType === 'colaborador' && 'text-accent font-medium'
                       )}
                     >
-                      {getContractLabel(employee.contractType)}
+                      {getContractShortLabel(employee.contractType)}
                     </span>
                   </td>
-                  <td className={ATTENDANCE_TD}>
-                    <div className="flex flex-col gap-0.5 items-start">
-                      <span
-                        className={cn(
-                          'inline-flex rounded-full px-1.5 py-0.5 text-[10px]',
-                          employee.status === 'active' && !employee.isRetired && 'bg-primary/10 text-primary',
-                          employee.status === 'active' && employee.isRetired && 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
-                          employee.status === 'pending_approval' && 'bg-secondary text-secondary-foreground',
-                          employee.status === 'terminated' && 'bg-destructive/10 text-destructive'
-                        )}
-                        title={
-                          employee.status === 'active' && employee.isRetired
-                            ? (pt
-                                ? 'Continua a trabalhar — taxa INSS de aposentado'
-                                : 'Still working — pensioner INSS rate')
-                            : undefined
-                        }
-                      >
-                        {getStatusLabel(employee.status, employee.isRetired)}
-                      </span>
-                    </div>
+                  <td className={cn(ATTENDANCE_TD, 'px-0.5')}>
+                    <span
+                      className={cn(
+                        'inline-flex max-w-full truncate rounded-full px-1 py-0.5 text-[9px] whitespace-nowrap',
+                        employee.status === 'active' && !employee.isRetired && 'bg-primary/10 text-primary',
+                        employee.status === 'active' && employee.isRetired && 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+                        employee.status === 'pending_approval' && 'bg-secondary text-secondary-foreground',
+                        employee.status === 'terminated' && 'bg-destructive/10 text-destructive'
+                      )}
+                      title={getStatusLabel(employee.status, employee.isRetired)}
+                    >
+                      {getStatusShortLabel(employee.status, employee.isRetired)}
+                    </span>
                   </td>
-                  <td className={`${ATTENDANCE_TD} text-xs text-muted-foreground`}>
-                    {employee.hireDate ? formatDate(employee.hireDate) : '—'}
+                  <td className={MONEY_TD} title={formatAOA(employee.baseSalary || 0)}>
+                    {formatMoneyCell(employee.baseSalary)}
                   </td>
-                  <td className={`${ATTENDANCE_TD} text-right text-xs font-medium`}>
-                    {formatAOA(calculateFullMonthlySalary(employee))}
+                  <td className={MONEY_TD} title={formatAOA(employee.transportAllowance || 0)}>
+                    {formatMoneyCell(employee.transportAllowance)}
                   </td>
-                  <td className={`${ATTENDANCE_TD} text-right text-xs`}>
-                    {(employee.monthlyBonus || 0) > 0 ? (
-                      <span className="text-accent font-medium">
-                        {formatAOA(employee.monthlyBonus || 0)}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                  <td className={MONEY_TD} title={formatAOA(employee.mealAllowance || 0)}>
+                    {formatMoneyCell(employee.mealAllowance)}
                   </td>
-                  <td className={ATTENDANCE_TD} onClick={(e) => e.stopPropagation()}>
+                  <td className={MONEY_TD} title={formatAOA(employee.familyAllowance || 0)}>
+                    {formatMoneyCell(employee.familyAllowance)}
+                  </td>
+                  <td className={MONEY_TD} title={formatAOA(employee.monthlyBonus || 0)}>
+                    {formatMoneyCell(employee.monthlyBonus, true)}
+                  </td>
+                  <td className={cn(MONEY_TD, 'font-medium')} title={formatAOA(calculateFullMonthlySalary(employee))}>
+                    {formatCompactAmount(calculateFullMonthlySalary(employee))}
+                  </td>
+                  <td className={cn(ATTENDANCE_TD, 'px-0.5')} onClick={(e) => e.stopPropagation()}>
                     {employee.status === 'pending_approval' && canApproveEmployees ? (
                       <div className="flex items-center justify-end gap-0.5">
                         <Button
@@ -770,7 +853,8 @@ const Employees = () => {
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
               )}
             </tbody>
           </table>
