@@ -9,7 +9,7 @@
  *   Client: SERVERNAME or 10.0.0.x (server address)
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -124,6 +124,8 @@ function loadBetterSqlite3() {
 
 // ============= GLOBALS =============
 let mainWindow = null;
+/** When true, X / Alt+F4 / quit skip the "are you sure?" prompt (relaunch, updater install). */
+let allowAppClose = false;
 let db = null;
 let dbPath = null;
 let isServerMode = false;
@@ -2073,6 +2075,25 @@ function createWindow() {
     mainWindow.loadFile(indexPath);
   }
 
+  mainWindow.on('close', (event) => {
+    if (allowAppClose) return;
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      buttons: ['Cancelar', 'Fechar'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      title: 'PayrollAO',
+      message: 'Tem a certeza que deseja fechar a aplicação?',
+      detail: 'Qualquer trabalho não guardado pode ser perdido.',
+    });
+    if (choice === 1) {
+      allowAppClose = true;
+      mainWindow.close();
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -2081,6 +2102,7 @@ function createWindow() {
 // ============= IPC HANDLERS =============
 ipcMain.handle('app:relaunch', () => {
   try {
+    allowAppClose = true;
     app.relaunch();
     app.exit(0);
     return { success: true };
@@ -2569,6 +2591,7 @@ ipcMain.handle('updater:download', async () => {
 });
 
 ipcMain.handle('updater:install', () => {
+  allowAppClose = true;
   autoUpdater.quitAndInstall(false, true);
 });
 

@@ -44,6 +44,7 @@ import { PrintablePayrollSheet } from '@/components/payroll/PrintablePayrollShee
 import { PrintableEmployeeReport } from '@/components/reports/PrintableEmployeeReport';
 import { PrintableCostAnalysis } from '@/components/reports/PrintableCostAnalysis';
 import { PrintableHolidayMap } from '@/components/reports/PrintableHolidayMap';
+import { PrintableHolidayPlanNextYear } from '@/components/reports/PrintableHolidayPlanNextYear';
 import { PrintableINSSMap } from '@/components/reports/PrintableINSSMap';
 import { PrintableIRTMap } from '@/components/reports/PrintableIRTMap';
 import { PrintableHolidayReport } from '@/components/reports/PrintableHolidayReport';
@@ -66,6 +67,7 @@ type ReportType =
   | 'employee'
   | 'cost'
   | 'holiday'
+  | 'holiday_plan_next_year'
   | 'inss'
   | 'irt'
   | 'ferias'
@@ -110,6 +112,17 @@ const REPORT_DEFS: ReportDef[] = [
   { id: 'branch_cost', type: 'branch_cost', category: 'payroll', namePt: 'Custos por Filial', nameEn: 'Branch Cost Analysis', descPt: 'Distribuição de custos por filial', descEn: 'Cost distribution by branch', icon: Building2, needsPayroll: true },
   { id: 'employee', type: 'employee', category: 'hr', namePt: 'Relatório de Funcionários', nameEn: 'Employee Report', descPt: 'Lista detalhada de funcionários activos', descEn: 'Detailed active employee list', icon: Users, needsEmployees: true },
   { id: 'holiday', type: 'holiday', category: 'hr', namePt: 'Mapa de Férias', nameEn: 'Holiday Map', descPt: 'Calendário e planeamento de férias', descEn: 'Holiday calendar and planning', icon: Calendar, needsEmployees: true },
+  {
+    id: 'holiday_plan_next_year',
+    type: 'holiday_plan_next_year',
+    category: 'hr',
+    namePt: 'Plano Anual de Férias',
+    nameEn: 'Annual Holiday Plan',
+    descPt: 'Planear férias dos próximos anos (Nov/Dez): imprimir mapa para RH e registar as datas no sistema',
+    descEn: 'Plan holidays for upcoming years (Nov/Dec): print HR map and register dates in the system',
+    icon: Calendar,
+    needsEmployees: true,
+  },
   { id: 'ferias', type: 'ferias', category: 'hr', namePt: 'Relatório de Férias', nameEn: 'Holiday Report', descPt: 'Saldos e férias gozadas no ano', descEn: 'Balances and taken leave for the year', icon: Calendar, needsEmployees: true },
   { id: 'salary_history', type: 'salary_history', category: 'hr', namePt: 'Histórico Salarial', nameEn: 'Salary History', descPt: 'Histórico financeiro individual (seleccionar funcionário)', descEn: 'Individual financial history (select employee)', icon: History, needsEmployee: true },
   { id: 'salary_comparison', type: 'salary_comparison', category: 'hr', namePt: 'Comparativo Salarial', nameEn: 'Salary Comparison', descPt: 'Evolução salarial ano a ano', descEn: 'Year-over-year salary evolution', icon: BarChart3, needsPayroll: true },
@@ -288,7 +301,8 @@ export default function Reports() {
         reason: pt ? 'Sem folha para este período/filial' : 'No payroll for this period/branch',
       };
     }
-    if (def.needsEmployees && filteredEmployees.length === 0) {
+    // Annual holiday plan still opens with a clear empty-state message.
+    if (def.needsEmployees && filteredEmployees.length === 0 && def.type !== 'holiday_plan_next_year') {
       return {
         available: false,
         reason: pt ? 'Sem funcionários activos' : 'No active employees',
@@ -574,8 +588,9 @@ export default function Reports() {
                         ? 'hover:border-primary/30 hover:shadow-sm cursor-pointer bg-card'
                         : 'opacity-55 bg-muted/20'
                     )}
-                    onClick={() => available && handleOpenReport(def.type)}
+                    onClick={() => handleOpenReport(def.type)}
                     title={!available ? reason : undefined}
+                    role="button"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       <def.icon className="h-4 w-4" />
@@ -666,6 +681,36 @@ export default function Reports() {
               onSaveRecords={handleSaveHolidayRecords}
               onClose={() => setOpenReport(null)}
             />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={openReport === 'holiday_plan_next_year'}
+          onOpenChange={handleDialogChange}
+        >
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {pt ? 'Plano Anual de Férias' : 'Annual Holiday Plan'}
+              </DialogTitle>
+            </DialogHeader>
+            {openReport === 'holiday_plan_next_year' ? (
+              <PrintableHolidayPlanNextYear
+                key={`holiday-plan-${selectedBranchId}`}
+                employees={filteredEmployees}
+                companyName={settings.companyName}
+                companyNif={settings.nif}
+                branch={selectedBranch}
+                yearOptions={[
+                  new Date().getFullYear() + 1,
+                  new Date().getFullYear() + 2,
+                  new Date().getFullYear() + 3,
+                ]}
+                holidayRecords={holidayRecords}
+                onSaveRecords={handleSaveHolidayRecords}
+                onClose={() => setOpenReport(null)}
+              />
+            ) : null}
           </DialogContent>
         </Dialog>
 
