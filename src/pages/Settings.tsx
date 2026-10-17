@@ -203,9 +203,10 @@ const Settings = () => {
   }, [isLoaded, loadPayroll]);
 
   useEffect(() => {
+    // Never clobber in-progress edits when store refreshes (seed/sync)
+    if (isDirty) return;
     setFormData(settings);
-    setIsDirty(false);
-  }, [settings]);
+  }, [settings, isDirty]);
 
   useEffect(() => {
     setStats(getBackupStats());
@@ -243,7 +244,15 @@ const Settings = () => {
 
     setIsSaving(true);
     try {
-      await updateSettings(formData);
+      // Hard guard: never persist blank branding over existing values
+      const patch = { ...formData };
+      if (!String(patch.companyName || '').trim() && String(settings.companyName || '').trim()) {
+        patch.companyName = settings.companyName;
+      }
+      if (!String(patch.companyLogo || '').trim() && String(settings.companyLogo || '').trim()) {
+        patch.companyLogo = settings.companyLogo;
+      }
+      await updateSettings(patch);
       setIsDirty(false);
       toast.success(t.settings.changesSaved || "Alterações guardadas com sucesso!");
     } catch {

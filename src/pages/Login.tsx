@@ -154,6 +154,7 @@ export function LoginPage() {
           province: '', municipality: '', phone: '', phone2: '', email: '',
           website: '', bank: '', iban: '', payday: 27, currency: 'AOA (Kwanza)',
           emailPaymentProcessed: true, monthEndReminder: true, holidayAlerts: false, newEmployees: true,
+          employeeCategories: [],
         },
         isLoaded: false,
       });

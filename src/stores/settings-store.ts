@@ -133,7 +133,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     };
     set({ settings: merged });
     const now = new Date().toISOString();
-    for (const [key, val] of Object.entries(merged)) {
+
+    // CRITICAL: only persist keys explicitly passed in newSettings.
+    // Writing the full merged object on every partial update (e.g. category seed)
+    // was wiping companyName/companyLogo in SQLite with empty defaults.
+    const keysToWrite = Object.keys(newSettings) as (keyof CompanySettings)[];
+    for (const key of keysToWrite) {
+      const val = key === 'employeeCategories' ? merged.employeeCategories : merged[key];
       await liveInsert('settings', {
         key,
         value: serializeSettingValue(key, val),
@@ -141,15 +147,15 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       });
     }
 
-    const changedKeys = Object.keys(newSettings).filter(
-      (k) => JSON.stringify((previous as any)[k]) !== JSON.stringify((newSettings as any)[k])
+    const changedKeys = keysToWrite.filter(
+      (k) => JSON.stringify((previous as any)[k]) !== JSON.stringify((merged as any)[k])
     );
     if (changedKeys.length > 0) {
       const prevChanged: Record<string, any> = {};
       const newChanged: Record<string, any> = {};
       changedKeys.forEach((k) => {
         prevChanged[k] = (previous as any)[k];
-        newChanged[k] = (newSettings as any)[k];
+        newChanged[k] = (merged as any)[k];
       });
       logAudit({
         action: 'settings_updated',
@@ -186,6 +192,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   seedEmployeeCategoriesFromEmployees: async () => {
     if ((get().settings.employeeCategories || []).length > 0) return;
+    // Never seed until settings finished loading — avoids racing empty defaults into DB
+    if (!get().isLoaded) return;
     try {
       const { useEmployeeStore } = await import('./employee-store');
       const fromEmployees = useEmployeeStore
@@ -194,6 +202,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         .filter(Boolean);
       const seeded = dedupeCategories(fromEmployees);
       if (seeded.length === 0) return;
+      // Partial update only — must not touch companyName/companyLogo
       await get().updateSettings({ employeeCategories: seeded });
       console.log(`[Settings] Seeded ${seeded.length} employee categories from existing staff`);
     } catch (error) {
