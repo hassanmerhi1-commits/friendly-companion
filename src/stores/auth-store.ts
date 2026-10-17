@@ -1,129 +1,15 @@
 import { create } from 'zustand';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, initSyncListener } from '@/lib/db-live';
+import {
+  type Permission,
+  type UserRole,
+  rolePermissions,
+  roleLabels,
+  expandLegacyPermissions,
+} from '@/lib/permissions-catalog';
 
-export type Permission = 
-  | 'employees.view'
-  | 'employees.create'
-  | 'employees.edit'
-  | 'employees.delete'
-  | 'payroll.view'
-  | 'payroll.calculate'
-  | 'payroll.approve'
-  | 'payroll.export'
-  | 'payroll.archive'
-  | 'payroll.reopen'
-  | 'deductions.view'
-  | 'deductions.create'
-  | 'deductions.edit'
-  | 'deductions.delete'
-  | 'branches.view'
-  | 'branches.create'
-  | 'branches.edit'
-  | 'branches.delete'
-  | 'attendance.view'
-  | 'attendance.create'
-  | 'attendance.edit'
-  | 'attendance.delete'
-  | 'attendance.edit_past'
-  | 'attendance.close'
-  | 'hr.view'
-  | 'hr.create'
-  | 'hr.edit'
-  | 'hr.delete'
-  | 'loans.view'
-  | 'loans.create'
-  | 'loans.edit'
-  | 'loans.delete'
-  | 'holidays.view'
-  | 'holidays.create'
-  | 'holidays.edit'
-  | 'reports.view'
-  | 'reports.export'
-  | 'documents.view'
-  | 'documents.create'
-  | 'laborlaw.view'
-  | 'settings.view'
-  | 'settings.edit'
-  | 'users.view'
-  | 'users.create'
-  | 'users.edit'
-  | 'users.delete';
-
-export type UserRole = 'admin' | 'manager' | 'hr' | 'accountant' | 'viewer';
-
-export const rolePermissions: Record<UserRole, Permission[]> = {
-  admin: [
-    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
-    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export', 'payroll.archive', 'payroll.reopen',
-    'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.delete',
-    'branches.view', 'branches.create', 'branches.edit', 'branches.delete',
-    'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.delete', 'attendance.edit_past', 'attendance.close',
-    'hr.view', 'hr.create', 'hr.edit', 'hr.delete',
-    'loans.view', 'loans.create', 'loans.edit', 'loans.delete',
-    'holidays.view', 'holidays.create', 'holidays.edit',
-    'reports.view', 'reports.export',
-    'documents.view', 'documents.create',
-    'laborlaw.view',
-    'settings.view', 'settings.edit',
-    'users.view', 'users.create', 'users.edit', 'users.delete',
-  ],
-  manager: [
-    'employees.view', 'employees.create', 'employees.edit',
-    'payroll.view', 'payroll.calculate', 'payroll.approve', 'payroll.export',
-    'deductions.view', 'deductions.create', 'deductions.edit',
-    'branches.view',
-    'attendance.view', 'attendance.create', 'attendance.edit',
-    'hr.view', 'hr.create', 'hr.edit',
-    'loans.view', 'loans.create', 'loans.edit',
-    'holidays.view', 'holidays.create', 'holidays.edit',
-    'reports.view', 'reports.export',
-    'documents.view', 'documents.create',
-    'laborlaw.view',
-    'settings.view',
-  ],
-  hr: [
-    'employees.view', 'employees.create', 'employees.edit',
-    'payroll.view',
-    'deductions.view', 'deductions.create',
-    'branches.view',
-    'attendance.view', 'attendance.create', 'attendance.edit',
-    'hr.view', 'hr.create', 'hr.edit',
-    'loans.view', 'loans.create',
-    'holidays.view', 'holidays.create', 'holidays.edit',
-    'reports.view',
-    'documents.view', 'documents.create',
-    'laborlaw.view',
-  ],
-  accountant: [
-    'employees.view',
-    'payroll.view', 'payroll.calculate', 'payroll.export',
-    'deductions.view', 'deductions.create', 'deductions.edit',
-    'attendance.view',
-    'loans.view', 'loans.create', 'loans.edit',
-    'reports.view', 'reports.export',
-    'laborlaw.view',
-  ],
-  viewer: [
-    'employees.view',
-    'payroll.view',
-    'deductions.view',
-    'branches.view',
-    'attendance.view',
-    'hr.view',
-    'loans.view',
-    'holidays.view',
-    'reports.view',
-    'laborlaw.view',
-  ],
-};
-
-export const roleLabels: Record<UserRole, { pt: string; en: string }> = {
-  admin: { pt: 'Administrador', en: 'Administrator' },
-  manager: { pt: 'Gestor', en: 'Manager' },
-  hr: { pt: 'Recursos Humanos', en: 'Human Resources' },
-  accountant: { pt: 'Contabilista', en: 'Accountant' },
-  viewer: { pt: 'Visualizador', en: 'Viewer' },
-};
+export type { Permission, UserRole };
+export { rolePermissions, roleLabels };
 
 function normalizeUserRole(role: unknown): UserRole {
   const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : '';
@@ -134,7 +20,7 @@ function resolveUserPermissions(user: Pick<AppUser, 'role' | 'customPermissions'
   if (!user) return [];
 
   if (Array.isArray(user.customPermissions) && user.customPermissions.length > 0) {
-    return user.customPermissions;
+    return expandLegacyPermissions(user.customPermissions as Permission[]);
   }
 
   return rolePermissions[normalizeUserRole(user.role)] || [];

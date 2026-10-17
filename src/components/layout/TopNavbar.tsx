@@ -57,17 +57,17 @@ export function TopNavbar() {
     icon: LucideIcon;
     permission?: Permission;
   }> = [
-    { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+    { name: t.nav.dashboard, href: "/", icon: LayoutDashboard, permission: 'dashboard.view' },
     { name: t.nav.employees, href: "/employees", icon: UsersRound, permission: 'employees.view' },
-    { name: t.nav.idCards, href: "/employee-cards", icon: IdCard, permission: 'employees.view' },
+    { name: t.nav.idCards, href: "/employee-cards", icon: IdCard, permission: 'cards.view' },
     { name: t.nav.payroll, href: "/payroll", icon: Receipt, permission: 'payroll.view' },
-    { name: t.nav.payrollHistory, href: "/payroll-history", icon: History, permission: 'payroll.view' },
+    { name: t.nav.payrollHistory, href: "/payroll-history", icon: History, permission: 'payroll.history' },
     { name: t.nav.hrDashboard, href: "/hr-dashboard", icon: Briefcase, permission: 'hr.view' },
     { name: t.nav.attendance, href: "/attendance", icon: CalendarCheck, permission: 'attendance.view' },
     { name: t.nav.deductions, href: "/deductions", icon: HandCoins, permission: 'deductions.view' },
     { name: t.nav.branches, href: "/branches", icon: Building2, permission: 'branches.view' },
     { name: t.nav.laborLaw, href: "/labor-law", icon: Scale, permission: 'laborlaw.view' },
-    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Percent, permission: 'payroll.view' },
+    { name: t.nav.taxSimulator, href: "/tax-simulator", icon: Percent, permission: 'taxsim.view' },
     { name: t.nav.documents, href: "/documents", icon: FileSignature, permission: 'documents.view' },
     { name: t.nav.reports, href: "/reports", icon: BarChart3, permission: 'reports.view' },
     { name: t.nav.settings, href: "/settings", icon: Settings, permission: 'settings.view' },

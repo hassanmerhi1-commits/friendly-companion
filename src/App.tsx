@@ -28,6 +28,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { initBulkAttendanceStoreSync, useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { initHRStoreSync, useHRStore } from "@/stores/hr-store";
 import { initOvertimePaymentSync, useOvertimePaymentStore } from "@/stores/overtime-payment-store";
+import { initOvertimeRegisterSync, useOvertimeRegisterStore } from "@/stores/overtime-register-store";
 import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
 import { useDisciplinaryStore, initDisciplinaryStoreSync } from "@/stores/disciplinary-store";
 import { useLoanStore, initLoanStoreSync } from "@/stores/loan-store";
@@ -171,8 +172,10 @@ const AppRoutes = () => {
       } />
       {/* Branch attendance - standalone, PIN-protected (no login required) */}
       <Route path="/branch-attendance" element={<BranchAttendance />} />
-      {/* Dashboard - accessible to all authenticated users */}
-      <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+      {/* Dashboard */}
+      <Route path="/" element={
+        <PermissionRoute requiredPermission="dashboard.view"><Index /></PermissionRoute>
+      } />
       
       {/* Permission-protected routes */}
       <Route path="/employees" element={
@@ -182,13 +185,13 @@ const AppRoutes = () => {
         <PermissionRoute requiredPermission="employees.view"><EmployeeProfile /></PermissionRoute>
       } />
       <Route path="/employee-cards" element={
-        <PermissionRoute requiredPermission="employees.view"><EmployeeCards /></PermissionRoute>
+        <PermissionRoute requiredPermission="cards.view"><EmployeeCards /></PermissionRoute>
       } />
       <Route path="/payroll" element={
         <PermissionRoute requiredPermission="payroll.view"><Payroll /></PermissionRoute>
       } />
       <Route path="/payroll-history" element={
-        <PermissionRoute requiredPermission="payroll.view"><PayrollHistory /></PermissionRoute>
+        <PermissionRoute requiredPermission="payroll.history"><PayrollHistory /></PermissionRoute>
       } />
       <Route path="/deductions" element={
         <PermissionRoute requiredPermission="deductions.view"><Deductions /></PermissionRoute>
@@ -221,7 +224,7 @@ const AppRoutes = () => {
         <PermissionRoute requiredPermission="settings.view"><EditHistory /></PermissionRoute>
       } />
       <Route path="/tax-simulator" element={
-        <PermissionRoute requiredPermission="payroll.view"><TaxSimulator /></PermissionRoute>
+        <PermissionRoute requiredPermission="taxsim.view"><TaxSimulator /></PermissionRoute>
       } />
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -266,6 +269,7 @@ function AppContent() {
           const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
           const { loadHRData } = useHRStore.getState();
           const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+          const { loadEntries: loadOvertimeRegisters } = useOvertimeRegisterStore.getState();
           const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
           const { loadLoans } = useLoanStore.getState();
 
@@ -282,6 +286,7 @@ function AppContent() {
             loadBulkAttendance(),
             loadHRData(),
             loadOvertimePayments(),
+            loadOvertimeRegisters(),
             loadDisciplinary(),
             loadLoans(),
           ]);
@@ -361,6 +366,7 @@ function AppContent() {
             initBulkAttendanceStoreSync();
             initHRStoreSync();
             initOvertimePaymentSync();
+            initOvertimeRegisterSync();
             initDailyAttendanceSync();
             initDisciplinaryStoreSync();
             initLoanStoreSync();
@@ -388,6 +394,7 @@ function AppContent() {
             const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
             const { loadHRData } = useHRStore.getState();
             const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+            const { loadEntries: loadOvertimeRegisters } = useOvertimeRegisterStore.getState();
             const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
             const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
             const { loadLoans } = useLoanStore.getState();
@@ -405,6 +412,7 @@ function AppContent() {
               loadBulkAttendance(),
               loadHRData(),
               loadOvertimePayments(),
+              loadOvertimeRegisters(),
               loadDailyAttendance(),
               loadDisciplinary(),
               loadLoans(),

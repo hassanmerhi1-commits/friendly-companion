@@ -32,6 +32,8 @@ import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import { useBranchStore } from '@/stores/branch-store';
 import { useHolidayStore } from '@/stores/holiday-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { REPORTS_CATEGORY_PERMISSION } from '@/lib/permissions-catalog';
 import { useLoanStore } from '@/stores/loan-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useDeductionStore } from '@/stores/deduction-store';
@@ -45,6 +47,7 @@ import { PrintableEmployeeReport } from '@/components/reports/PrintableEmployeeR
 import { PrintableCostAnalysis } from '@/components/reports/PrintableCostAnalysis';
 import { PrintableHolidayMap } from '@/components/reports/PrintableHolidayMap';
 import { PrintableHolidayPlanNextYear } from '@/components/reports/PrintableHolidayPlanNextYear';
+import { PrintableOccupationalQualifier } from '@/components/reports/PrintableOccupationalQualifier';
 import { PrintableINSSMap } from '@/components/reports/PrintableINSSMap';
 import { PrintableIRTMap } from '@/components/reports/PrintableIRTMap';
 import { PrintableHolidayReport } from '@/components/reports/PrintableHolidayReport';
@@ -68,6 +71,7 @@ type ReportType =
   | 'cost'
   | 'holiday'
   | 'holiday_plan_next_year'
+  | 'occupational_qualifier'
   | 'inss'
   | 'irt'
   | 'ferias'
@@ -123,6 +127,17 @@ const REPORT_DEFS: ReportDef[] = [
     icon: Calendar,
     needsEmployees: true,
   },
+  {
+    id: 'occupational_qualifier',
+    type: 'occupational_qualifier',
+    category: 'hr',
+    namePt: 'Qualificador Ocupacional',
+    nameEn: 'Occupational Qualifier',
+    descPt: 'Preencher funcoes e gerar PDF para a IGT (por provincia)',
+    descEn: 'Fill functions and generate PDF for IGT (per province)',
+    icon: ClipboardList,
+    needsEmployees: false,
+  },
   { id: 'ferias', type: 'ferias', category: 'hr', namePt: 'Relatório de Férias', nameEn: 'Holiday Report', descPt: 'Saldos e férias gozadas no ano', descEn: 'Balances and taken leave for the year', icon: Calendar, needsEmployees: true },
   { id: 'salary_history', type: 'salary_history', category: 'hr', namePt: 'Histórico Salarial', nameEn: 'Salary History', descPt: 'Histórico financeiro individual (seleccionar funcionário)', descEn: 'Individual financial history (select employee)', icon: History, needsEmployee: true },
   { id: 'salary_comparison', type: 'salary_comparison', category: 'hr', namePt: 'Comparativo Salarial', nameEn: 'Salary Comparison', descPt: 'Evolução salarial ano a ano', descEn: 'Year-over-year salary evolution', icon: BarChart3, needsPayroll: true },
@@ -142,6 +157,7 @@ export default function Reports() {
   const { branches: allBranches } = useBranchStore();
   const branches = useMemo(() => allBranches.filter((b) => b.isActive), [allBranches]);
   const { records: holidayRecords, saveRecords } = useHolidayStore();
+  const { hasPermission } = useAuthStore();
   const { loans, loadLoans } = useLoanStore();
   const { deductions, loadDeductions } = useDeductionStore();
   const { settings } = useSettingsStore();
@@ -374,6 +390,9 @@ export default function Reports() {
   const visibleReports = useMemo(() => {
     const q = normalizeSearch(reportSearch.trim());
     return REPORT_DEFS.filter((def) => {
+      if (def.type === 'holiday_plan_next_year' && !hasPermission('reports.holiday_plan')) return false;
+      const catPerm = REPORTS_CATEGORY_PERMISSION[def.category];
+      if (catPerm && !hasPermission(catPerm)) return false;
       const matchesCategory = activeCategory === 'all' || def.category === activeCategory;
       const name = pt ? def.namePt : def.nameEn;
       const desc = pt ? def.descPt : def.descEn;
@@ -381,7 +400,7 @@ export default function Reports() {
         !q || normalizeSearch(`${name} ${desc}`).includes(q);
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, reportSearch, pt]);
+  }, [activeCategory, reportSearch, pt, hasPermission]);
 
   const periodStatusLabel = (() => {
     if (!selectedPeriod) return null;
@@ -559,7 +578,11 @@ export default function Reports() {
                     ['attendance', labels.tabAttendance],
                     ['annual', labels.tabAnnual],
                   ] as const
-                ).map(([val, label]) => (
+                ).filter(([val]) => {
+                    if (val === 'all') return true;
+                    const perm = REPORTS_CATEGORY_PERMISSION[val];
+                    return !perm || hasPermission(perm);
+                  }).map(([val, label]) => (
                   <TabsTrigger key={val} value={val} className="text-xs h-7 px-2.5">
                     {label}
                   </TabsTrigger>
@@ -708,6 +731,30 @@ export default function Reports() {
                 ]}
                 holidayRecords={holidayRecords}
                 onSaveRecords={handleSaveHolidayRecords}
+                onClose={() => setOpenReport(null)}
+              />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+
+        <Dialog
+          open={openReport === 'occupational_qualifier'}
+          onOpenChange={handleDialogChange}
+        >
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {pt ? 'Qualificador Ocupacional' : 'Occupational Qualifier'}
+              </DialogTitle>
+            </DialogHeader>
+            {openReport === 'occupational_qualifier' ? (
+              <PrintableOccupationalQualifier
+                employees={employees}
+                categories={settings.employeeCategories || []}
+                companyName={settings.companyName}
+                companyNif={settings.nif}
+                province={settings.province || settings.city}
                 onClose={() => setOpenReport(null)}
               />
             ) : null}

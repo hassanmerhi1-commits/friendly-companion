@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TodayPunchBoard } from "@/components/attendance/TodayPunchBoard";
 import { AttendanceList } from "@/components/attendance/AttendanceList";
 import { OvertimeTracker } from "@/components/attendance/OvertimeTracker";
+import { OvertimeRegister } from "@/components/attendance/OvertimeRegister";
 import { AbsenceCalendar } from "@/components/attendance/AbsenceCalendar";
 import { PrintableAttendanceMap } from "@/components/attendance/PrintableAttendanceMap";
 import { BulkAttendanceEntry } from "@/components/attendance/BulkAttendanceEntry";
@@ -21,6 +22,7 @@ import { useAttendanceStore } from "@/stores/attendance-store";
 import { useBulkAttendanceStore } from "@/stores/bulk-attendance-store";
 import { usePayrollStore } from "@/stores/payroll-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { ATTENDANCE_TAB_PERMISSION } from "@/lib/permissions-catalog";
 import { useBranchStore } from "@/stores/branch-store";
 import { useEmployeeStore } from "@/stores/employee-store";
 import { formatAOA } from "@/lib/angola-labor-law";
@@ -70,7 +72,21 @@ export default function Attendance() {
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
     isShopUser && currentUser?.branchId ? currentUser.branchId : "all"
   );
-  const [activeTab, setActiveTab] = useState(isShopUser ? "daily" : "bulk");
+  const canOpenAttendanceTab = (tab: string) => {
+    const perm = ATTENDANCE_TAB_PERMISSION[tab];
+    return !perm || hasPermission(perm);
+  };
+  const defaultAttendanceTab = isShopUser ? "daily" : "bulk";
+  const [activeTab, setActiveTab] = useState(defaultAttendanceTab);
+  useEffect(() => {
+    if (!canOpenAttendanceTab(activeTab)) {
+      const fallback = (isShopUser
+        ? ["daily", "bulk", "clock", "records", "ot_register", "overtime", "calendar", "effectiveness"]
+        : ["bulk", "daily", "clock", "records", "ot_register", "overtime", "calendar", "effectiveness"]
+      ).find(canOpenAttendanceTab);
+      if (fallback) setActiveTab(fallback);
+    }
+  }, [activeTab, currentUser, isShopUser]);
 
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
@@ -231,6 +247,7 @@ export default function Attendance() {
     clockInOut: pt ? "Registo de Ponto" : "Clock In/Out",
     records: pt ? "Registos" : "Records",
     overtime: pt ? "Horas Extra" : "Overtime",
+    otRegister: pt ? "Registo HE" : "OT Register",
     calendar: pt ? "Calendário" : "Calendar",
     effectivenessMap: pt ? "Mapa Efectividade" : "Effectiveness Map",
     closeAttendance: pt ? "Fechar" : "Close",
@@ -372,13 +389,13 @@ export default function Attendance() {
         </div>
 
         {/* Status banners — only on non-table tabs to save vertical space */}
-        {activeTab !== "daily" && activeTab !== "bulk" && activeTab !== "clock" && activeTab !== "calendar" && activeTab !== "overtime" && activeTab !== "records" && activeTab !== "effectiveness" && isPeriodArchived && !isCurrentPeriod && (
+        {activeTab !== "daily" && activeTab !== "bulk" && activeTab !== "clock" && activeTab !== "calendar" && activeTab !== "overtime" && activeTab !== "ot_register" && activeTab !== "records" && activeTab !== "effectiveness" && isPeriodArchived && !isCurrentPeriod && (
           <div className="shrink-0 flex items-center gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium">
             <Lock className="h-3.5 w-3.5" />
             {t.archived}
           </div>
         )}
-        {activeTab !== "daily" && activeTab !== "bulk" && activeTab !== "clock" && activeTab !== "calendar" && activeTab !== "overtime" && activeTab !== "records" && activeTab !== "effectiveness" && attendanceClosed && !isPeriodArchived && (
+        {activeTab !== "daily" && activeTab !== "bulk" && activeTab !== "clock" && activeTab !== "calendar" && activeTab !== "overtime" && activeTab !== "ot_register" && activeTab !== "records" && activeTab !== "effectiveness" && attendanceClosed && !isPeriodArchived && (
           <div className="shrink-0 flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-400 font-medium">
             <Lock className="h-3.5 w-3.5" />
             {t.attendanceClosedOn} {attendanceCutoff} —{" "}
@@ -394,6 +411,7 @@ export default function Attendance() {
           activeTab !== "bulk" &&
           activeTab !== "clock" &&
           activeTab !== "overtime" &&
+          activeTab !== "ot_register" &&
           activeTab !== "records" &&
           activeTab !== "calendar" &&
           activeTab !== "effectiveness" && (
@@ -448,55 +466,75 @@ export default function Attendance() {
         {/* Mode tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={(v) => { if (canOpenAttendanceTab(v)) setActiveTab(v); }}
           className="flex flex-col flex-1 min-h-0 basis-0 gap-1 overflow-hidden min-w-0"
         >
-          <TabsList className="shrink-0 w-full justify-start overflow-x-auto flex-nowrap border-b border-border/40 bg-muted/20 rounded-none p-0 h-9 gap-0">
-            <TabsTrigger value="daily" className="text-xs gap-1.5">
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              {t.dailyMarking}
-            </TabsTrigger>
+                    <TabsList className="shrink-0 w-full justify-start overflow-x-auto flex-nowrap border-b border-border/40 bg-muted/20 rounded-none p-0 h-9 gap-0">
+            {canOpenAttendanceTab("daily") && (
+              <TabsTrigger value="daily" className="text-xs gap-1.5">
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                {t.dailyMarking}
+              </TabsTrigger>
+            )}
             {!isShopUser && (
               <>
-                <TabsTrigger value="bulk" className="text-xs gap-1.5">
-                  <UserMinus className="h-3.5 w-3.5" />
-                  {t.bulkEntry}
-                  {selectedMonthEntries > 0 && (
-                    <Badge variant="destructive" className="ml-0.5 h-4 px-1 text-[10px]">
-                      {selectedMonthEntries}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="clock" className="text-xs gap-1.5">
-                  <Clock className="h-3.5 w-3.5" />
-                  {t.clockInOut}
-                  {todayRecords > 0 && (
-                    <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">
-                      {todayRecords}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="records" className="text-xs gap-1.5">
-                  <List className="h-3.5 w-3.5" />
-                  {t.records}
-                </TabsTrigger>
-                <TabsTrigger value="overtime" className="text-xs gap-1.5">
-                  <Timer className="h-3.5 w-3.5" />
-                  {t.overtime}
-                </TabsTrigger>
-                <TabsTrigger value="calendar" className="text-xs gap-1.5">
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {t.calendar}
-                  {pendingAbsences > 0 && (
-                    <Badge variant="destructive" className="ml-0.5 h-4 px-1 text-[10px]">
-                      {pendingAbsences}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="effectiveness" className="text-xs gap-1.5">
-                  <FileText className="h-3.5 w-3.5" />
-                  {t.effectivenessMap}
-                </TabsTrigger>
+                {canOpenAttendanceTab("bulk") && (
+                  <TabsTrigger value="bulk" className="text-xs gap-1.5">
+                    <UserMinus className="h-3.5 w-3.5" />
+                    {t.bulkEntry}
+                    {selectedMonthEntries > 0 && (
+                      <Badge variant="destructive" className="ml-0.5 h-4 px-1 text-[10px]">
+                        {selectedMonthEntries}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("clock") && (
+                  <TabsTrigger value="clock" className="text-xs gap-1.5">
+                    <Clock className="h-3.5 w-3.5" />
+                    {t.clockInOut}
+                    {todayRecords > 0 && (
+                      <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">
+                        {todayRecords}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("records") && (
+                  <TabsTrigger value="records" className="text-xs gap-1.5">
+                    <List className="h-3.5 w-3.5" />
+                    {t.records}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("ot_register") && (
+                  <TabsTrigger value="ot_register" className="text-xs gap-1.5">
+                    <Timer className="h-3.5 w-3.5" />
+                    {t.otRegister}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("overtime") && (
+                  <TabsTrigger value="overtime" className="text-xs gap-1.5">
+                    <Timer className="h-3.5 w-3.5" />
+                    {t.overtime}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("calendar") && (
+                  <TabsTrigger value="calendar" className="text-xs gap-1.5">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    {t.calendar}
+                    {pendingAbsences > 0 && (
+                      <Badge variant="destructive" className="ml-0.5 h-4 px-1 text-[10px]">
+                        {pendingAbsences}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )}
+                {canOpenAttendanceTab("effectiveness") && (
+                  <TabsTrigger value="effectiveness" className="text-xs gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    {t.effectivenessMap}
+                  </TabsTrigger>
+                )}
               </>
             )}
           </TabsList>
@@ -540,6 +578,17 @@ export default function Attendance() {
                     branchFilter={branchFilter}
                     month={selectedMonth}
                     year={selectedYear}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value="ot_register"
+                  className="absolute inset-0 mt-0 overflow-hidden flex flex-col data-[state=inactive]:hidden outline-none"
+                >
+                  <OvertimeRegister
+                    embedded
+                    branchFilter={branchFilter}
+                    readOnly={isPeriodArchived && !isCurrentPeriod}
                   />
                 </TabsContent>
 

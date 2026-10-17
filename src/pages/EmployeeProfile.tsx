@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useReactToPrint } from 'react-to-print';
 import { TopNavLayout } from '@/components/layout/TopNavLayout';
@@ -21,6 +21,7 @@ import {
 import { toast } from 'sonner';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { EMPLOYEE_PROFILE_TAB_PERMISSION } from '@/lib/permissions-catalog';
 import { useLanguage } from '@/lib/i18n';
 import { ATTENDANCE_PAGE } from '@/lib/page-layout';
 import { ProfileHeader } from '@/components/employee-profile/ProfileHeader';
@@ -41,11 +42,22 @@ const EmployeeProfile = () => {
   const { employees } = useEmployeeStore();
   const { hasPermission } = useAuthStore();
   const canEdit = hasPermission('employees.edit');
+  const canOpenProfileTab = (tab: DossierTab) => {
+    const perm = EMPLOYEE_PROFILE_TAB_PERMISSION[tab];
+    return !perm || hasPermission(perm);
+  };
 
   const backTarget = location.search ? `/employees${location.search}` : '/employees';
   const employee = employees.find((e) => e.id === id);
 
   const [activeTab, setActiveTab] = useState<DossierTab>('overview');
+  useEffect(() => {
+    if (!canOpenProfileTab(activeTab)) {
+      const order: DossierTab[] = ['overview', 'folha', 'attendance', 'financeiro', 'rh', 'auditoria'];
+      const next = order.find(canOpenProfileTab);
+      if (next) setActiveTab(next);
+    }
+  }, [activeTab]);
   const [formOpen, setFormOpen] = useState(false);
   const [cardDialogOpen, setCardDialogOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -136,34 +148,46 @@ const EmployeeProfile = () => {
 
         <Tabs
           value={activeTab}
-          onValueChange={(v) => setActiveTab(v as DossierTab)}
+          onValueChange={(v) => { if (canOpenProfileTab(v as DossierTab)) setActiveTab(v as DossierTab); }}
           className="flex flex-col flex-1 min-h-0 overflow-hidden"
         >
-          <TabsList className="h-8 w-full justify-start overflow-x-auto shrink-0 mb-2">
-            <TabsTrigger value="overview" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              {language === 'pt' ? 'Resumo' : 'Overview'}
-            </TabsTrigger>
-            <TabsTrigger value="folha" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <Wallet className="h-3.5 w-3.5" />
-              {language === 'pt' ? 'Folha' : 'Payroll'}
-            </TabsTrigger>
-            <TabsTrigger value="attendance" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <Clock className="h-3.5 w-3.5" />
-              {language === 'pt' ? 'Presenças' : 'Attendance'}
-            </TabsTrigger>
-            <TabsTrigger value="financeiro" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <Receipt className="h-3.5 w-3.5" />
-              {language === 'pt' ? 'Financeiro' : 'Financial'}
-            </TabsTrigger>
-            <TabsTrigger value="rh" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <Users className="h-3.5 w-3.5" />
-              RH
-            </TabsTrigger>
-            <TabsTrigger value="auditoria" className="text-xs gap-1.5 h-7 px-3 shrink-0">
-              <History className="h-3.5 w-3.5" />
-              {language === 'pt' ? 'Auditoria' : 'Audit'}
-            </TabsTrigger>
+                    <TabsList className="h-8 w-full justify-start overflow-x-auto shrink-0 mb-2">
+            {canOpenProfileTab('overview') && (
+              <TabsTrigger value="overview" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                {language === 'pt' ? 'Resumo' : 'Overview'}
+              </TabsTrigger>
+            )}
+            {canOpenProfileTab('folha') && (
+              <TabsTrigger value="folha" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <Wallet className="h-3.5 w-3.5" />
+                {language === 'pt' ? 'Folha' : 'Payroll'}
+              </TabsTrigger>
+            )}
+            {canOpenProfileTab('attendance') && (
+              <TabsTrigger value="attendance" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <Clock className="h-3.5 w-3.5" />
+                {language === 'pt' ? 'Presenças' : 'Attendance'}
+              </TabsTrigger>
+            )}
+            {canOpenProfileTab('financeiro') && (
+              <TabsTrigger value="financeiro" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <Receipt className="h-3.5 w-3.5" />
+                {language === 'pt' ? 'Financeiro' : 'Financial'}
+              </TabsTrigger>
+            )}
+            {canOpenProfileTab('rh') && (
+              <TabsTrigger value="rh" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <Users className="h-3.5 w-3.5" />
+                RH
+              </TabsTrigger>
+            )}
+            {canOpenProfileTab('auditoria') && (
+              <TabsTrigger value="auditoria" className="text-xs gap-1.5 h-7 px-3 shrink-0">
+                <History className="h-3.5 w-3.5" />
+                {language === 'pt' ? 'Auditoria' : 'Audit'}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">

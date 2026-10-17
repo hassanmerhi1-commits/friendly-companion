@@ -51,6 +51,7 @@ import {
 import type { TerminationReason } from "@/types/hr";
 import { useReactToPrint } from "react-to-print";
 import { useAuthStore } from "@/stores/auth-store";
+import { HR_TAB_PERMISSION } from "@/lib/permissions-catalog";
 import { toast } from "sonner";
 
 export default function HRDashboard() {
@@ -156,6 +157,10 @@ export default function HRDashboard() {
     setUnusedLeaveDays(0);
   };
 
+  const canOpenHrTab = (id: string) => {
+    const perm = HR_TAB_PERMISSION[id];
+    return !perm || hasPermission(perm);
+  };
   const tabItems = [
     { id: "termination" as const, icon: UserX, label: pt ? "Rescisão" : "Termination" },
     {
@@ -184,7 +189,7 @@ export default function HRDashboard() {
           <span className="text-sm font-semibold shrink-0">{pt ? "Painel RH" : "HR Panel"}</span>
 
           <div className="flex flex-wrap items-center gap-1 bg-muted/40 rounded-lg p-0.5">
-            {tabItems.map((tab) => {
+            {tabItems.filter((tab) => canOpenHrTab(tab.id)).map((tab) => {
               const Icon = tab.icon;
               return (
                 <button

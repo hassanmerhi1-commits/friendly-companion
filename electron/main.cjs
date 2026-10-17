@@ -404,7 +404,7 @@ function startWebSocketServer() {
                 return;
               }
               console.log(`[WS] ✓ setCompany '${msg.companyId}' OK for ${clientIP}`);
-              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance'];
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance', 'overtime_registers'];
               for (const table of tables) {
                 try {
                   const rows = dbGetAll(table, targetDb);
@@ -1670,6 +1670,24 @@ function runMigrations() {
       );
     `);
     console.log('Migration: Ensured overtime_payments table exists');
+
+    // Daily overtime register for payroll (folha) — separate from overtime_payments cash receipts
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS overtime_registers (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        hours_normal REAL DEFAULT 0,
+        hours_night REAL DEFAULT 0,
+        hours_holiday REAL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(employee_id, date)
+      );
+    `);
+    console.log('Migration: Ensured overtime_registers table exists');
+
 
     // === HR TABLES (disciplinary, terminations, salary adjustments, loans, attendance, audit) ===
     db.exec(`

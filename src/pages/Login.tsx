@@ -43,6 +43,7 @@ import { useAttendanceStore } from '@/stores/attendance-store';
 import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
 import { useHRStore } from '@/stores/hr-store';
 import { useOvertimePaymentStore } from '@/stores/overtime-payment-store';
+import { useOvertimeRegisterStore } from '@/stores/overtime-register-store';
 import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
 import { useDisciplinaryStore } from '@/stores/disciplinary-store';
 import { useLoanStore } from '@/stores/loan-store';
@@ -168,6 +169,7 @@ export function LoginPage() {
       const { loadEntries: loadBulkAttendance } = useBulkAttendanceStore.getState();
       const { loadHRData } = useHRStore.getState();
       const { loadPayments: loadOvertimePayments } = useOvertimePaymentStore.getState();
+      const { loadEntries: loadOvertimeRegisters } = useOvertimeRegisterStore.getState();
       const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
       const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
       const { loadLoans } = useLoanStore.getState();
@@ -185,6 +187,7 @@ export function LoginPage() {
         loadBulkAttendance(),
         loadHRData(),
         loadOvertimePayments(),
+        loadOvertimeRegisters(),
         loadDailyAttendance(),
         loadDisciplinary(),
         loadLoans(),

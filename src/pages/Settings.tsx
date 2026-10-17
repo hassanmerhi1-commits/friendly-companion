@@ -27,6 +27,8 @@ import { DatabaseSettings } from "@/components/settings/DatabaseSettings";
 import { getSelectedProvince, clearProvinceSelection } from "@/lib/province-storage";
 import { CheckForUpdatesButton } from "@/components/UpdateNotification";
 import { AssistantSettingsPanel } from "@/components/assistant/AssistantSettingsPanel";
+import { useAuthStore } from "@/stores/auth-store";
+import { SETTINGS_TAB_PERMISSION } from "@/lib/permissions-catalog";
 
 const fieldLabel = "text-xs text-muted-foreground";
 const fieldInput = "h-8 text-xs";
@@ -157,6 +159,11 @@ const Settings = () => {
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const { hasPermission } = useAuthStore();
+  const canOpenSettingsTab = (id: SettingsTab) => {
+    const perm = SETTINGS_TAB_PERMISSION[id];
+    return !perm || hasPermission(perm);
+  };
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("empresa");
   const currentProvince = getSelectedProvince();
 
@@ -196,6 +203,13 @@ const Settings = () => {
     setStats(getBackupStats());
   }, []);
 
+  useEffect(() => {
+    if (!canOpenSettingsTab(settingsTab)) {
+      const next = settingsTabs.find((tab) => canOpenSettingsTab(tab.id));
+      if (next) setSettingsTab(next.id);
+    }
+  }, [settingsTab]);
+
   const handleRecalculatePayroll = async () => {
     setIsRecalculating(true);
     try {
@@ -214,6 +228,11 @@ const Settings = () => {
   };
 
   const handleSave = async () => {
+    if (!hasPermission('settings.edit')) {
+      toast.error(pt ? 'Sem permissão para editar definições' : 'No permission to edit settings');
+      return;
+    }
+
     setIsSaving(true);
     try {
       await updateSettings(formData);
@@ -447,7 +466,7 @@ const Settings = () => {
             )}
           </div>
           <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto">
-            {settingsTabs.map((tab) => (
+            {settingsTabs.filter((tab) => canOpenSettingsTab(tab.id)).map((tab) => (
               <Button
                 key={tab.id}
                 variant={settingsTab === tab.id ? "default" : "outline"}
@@ -645,7 +664,7 @@ const Settings = () => {
             <span className="text-[10px] text-muted-foreground hidden sm:inline">
               {isDirty ? (pt ? "Tem alterações não guardadas" : "You have unsaved changes") : (pt ? "Tudo guardado" : "All saved")}
             </span>
-            <Button variant="accent" size="sm" className="h-8 text-xs ml-auto" onClick={handleSave} disabled={!isDirty || isSaving}>
+            <Button variant="accent" size="sm" className="h-8 text-xs ml-auto" onClick={handleSave} disabled={!isDirty || isSaving || !hasPermission('settings.edit')}>
               {isSaving ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />

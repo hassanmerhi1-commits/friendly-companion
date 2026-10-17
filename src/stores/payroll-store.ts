@@ -35,7 +35,7 @@ interface PayrollState {
   getCurrentPeriod: () => PayrollPeriod | undefined;
   updatePeriodStatus: (id: string, status: PayrollPeriod['status']) => Promise<void>;
 
-  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[], absenceStore?: any, deductionStore?: any, bulkAttendanceStore?: any) => Promise<void>;
+  generateEntriesForPeriod: (periodId: string, employees: Employee[], holidayRecords?: { employeeId: string; year: number; holidayMonth?: number; subsidyPaidInMonth?: number }[], absenceStore?: any, deductionStore?: any, bulkAttendanceStore?: any, overtimeRegisterStore?: any) => Promise<void>;
   toggle13thMonth: (entryId: string, monthsWorked: number) => Promise<void>;
   toggleHolidaySubsidy: (entryId: string) => Promise<void>;
   updateEntry: (id: string, data: Partial<PayrollEntry>) => Promise<void>;
@@ -438,7 +438,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
       await liveUpdate('payroll_periods', id, { status, updated_at: now });
     },
 
-    generateEntriesForPeriod: async (periodId, employees, holidayRecords, absenceStore?, deductionStore?, bulkAttendanceStore?) => {
+    generateEntriesForPeriod: async (periodId, employees, holidayRecords, absenceStore?, deductionStore?, bulkAttendanceStore?, overtimeRegisterStore?) => {
       const period = get().getPeriod(periodId);
       if (!period) return;
 
@@ -570,6 +570,26 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           // Combine absence + delay deductions
           const totalAbsenceDeduction = absenceDeduction + delayDeduction;
 
+          // OT hours from Attendance daily register (sum for period month/year)
+          let overtimeHoursNormal = 0;
+          let overtimeHoursNight = 0;
+          let overtimeHoursHoliday = 0;
+          if (overtimeRegisterStore?.getHoursForEmployeePeriod) {
+            const ot = overtimeRegisterStore.getHoursForEmployeePeriod(
+              emp.id,
+              period.month,
+              period.year
+            );
+            overtimeHoursNormal = ot?.hoursNormal || 0;
+            overtimeHoursNight = ot?.hoursNight || 0;
+            overtimeHoursHoliday = ot?.hoursHoliday || 0;
+            if (overtimeHoursNormal + overtimeHoursNight + overtimeHoursHoliday > 0) {
+              console.log(
+                `[Payroll] OT register for ${emp.firstName}: N=${overtimeHoursNormal}h Night=${overtimeHoursNight}h Holiday=${overtimeHoursHoliday}h`
+              );
+            }
+          }
+
           // Calculate payroll FIRST so we know the net salary for warehouse loss cap
           const payrollResult = calculatePayroll({
             baseSalary: emp.baseSalary,
@@ -577,6 +597,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
             transportAllowance: emp.transportAllowance,
             otherAllowances: emp.otherAllowances,
             familyAllowanceValue: emp.familyAllowance || 0,
+            overtimeHoursNormal,
+            overtimeHoursNight,
+            overtimeHoursHoliday,
             isRetired: emp.isRetired,
             isColaborador: emp.contractType === 'colaborador',
             include13thMonth: preserved13thMonth > 0,
@@ -780,9 +803,9 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               otherDeductions,
               deductionDetails: deductionBreakdown.length > 0 ? JSON.stringify(deductionBreakdown) : undefined,
               leaveNotes,
-              overtimeHoursNormal: 0,
-              overtimeHoursNight: 0,
-              overtimeHoursHoliday: 0,
+              overtimeHoursNormal,
+              overtimeHoursNight,
+              overtimeHoursHoliday,
               status: 'draft' as const,
               createdAt: now,
               updatedAt: now,
