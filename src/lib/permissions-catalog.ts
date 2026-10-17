@@ -115,17 +115,32 @@ export const NEW_TAB_PERMISSION_MARKERS: Permission[] = ['dashboard.view', 'card
 
 export function expandLegacyPermissions(perms: Permission[]): Permission[] {
   if (!Array.isArray(perms) || perms.length === 0) return [];
-  const hasNew = perms.some((p) => NEW_TAB_PERMISSION_MARKERS.includes(p));
-  if (hasNew) return [...new Set(perms)];
   const set = new Set<Permission>(perms);
   const add = (...keys: Permission[]) => keys.forEach((k) => set.add(k));
-  add('dashboard.view');
-  if (set.has('employees.view')) add('cards.view', ...EMPLOYEE_PROFILE_TABS);
-  if (set.has('payroll.view')) add('payroll.history', 'taxsim.view');
-  if (set.has('attendance.view')) add(...ATTENDANCE_INNER_TABS);
-  if (set.has('hr.view')) add(...HR_INNER_TABS);
-  if (set.has('settings.view')) add(...SETTINGS_INNER_SAFE);
-  if (set.has('reports.view')) add(...REPORTS_INNER);
+  const hasNew = perms.some((p) => NEW_TAB_PERMISSION_MARKERS.includes(p));
+
+  if (!hasNew) {
+    // Old permission lists: expand parent → all inner tabs
+    add('dashboard.view');
+    if (set.has('employees.view')) add('cards.view', ...EMPLOYEE_PROFILE_TABS);
+    if (set.has('payroll.view')) add('payroll.history', 'taxsim.view');
+    if (set.has('attendance.view')) add(...ATTENDANCE_INNER_TABS);
+    if (set.has('hr.view')) add(...HR_INNER_TABS);
+    if (set.has('settings.view')) add(...SETTINGS_INNER_SAFE);
+    if (set.has('reports.view')) add(...REPORTS_INNER);
+  } else {
+    // Partial/new lists: only ADD missing gaps — never remove grants.
+    // Critical: settings.view must keep Empresa (company name/logo) reachable after 1.0.96.
+    if (set.has('settings.view')) {
+      const hasAnySettingsTab = SETTINGS_INNER_TABS.some((p) => set.has(p));
+      if (!hasAnySettingsTab) {
+        add(...SETTINGS_INNER_SAFE);
+      } else if (!set.has('settings.company')) {
+        add('settings.company');
+      }
+    }
+  }
+
   return [...set];
 }
 

@@ -36,6 +36,36 @@ interface Props {
   readOnly?: boolean;
 }
 
+function emptyLocalOt(): LocalOt {
+  return { hoursNormal: '', hoursNight: '', hoursHoliday: '' };
+}
+
+function buildLocalFromStore(
+  employees: { id: string; status: string }[],
+  dateStr: string,
+  getEntryForEmployeeDate: (
+    employeeId: string,
+    date: string
+  ) => { hoursNormal: number; hoursNight: number; hoursHoliday: number } | undefined
+): Record<string, LocalOt> {
+  const next: Record<string, LocalOt> = {};
+  const fmt = (n: number | undefined) => {
+    const v = Number(n) || 0;
+    return v > 0 ? String(v) : '';
+  };
+  for (const emp of employees.filter((e) => e.status === 'active')) {
+    const row = getEntryForEmployeeDate(emp.id, dateStr);
+    next[emp.id] = row
+      ? {
+          hoursNormal: fmt(row.hoursNormal),
+          hoursNight: fmt(row.hoursNight),
+          hoursHoliday: fmt(row.hoursHoliday),
+        }
+      : emptyLocalOt();
+  }
+  return next;
+}
+
 export function OvertimeRegister({ embedded: _embedded = false, branchFilter, readOnly = false }: Props) {
   const { language } = useLanguage();
   const pt = language === 'pt';
@@ -88,42 +118,46 @@ export function OvertimeRegister({ embedded: _embedded = false, branchFilter, re
     if (branchFilter) setSelectedBranch(branchFilter);
   }, [branchFilter]);
 
+  // Date change: always reload from DB (new day form)
   useEffect(() => {
-    const next: Record<string, LocalOt> = {};
-    for (const emp of employees.filter((e) => e.status === 'active')) {
-      const row = getEntryForEmployeeDate(emp.id, dateStr);
-      next[emp.id] = {
-        hoursNormal: row ? String(row.hoursNormal || '') : '',
-        hoursNight: row ? String(row.hoursNight || '') : '',
-        hoursHoliday: row ? String(row.hoursHoliday || '') : '',
-      };
-    }
-    setLocal(next);
+    setLocal(buildLocalFromStore(employees, dateStr, getEntryForEmployeeDate));
     setDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateStr, entries, employees]);
+  }, [dateStr]);
+
+  // Store sync: only when form is clean (never wipe typed rows mid-edit / mid-save)
+  useEffect(() => {
+    if (dirty || saving) return;
+    setLocal(buildLocalFromStore(employees, dateStr, getEntryForEmployeeDate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, employees, dirty, saving, dateStr]);
 
   const effectiveBranch = branchFilter || (selectedBranch !== 'all' ? selectedBranch : undefined);
 
-  const visibleEmployees = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const branchEmployees = useMemo(() => {
     return employees
       .filter((e) => e.status === 'active')
-      .filter((e) => !effectiveBranch || e.branchId === effectiveBranch)
+      .filter((e) => !effectiveBranch || e.branchId === effectiveBranch);
+  }, [employees, effectiveBranch]);
+
+  const visibleEmployees = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return branchEmployees
       .filter((e) => {
         if (!q) return true;
         const name = `${e.firstName} ${e.lastName}`.toLowerCase();
         return name.includes(q) || (e.employeeNumber || '').toLowerCase().includes(q);
       })
       .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'pt'));
-  }, [employees, effectiveBranch, search]);
+  }, [branchEmployees, search]);
 
   const dayTotals = useMemo(() => {
     let n = 0;
     let night = 0;
     let h = 0;
     let people = 0;
-    for (const emp of visibleEmployees) {
+    // Totals for the whole branch day (not only search-filtered rows)
+    for (const emp of branchEmployees) {
       const row = local[emp.id];
       if (!row) continue;
       const hn = parseFloat(row.hoursNormal) || 0;
@@ -137,12 +171,12 @@ export function OvertimeRegister({ embedded: _embedded = false, branchFilter, re
       }
     }
     return { n, night, h, people, total: n + night + h };
-  }, [visibleEmployees, local]);
+  }, [branchEmployees, local]);
 
   const updateLocal = (empId: string, field: keyof LocalOt, value: string) => {
     setLocal((prev) => ({
       ...prev,
-      [empId]: { ...(prev[empId] || { hoursNormal: '', hoursNight: '', hoursHoliday: '' }), [field]: value },
+      [empId]: { ...(prev[empId] || emptyLocalOt()), [field]: value },
     }));
     setDirty(true);
   };
@@ -152,17 +186,24 @@ export function OvertimeRegister({ embedded: _embedded = false, branchFilter, re
       toast.error(pt ? 'Não pode editar esta data' : 'Cannot edit this date');
       return;
     }
+    // Snapshot BEFORE any await — store updates must not erase typed hours
+    const snapshot: Record<string, LocalOt> = {};
+    for (const [id, row] of Object.entries(local)) {
+      snapshot[id] = { ...row };
+    }
+
     setSaving(true);
     try {
       let saved = 0;
-      for (const emp of visibleEmployees) {
-        const row = local[emp.id];
+      // Save ALL branch employees with hours — ignore search filter
+      for (const emp of branchEmployees) {
+        const row = snapshot[emp.id];
         if (!row) continue;
         const hoursNormal = parseFloat(row.hoursNormal) || 0;
         const hoursNight = parseFloat(row.hoursNight) || 0;
         const hoursHoliday = parseFloat(row.hoursHoliday) || 0;
         const existing = getEntryForEmployeeDate(emp.id, dateStr);
-        const had = existing && existing.hoursNormal + existing.hoursNight + existing.hoursHoliday > 0;
+        const had = !!(existing && existing.hoursNormal + existing.hoursNight + existing.hoursHoliday > 0);
         const has = hoursNormal + hoursNight + hoursHoliday > 0;
         if (!had && !has) continue;
         await saveEntry({

@@ -46,7 +46,7 @@ export function DashboardHero({
   compact = false,
 }: DashboardHeroProps) {
   const { language } = useLanguage();
-  const companyName = useSettingsStore((s) => s.companyName);
+  const companyName = useSettingsStore((s) => s.settings.companyName);
   const pt = language === 'pt';
 
   const monthNames = pt

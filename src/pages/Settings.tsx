@@ -161,6 +161,14 @@ const Settings = () => {
   const [isDirty, setIsDirty] = useState(false);
   const { hasPermission } = useAuthStore();
   const canOpenSettingsTab = (id: SettingsTab) => {
+    // Empresa (name/logo) must stay reachable if user can open Settings at all
+    if (id === 'empresa') {
+      return (
+        hasPermission('settings.company') ||
+        hasPermission('settings.view') ||
+        hasPermission('settings.edit')
+      );
+    }
     const perm = SETTINGS_TAB_PERMISSION[id];
     return !perm || hasPermission(perm);
   };
