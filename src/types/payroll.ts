@@ -43,6 +43,12 @@ export interface PayrollEntry {
   /** Extra pontual só neste mês — não entra em bruto, IRT, INSS, faltas nem subsídios fixos */
   oneOffExtra?: number;
   oneOffExtraNote?: string;
+  /**
+   * Valor definido pelo utilizador a abater da dívida (adiantamentos/empréstimos/perdas).
+   * Entra na folha como desconto e reduz remainingAmount na aprovação.
+   * Independente do Extra: pode ser o total do Extra ou só uma parte.
+   */
+  oneOffDebtDiscount?: number;
   /** Compra de férias ligada a esta folha — fora do bruto/IRT/INSS */
   holidayBuyoutAmount?: number;
   holidayBuyoutNote?: string;

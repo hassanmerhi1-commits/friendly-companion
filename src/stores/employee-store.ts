@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { Employee, EmployeeExitReason, EmployeeFormData } from '@/types/employee';
+import type {
+  Employee,
+  EmployeeExitReason,
+  EmployeeFormData,
+  PausedEmployeeBenefits,
+} from '@/types/employee';
 import { formatFormerEmployeeBlockMessage } from '@/lib/employee-exit';
 import { normalizePersonName } from '@/lib/person-name';
 import { resolveCategoryLabel } from '@/lib/employee-categories';
@@ -42,6 +47,13 @@ interface EmployeeState {
     id: string,
     data: { note?: string; processedBy: string }
   ) => Promise<{ success: boolean; error?: string }>;
+  /** Long rest / sick: pause benefits, keep base salary only */
+  enableBasePayOnly: (
+    id: string,
+    data?: { note?: string; since?: string }
+  ) => Promise<{ success: boolean; error?: string }>;
+  /** Restore paused benefits after return from long rest */
+  restoreBasePayBenefits: (id: string) => Promise<{ success: boolean; error?: string }>;
   findFormerEmployeeByIdentity: (data: {
     bilheteIdentidade?: string;
     nif?: string;
@@ -58,6 +70,24 @@ function generateEmployeeNumber(): string {
   const year = new Date().getFullYear();
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
   return `EMP-${year}-${random}`;
+}
+
+function parsePausedBenefits(raw: unknown): PausedEmployeeBenefits | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    return {
+      mealAllowance: Number(parsed.mealAllowance || 0) || 0,
+      transportAllowance: Number(parsed.transportAllowance || 0) || 0,
+      otherAllowances: Number(parsed.otherAllowances || 0) || 0,
+      familyAllowance: Number(parsed.familyAllowance || 0) || 0,
+      monthlyBonus: Number(parsed.monthlyBonus || 0) || 0,
+      holidaySubsidy: Number(parsed.holidaySubsidy || 0) || 0,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 // Map database row to Employee object
@@ -98,6 +128,10 @@ function mapDbRowToEmployee(row: any): Employee {
     mealAllowance: row.meal_allowance || 0,
     transportAllowance: row.transport_allowance || 0,
     otherAllowances: row.other_allowances || 0,
+    basePayOnly: row.base_pay_only === 1,
+    basePayOnlySince: row.base_pay_only_since || undefined,
+    basePayOnlyNote: row.base_pay_only_note || undefined,
+    pausedBenefits: parsePausedBenefits(row.paused_benefits),
     isRetired: row.is_retired === 1,
     exitDate: row.exit_date || undefined,
     exitReason: row.exit_reason || undefined,
@@ -154,6 +188,10 @@ function mapEmployeeToDbRow(emp: Employee): Record<string, any> {
     meal_allowance: emp.mealAllowance,
     transport_allowance: emp.transportAllowance,
     other_allowances: emp.otherAllowances,
+    base_pay_only: emp.basePayOnly ? 1 : 0,
+    base_pay_only_since: emp.basePayOnlySince || null,
+    base_pay_only_note: emp.basePayOnlyNote || null,
+    paused_benefits: emp.pausedBenefits ? JSON.stringify(emp.pausedBenefits) : null,
     is_retired: emp.isRetired ? 1 : 0,
     exit_date: emp.exitDate || null,
     exit_reason: emp.exitReason || null,
@@ -770,6 +808,117 @@ export const useEmployeeStore = create<EmployeeState>()((set, get) => ({
       console.error('[Employees] rehire failed:', error);
       return { success: false, error: 'Erro ao recontratar funcionário' };
     }
+  },
+
+  enableBasePayOnly: async (id, data) => {
+    const employee = get().employees.find((e) => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    if (employee.status !== 'active') {
+      return { success: false, error: 'Só colaboradores activos' };
+    }
+    if (employee.basePayOnly) {
+      return { success: false, error: 'Já está em modo só salário base' };
+    }
+
+    const paused: PausedEmployeeBenefits = {
+      mealAllowance: employee.mealAllowance || 0,
+      transportAllowance: employee.transportAllowance || 0,
+      otherAllowances: employee.otherAllowances || 0,
+      familyAllowance: employee.familyAllowance || 0,
+      monthlyBonus: employee.monthlyBonus || 0,
+      holidaySubsidy: employee.holidaySubsidy || 0,
+    };
+
+    const now = new Date().toISOString();
+    const since = (data?.since || now.slice(0, 10)).trim();
+    const updated: Employee = {
+      ...employee,
+      mealAllowance: 0,
+      transportAllowance: 0,
+      otherAllowances: 0,
+      familyAllowance: 0,
+      monthlyBonus: 0,
+      holidaySubsidy: 0,
+      basePayOnly: true,
+      basePayOnlySince: since,
+      basePayOnlyNote: data?.note?.trim() || undefined,
+      pausedBenefits: paused,
+      updatedAt: now,
+    };
+
+    const { id: _id, ...row } = mapEmployeeToDbRow(updated);
+    const ok = await liveUpdate('employees', id, row);
+    if (!ok) return { success: false, error: 'Erro ao guardar no banco de dados' };
+
+    logAudit({
+      action: 'employee_base_pay_only',
+      entityType: 'employee',
+      entityId: id,
+      employeeId: id,
+      description: `Só salário base activado: ${updated.firstName} ${updated.lastName}`,
+      previousValue: {
+        mealAllowance: paused.mealAllowance,
+        transportAllowance: paused.transportAllowance,
+        otherAllowances: paused.otherAllowances,
+        familyAllowance: paused.familyAllowance,
+        monthlyBonus: paused.monthlyBonus,
+        holidaySubsidy: paused.holidaySubsidy,
+      } as any,
+      newValue: { basePayOnly: true, since, note: updated.basePayOnlyNote } as any,
+    });
+
+    await get().loadEmployees();
+    return { success: true };
+  },
+
+  restoreBasePayBenefits: async (id) => {
+    const employee = get().employees.find((e) => e.id === id);
+    if (!employee) return { success: false, error: 'Funcionário não encontrado' };
+    if (!employee.basePayOnly) {
+      return { success: false, error: 'Não está em modo só salário base' };
+    }
+
+    const paused = employee.pausedBenefits || {
+      mealAllowance: 0,
+      transportAllowance: 0,
+      otherAllowances: 0,
+      familyAllowance: 0,
+      monthlyBonus: 0,
+      holidaySubsidy: 0,
+    };
+
+    const now = new Date().toISOString();
+    const updated: Employee = {
+      ...employee,
+      mealAllowance: paused.mealAllowance,
+      transportAllowance: paused.transportAllowance,
+      otherAllowances: paused.otherAllowances,
+      familyAllowance: paused.familyAllowance,
+      monthlyBonus: paused.monthlyBonus,
+      holidaySubsidy: paused.holidaySubsidy,
+      basePayOnly: false,
+      basePayOnlySince: undefined,
+      basePayOnlyNote: undefined,
+      pausedBenefits: undefined,
+      updatedAt: now,
+    };
+
+    const { id: _id, ...row } = mapEmployeeToDbRow(updated);
+    const ok = await liveUpdate('employees', id, row);
+    if (!ok) return { success: false, error: 'Erro ao restaurar benefícios' };
+
+    logAudit({
+      action: 'employee_benefits_restored',
+      entityType: 'employee',
+      entityId: id,
+      employeeId: id,
+      description: `Benefícios restaurados: ${updated.firstName} ${updated.lastName}`,
+      previousValue: { basePayOnly: true } as any,
+      newValue: paused as any,
+    });
+
+    await get().loadEmployees();
+    return { success: true };
   },
 
   deleteEmployee: async (id: string) => {

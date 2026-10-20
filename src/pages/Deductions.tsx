@@ -19,7 +19,7 @@ import { useBranchStore } from '@/stores/branch-store';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
 import { useLanguage } from '@/lib/i18n';
 import type { Deduction, DeductionType, DeductionFormData } from '@/types/deduction';
-import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle, MapPin, ListPlus } from 'lucide-react';
+import { Wallet, Package, Plus, Trash2, CheckCircle, Pencil, Search, Info, AlertTriangle, MapPin, ListPlus, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ATTENDANCE_PAGE } from '@/lib/page-layout';
@@ -35,8 +35,10 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { DeductionFormDialog } from '@/components/deductions/DeductionFormDialog';
 import { DeductionBatchRegister } from '@/components/deductions/DeductionBatchRegister';
+import { AdvanceRequestsPanel } from '@/components/deductions/AdvanceRequestsPanel';
 import { formatPeriodLabel, resolveSchedulingMode, defaultSchedulingModeForType } from '@/lib/salary-advance-scheduling';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { DeductionSchedulingMode } from '@/types/deduction';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 
@@ -50,6 +52,12 @@ export default function Deductions() {
   const { employees } = useEmployeeStore();
   const { branches: allBranches } = useBranchStore();
   const activeBranches = allBranches.filter(b => b.isActive);
+  const canOpenAdvanceTab =
+    hasPermission('deductions.advance_tab') ||
+    hasPermission('deductions.advance_request') ||
+    hasPermission('deductions.advance_approve') ||
+    hasPermission('deductions.view');
+  const [mainTab, setMainTab] = useState<'register' | 'requests'>('register');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isBatchRegisterOpen, setIsBatchRegisterOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -638,11 +646,39 @@ export default function Deductions() {
   return (
     <TopNavLayout scrollable={false}>
       <div className={`${ATTENDANCE_PAGE} gap-2`}>
+        <Tabs
+          value={mainTab}
+          onValueChange={(v) => {
+            if (v === 'requests' && !canOpenAdvanceTab) return;
+            setMainTab(v as 'register' | 'requests');
+          }}
+          className="flex flex-col min-h-0 flex-1 gap-2"
+        >
+          <div className="shrink-0 flex items-center gap-2 px-1">
+            <Wallet className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold shrink-0">{ptLang ? 'Deduções' : 'Deductions'}</span>
+            <TabsList className="h-8">
+              <TabsTrigger value="register" className="text-xs gap-1.5 h-7 px-3">
+                <ListPlus className="h-3.5 w-3.5" />
+                {ptLang ? 'Registo' : 'Register'}
+              </TabsTrigger>
+              {canOpenAdvanceTab && (
+                <TabsTrigger value="requests" className="text-xs gap-1.5 h-7 px-3">
+                  <FileText className="h-3.5 w-3.5" />
+                  {ptLang ? 'Pedidos adiantamento' : 'Advance requests'}
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </div>
+
+          <TabsContent value="requests" className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden">
+            <AdvanceRequestsPanel />
+          </TabsContent>
+
+          <TabsContent value="register" className="flex flex-col flex-1 min-h-0 mt-0 gap-2 data-[state=inactive]:hidden">
         {/* Toolbar */}
         <div className="shrink-0 rounded-xl border border-border/50 bg-card shadow-sm">
           <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-            <Wallet className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-sm font-semibold shrink-0">{ptLang ? 'Deduções' : 'Deductions'}</span>
             <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:inline">
               {ptLang ? 'Adiantamentos, perdas e outros descontos' : 'Advances, losses and other deductions'}
             </span>
@@ -972,6 +1008,8 @@ export default function Deductions() {
             </div>
           </DialogContent>
         </Dialog>
+          </TabsContent>
+        </Tabs>
       </div>
     </TopNavLayout>
   );

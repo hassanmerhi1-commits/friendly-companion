@@ -404,7 +404,7 @@ function startWebSocketServer() {
                 return;
               }
               console.log(`[WS] ✓ setCompany '${msg.companyId}' OK for ${clientIP}`);
-              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance', 'overtime_registers'];
+              const tables = ['employees', 'branches', 'deductions', 'payroll_periods', 'payroll_entries', 'holidays', 'absences', 'users', 'settings', 'documents', 'bulk_attendance', 'daily_attendance', 'overtime_registers', 'advance_requests', 'branch_transfers'];
               for (const table of tables) {
                 try {
                   const rows = dbGetAll(table, targetDb);
@@ -1445,6 +1445,10 @@ function runMigrations() {
     addColumnIfMissing('employees', 'exit_note', "ALTER TABLE employees ADD COLUMN exit_note TEXT");
     addColumnIfMissing('employees', 'exit_processed_by', "ALTER TABLE employees ADD COLUMN exit_processed_by TEXT");
     addColumnIfMissing('employees', 'exit_processed_at', "ALTER TABLE employees ADD COLUMN exit_processed_at TEXT");
+    addColumnIfMissing('employees', 'base_pay_only', "ALTER TABLE employees ADD COLUMN base_pay_only INTEGER DEFAULT 0");
+    addColumnIfMissing('employees', 'base_pay_only_since', "ALTER TABLE employees ADD COLUMN base_pay_only_since TEXT");
+    addColumnIfMissing('employees', 'base_pay_only_note', "ALTER TABLE employees ADD COLUMN base_pay_only_note TEXT");
+    addColumnIfMissing('employees', 'paused_benefits', "ALTER TABLE employees ADD COLUMN paused_benefits TEXT");
 
     addColumnIfMissing('terminations', 'is_light_exit', "ALTER TABLE terminations ADD COLUMN is_light_exit INTEGER DEFAULT 0");
     
@@ -1590,6 +1594,7 @@ function runMigrations() {
     addColumnIfMissing('payroll_entries', 'monthly_bonus', "ALTER TABLE payroll_entries ADD COLUMN monthly_bonus REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'one_off_extra', "ALTER TABLE payroll_entries ADD COLUMN one_off_extra REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'one_off_extra_note', "ALTER TABLE payroll_entries ADD COLUMN one_off_extra_note TEXT");
+    addColumnIfMissing('payroll_entries', 'one_off_debt_discount', "ALTER TABLE payroll_entries ADD COLUMN one_off_debt_discount REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'holiday_buyout_amount', "ALTER TABLE payroll_entries ADD COLUMN holiday_buyout_amount REAL DEFAULT 0");
     addColumnIfMissing('payroll_entries', 'holiday_buyout_note', "ALTER TABLE payroll_entries ADD COLUMN holiday_buyout_note TEXT");
 
@@ -1708,6 +1713,41 @@ function runMigrations() {
     `);
     console.log('Migration: Ensured overtime_registers table exists');
 
+    // Salary advance REQUESTS (pedido → admin approve → creates deduction)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS advance_requests (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        employee_number TEXT,
+        branch_id TEXT,
+        branch_name TEXT,
+        position TEXT,
+        hire_date TEXT,
+        base_salary REAL DEFAULT 0,
+        meal_allowance REAL DEFAULT 0,
+        transport_allowance REAL DEFAULT 0,
+        amount_owed REAL DEFAULT 0,
+        requested_amount REAL DEFAULT 0,
+        reason TEXT,
+        installments INTEGER DEFAULT 1,
+        monthly_amount REAL DEFAULT 0,
+        deduct_from_period_id TEXT,
+        status TEXT DEFAULT 'pending',
+        requested_by_user_id TEXT,
+        requested_by_name TEXT,
+        reviewed_by_user_id TEXT,
+        reviewed_by_name TEXT,
+        reviewed_at TEXT,
+        rejection_reason TEXT,
+        deduction_id TEXT,
+        request_date TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Migration: Ensured advance_requests table exists');
+
 
     // === HR TABLES (disciplinary, terminations, salary adjustments, loans, attendance, audit) ===
     db.exec(`
@@ -1783,6 +1823,25 @@ function runMigrations() {
       );
     `);
     console.log('Migration: Ensured salary_adjustments table exists');
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS branch_transfers (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        employee_name TEXT,
+        from_branch_id TEXT,
+        from_branch_name TEXT,
+        to_branch_id TEXT NOT NULL,
+        to_branch_name TEXT,
+        effective_date TEXT,
+        reason TEXT,
+        transferred_by TEXT,
+        transferred_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('Migration: Ensured branch_transfers table exists');
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS loans (

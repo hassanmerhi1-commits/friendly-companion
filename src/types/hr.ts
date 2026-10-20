@@ -84,3 +84,27 @@ export interface SalaryAdjustmentFormData {
   reason: string;
   newPosition?: string;
 }
+
+/** Formal transfer of an employee from one filial to another */
+export interface BranchTransferRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  fromBranchId: string;
+  fromBranchName: string;
+  toBranchId: string;
+  toBranchName: string;
+  effectiveDate: string;
+  reason?: string;
+  transferredBy: string;
+  transferredAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BranchTransferFormData {
+  employeeId: string;
+  toBranchId: string;
+  effectiveDate: string;
+  reason?: string;
+}

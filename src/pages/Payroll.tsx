@@ -1042,6 +1042,9 @@ const Payroll = () => {
                           const tip = [
                             buyout > 0 ? `${language === 'pt' ? 'Compra férias' : 'Holiday buyout'}: ${formatAOA(buyout)}` : '',
                             oneOff > 0 ? `${language === 'pt' ? 'Extra pontual' : 'One-off'}: ${formatAOA(oneOff)}` : '',
+                            (entry.oneOffDebtDiscount || 0) > 0
+                              ? `${language === 'pt' ? 'Abatimento dívida' : 'Debt discount'}: ${formatAOA(entry.oneOffDebtDiscount || 0)}`
+                              : '',
                             entry.holidayBuyoutNote,
                             entry.oneOffExtraNote,
                           ].filter(Boolean).join(' | ');

@@ -21,6 +21,16 @@ export interface EmployeeSkill {
   expiryDate?: string;
 }
 
+/** Snapshot of benefits paused while `basePayOnly` is active */
+export interface PausedEmployeeBenefits {
+  mealAllowance: number;
+  transportAllowance: number;
+  otherAllowances: number;
+  familyAllowance: number;
+  monthlyBonus: number;
+  holidaySubsidy: number;
+}
+
 export interface Employee {
   id: string;
   
@@ -67,6 +77,15 @@ export interface Employee {
   
   // Holiday Subsidy (Subsídio de Férias) - per worker value
   holidaySubsidy: number; // Fixed money value for holiday subsidy
+
+  /**
+   * Long rest / sick: pay only base salary.
+   * Benefits are paused (snapshot in pausedBenefits) and zeroed on the profile until restored.
+   */
+  basePayOnly?: boolean;
+  basePayOnlySince?: string;
+  basePayOnlyNote?: string;
+  pausedBenefits?: PausedEmployeeBenefits;
   
   // Banking
   paymentMethod: PaymentMethod;

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { TopNavLayout } from "@/components/layout/TopNavLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, CheckCircle, XCircle, Clock, LogOut, UserCheck, Users, MapPin, AlertCircle } from "lucide-react";
+import { Search, UserPlus, MoreHorizontal, Pencil, Trash2, FileDown, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, FolderOpen, CheckCircle, XCircle, Clock, LogOut, UserCheck, Users, MapPin, AlertCircle, HeartPulse, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/lib/i18n";
 import { useEmployeeStore } from "@/stores/employee-store";
@@ -111,6 +111,8 @@ const Employees = () => {
     backfillCategoryFromPosition,
     updateEmployee,
     rehireEmployee,
+    enableBasePayOnly,
+    restoreBasePayBenefits,
   } = useEmployeeStore();
   const { hasPermission, currentUser } = useAuthStore();
   const canApproveEmployees =
@@ -177,6 +179,10 @@ const Employees = () => {
   const [employeeToRehire, setEmployeeToRehire] = useState<Employee | null>(null);
   const [rehireNote, setRehireNote] = useState('');
   const [rehireLoading, setRehireLoading] = useState(false);
+  const [basePayOnlyOpen, setBasePayOnlyOpen] = useState(false);
+  const [employeeForBasePayOnly, setEmployeeForBasePayOnly] = useState<Employee | null>(null);
+  const [basePayOnlyNote, setBasePayOnlyNote] = useState('');
+  const [basePayOnlyLoading, setBasePayOnlyLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Get branch name helper for sorting
@@ -704,6 +710,18 @@ const Employees = () => {
                       <span className="text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis">
                         {fullName}
                       </span>
+                      {employee.basePayOnly && (
+                        <span
+                          className="shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                          title={
+                            language === 'pt'
+                              ? `Só salário base${employee.basePayOnlySince ? ` desde ${employee.basePayOnlySince}` : ''}`
+                              : `Base pay only${employee.basePayOnlySince ? ` since ${employee.basePayOnlySince}` : ''}`
+                          }
+                        >
+                          {language === 'pt' ? 'Só base' : 'Base only'}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className={TEXT_TD} title={employee.department || undefined}>
@@ -842,6 +860,39 @@ const Employees = () => {
                                 : (language === 'pt' ? 'Marcar aposentado (INSS)' : 'Mark pensioner (INSS)')}
                             </DropdownMenuItem>
                           )}
+                          {hasPermission('employees.edit') && employee.status === 'active' && !employee.basePayOnly && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEmployeeForBasePayOnly(employee);
+                                setBasePayOnlyNote('');
+                                setBasePayOnlyOpen(true);
+                              }}
+                            >
+                              <HeartPulse className="h-4 w-4 mr-2" />
+                              {language === 'pt' ? 'Só salário base (repouso)' : 'Base salary only (rest)'}
+                            </DropdownMenuItem>
+                          )}
+                          {hasPermission('employees.edit') && employee.status === 'active' && employee.basePayOnly && (
+                            <DropdownMenuItem
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const result = await restoreBasePayBenefits(employee.id);
+                                if (result.success) {
+                                  toast.success(
+                                    language === 'pt'
+                                      ? 'Benefícios restaurados'
+                                      : 'Benefits restored'
+                                  );
+                                } else {
+                                  toast.error(result.error || (language === 'pt' ? 'Erro' : 'Error'));
+                                }
+                              }}
+                            >
+                              <RotateCcw className="h-4 w-4 mr-2" />
+                              {language === 'pt' ? 'Repor benefícios' : 'Restore benefits'}
+                            </DropdownMenuItem>
+                          )}
                           {hasPermission('employees.delete') && (
                             <DropdownMenuItem onClick={() => handleDeleteClick(employee)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -953,6 +1004,77 @@ const Employees = () => {
               }}
             >
               {language === 'pt' ? 'Confirmar recontratação' : 'Confirm rehire'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={basePayOnlyOpen} onOpenChange={setBasePayOnlyOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'pt' ? 'Só salário base (repouso)' : 'Base salary only (rest)'}
+            </DialogTitle>
+            <DialogDescription>
+              {employeeForBasePayOnly && (
+                <>
+                  {employeeForBasePayOnly.firstName} {employeeForBasePayOnly.lastName}
+                  <span className="block mt-2 text-xs">
+                    {language === 'pt'
+                      ? 'Alimentação, transporte, abono, bónus e subsídio de férias serão pausados. O salário base mantém-se. Pode repor tudo no mesmo menu ⋯.'
+                      : 'Meal, transport, family allowance, bonus and holiday subsidy will be paused. Base salary stays. Restore anytime from the same ⋯ menu.'}
+                  </span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="basePayOnlyNote">
+              {language === 'pt' ? 'Motivo (opcional)' : 'Reason (optional)'}
+            </Label>
+            <Textarea
+              id="basePayOnlyNote"
+              value={basePayOnlyNote}
+              onChange={(e) => setBasePayOnlyNote(e.target.value)}
+              rows={2}
+              placeholder={
+                language === 'pt'
+                  ? 'Ex: baixa médica prolongada…'
+                  : 'e.g. long medical leave…'
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBasePayOnlyOpen(false)}
+              disabled={basePayOnlyLoading}
+            >
+              {language === 'pt' ? 'Cancelar' : 'Cancel'}
+            </Button>
+            <Button
+              disabled={basePayOnlyLoading || !employeeForBasePayOnly}
+              onClick={async () => {
+                if (!employeeForBasePayOnly) return;
+                setBasePayOnlyLoading(true);
+                const result = await enableBasePayOnly(employeeForBasePayOnly.id, {
+                  note: basePayOnlyNote,
+                });
+                setBasePayOnlyLoading(false);
+                if (result.success) {
+                  toast.success(
+                    language === 'pt'
+                      ? 'Modo só salário base activado'
+                      : 'Base-pay-only mode enabled'
+                  );
+                  setBasePayOnlyOpen(false);
+                  setEmployeeForBasePayOnly(null);
+                } else {
+                  toast.error(result.error);
+                }
+              }}
+            >
+              {language === 'pt' ? 'Confirmar' : 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>

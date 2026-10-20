@@ -15,6 +15,10 @@ import {
 import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
 import { buildBulkEntriesForPayrollMonth } from '@/lib/daily-attendance-aggregate';
 import { netAfterExtraDeductions, clampNetSalary } from '@/lib/payroll-payout';
+import {
+  allocateOneOffDebtDiscount,
+  getDeductionsEligibleForOneOffDebt,
+} from '@/lib/one-off-debt-discount';
 import { getCalendarMonthBounds } from '@/lib/local-date';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
@@ -221,6 +225,7 @@ function mapDbRowToEntry(row: any): PayrollEntry {
     monthlyBonus: row.monthly_bonus || 0,
     oneOffExtra: row.one_off_extra || 0,
     oneOffExtraNote: row.one_off_extra_note || undefined,
+    oneOffDebtDiscount: row.one_off_debt_discount || 0,
     holidayBuyoutAmount: row.holiday_buyout_amount || 0,
     holidayBuyoutNote: row.holiday_buyout_note || undefined,
     overtimeNormal: row.overtime_normal || row.overtime_amount || 0,
@@ -285,6 +290,7 @@ function mapEntryToDbRow(e: PayrollEntry): Record<string, any> {
     monthly_bonus: e.monthlyBonus,
     one_off_extra: e.oneOffExtra || 0,
     one_off_extra_note: e.oneOffExtraNote || null,
+    one_off_debt_discount: e.oneOffDebtDiscount || 0,
     holiday_buyout_amount: e.holidayBuyoutAmount || 0,
     holiday_buyout_note: e.holidayBuyoutNote || null,
     overtime_hours_normal: e.overtimeHoursNormal,
@@ -503,6 +509,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const preserved13thMonth = existingEntry?.subsidy_natal || 0;
           const preservedOneOffExtra = existingEntry?.one_off_extra || 0;
           const preservedOneOffExtraNote = existingEntry?.one_off_extra_note || undefined;
+          const preservedOneOffDebtDiscount = Number(existingEntry?.one_off_debt_discount || 0) || 0;
           const preservedHolidayBuyout = existingEntry?.holiday_buyout_amount || 0;
           const preservedHolidayBuyoutNote = existingEntry?.holiday_buyout_note || undefined;
           const preservedPaidEarly = existingEntry?.paid_early === 1;
@@ -512,13 +519,22 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           const preservedPaidEarlyReason = existingEntry?.paid_early_reason || undefined;
           const preservedPaidEarlyAuthorizedBy = existingEntry?.paid_early_authorized_by || undefined;
           const preservedPaidEarlyPaymentMethod = existingEntry?.paid_early_payment_method || undefined;
-          // Bónus mensal vem sempre do perfil do funcionário (registo novo aparece na folha ao Calcular).
-          const monthlyBonusForEntry = emp.monthlyBonus || 0;
+          // Long rest / sick: só salário base — force benefits off even if profile was edited
+          const basePayOnly = !!emp.basePayOnly;
+          const mealForPay = basePayOnly ? 0 : emp.mealAllowance;
+          const transportForPay = basePayOnly ? 0 : emp.transportAllowance;
+          const otherAllowForPay = basePayOnly ? 0 : emp.otherAllowances;
+          const familyForPay = basePayOnly ? 0 : (emp.familyAllowance || 0);
 
-          const shouldPayHolidaySubsidy = employeesForSubsidy.has(emp.id);
-          const holidaySubsidyAmount = preservedHolidaySubsidy > 0
-            ? preservedHolidaySubsidy
-            : (shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0);
+          // Bónus mensal vem sempre do perfil do funcionário (registo novo aparece na folha ao Calcular).
+          const monthlyBonusForEntry = basePayOnly ? 0 : (emp.monthlyBonus || 0);
+
+          const shouldPayHolidaySubsidy = !basePayOnly && employeesForSubsidy.has(emp.id);
+          const holidaySubsidyAmount = basePayOnly
+            ? 0
+            : preservedHolidaySubsidy > 0
+              ? preservedHolidaySubsidy
+              : (shouldPayHolidaySubsidy ? (emp.holidaySubsidy || 0) : 0);
 
           // Calculate absence deduction from BULK ATTENDANCE (NEW - uses FULL salary including bonuses)
           let absenceDeduction = 0;
@@ -532,7 +548,15 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               // Do NOT subtract justified from absenceDays (that zeroed the Faltas column on Calcular).
               const unjustifiedDays = Math.max(0, bulkEntry.absenceDays || 0);
               absenceDays = unjustifiedDays;
-              const fullSalary = calculateFullMonthlySalary(emp);
+              const fullSalary = calculateFullMonthlySalary({
+                baseSalary: emp.baseSalary,
+                mealAllowance: mealForPay,
+                transportAllowance: transportForPay,
+                familyAllowance: familyForPay,
+                monthlyBonus: monthlyBonusForEntry,
+                holidaySubsidy: holidaySubsidyAmount,
+                otherAllowances: otherAllowForPay,
+              });
               const bulkDeduction = calculateBulkAttendanceDeduction(
                 fullSalary,
                 unjustifiedDays,
@@ -593,17 +617,17 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           // Calculate payroll FIRST so we know the net salary for warehouse loss cap
           const payrollResult = calculatePayroll({
             baseSalary: emp.baseSalary,
-            mealAllowance: emp.mealAllowance,
-            transportAllowance: emp.transportAllowance,
-            otherAllowances: emp.otherAllowances,
-            familyAllowanceValue: emp.familyAllowance || 0,
+            mealAllowance: mealForPay,
+            transportAllowance: transportForPay,
+            otherAllowances: otherAllowForPay,
+            familyAllowanceValue: familyForPay,
             overtimeHoursNormal,
             overtimeHoursNight,
             overtimeHoursHoliday,
             isRetired: emp.isRetired,
             isColaborador: emp.contractType === 'colaborador',
-            include13thMonth: preserved13thMonth > 0,
-            thirteenthMonthValue: preserved13thMonth > 0 ? preserved13thMonth : 0,
+            include13thMonth: !basePayOnly && preserved13thMonth > 0,
+            thirteenthMonthValue: !basePayOnly && preserved13thMonth > 0 ? preserved13thMonth : 0,
             includeHolidaySubsidy: holidaySubsidyAmount > 0,
             holidaySubsidyValue: holidaySubsidyAmount,
           });
@@ -614,7 +638,13 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
           let loanDeduction = 0;
           let advanceDeduction = 0;
           let otherDeductions = 0;
-          const deductionBreakdown: { type: string; description: string; amount: number; deductionId: string }[] = [];
+          const deductionBreakdown: {
+            type: string;
+            description: string;
+            amount: number;
+            deductionId: string;
+            source?: string;
+          }[] = [];
 
           // Collect eligible deductions into two groups: non-warehouse and warehouse
           let nonWarehouseEligible: { d: any; amount: number }[] = [];
@@ -771,6 +801,44 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               });
               console.log(`[Payroll] Warehouse loss ${d.id}: requested ${amount}, applied ${cappedAmount} (25% cap ${warehouseCap} Kz)`);
             }
+
+            // Extra pontual → dívida: user-defined amount (all or part of Extra) applied on top of monthly installments
+            if (preservedOneOffDebtDiscount > 0) {
+              const alreadyApplied = new Map<string, number>();
+              for (const line of deductionBreakdown) {
+                const id = line.deductionId;
+                if (!id) continue;
+                alreadyApplied.set(id, (alreadyApplied.get(id) || 0) + Number(line.amount || 0));
+              }
+              const allEmpDeds = deductionStore.getDeductionsByEmployee(emp.id) || [];
+              const eligible = getDeductionsEligibleForOneOffDebt(allEmpDeds, periodId, allPeriods);
+              const { allocations, applied } = allocateOneOffDebtDiscount(
+                eligible,
+                preservedOneOffDebtDiscount,
+                alreadyApplied
+              );
+              for (const a of allocations) {
+                if (a.type === 'loan') {
+                  loanDeduction += a.amount;
+                } else if (a.type === 'salary_advance') {
+                  advanceDeduction += a.amount;
+                } else {
+                  otherDeductions += a.amount;
+                }
+                deductionBreakdown.push({
+                  type: a.type,
+                  description: a.description,
+                  amount: a.amount,
+                  deductionId: a.deductionId,
+                  source: 'one_off_debt',
+                });
+              }
+              if (applied > 0) {
+                console.log(
+                  `[Payroll] One-off debt discount for ${emp.id}: requested ${preservedOneOffDebtDiscount}, applied ${applied}`
+                );
+              }
+            }
           }
 
           const totalExtraDeductions = loanDeduction + advanceDeduction + otherDeductions + totalAbsenceDeduction;
@@ -788,6 +856,7 @@ export const usePayrollStore = create<PayrollState>()((set, get) => ({
               monthlyBonus: monthlyBonusForEntry,
               oneOffExtra: preservedOneOffExtra,
               oneOffExtraNote: preservedOneOffExtraNote,
+              oneOffDebtDiscount: preservedOneOffDebtDiscount,
               holidayBuyoutAmount: preservedHolidayBuyout,
               holidayBuyoutNote: preservedHolidayBuyoutNote,
               paidEarly: preservedPaidEarly,

@@ -44,6 +44,7 @@ import { useBulkAttendanceStore } from '@/stores/bulk-attendance-store';
 import { useHRStore } from '@/stores/hr-store';
 import { useOvertimePaymentStore } from '@/stores/overtime-payment-store';
 import { useOvertimeRegisterStore } from '@/stores/overtime-register-store';
+import { useAdvanceRequestStore } from '@/stores/advance-request-store';
 import { useDailyAttendanceStore } from '@/stores/daily-attendance-store';
 import { useDisciplinaryStore } from '@/stores/disciplinary-store';
 import { useLoanStore } from '@/stores/loan-store';
@@ -174,6 +175,7 @@ export function LoginPage() {
       const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
       const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
       const { loadLoans } = useLoanStore.getState();
+      const { loadRequests: loadAdvanceRequests } = useAdvanceRequestStore.getState();
 
       await Promise.all([
         loadUsers(),
@@ -192,6 +194,7 @@ export function LoginPage() {
         loadDailyAttendance(),
         loadDisciplinary(),
         loadLoans(),
+        loadAdvanceRequests(),
       ]);
       localStorage.setItem('payroll_last_company_id', companyId);
       setCompanyReady(true);

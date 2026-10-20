@@ -32,6 +32,7 @@ import { initOvertimeRegisterSync, useOvertimeRegisterStore } from "@/stores/ove
 import { initDailyAttendanceSync, useDailyAttendanceStore } from "@/stores/daily-attendance-store";
 import { useDisciplinaryStore, initDisciplinaryStoreSync } from "@/stores/disciplinary-store";
 import { useLoanStore, initLoanStoreSync } from "@/stores/loan-store";
+import { initAdvanceRequestStoreSync, useAdvanceRequestStore } from "@/stores/advance-request-store";
 import { initActivationStatus } from "@/lib/device-security";
 import { isProvinceSelected } from "@/lib/province-storage";
 import { DeviceActivation } from "@/components/DeviceActivation";
@@ -272,6 +273,7 @@ function AppContent() {
           const { loadEntries: loadOvertimeRegisters } = useOvertimeRegisterStore.getState();
           const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
           const { loadLoans } = useLoanStore.getState();
+          const { loadRequests: loadAdvanceRequests } = useAdvanceRequestStore.getState();
 
           await Promise.all([
             loadUsers(),
@@ -289,6 +291,7 @@ function AppContent() {
             loadOvertimeRegisters(),
             loadDisciplinary(),
             loadLoans(),
+            loadAdvanceRequests(),
           ]);
 
           await backfillCategoryFromPosition();
@@ -370,6 +373,7 @@ function AppContent() {
             initDailyAttendanceSync();
             initDisciplinaryStoreSync();
             initLoanStoreSync();
+            initAdvanceRequestStoreSync();
 
             // Get database status for logging
             const dbStatus = await liveGetStatus();
@@ -398,6 +402,7 @@ function AppContent() {
             const { loadRecords: loadDailyAttendance } = useDailyAttendanceStore.getState();
             const { loadRecords: loadDisciplinary } = useDisciplinaryStore.getState();
             const { loadLoans } = useLoanStore.getState();
+            const { loadRequests: loadAdvanceRequests } = useAdvanceRequestStore.getState();
 
             await Promise.all([
               loadUsers(),
@@ -416,6 +421,7 @@ function AppContent() {
               loadDailyAttendance(),
               loadDisciplinary(),
               loadLoans(),
+              loadAdvanceRequests(),
             ]);
 
             await backfillCategoryFromPosition();

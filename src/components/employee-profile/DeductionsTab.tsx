@@ -26,6 +26,7 @@ import {
 import { useLanguage } from '@/lib/i18n';
 import { formatAOA } from '@/lib/angola-labor-law';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { useAdvanceRequestStore } from '@/stores/advance-request-store';
 import type { Deduction, DeductionType } from '@/types/deduction';
 import { cn } from '@/lib/utils';
 import {
@@ -54,6 +55,7 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
   const { deductions, loadDeductions } = useDeductionStore();
   const { employees } = useEmployeeStore();
   const { periods } = usePayrollStore();
+  const { requests, loadRequests } = useAdvanceRequestStore();
   const [typeFilter, setTypeFilter] = useState<DeductionType | 'all' | 'pending'>('all');
 
   const monthNames = ptLang
@@ -62,7 +64,16 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
 
   useEffect(() => {
     loadDeductions();
-  }, [loadDeductions]);
+    void loadRequests();
+  }, [loadDeductions, loadRequests]);
+
+  const employeeAdvanceRequests = useMemo(
+    () =>
+      requests
+        .filter((r) => r.employeeId === employeeId)
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
+    [requests, employeeId]
+  );
 
   const employeeAllDeductions = useMemo(
     () => deductions.filter((d) => d.employeeId === employeeId),
@@ -273,6 +284,71 @@ export function DeductionsTab({ employeeId }: DeductionsTabProps) {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        )}
+      </DossierTablePanel>
+
+      <DossierTablePanel
+        title={ptLang ? 'Pedidos de adiantamento' : 'Advance requests'}
+        subtitle={
+          ptLang
+            ? `${employeeAdvanceRequests.length} pedido(s)`
+            : `${employeeAdvanceRequests.length} request(s)`
+        }
+      >
+        {employeeAdvanceRequests.length === 0 ? (
+          <DossierEmptyState
+            icon={Receipt}
+            message={ptLang ? 'Nenhum pedido de adiantamento' : 'No advance requests'}
+          />
+        ) : (
+          <table className="w-full text-xs min-w-[36rem]">
+            <thead className={ATTENDANCE_THEAD}>
+              <tr>
+                <th className={ATTENDANCE_TH}>{ptLang ? 'Data' : 'Date'}</th>
+                <th className={ATTENDANCE_TH_RIGHT}>{ptLang ? 'Valor' : 'Amount'}</th>
+                <th className={ATTENDANCE_TH}>{ptLang ? 'Motivo' : 'Reason'}</th>
+                <th className={ATTENDANCE_TH_CENTER}>{ptLang ? 'Estado' : 'Status'}</th>
+              </tr>
+            </thead>
+            <tbody className={ATTENDANCE_TBODY}>
+              {employeeAdvanceRequests.map((req) => (
+                <tr key={req.id}>
+                  <td className={ATTENDANCE_TD}>{req.requestDate || '—'}</td>
+                  <td className={ATTENDANCE_TH_RIGHT}>{formatAOA(req.requestedAmount)}</td>
+                  <td className={ATTENDANCE_TD}>
+                    <span className="line-clamp-2">{req.reason}</span>
+                    {req.deductionId && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {ptLang ? 'Ligado à dedução' : 'Linked deduction'}: {req.deductionId.slice(0, 8)}…
+                      </p>
+                    )}
+                  </td>
+                  <td className={cn(ATTENDANCE_TD, 'text-center')}>
+                    <Badge
+                      variant={req.status === 'rejected' ? 'destructive' : 'outline'}
+                      className={cn(
+                        'text-[10px]',
+                        req.status === 'approved' && 'bg-emerald-600/10 text-emerald-800 border-emerald-600/30',
+                        req.status === 'pending' && 'bg-amber-500/10 text-amber-800 border-amber-500/30'
+                      )}
+                    >
+                      {req.status === 'approved'
+                        ? ptLang
+                          ? 'Aprovado'
+                          : 'Approved'
+                        : req.status === 'rejected'
+                          ? ptLang
+                            ? 'Rejeitado'
+                            : 'Rejected'
+                          : ptLang
+                            ? 'Pendente'
+                            : 'Pending'}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

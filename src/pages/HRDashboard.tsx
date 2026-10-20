@@ -32,6 +32,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { SalaryAdjustmentsList } from "@/components/hr/SalaryAdjustmentsList";
 import { DisciplinaryRecordDialog } from "@/components/hr/DisciplinaryRecordDialog";
 import { DisciplinaryRecordsList } from "@/components/hr/DisciplinaryRecordsList";
+import { BranchTransfersPanel } from "@/components/hr/BranchTransfersPanel";
 import { 
   Calculator, 
   TrendingUp, 
@@ -46,7 +47,8 @@ import {
   ArrowRight,
   FileWarning,
   Plus,
-  RotateCcw
+  RotateCcw,
+  ArrowRightLeft,
 } from "lucide-react";
 import type { TerminationReason } from "@/types/hr";
 import { useReactToPrint } from "react-to-print";
@@ -70,7 +72,7 @@ export default function HRDashboard() {
   const [showTerminationDialog, setShowTerminationDialog] = useState(false);
   const [showDisciplinaryDialog, setShowDisciplinaryDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "termination" | "disciplinary" | "adjustments" | "history" | "comparison"
+    "termination" | "disciplinary" | "adjustments" | "history" | "comparison" | "transfer"
   >("termination");
 
   const pt = language === "pt";
@@ -178,6 +180,7 @@ export default function HRDashboard() {
     },
     { id: "history" as const, icon: FileText, label: pt ? "Histórico" : "History" },
     { id: "comparison" as const, icon: BarChart3, label: pt ? "Comparação" : "Comparison" },
+    { id: "transfer" as const, icon: ArrowRightLeft, label: pt ? "Transferências" : "Transfers" },
   ];
 
   return (
@@ -631,6 +634,8 @@ export default function HRDashboard() {
               </div>
             )
           )}
+
+          {activeTab === "transfer" && <BranchTransfersPanel />}
           </div>
         </div>
       </div>

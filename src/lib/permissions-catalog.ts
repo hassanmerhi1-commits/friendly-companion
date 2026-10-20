@@ -42,6 +42,9 @@ export type Permission =
   | 'deductions.create'
   | 'deductions.edit'
   | 'deductions.delete'
+  | 'deductions.advance_tab'
+  | 'deductions.advance_request'
+  | 'deductions.advance_approve'
   | 'branches.view'
   | 'branches.create'
   | 'branches.edit'
@@ -68,6 +71,7 @@ export type Permission =
   | 'hr.adjustments'
   | 'hr.history'
   | 'hr.comparison'
+  | 'hr.transfer'
   | 'loans.view'
   | 'loans.create'
   | 'loans.edit'
@@ -103,7 +107,7 @@ const EMPLOYEE_PROFILE_TABS: Permission[] = ['employees.tab_overview', 'employee
 
 const ATTENDANCE_INNER_TABS: Permission[] = ['attendance.daily', 'attendance.bulk', 'attendance.clock', 'attendance.records', 'attendance.overtime', 'attendance.calendar', 'attendance.effectiveness'];
 
-const HR_INNER_TABS: Permission[] = ['hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison'];
+const HR_INNER_TABS: Permission[] = ['hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison', 'hr.transfer'];
 
 const SETTINGS_INNER_TABS: Permission[] = ['settings.company', 'settings.payments', 'settings.tax', 'settings.irt', 'settings.notifications', 'settings.assistant', 'settings.updates', 'settings.province', 'settings.network', 'settings.database', 'settings.backup_json', 'settings.backup_sqlite', 'settings.reset'];
 
@@ -212,6 +216,9 @@ export const PERMISSION_CATEGORIES: Record<string, PermissionCategoryDef> = {
       { key: 'deductions.create', labelPt: 'Criar', labelEn: 'Create' },
       { key: 'deductions.edit', labelPt: 'Editar', labelEn: 'Edit' },
       { key: 'deductions.delete', labelPt: 'Eliminar', labelEn: 'Delete' },
+      { key: 'deductions.advance_tab', labelPt: 'Separador Pedidos adiantamento', labelEn: 'Advance requests tab' },
+      { key: 'deductions.advance_request', labelPt: 'Criar pedido adiantamento', labelEn: 'Create advance request' },
+      { key: 'deductions.advance_approve', labelPt: 'Aprovar pedido adiantamento', labelEn: 'Approve advance request' },
     ],
   },
   filiais: {
@@ -256,6 +263,7 @@ export const PERMISSION_CATEGORIES: Record<string, PermissionCategoryDef> = {
       { key: 'hr.adjustments', labelPt: 'Separador Ajustes', labelEn: 'Adjustments tab' },
       { key: 'hr.history', labelPt: 'Separador Historico', labelEn: 'History tab' },
       { key: 'hr.comparison', labelPt: 'Separador Comparacao', labelEn: 'Comparison tab' },
+      { key: 'hr.transfer', labelPt: 'Separador Transferencias', labelEn: 'Transfers tab' },
     ],
   },
   emprestimos: {
@@ -328,10 +336,10 @@ export function getAllPermissions(): Permission[] {
 
 export const rolePermissions: Record<UserRole, Permission[]> = {
   admin: getAllPermissions(),
-  manager: ['dashboard.view', 'employees.view', 'employees.create', 'employees.edit', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_attendance', 'employees.tab_financeiro', 'employees.tab_rh', 'employees.tab_auditoria', 'cards.view', 'payroll.view', 'payroll.history', 'payroll.calculate', 'payroll.approve', 'payroll.export', 'taxsim.view', 'deductions.view', 'deductions.create', 'deductions.edit', 'branches.view', 'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.daily', 'attendance.bulk', 'attendance.clock', 'attendance.records', 'attendance.overtime', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.create', 'hr.edit', 'hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison', 'loans.view', 'loans.create', 'loans.edit', 'holidays.view', 'holidays.create', 'holidays.edit', 'reports.view', 'reports.export', 'reports.fiscal', 'reports.payroll', 'reports.hr', 'reports.attendance', 'reports.annual', 'reports.holiday_plan', 'documents.view', 'documents.create', 'laborlaw.view', 'settings.view', 'settings.company', 'settings.payments', 'settings.tax', 'settings.irt', 'settings.notifications', 'settings.assistant', 'settings.updates', 'settings.province', 'settings.network', 'settings.database', 'settings.backup_json', 'settings.backup_sqlite'],
-  hr: ['dashboard.view', 'employees.view', 'employees.create', 'employees.edit', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_attendance', 'employees.tab_financeiro', 'employees.tab_rh', 'employees.tab_auditoria', 'cards.view', 'payroll.view', 'payroll.history', 'deductions.view', 'deductions.create', 'branches.view', 'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.daily', 'attendance.bulk', 'attendance.clock', 'attendance.records', 'attendance.overtime', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.create', 'hr.edit', 'hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison', 'loans.view', 'loans.create', 'holidays.view', 'holidays.create', 'holidays.edit', 'reports.view', 'reports.hr', 'reports.attendance', 'reports.holiday_plan', 'documents.view', 'documents.create', 'laborlaw.view'],
-  accountant: ['dashboard.view', 'employees.view', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_financeiro', 'payroll.view', 'payroll.history', 'payroll.calculate', 'payroll.export', 'taxsim.view', 'deductions.view', 'deductions.create', 'deductions.edit', 'attendance.view', 'attendance.effectiveness', 'loans.view', 'loans.create', 'loans.edit', 'reports.view', 'reports.export', 'reports.fiscal', 'reports.payroll', 'reports.annual', 'laborlaw.view'],
-  viewer: ['dashboard.view', 'employees.view', 'employees.tab_overview', 'cards.view', 'payroll.view', 'payroll.history', 'deductions.view', 'branches.view', 'attendance.view', 'attendance.daily', 'attendance.records', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.history', 'hr.comparison', 'loans.view', 'holidays.view', 'reports.view', 'reports.fiscal', 'reports.payroll', 'reports.hr', 'reports.attendance', 'reports.annual', 'laborlaw.view'],
+  manager: ['dashboard.view', 'employees.view', 'employees.create', 'employees.edit', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_attendance', 'employees.tab_financeiro', 'employees.tab_rh', 'employees.tab_auditoria', 'cards.view', 'payroll.view', 'payroll.history', 'payroll.calculate', 'payroll.approve', 'payroll.export', 'taxsim.view', 'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.advance_tab', 'deductions.advance_request', 'deductions.advance_approve', 'branches.view', 'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.daily', 'attendance.bulk', 'attendance.clock', 'attendance.records', 'attendance.overtime', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.create', 'hr.edit', 'hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison', 'hr.transfer', 'loans.view', 'loans.create', 'loans.edit', 'holidays.view', 'holidays.create', 'holidays.edit', 'reports.view', 'reports.export', 'reports.fiscal', 'reports.payroll', 'reports.hr', 'reports.attendance', 'reports.annual', 'reports.holiday_plan', 'documents.view', 'documents.create', 'laborlaw.view', 'settings.view', 'settings.company', 'settings.payments', 'settings.tax', 'settings.irt', 'settings.notifications', 'settings.assistant', 'settings.updates', 'settings.province', 'settings.network', 'settings.database', 'settings.backup_json', 'settings.backup_sqlite'],
+  hr: ['dashboard.view', 'employees.view', 'employees.create', 'employees.edit', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_attendance', 'employees.tab_financeiro', 'employees.tab_rh', 'employees.tab_auditoria', 'cards.view', 'payroll.view', 'payroll.history', 'deductions.view', 'deductions.create', 'deductions.advance_tab', 'deductions.advance_request', 'branches.view', 'attendance.view', 'attendance.create', 'attendance.edit', 'attendance.daily', 'attendance.bulk', 'attendance.clock', 'attendance.records', 'attendance.overtime', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.create', 'hr.edit', 'hr.termination', 'hr.disciplinary', 'hr.adjustments', 'hr.history', 'hr.comparison', 'hr.transfer', 'loans.view', 'loans.create', 'holidays.view', 'holidays.create', 'holidays.edit', 'reports.view', 'reports.hr', 'reports.attendance', 'reports.holiday_plan', 'documents.view', 'documents.create', 'laborlaw.view'],
+  accountant: ['dashboard.view', 'employees.view', 'employees.tab_overview', 'employees.tab_folha', 'employees.tab_financeiro', 'payroll.view', 'payroll.history', 'payroll.calculate', 'payroll.export', 'taxsim.view', 'deductions.view', 'deductions.create', 'deductions.edit', 'deductions.advance_tab', 'deductions.advance_request', 'deductions.advance_approve', 'attendance.view', 'attendance.effectiveness', 'loans.view', 'loans.create', 'loans.edit', 'reports.view', 'reports.export', 'reports.fiscal', 'reports.payroll', 'reports.annual', 'laborlaw.view'],
+  viewer: ['dashboard.view', 'employees.view', 'employees.tab_overview', 'cards.view', 'payroll.view', 'payroll.history', 'deductions.view', 'deductions.advance_tab', 'branches.view', 'attendance.view', 'attendance.daily', 'attendance.records', 'attendance.calendar', 'attendance.effectiveness', 'hr.view', 'hr.history', 'hr.comparison', 'loans.view', 'holidays.view', 'reports.view', 'reports.fiscal', 'reports.payroll', 'reports.hr', 'reports.attendance', 'reports.annual', 'laborlaw.view'],
 };
 
 export const roleLabels: Record<UserRole, { pt: string; en: string }> = {
@@ -375,6 +383,7 @@ export const HR_TAB_PERMISSION: Record<string, Permission> = {
   adjustments: 'hr.adjustments',
   history: 'hr.history',
   comparison: 'hr.comparison',
+  transfer: 'hr.transfer',
 };
 
 export const REPORTS_CATEGORY_PERMISSION: Record<string, Permission | null> = {

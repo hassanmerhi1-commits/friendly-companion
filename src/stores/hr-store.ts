@@ -1,13 +1,22 @@
 import { create } from 'zustand';
-import type { TerminationRecord, SalaryAdjustment, SalaryAdjustmentFormData, ApprovalStatus } from '@/types/hr';
+import type {
+  TerminationRecord,
+  SalaryAdjustment,
+  SalaryAdjustmentFormData,
+  ApprovalStatus,
+  BranchTransferRecord,
+  BranchTransferFormData,
+} from '@/types/hr';
 import type { Employee } from '@/types/employee';
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { useEmployeeStore } from '@/stores/employee-store';
+import { useBranchStore } from '@/stores/branch-store';
 import { useAuditStore } from '@/stores/audit-store';
 
 interface HRState {
   terminations: TerminationRecord[];
   salaryAdjustments: SalaryAdjustment[];
+  branchTransfers: BranchTransferRecord[];
   isLoaded: boolean;
   
   // Load from database
@@ -27,6 +36,13 @@ interface HRState {
   rejectSalaryAdjustment: (id: string, rejectedBy: string, reason: string) => Promise<{ success: boolean; error?: string }>;
   getAdjustmentsByEmployee: (employeeId: string) => SalaryAdjustment[];
   getPendingAdjustments: () => SalaryAdjustment[];
+
+  // Branch transfer operations
+  transferEmployeeBranch: (
+    data: BranchTransferFormData,
+    transferredBy: string
+  ) => Promise<{ success: boolean; record?: BranchTransferRecord; error?: string }>;
+  getTransfersByEmployee: (employeeId: string) => BranchTransferRecord[];
 }
 
 // Map DB row to TerminationRecord
@@ -141,9 +157,46 @@ function mapAdjustmentToDbRow(a: SalaryAdjustment): Record<string, any> {
   };
 }
 
+function mapDbRowToBranchTransfer(row: any): BranchTransferRecord {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    employeeName: row.employee_name || '',
+    fromBranchId: row.from_branch_id || '',
+    fromBranchName: row.from_branch_name || '',
+    toBranchId: row.to_branch_id || '',
+    toBranchName: row.to_branch_name || '',
+    effectiveDate: row.effective_date || '',
+    reason: row.reason || undefined,
+    transferredBy: row.transferred_by || '',
+    transferredAt: row.transferred_at || '',
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
+  };
+}
+
+function mapBranchTransferToDbRow(t: BranchTransferRecord): Record<string, any> {
+  return {
+    id: t.id,
+    employee_id: t.employeeId,
+    employee_name: t.employeeName,
+    from_branch_id: t.fromBranchId,
+    from_branch_name: t.fromBranchName,
+    to_branch_id: t.toBranchId,
+    to_branch_name: t.toBranchName,
+    effective_date: t.effectiveDate,
+    reason: t.reason || null,
+    transferred_by: t.transferredBy,
+    transferred_at: t.transferredAt,
+    created_at: t.createdAt,
+    updated_at: t.updatedAt,
+  };
+}
+
 export const useHRStore = create<HRState>()((set, get) => ({
   terminations: [],
   salaryAdjustments: [],
+  branchTransfers: [],
   isLoaded: false,
   
   loadHRData: async () => {
@@ -151,6 +204,7 @@ export const useHRStore = create<HRState>()((set, get) => ({
       // Try to load from database tables (they may not exist yet)
       let terminations: TerminationRecord[] = [];
       let salaryAdjustments: SalaryAdjustment[] = [];
+      let branchTransfers: BranchTransferRecord[] = [];
       
       try {
         const terminationRows = await liveGetAll<any>('terminations');
@@ -165,9 +219,26 @@ export const useHRStore = create<HRState>()((set, get) => ({
       } catch (e) {
         console.log('[HR] Salary adjustments table not available yet');
       }
+
+      try {
+        const transferRows = await liveGetAll<any>('branch_transfers');
+        branchTransfers = transferRows
+          .map(mapDbRowToBranchTransfer)
+          .sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+      } catch (e) {
+        console.log('[HR] Branch transfers table not available yet');
+      }
       
-      set({ terminations, salaryAdjustments, isLoaded: true });
-      console.log('[HR] Loaded', terminations.length, 'terminations and', salaryAdjustments.length, 'adjustments');
+      set({ terminations, salaryAdjustments, branchTransfers, isLoaded: true });
+      console.log(
+        '[HR] Loaded',
+        terminations.length,
+        'terminations,',
+        salaryAdjustments.length,
+        'adjustments,',
+        branchTransfers.length,
+        'transfers'
+      );
     } catch (error) {
       console.error('[HR] Error loading:', error);
       set({ isLoaded: true });
@@ -452,6 +523,86 @@ export const useHRStore = create<HRState>()((set, get) => ({
   getPendingAdjustments: () => {
     return get().salaryAdjustments.filter(a => a.status === 'pending');
   },
+
+  transferEmployeeBranch: async (data, transferredBy) => {
+    const { employees, updateEmployee } = useEmployeeStore.getState();
+    const employee = employees.find((e) => e.id === data.employeeId);
+    if (!employee) {
+      return { success: false, error: 'Employee not found' };
+    }
+    if (employee.status !== 'active') {
+      return { success: false, error: 'Only active employees can be transferred' };
+    }
+
+    const toBranchId = (data.toBranchId || '').trim();
+    if (!toBranchId) {
+      return { success: false, error: 'Destination branch required' };
+    }
+
+    const fromBranchId = (employee.branchId || '').trim();
+    if (fromBranchId && fromBranchId === toBranchId) {
+      return { success: false, error: 'Employee is already in that branch' };
+    }
+
+    const branches = useBranchStore.getState().branches || [];
+    const fromBranch = branches.find((b) => b.id === fromBranchId);
+    const toBranch = branches.find((b) => b.id === toBranchId);
+    if (!toBranch) {
+      return { success: false, error: 'Destination branch not found' };
+    }
+
+    const effectiveDate = (data.effectiveDate || '').trim();
+    if (!effectiveDate) {
+      return { success: false, error: 'Effective date required' };
+    }
+
+    const now = new Date().toISOString();
+    const record: BranchTransferRecord = {
+      id: `xfer-${crypto.randomUUID()}`,
+      employeeId: employee.id,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      fromBranchId: fromBranchId || '',
+      fromBranchName: fromBranch?.name || (fromBranchId ? fromBranchId : '—'),
+      toBranchId,
+      toBranchName: toBranch.name || toBranchId,
+      effectiveDate,
+      reason: data.reason?.trim() || undefined,
+      transferredBy,
+      transferredAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      await liveInsert('branch_transfers', mapBranchTransferToDbRow(record));
+
+      const updated = await updateEmployee(employee.id, { branchId: toBranchId });
+      if (!updated.success) {
+        return { success: false, error: updated.error || 'Failed to update employee branch' };
+      }
+
+      const { logAction } = useAuditStore.getState();
+      logAction({
+        action: 'employee_branch_transfer',
+        entityType: 'employee',
+        entityId: employee.id,
+        description: `Transfer ${record.employeeName}: ${record.fromBranchName} → ${record.toBranchName} (${record.effectiveDate})`,
+      });
+
+      set((state) => ({
+        branchTransfers: [record, ...state.branchTransfers],
+      }));
+
+      return { success: true, record };
+    } catch (error: any) {
+      console.error('[HR] Error transferring employee:', error);
+      return { success: false, error: error?.message || 'Transfer failed' };
+    }
+  },
+
+  getTransfersByEmployee: (employeeId) => {
+    return get().branchTransfers.filter((t) => t.employeeId === employeeId);
+  },
 }));
 
 // Initialize sync listener
@@ -471,9 +622,18 @@ export function initHRStoreSync() {
     const salaryAdjustments = rows.map(mapDbRowToAdjustment);
     useHRStore.setState(state => ({ ...state, salaryAdjustments }));
   });
+
+  const unsubTransfers = onTableSync('branch_transfers', (_table, rows) => {
+    console.log('[HR] Branch transfers PUSH:', rows.length);
+    const branchTransfers = rows
+      .map(mapDbRowToBranchTransfer)
+      .sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    useHRStore.setState((state) => ({ ...state, branchTransfers }));
+  });
   
   unsubscribe = () => {
     unsubTerminations();
     unsubAdjustments();
+    unsubTransfers();
   };
 }
