@@ -244,13 +244,27 @@ const Settings = () => {
 
     setIsSaving(true);
     try {
-      // Hard guard: never persist blank branding over existing values
-      const patch = { ...formData };
+      // Only persist fields the user actually changed — never rewrite the full form
+      // (avoids wiping companyLogo/name when form briefly held empty defaults).
+      const patch: Partial<typeof formData> = {};
+      (Object.keys(formData) as (keyof typeof formData)[]).forEach((key) => {
+        if (JSON.stringify(formData[key]) !== JSON.stringify(settings[key])) {
+          (patch as any)[key] = formData[key];
+        }
+      });
       if (!String(patch.companyName || '').trim() && String(settings.companyName || '').trim()) {
-        patch.companyName = settings.companyName;
+        delete patch.companyName;
       }
       if (!String(patch.companyLogo || '').trim() && String(settings.companyLogo || '').trim()) {
-        patch.companyLogo = settings.companyLogo;
+        delete patch.companyLogo;
+      }
+      if (!String(patch.nif || '').trim() && String(settings.nif || '').trim()) {
+        delete patch.nif;
+      }
+      if (Object.keys(patch).length === 0) {
+        setIsDirty(false);
+        toast.success(t.settings.changesSaved || "Alterações guardadas com sucesso!");
+        return;
       }
       await updateSettings(patch);
       setIsDirty(false);

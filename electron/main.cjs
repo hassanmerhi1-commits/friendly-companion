@@ -767,10 +767,30 @@ function dbGetById(table, id, targetDb = null) {
   }
 }
 
+/** Branding keys that must never be wiped by empty client writes */
+const PROTECTED_SETTINGS_KEYS = new Set(['companyName', 'companyLogo', 'nif']);
+
 function dbInsert(table, data, targetDb = null, companyId = null) {
   try {
     const database = targetDb || db;
     if (!database) return { success: false, error: 'Database not connected' };
+
+    // Ironclad: refuse empty overwrite of company name / logo / NIF
+    if (table === 'settings' && data && PROTECTED_SETTINGS_KEYS.has(data.key)) {
+      const incoming = String(data.value ?? '').trim();
+      if (!incoming) {
+        try {
+          const existing = database.prepare('SELECT value FROM settings WHERE key = ?').get(data.key);
+          const prev = existing ? String(existing.value ?? '').trim() : '';
+          if (prev) {
+            console.warn(`[DB] Refused empty overwrite of settings.${data.key} (kept ${prev.length} chars)`);
+            return { success: true, changes: 0, skipped: true, reason: 'protected_settings_empty_overwrite' };
+          }
+        } catch (guardErr) {
+          console.warn('[DB] settings protect check failed:', guardErr?.message || guardErr);
+        }
+      }
+    }
     
     const keys = Object.keys(data);
     const values = Object.values(data);

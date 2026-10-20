@@ -64,6 +64,98 @@ const defaultSettings: CompanySettings = {
   employeeCategories: [],
 };
 
+/** Never persist empty values over existing branding (name / logo / NIF). */
+const PROTECTED_BRANDING_KEYS: (keyof CompanySettings)[] = ['companyName', 'companyLogo', 'nif'];
+
+const BRANDING_CACHE_KEY = 'payrollao-branding-cache-v1';
+
+type BrandingCache = Partial<Pick<CompanySettings, 'companyName' | 'companyLogo' | 'nif' | 'address' | 'city' | 'province' | 'municipality' | 'phone' | 'phone2' | 'email' | 'website' | 'bank' | 'iban'>>;
+
+function readBrandingCache(): BrandingCache | null {
+  try {
+    const raw = localStorage.getItem(BRANDING_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!String(parsed.companyName || '').trim()) return null;
+    return parsed as BrandingCache;
+  } catch {
+    return null;
+  }
+}
+
+function writeBrandingCache(settings: CompanySettings) {
+  if (!String(settings.companyName || '').trim()) return;
+  try {
+    const payload: BrandingCache = {
+      companyName: settings.companyName,
+      companyLogo: settings.companyLogo || '',
+      nif: settings.nif || '',
+      address: settings.address || '',
+      city: settings.city || '',
+      province: settings.province || '',
+      municipality: settings.municipality || '',
+      phone: settings.phone || '',
+      phone2: settings.phone2 || '',
+      email: settings.email || '',
+      website: settings.website || '',
+      bank: settings.bank || '',
+      iban: settings.iban || '',
+    };
+    localStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('[Settings] Could not cache branding:', err);
+  }
+}
+
+async function healBrandingFromCache(loaded: CompanySettings): Promise<CompanySettings> {
+  if (String(loaded.companyName || '').trim()) {
+    writeBrandingCache(loaded);
+    return loaded;
+  }
+  const cache = readBrandingCache();
+  if (!cache?.companyName) return loaded;
+
+  console.warn('[Settings] DB branding empty — healing from local cache');
+  const healed: CompanySettings = {
+    ...loaded,
+    companyName: cache.companyName || '',
+    companyLogo: cache.companyLogo || loaded.companyLogo || '',
+    nif: cache.nif || loaded.nif || '',
+    address: cache.address || loaded.address || '',
+    city: cache.city || loaded.city || '',
+    province: cache.province || loaded.province || '',
+    municipality: cache.municipality || loaded.municipality || '',
+    phone: cache.phone || loaded.phone || '',
+    phone2: cache.phone2 || loaded.phone2 || '',
+    email: cache.email || loaded.email || '',
+    website: cache.website || loaded.website || '',
+    bank: cache.bank || loaded.bank || '',
+    iban: cache.iban || loaded.iban || '',
+  };
+  const now = new Date().toISOString();
+  const keys: (keyof BrandingCache)[] = [
+    'companyName', 'companyLogo', 'nif', 'address', 'city', 'province',
+    'municipality', 'phone', 'phone2', 'email', 'website', 'bank', 'iban',
+  ];
+  for (const key of keys) {
+    const val = healed[key];
+    if (val === undefined || val === null) continue;
+    if (!String(val).trim() && key !== 'phone2' && key !== 'email' && key !== 'website') continue;
+    try {
+      await liveInsert('settings', {
+        key,
+        value: String(val),
+        updated_at: now,
+      });
+    } catch (err) {
+      console.error(`[Settings] Heal write failed for ${key}:`, err);
+    }
+  }
+  writeBrandingCache(healed);
+  return healed;
+}
+
 function mapSettingsFromRows(settingsMap: Record<string, string>): CompanySettings {
   return {
     companyName: settingsMap.companyName || defaultSettings.companyName,
@@ -104,6 +196,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     try {
       const rows = await liveGetAll<any>('settings');
       if (rows.length === 0) {
+        const cache = readBrandingCache();
+        if (cache?.companyName) {
+          const healed = await healBrandingFromCache(defaultSettings);
+          set({ settings: healed, isLoaded: true });
+          console.log('[Settings] Empty DB — restored branding from cache');
+          return;
+        }
         set({ isLoaded: true });
         return;
       }
@@ -111,7 +210,8 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       for (const row of rows) {
         settingsMap[row.key] = row.value;
       }
-      const loaded = mapSettingsFromRows(settingsMap);
+      let loaded = mapSettingsFromRows(settingsMap);
+      loaded = await healBrandingFromCache(loaded);
       set({ settings: loaded, isLoaded: true });
       console.log('[Settings] Loaded from DB');
     } catch (error) {
@@ -131,7 +231,21 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
           : previous.employeeCategories
       ),
     };
+
+    // Never let empty branding overwrite good values in memory or DB
+    for (const key of PROTECTED_BRANDING_KEYS) {
+      if (
+        Object.prototype.hasOwnProperty.call(newSettings, key) &&
+        !String((newSettings as any)[key] ?? '').trim() &&
+        String((previous as any)[key] ?? '').trim()
+      ) {
+        (merged as any)[key] = (previous as any)[key];
+        console.warn(`[Settings] Refused empty overwrite of ${key}`);
+      }
+    }
+
     set({ settings: merged });
+    writeBrandingCache(merged);
     const now = new Date().toISOString();
 
     // CRITICAL: only persist keys explicitly passed in newSettings.
@@ -140,9 +254,17 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     const keysToWrite = Object.keys(newSettings) as (keyof CompanySettings)[];
     for (const key of keysToWrite) {
       const val = key === 'employeeCategories' ? merged.employeeCategories : merged[key];
+      const serialized = serializeSettingValue(key, val);
+      if (
+        PROTECTED_BRANDING_KEYS.includes(key) &&
+        !String(serialized).trim() &&
+        String((previous as any)[key] ?? '').trim()
+      ) {
+        continue;
+      }
       await liveInsert('settings', {
         key,
-        value: serializeSettingValue(key, val),
+        value: serialized,
         updated_at: now,
       });
     }
@@ -224,7 +346,18 @@ export function initSettingsStoreSync() {
     for (const row of rows) {
       settingsMap[row.key] = row.value;
     }
-    useSettingsStore.setState({ settings: mapSettingsFromRows(settingsMap), isLoaded: true });
+    let incoming = mapSettingsFromRows(settingsMap);
+    const current = useSettingsStore.getState().settings;
+    // If a push arrives with empty branding but we already have good values, keep ours
+    for (const key of PROTECTED_BRANDING_KEYS) {
+      if (!String((incoming as any)[key] ?? '').trim() && String((current as any)[key] ?? '').trim()) {
+        (incoming as any)[key] = (current as any)[key];
+      }
+    }
+    if (String(incoming.companyName || '').trim()) {
+      writeBrandingCache(incoming);
+    }
+    useSettingsStore.setState({ settings: incoming, isLoaded: true });
   });
 
   const unsubLegacy = onDataChange((table) => {
