@@ -85,61 +85,228 @@ export function exportPayrollToCSV(
   URL.revokeObjectURL(url);
 }
 
-// Export employees to CSV
-export function exportEmployeesToCSV(
+function formatExportDate(value?: string): string {
+  if (!value || !String(value).trim()) return '—';
+  const d = new Date(value.includes('T') ? value : `${value}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('pt-AO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/** Full years of age from date of birth as of today; null if unknown/invalid. */
+export function calculateAgeYears(dateOfBirth?: string, asOf: Date = new Date()): number | null {
+  if (!dateOfBirth || !String(dateOfBirth).trim()) return null;
+  const birth = new Date(
+    dateOfBirth.includes('T') ? dateOfBirth : `${dateOfBirth}T12:00:00`
+  );
+  if (Number.isNaN(birth.getTime())) return null;
+  let age = asOf.getFullYear() - birth.getFullYear();
+  const m = asOf.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && asOf.getDate() < birth.getDate())) age -= 1;
+  if (age < 0 || age > 120) return null;
+  return age;
+}
+
+/** Employees list → formatted .xlsx (nome, função, idade, nascimento, salário, categoria, …). */
+export async function exportEmployeesToXlsx(
   employees: Employee[],
   language: string = 'pt',
   branches: Branch[] = []
-): void {
+): Promise<void> {
   const isPt = language === 'pt';
-  const headers = isPt
-    ? ['Nome', 'Email', 'Telefone', 'Departamento', 'Categoria', 'Filial', 'Cargo', 'Contrato', 'Data Admissão', 'Salário Base', 'Estado']
-    : ['Name', 'Email', 'Phone', 'Department', 'Category', 'Branch', 'Position', 'Contract', 'Hire Date', 'Base Salary', 'Status'];
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'PayrollAO';
+  wb.created = new Date();
 
-  const contractLabels = language === 'pt'
-    ? { permanent: 'Efectivo', fixed_term: 'Prazo Det.', part_time: 'Part-Time', probation: 'Experimental' }
-    : { permanent: 'Permanent', fixed_term: 'Fixed Term', part_time: 'Part-Time', probation: 'Probation' };
+  const ws = wb.addWorksheet(isPt ? 'Funcionários' : 'Employees', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+  });
 
-  const statusLabels = language === 'pt'
-    ? { active: 'Ativo', inactive: 'Inativo', on_leave: 'De Licença', terminated: 'Desligado' }
-    : { active: 'Active', inactive: 'Inactive', on_leave: 'On Leave', terminated: 'Terminated' };
+  const contractLabels: Record<string, string> = isPt
+    ? {
+        permanent: 'Efectivo',
+        fixed_term: 'Prazo Det.',
+        part_time: 'Part-Time',
+        probation: 'Experimental',
+        colaborador: 'Colaborador',
+      }
+    : {
+        permanent: 'Permanent',
+        fixed_term: 'Fixed Term',
+        part_time: 'Part-Time',
+        probation: 'Probation',
+        colaborador: 'Collaborator',
+      };
 
-  const categoryLabel = (category?: string) => category || '-';
+  const statusLabels: Record<string, string> = isPt
+    ? {
+        active: 'Ativo',
+        inactive: 'Inativo',
+        on_leave: 'De Licença',
+        terminated: 'Desligado',
+        pending_approval: 'Pendente',
+      }
+    : {
+        active: 'Active',
+        inactive: 'Inactive',
+        on_leave: 'On Leave',
+        terminated: 'Terminated',
+        pending_approval: 'Pending',
+      };
 
   const branchName = (branchId?: string) => {
-    if (!branchId) return '-';
+    if (!branchId) return '—';
     const b = branches.find((x) => x.id === branchId);
-    return b ? b.name : '-';
+    return b?.name || '—';
   };
 
-  const rows = employees.map(emp => [
-    `${emp.firstName} ${emp.lastName}`,
-    emp.email,
-    emp.phone,
-    emp.department,
-    categoryLabel(emp.category),
-    branchName(emp.branchId),
-    emp.position,
-    contractLabels[emp.contractType],
-    new Date(emp.hireDate).toLocaleDateString('pt-AO'),
-    emp.baseSalary,
-    statusLabels[emp.status],
+  const headerLabels = isPt
+    ? [
+        'Nome',
+        'Nº',
+        'Categoria',
+        'Cargo / Função',
+        'Departamento',
+        'Filial',
+        'Data de nascimento',
+        'Idade',
+        'Data admissão',
+        'Contrato',
+        'Salário base',
+        'Alimentação',
+        'Transporte',
+        'Abono família',
+        'Bónus mensal',
+        'Email',
+        'Telefone',
+        'Estado',
+      ]
+    : [
+        'Name',
+        'No.',
+        'Category',
+        'Position / Role',
+        'Department',
+        'Branch',
+        'Date of birth',
+        'Age',
+        'Hire date',
+        'Contract',
+        'Base salary',
+        'Meal',
+        'Transport',
+        'Family allowance',
+        'Monthly bonus',
+        'Email',
+        'Phone',
+        'Status',
+      ];
+
+  const colCount = headerLabels.length;
+  ws.columns = [
+    { width: 28 },
+    { width: 12 },
+    { width: 16 },
+    { width: 18 },
+    { width: 16 },
+    { width: 16 },
+    { width: 14 },
+    { width: 8 },
+    { width: 12 },
+    { width: 12 },
+    { width: 14 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 24 },
+    { width: 14 },
+    { width: 12 },
+  ];
+
+  const issuedAt = new Date().toLocaleDateString('pt-AO');
+  const title = isPt ? 'Lista de funcionários' : 'Employee list';
+  const titleRow = ws.addRow([title]);
+  ws.mergeCells(titleRow.number, 1, titleRow.number, colCount);
+  titleRow.getCell(1).font = { bold: true, size: 14 };
+  titleRow.getCell(1).alignment = { horizontal: 'center' };
+  titleRow.height = 24;
+
+  const metaRow = ws.addRow([
+    `${isPt ? 'Emitido' : 'Issued'}: ${issuedAt}  •  ${employees.length} ${isPt ? 'registos' : 'records'}`,
   ]);
+  ws.mergeCells(metaRow.number, 1, metaRow.number, colCount);
+  metaRow.getCell(1).font = { size: 10, color: { argb: '666666' } };
+  metaRow.getCell(1).alignment = { horizontal: 'center' };
 
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
+  ws.addRow([]);
 
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const headerRow = ws.addRow(headerLabels);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } };
+    cell.border = THIN_BORDER;
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  });
+  headerRow.height = 22;
+
+  const moneyCols = new Set([11, 12, 13, 14, 15]); // 1-based: base…bonus
+
+  for (const emp of employees) {
+    const age = calculateAgeYears(emp.dateOfBirth);
+    const row = ws.addRow([
+      `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+      emp.employeeNumber || '—',
+      emp.category || '—',
+      emp.position || '—',
+      emp.department || '—',
+      branchName(emp.branchId),
+      formatExportDate(emp.dateOfBirth),
+      age == null ? '—' : age,
+      formatExportDate(emp.hireDate),
+      contractLabels[emp.contractType] || emp.contractType || '—',
+      emp.baseSalary || 0,
+      emp.mealAllowance || 0,
+      emp.transportAllowance || 0,
+      emp.familyAllowance || 0,
+      emp.monthlyBonus || 0,
+      emp.email || '—',
+      emp.phone || '—',
+      statusLabels[emp.status] || emp.status || '—',
+    ]);
+
+    row.eachCell((cell, colNumber) => {
+      cell.border = THIN_BORDER;
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: moneyCols.has(colNumber) || colNumber === 8 ? 'right' : 'left',
+      };
+      if (moneyCols.has(colNumber) && typeof cell.value === 'number') {
+        cell.numFmt = CURRENCY_FMT;
+      }
+    });
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `employees-${new Date().toISOString().split('T')[0]}.csv`);
+  link.href = url;
+  link.download = `funcionarios-${new Date().toISOString().split('T')[0]}.xlsx`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/** @deprecated Use exportEmployeesToXlsx */
+export async function exportEmployeesToCSV(
+  employees: Employee[],
+  language: string = 'pt',
+  branches: Branch[] = []
+): Promise<void> {
+  return exportEmployeesToXlsx(employees, language, branches);
 }
 
 export interface DeductionBalanceExportRow {

@@ -23,7 +23,7 @@ import {
   ATTENDANCE_TD,
   ATTENDANCE_TBODY,
 } from "@/components/attendance/AttendanceTablePanel";
-import { exportEmployeesToCSV } from "@/lib/export-utils";
+import { exportEmployeesToXlsx } from "@/lib/export-utils";
 import { getExitReasonLabel } from "@/lib/employee-exit";
 import type { Employee } from "@/types/employee";
 import {
@@ -425,13 +425,19 @@ const Employees = () => {
     setEmployeeToDelete(null);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!hasPermission('reports.export')) {
       toast.error(language === 'pt' ? 'Sem permissão para exportar' : 'No permission to export');
       return;
     }
-    exportEmployeesToCSV(filteredAndSortedEmployees, language, branches);
-    toast.success(t.export.success);
+    try {
+      await exportEmployeesToXlsx(filteredAndSortedEmployees, language, branches);
+      toast.success(
+        language === 'pt' ? 'Excel (.xlsx) exportado' : 'Excel (.xlsx) exported'
+      );
+    } catch {
+      toast.error(language === 'pt' ? 'Erro ao exportar' : 'Export failed');
+    }
   };
 
   const pendingCount = employees.filter(e => e.status === 'pending_approval').length;
