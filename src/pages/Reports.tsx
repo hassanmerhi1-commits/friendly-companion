@@ -53,6 +53,7 @@ import { PrintableIRTMap } from '@/components/reports/PrintableIRTMap';
 import { PrintableHolidayReport } from '@/components/reports/PrintableHolidayReport';
 import { PrintableOvertimeReport } from '@/components/reports/PrintableOvertimeReport';
 import { PrintableDeductionBalanceReport } from '@/components/reports/PrintableDeductionBalanceReport';
+import { PrintableDeductionPeriodReport } from '@/components/reports/PrintableDeductionPeriodReport';
 import { PrintableAnnualSummary } from '@/components/reports/PrintableAnnualSummary';
 import { PrintableBranchCostAnalysis } from '@/components/reports/PrintableBranchCostAnalysis';
 import { PrintableIncomeDeclaration } from '@/components/reports/PrintableIncomeDeclaration';
@@ -77,6 +78,7 @@ type ReportType =
   | 'ferias'
   | 'overtime'
   | 'loans'
+  | 'deduction_period'
   | 'annual'
   | 'branch_cost'
   | 'income_declaration'
@@ -113,6 +115,17 @@ const REPORT_DEFS: ReportDef[] = [
   { id: 'bonus', type: 'bonus', category: 'payroll', namePt: 'Relatório de Bónus', nameEn: 'Bonus Report', descPt: 'Bónus mensal por funcionário', descEn: 'Monthly bonus by employee', icon: DollarSign, needsPayroll: true },
   { id: 'overtime', type: 'overtime', category: 'payroll', namePt: 'Relatório de Horas Extra', nameEn: 'Overtime Report', descPt: 'HE normal, nocturna e feriado', descEn: 'Normal, night and holiday OT', icon: Clock, needsPayroll: true },
   { id: 'loans', type: 'loans', category: 'payroll', namePt: 'Descontos e Empréstimos', nameEn: 'Deductions & Loans', descPt: 'Saldos, descontado e por descontar — Excel', descEn: 'Balances, deducted, remaining — Excel', icon: CreditCard, hasExcel: true },
+  {
+    id: 'deduction_period',
+    type: 'deduction_period',
+    category: 'payroll',
+    namePt: 'Descontos por Período',
+    nameEn: 'Deductions by Period',
+    descPt: 'De–Até: descontos registados, por quem e valores — Excel',
+    descEn: 'From–To: registered deductions, by whom and amounts — Excel',
+    icon: ClipboardList,
+    hasExcel: true,
+  },
   { id: 'branch_cost', type: 'branch_cost', category: 'payroll', namePt: 'Custos por Filial', nameEn: 'Branch Cost Analysis', descPt: 'Distribuição de custos por filial', descEn: 'Cost distribution by branch', icon: Building2, needsPayroll: true },
   { id: 'employee', type: 'employee', category: 'hr', namePt: 'Relatório de Funcionários', nameEn: 'Employee Report', descPt: 'Lista detalhada de funcionários activos', descEn: 'Detailed active employee list', icon: Users, needsEmployees: true },
   { id: 'holiday', type: 'holiday', category: 'hr', namePt: 'Mapa de Férias', nameEn: 'Holiday Map', descPt: 'Calendário e planeamento de férias', descEn: 'Holiday calendar and planning', icon: Calendar, needsEmployees: true },
@@ -880,6 +893,26 @@ export default function Reports() {
               employees={filteredEmployees}
               deductions={deductions}
               loans={loans}
+              branches={branches}
+              companyName={settings.companyName}
+              companyNif={settings.nif}
+              branch={selectedBranch}
+              language={language}
+              onClose={() => setOpenReport(null)}
+            />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={openReport === 'deduction_period'} onOpenChange={handleDialogChange}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {pt ? 'Descontos por Período' : 'Deductions by Period'}
+              </DialogTitle>
+            </DialogHeader>
+            <PrintableDeductionPeriodReport
+              employees={filteredEmployees}
+              deductions={deductions}
               branches={branches}
               companyName={settings.companyName}
               companyNif={settings.nif}

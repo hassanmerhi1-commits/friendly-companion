@@ -34,6 +34,10 @@ export interface Deduction {
   ignoreWarehouseCap?: boolean;
   /** How this deduction shares folha months with other open deductions. */
   schedulingMode?: DeductionSchedulingMode;
+  /** User id who registered the deduction (set on create). */
+  createdBy?: string;
+  /** Display name / username of who registered. */
+  createdByName?: string;
   createdAt: string;
   updatedAt: string;
 }

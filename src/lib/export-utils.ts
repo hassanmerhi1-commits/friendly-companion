@@ -531,6 +531,204 @@ export async function exportDeductionBalanceToCSV(
   return exportDeductionBalanceToXlsx(rows, language, meta);
 }
 
+export interface DeductionPeriodExportRow {
+  registeredAt: string;
+  deductionDate: string;
+  employeeName: string;
+  branchName: string;
+  motive: string;
+  detail: string;
+  totalAmount: number;
+  monthlyAmount: number;
+  installments: number;
+  registeredBy: string;
+}
+
+export interface DeductionPeriodExportMeta {
+  companyName?: string;
+  companyNif?: string;
+  branchName?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+/** Deductions registered in a from–to window (who + how much). */
+export async function exportDeductionPeriodToXlsx(
+  rows: DeductionPeriodExportRow[],
+  language: string = 'pt',
+  meta: DeductionPeriodExportMeta = {}
+): Promise<void> {
+  const isPt = language === 'pt';
+  const wb = new ExcelJS.Workbook();
+  wb.creator = meta.companyName || 'PayrollAO';
+  wb.created = new Date();
+
+  const ws = wb.addWorksheet(isPt ? 'Descontos por Período' : 'Deductions by Period', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+  });
+
+  const colCount = 10;
+  const issuedAt = new Date().toLocaleDateString('pt-AO');
+  const branchLabel = meta.branchName || (isPt ? 'Todas as filiais' : 'All branches');
+  const rangeLabel =
+    meta.dateFrom && meta.dateTo
+      ? `${meta.dateFrom} → ${meta.dateTo}`
+      : isPt
+        ? 'Sem filtro de datas'
+        : 'No date filter';
+
+  ws.columns = [
+    { key: 'registeredAt', width: 12 },
+    { key: 'deductionDate', width: 12 },
+    { key: 'employee', width: 28 },
+    { key: 'branch', width: 16 },
+    { key: 'motive', width: 22 },
+    { key: 'detail', width: 32 },
+    { key: 'total', width: 14 },
+    { key: 'monthly', width: 14 },
+    { key: 'installments', width: 10 },
+    { key: 'by', width: 18 },
+  ];
+
+  const titleRows = [
+    meta.companyName || (isPt ? 'Empresa' : 'Company'),
+    isPt
+      ? 'Relatório de Descontos Registados (período)'
+      : 'Registered Deductions Report (period)',
+    meta.companyNif ? `NIF: ${meta.companyNif}` : '',
+    `${isPt ? 'Filial' : 'Branch'}: ${branchLabel}  •  ${isPt ? 'Período' : 'Period'}: ${rangeLabel}  •  ${isPt ? 'Emitido' : 'Issued'}: ${issuedAt}  •  ${rows.length} ${isPt ? 'registos' : 'records'}`,
+  ].filter(Boolean);
+
+  titleRows.forEach((text, i) => {
+    const r = ws.addRow([text]);
+    ws.mergeCells(r.number, 1, r.number, colCount);
+    const cell = ws.getCell(r.number, 1);
+    cell.font = { bold: i === 0, size: i === 0 ? 14 : 11, color: { argb: i === 0 ? '000000' : '444444' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    r.height = i === 0 ? 26 : 20;
+  });
+
+  ws.addRow([]);
+
+  const headerLabels = isPt
+    ? [
+        'Data Registo',
+        'Data Desconto',
+        'Funcionário',
+        'Filial',
+        'Tipo',
+        'Descrição',
+        'Valor Total (Kz)',
+        'Prestação (Kz)',
+        'Prestações',
+        'Registado por',
+      ]
+    : [
+        'Registered',
+        'Deduction Date',
+        'Employee',
+        'Branch',
+        'Type',
+        'Description',
+        'Total (Kz)',
+        'Installment (Kz)',
+        'Installments',
+        'Registered by',
+      ];
+
+  const headerRow = ws.addRow(headerLabels);
+  const headerRowNum = headerRow.number;
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2B579A' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = THIN_BORDER;
+  });
+  headerRow.height = 28;
+
+  const currencyCols = [7, 8];
+  const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString('pt-AO') : '');
+
+  rows.forEach((r, index) => {
+    const dataRow = ws.addRow([
+      fmtDate(r.registeredAt),
+      fmtDate(r.deductionDate),
+      r.employeeName,
+      r.branchName,
+      r.motive,
+      r.detail,
+      r.totalAmount,
+      r.monthlyAmount,
+      r.installments,
+      r.registeredBy,
+    ]);
+
+    dataRow.eachCell((cell, colNumber) => {
+      cell.border = THIN_BORDER;
+      cell.alignment = { vertical: 'middle', wrapText: colNumber === 6 };
+      if (currencyCols.includes(colNumber)) {
+        cell.numFmt = CURRENCY_FMT;
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      }
+      if (colNumber === 9) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    });
+
+    if (index % 2 === 1) {
+      dataRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F6FA' } };
+      });
+    }
+  });
+
+  const totalAmount = rows.reduce((s, r) => s + r.totalAmount, 0);
+  const totalsRow = ws.addRow([
+    isPt ? 'TOTAIS' : 'TOTALS',
+    '',
+    '',
+    '',
+    '',
+    '',
+    totalAmount,
+    '',
+    '',
+    '',
+  ]);
+
+  totalsRow.eachCell((cell, colNumber) => {
+    cell.font = { bold: true };
+    cell.border = {
+      top: { style: 'double' },
+      left: { style: 'thin' },
+      bottom: { style: 'double' },
+      right: { style: 'thin' },
+    };
+    if (currencyCols.includes(colNumber)) {
+      cell.numFmt = CURRENCY_FMT;
+      cell.alignment = { horizontal: 'right', vertical: 'middle' };
+    }
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'E8EEF7' } };
+  });
+
+  ws.views = [{ state: 'frozen', ySplit: headerRowNum }];
+  ws.autoFilter = {
+    from: { row: headerRowNum, column: 1 },
+    to: { row: headerRowNum, column: colCount },
+  };
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `descontos-periodo-${meta.dateFrom || 'inicio'}-${meta.dateTo || 'fim'}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Print salary receipt
 export function printReceipt(elementId: string): void {
   const element = document.getElementById(elementId);

@@ -770,6 +770,27 @@ function dbGetById(table, id, targetDb = null) {
 /** Branding keys that must never be wiped by empty client writes */
 const PROTECTED_SETTINGS_KEYS = new Set(['companyName', 'companyLogo', 'nif']);
 
+function getTableColumnSet(database, table) {
+  try {
+    const info = database.prepare(`PRAGMA table_info(${table})`).all();
+    return new Set(info.map((c) => c.name));
+  } catch {
+    return null;
+  }
+}
+
+/** Drop keys the current schema does not have (safe client→older-server rollout). */
+function filterRowToTableColumns(database, table, data) {
+  if (!data || typeof data !== 'object') return data;
+  const cols = getTableColumnSet(database, table);
+  if (!cols) return data;
+  const filtered = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (cols.has(key)) filtered[key] = value;
+  }
+  return filtered;
+}
+
 function dbInsert(table, data, targetDb = null, companyId = null) {
   try {
     const database = targetDb || db;
@@ -791,9 +812,10 @@ function dbInsert(table, data, targetDb = null, companyId = null) {
         }
       }
     }
-    
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+
+    const row = filterRowToTableColumns(database, table, data);
+    const keys = Object.keys(row);
+    const values = Object.values(row);
     const placeholders = keys.map(() => '?').join(', ');
     
     const stmt = database.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`);
@@ -815,9 +837,10 @@ function dbUpdate(table, id, data, targetDb = null, companyId = null) {
   try {
     const database = targetDb || db;
     if (!database) return { success: false, error: 'Database not connected' };
-    
-    const updates = Object.keys(data).map(key => `${key} = ?`).join(', ');
-    const values = [...Object.values(data), id];
+
+    const row = filterRowToTableColumns(database, table, data);
+    const updates = Object.keys(row).map(key => `${key} = ?`).join(', ');
+    const values = [...Object.values(row), id];
     
     const stmt = database.prepare(`UPDATE ${table} SET ${updates}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
     const result = stmt.run(...values);
@@ -1083,6 +1106,8 @@ function createNewDatabaseInternal(targetPath) {
         installments_paid INTEGER DEFAULT 0,
         remaining_amount REAL,
         current_installment INTEGER,
+        created_by TEXT,
+        created_by_name TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -1480,6 +1505,37 @@ function runMigrations() {
     addColumnIfMissing('deductions', 'ignore_warehouse_cap', "ALTER TABLE deductions ADD COLUMN ignore_warehouse_cap INTEGER DEFAULT 0");
     addColumnIfMissing('deductions', 'deduct_from_period_id', "ALTER TABLE deductions ADD COLUMN deduct_from_period_id TEXT");
     addColumnIfMissing('deductions', 'scheduling_mode', "ALTER TABLE deductions ADD COLUMN scheduling_mode TEXT DEFAULT 'sequential'");
+    addColumnIfMissing('deductions', 'created_by', "ALTER TABLE deductions ADD COLUMN created_by TEXT");
+    addColumnIfMissing('deductions', 'created_by_name', "ALTER TABLE deductions ADD COLUMN created_by_name TEXT");
+
+    // Backfill who registered from audit logs (safe no-op when already set)
+    try {
+      db.exec(`
+        UPDATE deductions
+        SET
+          created_by = (
+            SELECT al.user_id FROM audit_logs al
+            WHERE al.entity_id = deductions.id
+              AND al.action = 'deduction_created'
+            ORDER BY al.timestamp ASC
+            LIMIT 1
+          ),
+          created_by_name = (
+            SELECT al.user_name FROM audit_logs al
+            WHERE al.entity_id = deductions.id
+              AND al.action = 'deduction_created'
+            ORDER BY al.timestamp ASC
+            LIMIT 1
+          )
+        WHERE (created_by IS NULL OR created_by = '' OR created_by_name IS NULL OR created_by_name = '')
+          AND EXISTS (
+            SELECT 1 FROM audit_logs al
+            WHERE al.entity_id = deductions.id AND al.action = 'deduction_created'
+          );
+      `);
+    } catch (err) {
+      console.warn('Migration: deduction created_by backfill skipped', err?.message || err);
+    }
 
     // Backfill new installment-tracking columns for existing DBs (safe no-op if already populated)
     try {

@@ -4,6 +4,7 @@ import { isDeductionParallel, resolveSchedulingMode } from '@/lib/salary-advance
 import { liveGetAll, liveInsert, liveUpdate, liveDelete, onTableSync, onDataChange } from '@/lib/db-live';
 import { logAudit } from '@/lib/audit-helper';
 import { calculatePayroll } from '@/lib/angola-labor-law';
+import { useAuthStore } from '@/stores/auth-store';
 
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 const BALANCE_EPSILON = 0.01;
@@ -266,6 +267,8 @@ function mapDbRowToDeduction(row: any): Deduction {
     remainingAmount: balances.remainingAmount,
     ignoreWarehouseCap,
     schedulingMode: (row.scheduling_mode as DeductionSchedulingMode) || undefined,
+    createdBy: row.created_by || undefined,
+    createdByName: row.created_by_name || undefined,
     createdAt: row.created_at || '',
     updatedAt: row.updated_at || '',
   };
@@ -291,6 +294,8 @@ function mapDeductionToDbRow(d: Deduction): Record<string, any> {
     remaining_amount: d.remainingAmount,
     ignore_warehouse_cap: d.ignoreWarehouseCap ? 1 : 0,
     scheduling_mode: resolveSchedulingMode(d),
+    created_by: d.createdBy || null,
+    created_by_name: d.createdByName || null,
     created_at: d.createdAt,
     updated_at: d.updatedAt,
   };
@@ -326,6 +331,11 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
       const ignoreWarehouseCap =
         data.type === 'warehouse_loss' && Boolean(data.ignoreWarehouseCap);
 
+      const currentUser = useAuthStore.getState().currentUser;
+      const createdBy = currentUser?.id;
+      const createdByName =
+        currentUser?.name?.trim() || currentUser?.username || undefined;
+
       const newDeduction: Deduction = {
         id: crypto.randomUUID(),
         employeeId: data.employeeId,
@@ -342,6 +352,8 @@ export const useDeductionStore = create<DeductionState>()((set, get) => ({
         installmentsPaid: 0,
         remainingAmount: data.totalAmount,
         ignoreWarehouseCap,
+        createdBy,
+        createdByName,
         createdAt: now,
         updatedAt: now,
       };

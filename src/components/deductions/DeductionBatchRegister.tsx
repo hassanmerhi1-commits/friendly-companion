@@ -1,36 +1,57 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EmployeeSearchSelect } from '@/components/EmployeeSearchSelect';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/lib/i18n';
 import { useDeductionStore, getDeductionTypeLabel } from '@/stores/deduction-store';
 import { useEmployeeStore } from '@/stores/employee-store';
 import { usePayrollStore } from '@/stores/payroll-store';
 import {
+  defaultSchedulingModeForType,
   formatPeriodLabel,
   getOpenSalaryAdvancesForEmployee,
-  suggestDeductFromPeriodIdForNewAdvance,
 } from '@/lib/salary-advance-scheduling';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
-import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
+import { formatAOA } from '@/lib/angola-labor-law';
+import {
+  buildDeductionFormData,
+  calculateInstallments,
+  createEmptyDeductionEntry,
+  deductionEntryErrorMessage,
+  effectiveMonthlyAmount,
+  employeeNetSalary,
+  exceedsWarehouseLimit,
+  isWarehouseLossType,
+  suggestedStartPeriodId,
+  todayDateKey,
+  warehouseLossMaxMonthly,
+  type DeductionEntryState,
+} from '@/lib/deduction-entry';
 import type { Deduction, DeductionFormData, DeductionSchedulingMode, DeductionType } from '@/types/deduction';
+import type { Employee } from '@/types/employee';
+import type { PayrollPeriod } from '@/types/payroll';
 import { toast } from 'sonner';
-import { AlertTriangle, Info, ListPlus, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Info, Plus, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const WAREHOUSE_LOSS_MAX_RATE = 0.25;
-
-export interface DeductionDraft {
+interface BatchRow extends DeductionEntryState {
   localId: string;
-  data: DeductionFormData;
-  monthlyAmount: number;
+}
+
+interface RowCtx {
+  net: number;
+  cap: number;
+  openAdvances: Deduction[];
+  suggested?: string;
   installments: number;
+  monthly: number;
+  exceeds: boolean;
+  isWh: boolean;
 }
 
 interface DeductionBatchRegisterProps {
@@ -38,15 +59,92 @@ interface DeductionBatchRegisterProps {
   onClose: () => void;
 }
 
-function emptyForm(): DeductionFormData {
+function newRow(sharedDate: string): BatchRow {
   return {
-    employeeId: '',
-    type: 'salary_advance',
-    description: '',
-    totalAmount: 0,
-    date: new Date().toISOString().split('T')[0],
-    installments: 1,
+    localId: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    ...createEmptyDeductionEntry({ date: sharedDate || todayDateKey() }),
   };
+}
+
+function draftAsSyntheticAdvance(row: BatchRow): Deduction {
+  return {
+    id: row.localId,
+    employeeId: row.employeeId,
+    type: 'salary_advance',
+    description: row.description || 'draft',
+    totalAmount: row.totalAmount || 0,
+    amount: row.monthlyPrestacao || row.totalAmount || 0,
+    date: row.date,
+    isApplied: false,
+    isFullyPaid: false,
+    installments: Math.max(
+      1,
+      row.monthlyPrestacao > 0 ? Math.ceil((row.totalAmount || 1) / row.monthlyPrestacao) : 1
+    ),
+    installmentsPaid: 0,
+    remainingAmount: row.totalAmount || 0,
+    schedulingMode: row.schedulingMode,
+    deductFromPeriodId:
+      row.deductStartMode === 'pick' ? row.deductFromPeriodId || undefined : undefined,
+    createdAt: row.localId,
+    updatedAt: row.localId,
+  };
+}
+
+function priorSyntheticFor(
+  row: BatchRow,
+  allRows: BatchRow[],
+  onlyBefore = false
+): Deduction[] {
+  const list = onlyBefore
+    ? allRows.slice(0, allRows.findIndex((r) => r.localId === row.localId))
+    : allRows.filter((o) => o.localId !== row.localId);
+  return list
+    .filter(
+      (o) =>
+        o.employeeId === row.employeeId &&
+        o.type === 'salary_advance' &&
+        (o.totalAmount > 0 || o.description.trim())
+    )
+    .map(draftAsSyntheticAdvance);
+}
+
+function applyOpenAdvanceUx(
+  row: BatchRow,
+  deductions: Deduction[],
+  periods: PayrollPeriod[],
+  siblings: BatchRow[]
+): BatchRow {
+  if (row.type !== 'salary_advance' || !row.employeeId) return row;
+  const synthetic = priorSyntheticFor(row, siblings);
+  const open = [
+    ...getOpenSalaryAdvancesForEmployee(row.employeeId, deductions),
+    ...synthetic,
+  ];
+  if (open.length === 0) return row;
+  const suggested = suggestedStartPeriodId(
+    row.employeeId,
+    row.type,
+    row.date,
+    deductions,
+    periods,
+    synthetic
+  );
+  if (row.schedulingMode === 'sequential' && suggested) {
+    return {
+      ...row,
+      deductStartMode: 'pick',
+      deductFromPeriodId: row.deductFromPeriodId || suggested,
+    };
+  }
+  if (row.schedulingMode === 'parallel') {
+    return {
+      ...row,
+      deductStartMode: 'pick',
+      deductFromPeriodId: row.deductFromPeriodId || suggested || '',
+    };
+  }
+  return row;
 }
 
 export function DeductionBatchRegister({ open, onClose }: DeductionBatchRegisterProps) {
@@ -55,20 +153,44 @@ export function DeductionBatchRegister({ open, onClose }: DeductionBatchRegister
   const { addDeduction, deductions } = useDeductionStore();
   const { employees } = useEmployeeStore();
   const { periods } = usePayrollStore();
-  const activeEmployees = useMemo(() => employees.filter((e) => e.status === 'active'), [employees]);
+  const activeEmployees = useMemo(
+    () => employees.filter((e) => e.status === 'active'),
+    [employees]
+  );
 
-  const [drafts, setDrafts] = useState<DeductionDraft[]>([]);
+  const [sharedDate, setSharedDate] = useState(todayDateKey);
+  const [rows, setRows] = useState<BatchRow[]>([]);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<DeductionFormData>(emptyForm());
-  const [monthlyPrestacao, setMonthlyPrestacao] = useState(0);
-  const [manualOverride, setManualOverride] = useState(false);
-  const [deductStartMode, setDeductStartMode] = useState<'auto' | 'pick'>('auto');
-  const [deductFromPeriodId, setDeductFromPeriodId] = useState('');
-  const [schedulingMode, setSchedulingMode] = useState<DeductionSchedulingMode>('parallel');
 
   const monthNames = pt
-    ? ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-    : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    ? [
+        'Janeiro',
+        'Fevereiro',
+        'Março',
+        'Abril',
+        'Maio',
+        'Junho',
+        'Julho',
+        'Agosto',
+        'Setembro',
+        'Outubro',
+        'Novembro',
+        'Dezembro',
+      ]
+    : [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
 
   const selectableMonths = useMemo(
     () => buildSelectablePayrollMonths(periods, monthNames),
@@ -77,541 +199,492 @@ export function DeductionBatchRegister({ open, onClose }: DeductionBatchRegister
 
   useEffect(() => {
     if (!open) return;
-    setDrafts([]);
-    setFormData(emptyForm());
-    setMonthlyPrestacao(0);
-    setManualOverride(false);
-    setDeductStartMode('auto');
-    setDeductFromPeriodId('');
-    setSchedulingMode('parallel');
+    const d = todayDateKey();
+    setSharedDate(d);
+    setRows([newRow(d), newRow(d)]);
+    setSaving(false);
   }, [open]);
 
-  /** DB open advances + drafts already in this batch for same employee */
-  const openAdvancesForValidation = useMemo(() => {
-    if (!formData.employeeId || formData.type !== 'salary_advance') return [] as Deduction[];
-    const fromDb = getOpenSalaryAdvancesForEmployee(formData.employeeId, deductions);
-    const fromDrafts: Deduction[] = drafts
-      .filter((d) => d.data.employeeId === formData.employeeId && d.data.type === 'salary_advance')
-      .map((d) => ({
-        id: d.localId,
-        employeeId: d.data.employeeId,
-        type: 'salary_advance' as const,
-        description: d.data.description,
-        totalAmount: d.data.totalAmount,
-        amount: d.monthlyAmount,
-        date: d.data.date,
-        isApplied: false,
-        isFullyPaid: false,
-        installments: d.installments,
-        installmentsPaid: 0,
-        remainingAmount: d.data.totalAmount,
-        schedulingMode: d.data.schedulingMode,
-        deductFromPeriodId: d.data.deductFromPeriodId,
-        createdAt: d.localId,
-        updatedAt: d.localId,
-      }));
-    return [...fromDb, ...fromDrafts];
-  }, [formData.employeeId, formData.type, deductions, drafts]);
-
-  const suggestedDeductFromPeriodId = useMemo(() => {
-    if (!formData.employeeId || formData.type !== 'salary_advance') return undefined;
-    const synthetic = [
-      ...deductions,
-      ...openAdvancesForValidation.filter((a) => String(a.id).startsWith('draft-')),
-    ];
-    return suggestDeductFromPeriodIdForNewAdvance(
-      formData.employeeId,
-      synthetic,
+  const computeCtx = (row: BatchRow, allRows: BatchRow[]): RowCtx => {
+    const emp = employees.find((e) => e.id === row.employeeId);
+    const net = employeeNetSalary(emp);
+    const cap = warehouseLossMaxMonthly(net);
+    const synthetic = priorSyntheticFor(row, allRows);
+    const openAdvances =
+      row.type === 'salary_advance' && row.employeeId
+        ? [...getOpenSalaryAdvancesForEmployee(row.employeeId, deductions), ...synthetic]
+        : [];
+    const suggested = suggestedStartPeriodId(
+      row.employeeId,
+      row.type,
+      row.date,
+      deductions,
       periods,
-      formData.date
+      synthetic
     );
-  }, [formData.employeeId, formData.type, formData.date, deductions, periods, openAdvancesForValidation]);
-
-  useEffect(() => {
-    if (!open || formData.type !== 'salary_advance' || !formData.employeeId) return;
-    if (schedulingMode === 'sequential' && openAdvancesForValidation.length > 0 && suggestedDeductFromPeriodId) {
-      setDeductStartMode('pick');
-      setDeductFromPeriodId(suggestedDeductFromPeriodId);
-    }
-    if (schedulingMode === 'parallel' && openAdvancesForValidation.length > 0) {
-      setDeductStartMode('pick');
-      if (!deductFromPeriodId && suggestedDeductFromPeriodId) {
-        setDeductFromPeriodId(suggestedDeductFromPeriodId);
-      }
-    }
-  }, [
-    open,
-    formData.employeeId,
-    formData.type,
-    openAdvancesForValidation.length,
-    suggestedDeductFromPeriodId,
-    schedulingMode,
-  ]);
-
-  const employeeNetSalary = useMemo(() => {
-    if (!formData.employeeId) return 0;
-    const emp = employees.find((e) => e.id === formData.employeeId);
-    if (!emp) return 0;
-    return calculatePayroll({
-      baseSalary: emp.baseSalary,
-      mealAllowance: emp.mealAllowance,
-      transportAllowance: emp.transportAllowance,
-      otherAllowances: (emp.otherAllowances || 0) + (emp.monthlyBonus || 0),
-      familyAllowanceValue: emp.familyAllowance || 0,
-      isRetired: emp.isRetired,
-      isColaborador: emp.contractType === 'colaborador',
-    }).netSalary;
-  }, [formData.employeeId, employees]);
-
-  const warehouseLossMaxMonthly = Math.round(employeeNetSalary * WAREHOUSE_LOSS_MAX_RATE);
-  const isWarehouseLoss = formData.type === 'warehouse_loss';
-
-  const calculatedInstallments = useMemo(() => {
-    if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0 && formData.totalAmount > 0) {
-      return Math.max(1, Math.ceil(formData.totalAmount / warehouseLossMaxMonthly));
-    }
-    if (isWarehouseLoss && manualOverride && formData.totalAmount > 0) {
-      if (monthlyPrestacao <= 0 || monthlyPrestacao >= formData.totalAmount - 0.01) return 1;
-      return Math.max(1, Math.ceil(formData.totalAmount / monthlyPrestacao));
-    }
-    if (monthlyPrestacao > 0 && formData.totalAmount > 0) {
-      return Math.max(1, Math.ceil(formData.totalAmount / monthlyPrestacao));
-    }
-    return 1;
-  }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, formData.totalAmount, monthlyPrestacao]);
-
-  const effectiveMonthly = useMemo(() => {
-    if (isWarehouseLoss && !manualOverride && warehouseLossMaxMonthly > 0) return warehouseLossMaxMonthly;
-    return monthlyPrestacao > 0 ? monthlyPrestacao : formData.totalAmount;
-  }, [isWarehouseLoss, manualOverride, warehouseLossMaxMonthly, monthlyPrestacao, formData.totalAmount]);
-
-  const exceedsLimit =
-    isWarehouseLoss &&
-    manualOverride &&
-    monthlyPrestacao > 0 &&
-    monthlyPrestacao > warehouseLossMaxMonthly &&
-    warehouseLossMaxMonthly > 0;
-
-  const resetFormKeepEmployee = () => {
-    setFormData((prev) => ({
-      ...emptyForm(),
-      employeeId: prev.employeeId,
-      type: prev.type,
-    }));
-    setMonthlyPrestacao(0);
-    setManualOverride(false);
-    setDeductStartMode('auto');
-    setDeductFromPeriodId('');
-    setSchedulingMode('parallel');
-  };
-
-  const buildPayload = (): DeductionFormData | null => {
-    if (!formData.employeeId) {
-      toast.error(pt ? 'Seleccione o funcionário' : 'Select employee');
-      return null;
-    }
-    if (!formData.description.trim()) {
-      toast.error(pt ? 'Informe a descrição' : 'Enter description');
-      return null;
-    }
-    if (!formData.totalAmount || formData.totalAmount <= 0) {
-      toast.error(pt ? 'Informe o valor total' : 'Enter total amount');
-      return null;
-    }
-    if (!formData.date) {
-      toast.error(pt ? 'Informe a data' : 'Enter date');
-      return null;
-    }
-    if (!isWarehouseLoss || manualOverride) {
-      if (monthlyPrestacao <= 0 && formData.totalAmount > 0) {
-        toast.error(pt ? 'Informe o valor da prestação mensal' : 'Enter the monthly installment amount');
-        return null;
-      }
-    }
-
-    let resolvedDeductFrom: string | undefined;
-    if (deductStartMode === 'pick') {
-      if (!deductFromPeriodId) {
-        toast.error(
-          pt ? 'Seleccione o mês da folha para iniciar o desconto' : 'Select the payroll month to start deductions'
-        );
-        return null;
-      }
-      resolvedDeductFrom = deductFromPeriodId;
-    } else if (
-      schedulingMode === 'sequential' &&
-      formData.type === 'salary_advance' &&
-      openAdvancesForValidation.length > 0 &&
-      suggestedDeductFromPeriodId
-    ) {
-      resolvedDeductFrom = suggestedDeductFromPeriodId;
-    }
-
-    if (
-      formData.type === 'salary_advance' &&
-      schedulingMode === 'parallel' &&
-      openAdvancesForValidation.length > 0 &&
-      !resolvedDeductFrom
-    ) {
-      toast.error(
-        pt
-          ? 'Já existem adiantamentos em aberto. Escolha o mês de início na folha ou use a fila.'
-          : 'Open advances already exist. Pick the payroll start month or use queue mode.'
-      );
-      return null;
-    }
-
     return {
-      ...formData,
-      description: formData.description.trim(),
-      installments: calculatedInstallments,
-      monthlyAmount: effectiveMonthly,
-      ignoreWarehouseCap: isWarehouseLoss && manualOverride,
-      deductFromPeriodId: resolvedDeductFrom,
-      schedulingMode,
+      net,
+      cap,
+      openAdvances,
+      suggested,
+      installments: calculateInstallments({
+        type: row.type,
+        totalAmount: row.totalAmount,
+        monthlyPrestacao: row.monthlyPrestacao,
+        manualOverride: row.manualOverride,
+        warehouseCap: cap,
+      }),
+      monthly: effectiveMonthlyAmount({
+        type: row.type,
+        totalAmount: row.totalAmount,
+        monthlyPrestacao: row.monthlyPrestacao,
+        manualOverride: row.manualOverride,
+        warehouseCap: cap,
+      }),
+      exceeds: exceedsWarehouseLimit({
+        type: row.type,
+        manualOverride: row.manualOverride,
+        monthlyPrestacao: row.monthlyPrestacao,
+        warehouseCap: cap,
+      }),
+      isWh: isWarehouseLossType(row.type),
     };
   };
 
-  const handleAddToList = () => {
-    const payload = buildPayload();
-    if (!payload) return;
-    setDrafts((prev) => [
-      ...prev,
-      {
-        localId: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        data: payload,
-        monthlyAmount: payload.monthlyAmount || effectiveMonthly,
-        installments: payload.installments,
-      },
-    ]);
-    toast.success(pt ? 'Adicionado à lista (ainda não guardado)' : 'Added to list (not saved yet)');
-    resetFormKeepEmployee();
+  const patchRow = (localId: string, patch: Partial<BatchRow>) => {
+    setRows((prev) => {
+      const next = prev.map((r) => (r.localId === localId ? { ...r, ...patch } : r));
+      return next.map((r) =>
+        r.localId === localId ? applyOpenAdvanceUx(r, deductions, periods, next) : r
+      );
+    });
   };
 
-  const handleRemoveDraft = (localId: string) => {
-    setDrafts((prev) => prev.filter((d) => d.localId !== localId));
+  const setRowType = (localId: string, type: DeductionType) => {
+    setRows((prev) => {
+      const next = prev.map((r) =>
+        r.localId === localId
+          ? {
+              ...r,
+              type,
+              manualOverride: false,
+              schedulingMode: defaultSchedulingModeForType(type),
+            }
+          : r
+      );
+      return next.map((r) =>
+        r.localId === localId ? applyOpenAdvanceUx(r, deductions, periods, next) : r
+      );
+    });
+  };
+
+  const handleAddRow = () => setRows((prev) => [...prev, newRow(sharedDate)]);
+
+  const handleRemoveRow = (localId: string) => {
+    setRows((prev) => {
+      if (prev.length <= 1) return [newRow(sharedDate)];
+      return prev.filter((r) => r.localId !== localId);
+    });
+  };
+
+  const handleApplySharedDate = () => {
+    setRows((prev) => prev.map((r) => ({ ...r, date: sharedDate })));
+    toast.success(pt ? 'Data aplicada a todas as linhas' : 'Date applied to all rows');
   };
 
   const handleSaveAll = async () => {
-    if (drafts.length === 0) {
-      toast.error(pt ? 'Lista vazia — adicione descontos primeiro' : 'List empty — add deductions first');
+    const filled = rows.filter(
+      (r) => r.employeeId || r.description.trim() || r.totalAmount > 0
+    );
+    if (filled.length === 0) {
+      toast.error(pt ? 'Preencha pelo menos uma linha' : 'Fill at least one row');
       return;
     }
+
+    const payloads: DeductionFormData[] = [];
+    const accepted: BatchRow[] = [];
+
+    for (let i = 0; i < filled.length; i++) {
+      const row = filled[i];
+      const synthetic = accepted
+        .filter((o) => o.employeeId === row.employeeId && o.type === 'salary_advance')
+        .map(draftAsSyntheticAdvance);
+      const openAdvances =
+        row.type === 'salary_advance' && row.employeeId
+          ? [...getOpenSalaryAdvancesForEmployee(row.employeeId, deductions), ...synthetic]
+          : [];
+      const emp = employees.find((e) => e.id === row.employeeId);
+      const cap = warehouseLossMaxMonthly(employeeNetSalary(emp));
+      const suggested = suggestedStartPeriodId(
+        row.employeeId,
+        row.type,
+        row.date,
+        deductions,
+        periods,
+        synthetic
+      );
+      const built = buildDeductionFormData(row, {
+        openAdvances,
+        suggestedDeductFromPeriodId: suggested,
+        warehouseCap: cap,
+      });
+      if (!built.ok) {
+        toast.error(
+          `${pt ? 'Linha' : 'Row'} ${i + 1}: ${deductionEntryErrorMessage(built.error, language)}`
+        );
+        return;
+      }
+      payloads.push(built.data);
+      accepted.push(row);
+    }
+
     setSaving(true);
     let ok = 0;
     try {
-      for (let i = 0; i < drafts.length; i++) {
-        const draft = drafts[i];
+      for (let i = 0; i < payloads.length; i++) {
         try {
-          await addDeduction(draft.data);
+          await addDeduction(payloads[i]);
           ok += 1;
         } catch {
           toast.error(
             pt
-              ? `Erro na linha ${i + 1} (${draft.data.description}). Guardados: ${ok}. Corrija e tente de novo.`
-              : `Error on line ${i + 1} (${draft.data.description}). Saved: ${ok}. Fix and retry.`
+              ? `Erro na linha ${i + 1}. Guardados: ${ok}. Corrija e tente de novo.`
+              : `Error on line ${i + 1}. Saved: ${ok}. Fix and retry.`
           );
-          setDrafts((prev) => prev.slice(i));
           return;
         }
       }
       toast.success(pt ? `${ok} desconto(s) guardado(s)` : `${ok} deduction(s) saved`);
-      setDrafts([]);
       onClose();
     } finally {
       setSaving(false);
     }
   };
 
-  const employeeName = (id: string) => {
-    const e = employees.find((x) => x.id === id);
-    return e ? `${e.firstName} ${e.lastName}` : id;
-  };
-
-  if (!open) return null;
+  const filledCount = rows.filter(
+    (r) => r.employeeId || r.description.trim() || r.totalAmount > 0
+  ).length;
 
   return (
-    <div className="shrink-0 rounded-xl border border-primary/30 bg-card shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-primary/5">
-        <ListPlus className="h-4 w-4 text-primary" />
-        <span className="text-sm font-semibold">
-          {pt ? 'Registo em lote (rascunho)' : 'Batch register (draft)'}
-        </span>
-        <Badge variant="outline" className="text-[10px]">
-          {pt ? 'Só grava no fim' : 'Saves at the end'}
-        </Badge>
-        <Button type="button" variant="ghost" size="sm" className="h-7 ml-auto" onClick={onClose} disabled={saving}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="p-3 space-y-3 max-h-[42vh] overflow-y-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Funcionário *' : 'Employee *'}</Label>
-            <EmployeeSearchSelect
-              employees={activeEmployees}
-              value={formData.employeeId}
-              onSelect={(v) => setFormData((prev) => ({ ...prev, employeeId: v }))}
-              placeholder={pt ? 'Seleccionar' : 'Select'}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Tipo *' : 'Type *'}</Label>
-            <Select
-              value={formData.type}
-              onValueChange={(v) => {
-                setFormData((prev) => ({ ...prev, type: v as DeductionType }));
-                setManualOverride(false);
-              }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="salary_advance">{getDeductionTypeLabel('salary_advance', language)}</SelectItem>
-                <SelectItem value="warehouse_loss">{getDeductionTypeLabel('warehouse_loss', language)}</SelectItem>
-                <SelectItem value="unjustified_absence">
-                  {pt ? 'Falta Injustificada' : 'Unjustified Absence'}
-                </SelectItem>
-                <SelectItem value="disciplinary">{getDeductionTypeLabel('disciplinary', language)}</SelectItem>
-                <SelectItem value="other">{getDeductionTypeLabel('other', language)}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Data *' : 'Date *'}</Label>
-            <Input
-              type="date"
-              className="h-9"
-              value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">
-              {isWarehouseLoss
-                ? pt
-                  ? 'Valor da perda *'
-                  : 'Loss amount *'
-                : pt
-                  ? 'Valor total *'
-                  : 'Total amount *'}
-            </Label>
-            <Input
-              type="number"
-              className="h-9"
-              value={formData.totalAmount || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, totalAmount: Number(e.target.value) }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Prestação mensal *' : 'Monthly installment *'}</Label>
-            {isWarehouseLoss && !manualOverride ? (
-              <div className="flex items-center gap-2">
-                <Input className="h-9 bg-muted" type="number" value={warehouseLossMaxMonthly} readOnly />
-                <Badge variant="outline" className="text-[10px]">
-                  Auto 25%
-                </Badge>
-              </div>
-            ) : (
-              <Input
-                type="number"
-                className="h-9"
-                value={monthlyPrestacao || ''}
-                onChange={(e) => setMonthlyPrestacao(Number(e.target.value))}
-              />
-            )}
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Iniciar na folha' : 'Start on payroll'}</Label>
-            <Select
-              value={deductStartMode === 'auto' ? 'auto' : deductFromPeriodId || 'pick-none'}
-              onValueChange={(v) => {
-                if (v === 'auto') {
-                  setDeductStartMode('auto');
-                  setDeductFromPeriodId('');
-                } else {
-                  setDeductStartMode('pick');
-                  setDeductFromPeriodId(v);
-                }
-              }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">{pt ? 'Padrão' : 'Default'}</SelectItem>
-                {selectableMonths.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {isWarehouseLoss && formData.employeeId ? (
-          <div className="p-2 rounded-lg border border-primary/20 bg-primary/5 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-primary">
-              <Info className="h-3.5 w-3.5" />
-              {pt ? 'Limite 25% do líquido' : '25% net salary cap'} — {formatAOA(warehouseLossMaxMonthly)}
-            </div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">
-                {pt ? 'Valor personalizado (ignorar 25%)' : 'Custom amount (override 25%)'}
-              </Label>
-              <Switch checked={manualOverride} onCheckedChange={setManualOverride} />
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-2 p-2 rounded-lg border bg-muted/30">
-            <Label className="text-xs font-medium">{pt ? 'Como descontar' : 'How to deduct'}</Label>
-            <RadioGroup
-              value={schedulingMode}
-              onValueChange={(v) => setSchedulingMode(v as DeductionSchedulingMode)}
-              className="space-y-1"
-            >
-              <div className="flex items-start gap-2">
-                <RadioGroupItem value="parallel" id="batch-parallel" className="mt-0.5" />
-                <Label htmlFor="batch-parallel" className="text-xs font-normal">
-                  {pt ? 'Neste mês (junto)' : 'Same month'}
-                </Label>
-              </div>
-              <div className="flex items-start gap-2">
-                <RadioGroupItem value="sequential" id="batch-sequential" className="mt-0.5" />
-                <Label htmlFor="batch-sequential" className="text-xs font-normal">
-                  {pt ? 'Fila (um de cada vez)' : 'Queue (one at a time)'}
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{pt ? 'Descrição *' : 'Description *'}</Label>
-            <Textarea
-              className="min-h-[72px]"
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-            />
-          </div>
-        </div>
-
-        {formData.totalAmount > 0 && effectiveMonthly > 0 ? (
-          <div
-            className={cn(
-              'p-2 rounded-lg text-xs flex flex-wrap gap-4',
-              exceedsLimit ? 'bg-destructive/10' : 'bg-muted'
-            )}
-          >
-            {exceedsLimit ? (
-              <span className="text-destructive flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {pt ? 'Excede 25%' : 'Over 25%'}
-              </span>
-            ) : null}
-            <span>
-              {pt ? 'Mensal' : 'Monthly'}: <strong>{formatAOA(effectiveMonthly)}</strong>
-            </span>
-            <span>
-              {pt ? 'Prestações' : 'Installments'}: <strong>{calculatedInstallments}</strong>
-            </span>
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={handleAddToList} disabled={saving}>
-            <ListPlus className="h-3.5 w-3.5 mr-1" />
-            {pt ? 'Adicionar à lista' : 'Add to list'}
-          </Button>
-        </div>
-
-        <div className="rounded-lg border overflow-hidden">
-          <div className="px-3 py-1.5 bg-amber-500/10 border-b text-xs font-medium flex items-center justify-between">
-            <span>{pt ? 'Rascunhos (não gravados)' : 'Drafts (not saved)'}</span>
-            <Badge variant="secondary" className="text-[10px]">
-              {drafts.length}
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !saving) onClose();
+      }}
+    >
+      <DialogContent className="!max-w-[min(98vw,1680px)] w-[min(98vw,1680px)] h-[min(94vh,920px)] overflow-hidden flex flex-col p-0 gap-0 sm:rounded-lg">
+        <DialogHeader className="px-5 pt-4 pb-3 border-b shrink-0 space-y-2 text-left">
+          <div className="flex flex-wrap items-center gap-2 pr-8">
+            <DialogTitle className="text-lg">
+              {pt ? 'Registo em lote' : 'Batch register'}
+            </DialogTitle>
+            <Badge variant="outline" className="text-[10px] font-normal">
+              {pt ? 'Mesmas regras do desconto individual' : 'Same rules as single entry'}
             </Badge>
           </div>
-          {drafts.length === 0 ? (
-            <p className="text-xs text-muted-foreground p-3 text-center">
-              {pt
-                ? 'Nenhuma linha ainda. Preencha e clique Adicionar à lista.'
-                : 'No lines yet. Fill the form and Add to list.'}
-            </p>
-          ) : (
-            <div className="max-h-40 overflow-y-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50 sticky top-0">
-                  <tr>
-                    <th className="text-left p-2">{pt ? 'Funcionário' : 'Employee'}</th>
-                    <th className="text-left p-2">{pt ? 'Tipo' : 'Type'}</th>
-                    <th className="text-left p-2">{pt ? 'Desc.' : 'Desc.'}</th>
-                    <th className="text-right p-2">{pt ? 'Total' : 'Total'}</th>
-                    <th className="text-right p-2">{pt ? 'Mensal' : 'Monthly'}</th>
-                    <th className="text-left p-2">{pt ? 'Início' : 'Start'}</th>
-                    <th className="p-2 w-10" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {drafts.map((d) => (
-                    <tr key={d.localId} className="border-t">
-                      <td className="p-2">{employeeName(d.data.employeeId)}</td>
-                      <td className="p-2">{getDeductionTypeLabel(d.data.type, language)}</td>
-                      <td className="p-2 truncate max-w-[140px]">{d.data.description}</td>
-                      <td className="p-2 text-right tabular-nums">{formatAOA(d.data.totalAmount)}</td>
-                      <td className="p-2 text-right tabular-nums">{formatAOA(d.monthlyAmount)}</td>
-                      <td className="p-2">
-                        {d.data.deductFromPeriodId
-                          ? formatPeriodLabel(d.data.deductFromPeriodId, periods, monthNames)
-                          : pt
-                            ? 'Padrão'
-                            : 'Default'}
-                      </td>
-                      <td className="p-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          onClick={() => handleRemoveDraft(d.localId)}
-                          disabled={saving}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">{pt ? 'Data padrão' : 'Default date'}</Label>
+            <Input
+              type="date"
+              className="h-8 w-[140px]"
+              value={sharedDate}
+              onChange={(e) => setSharedDate(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={handleApplySharedDate}
+            >
+              {pt ? 'Aplicar a todas' : 'Apply to all'}
+            </Button>
+          </div>
+        </DialogHeader>
 
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t bg-muted/20">
-        <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
-          {pt ? 'Cancelar' : 'Cancel'}
-        </Button>
+        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 px-3 py-2">
+          <table className="w-full text-xs border-collapse min-w-[1480px]">
+            <thead className="bg-muted/60 sticky top-0 z-10">
+              <tr>
+                <th className="text-left p-2 w-8">#</th>
+                <th className="text-left p-2 min-w-[190px]">{pt ? 'Funcionário' : 'Employee'}</th>
+                <th className="text-left p-2 min-w-[140px]">{pt ? 'Tipo' : 'Type'}</th>
+                <th className="text-left p-2 min-w-[160px]">{pt ? 'Descrição' : 'Description'}</th>
+                <th className="text-left p-2 min-w-[150px]">{pt ? 'Como descontar' : 'How to deduct'}</th>
+                <th className="text-left p-2 min-w-[160px]">{pt ? 'Início na folha' : 'Start on payroll'}</th>
+                <th className="text-right p-2 min-w-[110px]">{pt ? 'Total' : 'Total'}</th>
+                <th className="text-left p-2 min-w-[120px]">{pt ? 'Data' : 'Date'}</th>
+                <th className="text-right p-2 min-w-[130px]">{pt ? 'Prestação' : 'Installment'}</th>
+                <th className="text-center p-2 min-w-[90px]">{pt ? 'Ignorar 25%' : 'Override 25%'}</th>
+                <th className="p-2 w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, idx) => {
+                const ctx = computeCtx(row, rows);
+                return (
+                  <BatchRowBlock
+                    key={row.localId}
+                    idx={idx}
+                    row={row}
+                    ctx={ctx}
+                    pt={pt}
+                    language={language}
+                    activeEmployees={activeEmployees}
+                    selectableMonths={selectableMonths}
+                    periods={periods}
+                    monthNames={monthNames}
+                    saving={saving}
+                    onPatch={patchRow}
+                    onType={setRowType}
+                    onRemove={handleRemoveRow}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/20 shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={handleAddRow} disabled={saving}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            {pt ? 'Adicionar linha' : 'Add row'}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+            {pt ? 'Cancelar' : 'Cancel'}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto"
+            onClick={() => void handleSaveAll()}
+            disabled={saving || filledCount === 0}
+          >
+            <Save className="h-3.5 w-3.5 mr-1" />
+            {saving
+              ? pt
+                ? 'A guardar…'
+                : 'Saving…'
+              : pt
+                ? `Guardar tudo (${filledCount})`
+                : `Save all (${filledCount})`}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BatchRowBlock(props: {
+  idx: number;
+  row: BatchRow;
+  ctx: RowCtx;
+  pt: boolean;
+  language: string;
+  activeEmployees: Employee[];
+  selectableMonths: { id: string; label: string }[];
+  periods: PayrollPeriod[];
+  monthNames: string[];
+  saving: boolean;
+  onPatch: (id: string, patch: Partial<BatchRow>) => void;
+  onType: (id: string, type: DeductionType) => void;
+  onRemove: (id: string) => void;
+}) {
+  const {
+    idx,
+    row,
+    ctx,
+    pt,
+    language,
+    activeEmployees,
+    selectableMonths,
+    periods,
+    monthNames,
+    saving,
+    onPatch,
+    onType,
+    onRemove,
+  } = props;
+
+  return (
+    <tr className={cn('border-t align-top', idx % 2 === 1 && 'bg-muted/20')}>
+      <td className="p-2 text-muted-foreground">{idx + 1}</td>
+      <td className="p-1.5">
+        <EmployeeSearchSelect
+          employees={activeEmployees}
+          value={row.employeeId}
+          onSelect={(v) => onPatch(row.localId, { employeeId: v })}
+          placeholder={pt ? 'Seleccionar' : 'Select'}
+        />
+      </td>
+      <td className="p-1.5">
+        <Select value={row.type} onValueChange={(v) => onType(row.localId, v as DeductionType)}>
+          <SelectTrigger className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="salary_advance">
+              {getDeductionTypeLabel('salary_advance', language)}
+            </SelectItem>
+            <SelectItem value="warehouse_loss">
+              {getDeductionTypeLabel('warehouse_loss', language)}
+            </SelectItem>
+            <SelectItem value="unjustified_absence">
+              {pt ? 'Falta Injustificada' : 'Unjustified Absence'}
+            </SelectItem>
+            <SelectItem value="disciplinary">
+              {getDeductionTypeLabel('disciplinary', language)}
+            </SelectItem>
+            <SelectItem value="other">{getDeductionTypeLabel('other', language)}</SelectItem>
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="p-1.5">
+        <Input
+          className="h-9"
+          value={row.description}
+          onChange={(e) => onPatch(row.localId, { description: e.target.value })}
+          placeholder={pt ? 'Descrição' : 'Description'}
+        />
+        {row.type === 'salary_advance' && ctx.openAdvances.length > 0 ? (
+          <p className="text-[10px] text-amber-700 dark:text-amber-300 flex items-center gap-1 mt-0.5">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            {pt
+              ? `${ctx.openAdvances.length} em aberto`
+              : `${ctx.openAdvances.length} open`}
+          </p>
+        ) : null}
+      </td>
+      <td className="p-1.5">
+        <Select
+          value={row.schedulingMode}
+          onValueChange={(v) =>
+            onPatch(row.localId, { schedulingMode: v as DeductionSchedulingMode })
+          }
+        >
+          <SelectTrigger className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="parallel">
+              {pt ? 'Neste mês (junto)' : 'This month'}
+            </SelectItem>
+            <SelectItem value="sequential">
+              {pt ? 'Fila (um de cada vez)' : 'Queue (one at a time)'}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="p-1.5">
+        <Select
+          value={row.deductStartMode === 'auto' ? 'auto' : row.deductFromPeriodId || 'pick-none'}
+          onValueChange={(v) => {
+            if (v === 'auto') {
+              onPatch(row.localId, { deductStartMode: 'auto', deductFromPeriodId: '' });
+            } else {
+              onPatch(row.localId, { deductStartMode: 'pick', deductFromPeriodId: v });
+            }
+          }}
+        >
+          <SelectTrigger className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{pt ? 'Padrão' : 'Default'}</SelectItem>
+            {selectableMonths.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {ctx.suggested ? (
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            {pt ? 'Sugerido: ' : 'Suggested: '}
+            {formatPeriodLabel(ctx.suggested, periods, monthNames)}
+          </p>
+        ) : null}
+      </td>
+      <td className="p-1.5">
+        <Input
+          type="number"
+          className="h-9 text-right"
+          value={row.totalAmount || ''}
+          onChange={(e) => onPatch(row.localId, { totalAmount: Number(e.target.value) })}
+        />
+      </td>
+      <td className="p-1.5">
+        <Input
+          type="date"
+          className="h-9"
+          value={row.date}
+          onChange={(e) => onPatch(row.localId, { date: e.target.value })}
+        />
+      </td>
+      <td className="p-1.5">
+        {ctx.isWh && !row.manualOverride ? (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1">
+              <Input className="h-9 bg-muted text-right" type="number" value={ctx.cap} readOnly />
+              <Badge variant="outline" className="text-[9px] shrink-0">
+                25%
+              </Badge>
+            </div>
+            {row.employeeId ? (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                {formatAOA(ctx.cap)} max
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <Input
+            type="number"
+            className="h-9 text-right"
+            value={row.monthlyPrestacao || ''}
+            onChange={(e) => onPatch(row.localId, { monthlyPrestacao: Number(e.target.value) })}
+          />
+        )}
+        {row.totalAmount > 0 && ctx.monthly > 0 ? (
+          <p
+            className={cn(
+              'text-[10px] mt-0.5',
+              ctx.exceeds ? 'text-destructive' : 'text-muted-foreground'
+            )}
+          >
+            {ctx.installments}x · {formatAOA(ctx.monthly)}
+            {ctx.exceeds ? (pt ? ' · excede 25%' : ' · over 25%') : ''}
+          </p>
+        ) : null}
+      </td>
+      <td className="p-1.5 text-center">
+        {ctx.isWh ? (
+          <Switch
+            checked={row.manualOverride}
+            onCheckedChange={(checked) => {
+              onPatch(row.localId, {
+                manualOverride: checked,
+                monthlyPrestacao:
+                  checked && row.totalAmount > 0 ? row.totalAmount : row.monthlyPrestacao,
+              });
+            }}
+          />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="p-1.5">
         <Button
           type="button"
+          variant="ghost"
           size="sm"
-          className="ml-auto"
-          onClick={() => void handleSaveAll()}
-          disabled={saving || drafts.length === 0}
+          className="h-8 w-8 p-0"
+          onClick={() => onRemove(row.localId)}
+          disabled={saving}
         >
-          <Save className="h-3.5 w-3.5 mr-1" />
-          {saving
-            ? pt
-              ? 'A guardar…'
-              : 'Saving…'
-            : pt
-              ? `Guardar tudo (${drafts.length})`
-              : `Save all (${drafts.length})`}
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

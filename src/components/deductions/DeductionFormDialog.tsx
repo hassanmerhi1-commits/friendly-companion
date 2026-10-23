@@ -21,13 +21,15 @@ import {
 } from '@/lib/salary-advance-scheduling';
 import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 import { calculatePayroll, formatAOA } from '@/lib/angola-labor-law';
+import {
+  buildDeductionFormData,
+  deductionEntryErrorMessage,
+  WAREHOUSE_LOSS_MAX_RATE,
+} from '@/lib/deduction-entry';
 import type { DeductionFormData, DeductionSchedulingMode, DeductionType } from '@/types/deduction';
 import { toast } from 'sonner';
 import { AlertTriangle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// Angolan Labor Law: Maximum deduction for warehouse loss = 25% of net salary
-const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 
 interface DeductionFormDialogProps {
   open: boolean;
@@ -211,58 +213,32 @@ export function DeductionFormDialog({ open, onOpenChange }: DeductionFormDialogP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isWarehouseLoss || manualOverride) {
-      if (monthlyPrestacao <= 0 && formData.totalAmount > 0) {
-        toast.error(language === 'pt' ? 'Informe o valor da prestação mensal' : 'Enter the monthly installment amount');
-        return;
+    const built = buildDeductionFormData(
+      {
+        employeeId: formData.employeeId,
+        type: formData.type,
+        description: formData.description,
+        totalAmount: formData.totalAmount,
+        date: formData.date,
+        monthlyPrestacao,
+        manualOverride,
+        deductStartMode,
+        deductFromPeriodId,
+        schedulingMode,
+      },
+      {
+        openAdvances,
+        suggestedDeductFromPeriodId,
+        warehouseCap: warehouseLossMaxMonthly,
       }
-    }
-    let resolvedDeductFrom: string | undefined;
-    if (deductStartMode === 'pick') {
-      if (!deductFromPeriodId) {
-        toast.error(
-          language === 'pt'
-            ? 'Seleccione o mês da folha para iniciar o desconto'
-            : 'Select the payroll month to start deductions'
-        );
-        return;
-      }
-      resolvedDeductFrom = deductFromPeriodId;
-    } else if (
-      schedulingMode === 'sequential' &&
-      formData.type === 'salary_advance' &&
-      openAdvances.length > 0 &&
-      suggestedDeductFromPeriodId
-    ) {
-      resolvedDeductFrom = suggestedDeductFromPeriodId;
-    }
-
-    // Harden: never leave a new parallel advance with other open ones without a start month
-    if (
-      formData.type === 'salary_advance' &&
-      schedulingMode === 'parallel' &&
-      openAdvances.length > 0 &&
-      !resolvedDeductFrom
-    ) {
-      toast.error(
-        language === 'pt'
-          ? 'Já existem adiantamentos em aberto. Escolha o mês de início na folha (ex.: Setembro) ou use a fila.'
-          : 'Open advances already exist. Pick the payroll start month (e.g. September) or use queue mode.'
-      );
+    );
+    if (!built.ok) {
+      toast.error(deductionEntryErrorMessage(built.error, language));
       return;
     }
-
-    const submitData: DeductionFormData = {
-      ...formData,
-      installments: calculatedInstallments,
-      monthlyAmount: effectiveMonthly,
-      ignoreWarehouseCap: isWarehouseLoss && manualOverride,
-      deductFromPeriodId: resolvedDeductFrom,
-      schedulingMode,
-    };
     void (async () => {
       try {
-        await addDeduction(submitData);
+        await addDeduction(built.data);
         toast.success(t.common.save);
         onOpenChange(false);
       } catch {
