@@ -92,11 +92,16 @@ function parsePausedBenefits(raw: unknown): PausedEmployeeBenefits | undefined {
 
 // Map database row to Employee object
 function mapDbRowToEmployee(row: any): Employee {
+  // Collapse multi-spaces (legacy names like "ALEXANDRE  JOÃO") so search/display stay consistent
+  const nameParts = String(row.name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   return {
     id: row.id,
     employeeNumber: row.employee_number || '',
-    firstName: row.name?.split(' ')[0] || '',
-    lastName: row.name?.split(' ').slice(1).join(' ') || '',
+    firstName: nameParts[0] || '',
+    lastName: nameParts.slice(1).join(' ') || '',
     position: row.position || '',
     department: row.department || '',
     category: row.category || row.position || '',

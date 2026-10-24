@@ -44,6 +44,15 @@ import { buildSelectablePayrollMonths } from '@/lib/payroll-period-options';
 
 const WAREHOUSE_LOSS_MAX_RATE = 0.25;
 
+/** Accent-insensitive, whitespace-collapsed text for list search (matches Employees / EmployeeSearchSelect). */
+const normalizeSearchText = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export default function Deductions() {
   const { t, language } = useLanguage();
   const { hasPermission } = useAuthStore();
@@ -63,7 +72,8 @@ export default function Deductions() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState<Deduction | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('pending');
+  // Default "all" so paid history is visible when looking someone up (Em curso hid paid rows).
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [filterBranch, setFilterBranch] = useState<string>('all');
@@ -105,11 +115,12 @@ export default function Deductions() {
       });
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(d => {
-        const emp = employees.find(e => e.id === d.employeeId);
-        const empName = emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase() : '';
-        return empName.includes(q) || (d.description || '').toLowerCase().includes(q);
+      const q = normalizeSearchText(searchQuery);
+      result = result.filter((d) => {
+        const emp = employees.find((e) => e.id === d.employeeId);
+        const empName = emp ? normalizeSearchText(`${emp.firstName} ${emp.lastName}`) : '';
+        const desc = normalizeSearchText(d.description || '');
+        return empName.includes(q) || desc.includes(q);
       });
     }
     return result;
@@ -384,14 +395,14 @@ export default function Deductions() {
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
     filterType !== 'all' ||
-    filterStatus !== 'pending' ||
+    filterStatus !== 'all' ||
     filterEmployee !== 'all' ||
     filterBranch !== 'all';
 
   const clearFilters = () => {
     setSearchQuery('');
     setFilterType('all');
-    setFilterStatus('pending');
+    setFilterStatus('all');
     setFilterEmployee('all');
     setFilterBranch('all');
   };
